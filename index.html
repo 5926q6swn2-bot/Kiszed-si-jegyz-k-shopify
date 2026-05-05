@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kiszedési Jegyzék Shopify</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Lokális könyvtárak betöltése -->
+    <script src="libs/papaparse.min.js"></script>
+    <script src="libs/Sortable.min.js"></script>
+</head>
+<body>
+    <!-- Fájl feltöltés rejtett inputja -->
+    <input type="file" id="file-input" accept=".csv" style="display: none;">
+
+
+    <!-- Fő Konténer -->
+    <div class="app-container">
+        
+        <!-- Felső Toolbar -->
+        <header class="top-toolbar print-only">
+            <div class="logo">KOPJ</div>
+            <h1>Szedőlista</h1>
+            <div class="print-date" id="print-date-display"></div>
+        </header>
+        
+        <header class="top-toolbar no-print">
+            <div class="logo">KOPJ</div>
+            <h1>Szedőlista <span class="version" style="font-size: 12px; font-weight: normal; color: var(--text-muted);">v2.1</span></h1>
+            
+            <button id="btn-history" class="btn btn-secondary" style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                Előzmények
+            </button>
+        </header>
+
+        <!-- Üres állapot grafika -->
+        <div id="empty-state" class="empty-state-screen no-print">
+            <div class="empty-hero">
+                <div class="floating-icons">
+                    <svg class="icon-doc" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    <svg class="icon-box" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                </div>
+                <h1>Panelburkolat Rendszer</h1>
+                <p>Nincsenek betöltött rendelések. Kattints a lenti panelen az "Importálás" gombra a Shopify CSV fájl betallózásához.</p>
+            </div>
+        </div>
+
+        <main class="main-content">
+            <!-- Nyomtatási Fejléc -->
+            <div class="print-document-header print-only">
+                <h1>Kiszedési Jegyzék</h1>
+            </div>
+            
+            <div id="print-footer" class="print-document-footer print-only">
+                <span style="color: #64748b; text-transform: uppercase; margin-right: 15px;">Szállítási Adatok:</span>
+                <span style="margin-right: 15px;">Cég: <strong id="print-footer-company">-</strong></span>
+                <span style="margin-right: 15px;">Futár: <strong id="print-footer-courier">-</strong></span>
+                <span style="margin-right: 15px;">Felvétel: <strong id="print-footer-pickup">-</strong></span>
+                <span>Kiszállítás: <strong id="print-footer-delivery">-</strong></span>
+            </div>
+
+            <!-- Rendelések Listája -->
+            <div class="content-body">
+                <div id="order-list" class="order-list">
+                    <!-- Javascript generálja -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- DYNAMIC ISLAND (Lebegő Alsó Panel) -->
+    <div id="dynamic-island" class="dynamic-island no-print">
+        <div class="island-group">
+            <button id="btn-import" class="island-btn primary-btn" title="Fájl Importálása">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <span>Importálás</span>
+            </button>
+            <div class="island-divider"></div>
+            <button id="btn-add-manual" class="island-btn" title="Kézi Hozzáadás">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <button id="btn-reset" class="island-btn danger-btn" title="Lista Törlése">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+            <div class="island-divider"></div>
+            <button id="btn-print" class="island-btn action-btn" disabled title="Nyomtatás">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                <span>Nyomtatás</span>
+            </button>
+        </div>
+    </div>
+
+
+
+    <!-- EGYEDI DIALOG RENDSZER (CUSTOM MODALS) -->
+    <div id="custom-dialog-overlay" class="custom-dialog-overlay no-print">
+        <div id="custom-dialog-box" class="custom-dialog-box">
+            <div id="cd-icon" class="cd-icon"></div>
+            <h3 id="cd-title" class="cd-title">Title</h3>
+            <p id="cd-msg" class="cd-msg">Message</p>
+            <input type="text" id="cd-input" class="cd-input" style="display: none;">
+            <div class="cd-actions">
+                <button id="cd-btn-cancel" class="cd-btn cd-btn-secondary">Mégse</button>
+                <button id="cd-btn-confirm" class="cd-btn cd-btn-primary">Rendben</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print Settings Modal -->
+    <div id="print-settings-modal" class="modal no-print">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2>Nyomtatás és Mentés</h2>
+                <button class="close-modal close-print-settings">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 15px; font-size: 13px; color: var(--text-muted);">Mielőtt kinyomtatnád a szedőlistát, add meg a szállítási adatokat az előzmények mentéséhez!</p>
+                
+                <form id="print-settings-form">
+                    <div class="form-group">
+                        <label>Feladó (Saját cég)</label>
+                        <select id="ps-sender" style="width: 100%; padding: 12px 16px; border: 1px solid #cbd5e1; border-radius: 12px; background: #f8fafc; font-size: 14px; font-family: inherit;">
+                            <option value="capsula">Capsula Houses Kft.</option>
+                            <option value="ev">Egyéni Vállalkozó</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <label>Felvétel Dátuma</label>
+                            <input type="date" id="ps-pickup-date" required>
+                        </div>
+                        <div style="flex: 1;">
+                            <label>Kiszállítás Dátuma</label>
+                            <input type="date" id="ps-date" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Cég / Szállító</label>
+                        <input type="text" id="ps-company" placeholder="Pl.: GLS, MPL, Saját cég" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Futár / Sofőr Neve</label>
+                        <input type="text" id="ps-courier" placeholder="Pl.: Pista, Kovács János" required>
+                    </div>
+
+                    <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+                        <input type="checkbox" id="ps-print-delivery-notes" checked style="width: 16px; height: 16px; margin: 0; cursor: pointer;">
+                        <label for="ps-print-delivery-notes" style="margin: 0; cursor: pointer;">Szállítólevelek nyomtatása is</label>
+                    </div>
+
+                    <div class="modal-actions" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                        <button type="button" class="btn btn-secondary close-print-settings">Mégse</button>
+                        <button type="button" class="btn btn-primary" id="btn-confirm-print">Mentés és Nyomtatás</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Search Modal -->
+    <div id="history-modal" class="modal no-print">
+        <div class="modal-content" style="max-width: 600px; height: 80vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h2>Előzmények és Keresés</h2>
+                <button class="close-modal close-history">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="modal-tabs" style="display: flex; border-bottom: 1px solid #e2e8f0; margin-bottom: 15px;">
+                <button id="tab-btn-history" class="tab-btn active" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid var(--primary-color); font-weight: 600; color: var(--primary-color); cursor: pointer;">Szedések</button>
+                <button id="tab-btn-accounting" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Elszámolások</button>
+            </div>
+            <div class="modal-body" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; padding-top: 0;">
+                
+                <div class="form-group" style="margin-bottom: 20px; display: flex; gap: 10px;">
+                    <div style="position: relative; flex: 1;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 12px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input type="text" id="history-search-input" placeholder="Keresés rendelésszám vagy név alapján..." style="padding-left: 36px;">
+                    </div>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <input type="date" id="history-date-start" title="Kezdő dátum (tól)" style="width: 135px; padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit;">
+                        <span style="color: #94a3b8; font-weight: bold;">-</span>
+                        <input type="date" id="history-date-end" title="Záró dátum (ig)" style="width: 135px; padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit;">
+                    </div>
+                </div>
+
+                <!-- Tab 1: Szedések -->
+                <div id="tab-content-history" style="display: block; flex: 1;">
+
+                <!-- Keresési Eredmények -->
+                <div id="history-search-results" style="display: none; margin-bottom: 20px;">
+                    <h3 style="font-size: 14px; margin-bottom: 10px; color: var(--text-primary);">Találatok:</h3>
+                    <div id="hs-results-container" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                </div>
+
+                <!-- Korábbi Szállítási Körök -->
+                <div id="history-runs-view" style="flex: 1;">
+                    <h3 style="font-size: 14px; margin-bottom: 10px; color: var(--text-primary);">Korábbi Szállítási Körök</h3>
+                    <div id="history-runs-container" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- JS generálja ide a köröket -->
+                    </div>
+                </div>
+                </div>
+
+                <!-- Tab 2: Elszámolások -->
+                <div id="tab-content-accounting" style="display: none; flex: 1;">
+                    <div id="accounting-runs-container" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- JS generálja ide az elszámolásokat -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Manuális hozzáadás Modal -->
+    <div id="manual-modal" class="modal no-print">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <div class="modal-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    </div>
+                    <div>
+                        <h3 id="manual-modal-title">Új Rendelés</h3>
+                        <p id="manual-modal-desc">Kézi felvitel a listához</p>
+                    </div>
+                </div>
+                <button class="close-modal">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="manual-order-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Rendelésszám</label>
+                            <input type="text" id="m-order-num" placeholder="Pl.: #KÉZI-01" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Utánvét (HUF)</label>
+                            <input type="number" id="m-balance" placeholder="0 ha fizetve">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Vásárló / Szállítási Név</label>
+                        <input type="text" id="m-customer" placeholder="Pl.: Kovács Béla" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Telefonszám</label>
+                        <input type="tel" id="m-phone" placeholder="Pl.: +36 30 123 4567" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Szállítási Cím</label>
+                        <input type="text" id="m-address" placeholder="Pl.: 1051 Budapest, Példa u. 1." required>
+                    </div>
+                    
+                    <div class="items-section">
+                        <div class="items-header">
+                            <label>Tételek</label>
+                            <button type="button" id="btn-add-item-row" class="btn btn-secondary btn-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                Új sor
+                            </button>
+                        </div>
+                        <div id="m-items-container">
+                            <div class="m-item-row">
+                                <input type="number" class="m-item-qty" placeholder="Db" min="1" value="1" required>
+                                <input type="text" class="m-item-name" placeholder="Termék megnevezése" required>
+                                <button type="button" class="btn-remove-item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary close-modal">Mégse</button>
+                <button type="button" id="btn-save-manual" class="btn btn-primary">Hozzáadás</button>
+            </div>
+        </div>
+    </div>
+    <script src="js/app.js"></script>
+</body>
+</html>
