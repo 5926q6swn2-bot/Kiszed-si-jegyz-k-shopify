@@ -29,17 +29,36 @@ Egy böngészőből futtatható, helyi (Local Storage) adattárolást használó
 ---
 
 ## 🛠 Aktuális Technikai Stack
-- **Frontend:** Vanilla HTML5, Vanilla CSS (`css/style.css`), Vanilla JavaScript (`js/app.js`).
-- **Függőségek (Lokális):** 
-  - `papaparse.min.js` (CSV feldolgozás)
-  - `Sortable.min.js` (Drag & drop listarendezés)
-- **Adatbázis:** Nincs külső adatbázis, mindent a böngésző `localStorage` tárol (`szedolista_history` kulcs).
+- **Frontend**: Vanilla HTML5, CSS3 (Modern, Apple/Glassmorphism design)
+- **Logika**: Vanilla JavaScript (ES Modules, `app.js`)
+- **Adatbázis & Backend**: Google Firebase (Cloud Firestore)
+- **Autentikáció**: Firebase Authentication (E-mail/Jelszó)
+- **Külső könyvtárak**: 
+  - `PapaParse` (CSV importáláshoz)
+  - `Sortable.js` (Drag & drop funkciókhoz)
+  - Firebase SDK v10.8.0
+
+## 3. Rendszer Architektúra
+
+### Adatfolyam és Felhő Szinkronizáció
+Az alkalmazás korábban helyi `localStorage`-et használt, de át lett állítva a Firebase Cloud Firestore-ra. A bejelentkezett felhasználók adatai valós időben mentődnek a felhőbe. 
+A bejelentkezést az `index.html` tetejére helyezett overlay réteg (Login Screen) végzi, a Firebase funkciók inicializálása a `js/firebase-config.js` fájlban történik.
+
+### A `HistoryManager` objektum
+A `js/app.js`-ben lévő `HistoryManager` felel a szállítási körök kezeléséért. Most már aszinkron Firebase metódusokat használ (`getDocs`, `addDoc`, `deleteDoc`, `updateDoc`). 
+**Fontos szabály:** Ha új modult vagy logikát írsz, aminek hozzá kell férnie az előzményekhez, mindenhol `await` kulcsszóval kell meghívni ezeket a függvényeket.
 
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
 
-### Legutóbbi frissítés: 2026. május 5.
+### Legutóbbi frissítés: 2026. május 5. (Firebase Migráció & Publikálás)
+- **Firebase Cloud Firestore:** A `localStorage` teljesen kivezetve, az adatbázis átköltözött a felhőbe. A `HistoryManager` aszinkronná vált.
+- **Firebase Authentication:** E-mail/jelszó alapú bejelentkezési réteg (Login Overlay) implementálása az adatok védelme érdekében. A Firestore adatbázis szabályai élesítve (`request.auth != null`).
+- **ES Modules:** A script betöltések moduláris architektúrára álltak át a biztonságos Firebase SDK importálások miatt.
+- **Publikálás (GitHub Pages):** Az alkalmazás most már weboldalként is üzemel a GitHub Pages-en keresztül, amely automatikusan (CI/CD) frissül push-olás után.
+
+### Korábbi frissítés: 2026. május 5. (Délelőtt)
 - **Elszámolások fül javítása:** A HTML szerkezetben javítva lett egy hiányzó `</div>` lezáró elem, így az Elszámolások fül újra látható és megfelelően listázza az elmentett fuvarokat a várható utánvét összegével.
 - **Dátumtartomány Szűrés:** Az előzményeknél a napi szűrő le lett cserélve egy "Kezdő dátum (tól)" és "Záró dátum (ig)" szűrőre, amely a Szedések és az Elszámolások fülön is működik.
 - **Git & GitHub Integráció:** A projekt verziókövetést kapott és feltöltésre került a GitHub-ra. Létrejött a `.gitignore` fájl a felesleges fájlok szűrésére.
