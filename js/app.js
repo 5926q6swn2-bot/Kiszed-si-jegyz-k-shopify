@@ -1,4 +1,52 @@
+import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from './firebase-config.js';
+
 document.addEventListener('DOMContentLoaded', () => {
+    // --- FIREBASE AUTHENTICATION ---
+    const loginOverlay = document.getElementById('login-overlay');
+    const mainApp = document.getElementById('main-app');
+    const loginForm = document.getElementById('login-form');
+    const loginError = document.getElementById('login-error');
+    const btnLogout = document.getElementById('btn-logout');
+    const userEmailDisplay = document.getElementById('user-email-display');
+
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            // Bejelentkezve
+            loginOverlay.classList.remove('active');
+            mainApp.style.display = 'flex';
+            userEmailDisplay.textContent = user.email;
+        } else {
+            // Kijelentkezve
+            loginOverlay.classList.add('active');
+            mainApp.style.display = 'none';
+        }
+    });
+
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        loginError.style.display = 'none';
+        const btnLogin = document.getElementById('btn-login');
+        btnLogin.disabled = true;
+        btnLogin.textContent = 'Belépés...';
+        
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+        } catch (error) {
+            loginError.style.display = 'block';
+            loginError.textContent = 'Hibás e-mail cím vagy jelszó!';
+        } finally {
+            btnLogin.disabled = false;
+            btnLogin.textContent = 'Belépés';
+        }
+    });
+
+    btnLogout.addEventListener('click', () => {
+        signOut(auth);
+    });
+
+
     // --- EGYEDI DIALOG RENDSZER ---
     const CustomDialog = {
         overlay: document.getElementById('custom-dialog-overlay'),
@@ -157,20 +205,29 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentLoadedRunId = null;
     let editingOrderInternalId = null;
 
-    // --- HistoryManager (Előzmények kezelése localStorage-al) ---
+    // --- HistoryManager (Előzmények kezelése Firestore-al) ---
     const HistoryManager = {
-        STORAGE_KEY: 'szedolista_history',
+        COLLECTION_NAME: 'szedolista_history',
         
-        getAllRuns: function() {
+        getAllRuns: async function() {
             try {
-                return JSON.parse(localStorage.getItem(this.STORAGE_KEY)) || [];
+                const q = query(collection(db, this.COLLECTION_NAME), orderBy('timestamp', 'desc'));
+                const querySnapshot = await getDocs(q);
+                const runs = [];
+                querySnapshot.forEach((docSnap) => {
+                    runs.push({
+                        ...docSnap.data(),
+                        docId: docSnap.id
+                    });
+                });
+                return runs;
             } catch (e) {
+                console.error("Hiba a Firebase lekérdezésnél: ", e);
                 return [];
             }
         },
         
-        saveRun: function(date, pickupDate, courier, company, sender, ordersList) {
-            const runs = this.getAllRuns();
+        saveRun: async function(date, pickupDate, courier, company, sender, ordersList) {
             const newRun = {
                 id: 'run_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
                 date: date,
@@ -179,18 +236,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 company: company,
                 sender: sender || 'capsula',
                 timestamp: Date.now(),
-                orders: ordersList
+                orders: ordersList,
+                userId: auth.currentUser ? auth.currentUser.uid : null
             };
-            runs.unshift(newRun); // Legújabb elölre
-            // Csak az utolsó 50 kört tartjuk meg, hogy ne teljen be a storage
-            if(runs.length > 50) runs.length = 50;
-            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(runs));
-            return newRun;
+            try {
+                const docRef = await addDoc(collection(db, this.COLLECTION_NAME), newRun);
+                newRun.docId = docRef.id;
+                return newRun;
+            } catch (e) {
+                console.error("Hiba a mentésnél: ", e);
+                return null;
+            }
         },
         
-        searchOrders: function(query) {
-            const runs = this.getAllRuns();
-            const q = query.toLowerCase().trim();
+        searchOrders: async function(qStr) {
+            const runs = await this.getAllRuns();
+            const q = qStr.toLowerCase().trim();
             if(!q) return [];
             
             let matches = [];
@@ -223,29 +284,43 @@ document.addEventListener('DOMContentLoaded', () => {
             return matches;
         },
         
-        getRunById: function(runId) {
-            return this.getAllRuns().find(r => r.id === runId) || null;
+        getRunById: async function(runId) {
+            const runs = await this.getAllRuns();
+            return runs.find(r => r.id === runId) || null;
         },
         
-        deleteRun: function(runId) {
-            let runs = this.getAllRuns();
-            runs = runs.filter(r => r.id !== runId);
-            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(runs));
+        deleteRun: async function(runId) {
+            const runs = await this.getAllRuns();
+            const runToDelete = runs.find(r => r.id === runId);
+            if (runToDelete && runToDelete.docId) {
+                try {
+                    await deleteDoc(doc(db, this.COLLECTION_NAME, runToDelete.docId));
+                } catch(e) {
+                    console.error("Hiba a törlésnél: ", e);
+                }
+            }
         },
 
-        updateRun: function(runId, date, pickupDate, courier, company, sender, ordersList) {
-            let runs = this.getAllRuns();
-            const index = runs.findIndex(r => r.id === runId);
-            if (index !== -1) {
-                runs[index].date = date;
-                runs[index].pickupDate = pickupDate || date;
-                runs[index].courier = courier;
-                runs[index].company = company;
-                runs[index].sender = sender || 'capsula';
-                runs[index].orders = ordersList;
-                runs[index].timestamp = Date.now();
-                localStorage.setItem(this.STORAGE_KEY, JSON.stringify(runs));
-                return runs[index];
+        updateRun: async function(runId, date, pickupDate, courier, company, sender, ordersList) {
+            const runs = await this.getAllRuns();
+            const runToUpdate = runs.find(r => r.id === runId);
+            if (runToUpdate && runToUpdate.docId) {
+                try {
+                    const docRef = doc(db, this.COLLECTION_NAME, runToUpdate.docId);
+                    await updateDoc(docRef, {
+                        date: date,
+                        pickupDate: pickupDate || date,
+                        courier: courier,
+                        company: company,
+                        sender: sender || 'capsula',
+                        orders: ordersList,
+                        timestamp: Date.now()
+                    });
+                    return true;
+                } catch(e) {
+                    console.error("Hiba a frissítésnél: ", e);
+                    return null;
+                }
             }
             return null;
         }
@@ -817,9 +892,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Nyomtatás és Mentés ---
-    btnPrint.addEventListener('click', () => {
+    btnPrint.addEventListener('click', async () => {
         if (currentLoadedRunId) {
-            const run = HistoryManager.getRunById(currentLoadedRunId);
+            const run = await HistoryManager.getRunById(currentLoadedRunId);
             if (run) {
                 psDateInput.value = run.date;
                 psPickupDateInput.value = run.pickupDate || run.date;
@@ -865,14 +940,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const choice = await CustomDialog.choice('Ezt a kört az előzményekből töltötted be.<br>Szeretnéd felülírni a korábbit, vagy teljesen új körként mentsük el?', 'Felülírás', 'Mentés Újként', 'Előzmények frissítése', 'info');
             
             if (choice === 1) { // Felülírás
-                HistoryManager.updateRun(currentLoadedRunId, date, pickupDate, courier, company, sender, cleanOrders);
+                await HistoryManager.updateRun(currentLoadedRunId, date, pickupDate, courier, company, sender, cleanOrders);
             } else { // Mentés Újként
-                const newRun = HistoryManager.saveRun(date, pickupDate, courier, company, sender, cleanOrders);
-                currentLoadedRunId = newRun.id;
+                const newRun = await HistoryManager.saveRun(date, pickupDate, courier, company, sender, cleanOrders);
+                currentLoadedRunId = newRun ? newRun.id : currentLoadedRunId;
             }
         } else {
-            const newRun = HistoryManager.saveRun(date, pickupDate, courier, company, sender, cleanOrders);
-            currentLoadedRunId = newRun.id; // Nyomtatás után a jelenlegit tekintjük aktívnak, hátha újra nyomtatná
+            const newRun = await HistoryManager.saveRun(date, pickupDate, courier, company, sender, cleanOrders);
+            currentLoadedRunId = newRun ? newRun.id : currentLoadedRunId; // Nyomtatás után a jelenlegit tekintjük aktívnak, hátha újra nyomtatná
         }
         
         // Rövid várakozás, hogy a modal eltűnjön mielőtt kinyomtatjuk
@@ -970,19 +1045,19 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     }
 
-    function handleHistorySearch() {
+    async function handleHistorySearch() {
         const q = historySearchInput.value.trim().toLowerCase();
         const hasDateFilter = historyDateStart.value || historyDateEnd.value;
         
         if(q.length >= 2 || hasDateFilter) {
             let matches = [];
             if (q.length >= 2) {
-                matches = HistoryManager.searchOrders(q);
+                matches = await HistoryManager.searchOrders(q);
                 if (hasDateFilter) {
                     matches = matches.filter(m => isDateInRange(m.runDate));
                 }
             } else if (hasDateFilter) {
-                const allRuns = HistoryManager.getAllRuns();
+                const allRuns = await HistoryManager.getAllRuns();
                 const filteredRuns = allRuns.filter(r => isDateInRange(r.date));
                 matches = [];
                 filteredRuns.forEach(r => {
@@ -1005,19 +1080,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 historySearchResults.style.display = 'block';
                 historyRunsView.style.display = 'none';
             } else {
-                renderHistoryRuns(true);
+                await renderHistoryRuns(true);
                 historySearchResults.style.display = 'none';
                 historyRunsView.style.display = 'block';
             }
         } else {
             historySearchResults.style.display = 'none';
             historyRunsView.style.display = 'block';
-            renderHistoryRuns();
+            await renderHistoryRuns();
         }
     }
 
-    function renderHistoryRuns(applyDateFilter = false) {
-        let runs = HistoryManager.getAllRuns();
+    async function renderHistoryRuns(applyDateFilter = false) {
+        let runs = await HistoryManager.getAllRuns();
         if (applyDateFilter) {
             runs = runs.filter(r => isDateInRange(r.date));
         }
@@ -1060,8 +1135,8 @@ document.addEventListener('DOMContentLoaded', () => {
         attachHistoryEvents();
     }
 
-    function renderAccountingRuns() {
-        let runs = HistoryManager.getAllRuns();
+    async function renderAccountingRuns() {
+        let runs = await HistoryManager.getAllRuns();
         const hasDateFilter = historyDateStart.value || historyDateEnd.value;
         if (hasDateFilter) {
             runs = runs.filter(r => isDateInRange(r.date));
@@ -1153,7 +1228,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.btn-load-run').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 const runId = e.target.getAttribute('data-id');
-                const run = HistoryManager.getRunById(runId);
+                const run = await HistoryManager.getRunById(runId);
                 if(!run) return;
                 
                 if(orders.length > 0) {
@@ -1173,9 +1248,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         document.querySelectorAll('.btn-view-pdf').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 const runId = e.target.closest('button').getAttribute('data-id');
-                const run = HistoryManager.getRunById(runId);
+                const run = await HistoryManager.getRunById(runId);
                 if(!run) return;
                 openPdfView(run);
             });
@@ -1195,7 +1270,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const runId = e.target.closest('button').getAttribute('data-id');
                 const confirm = await CustomDialog.confirm('Biztosan törlöd ezt a szállítási kört az előzményekből?', 'Kör Törlése', 'warning', true);
                 if(confirm) {
-                    HistoryManager.deleteRun(runId);
+                    await HistoryManager.deleteRun(runId);
                     renderHistoryRuns();
                 }
             });
@@ -1365,8 +1440,8 @@ document.addEventListener('DOMContentLoaded', () => {
         printWindow.document.close();
     }
 
-    window.generateDeliveryNotesHtml = function(runId) {
-        const run = HistoryManager.getRunById(runId);
+    window.generateDeliveryNotesHtml = async function(runId) {
+        const run = await HistoryManager.getRunById(runId);
         if (!run) return;
 
         const printWindow = window.open('', '_blank');

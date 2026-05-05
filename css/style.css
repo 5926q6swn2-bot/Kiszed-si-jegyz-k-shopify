@@ -721,3 +721,46 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
 }
 .history-search-match strong { color: #1e40af; }
 
+/* Login Overlay */
+.login-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-color);
+    background-image: 
+        radial-gradient(at 10% 0%, rgba(167, 139, 250, 0.5) 0px, transparent 50%),
+        radial-gradient(at 90% 10%, rgba(96, 165, 250, 0.5) 0px, transparent 50%),
+        radial-gradient(at 100% 90%, rgba(244, 114, 182, 0.4) 0px, transparent 50%),
+        radial-gradient(at 0% 100%, rgba(52, 211, 153, 0.3) 0px, transparent 50%);
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(20px);
+}
+.login-overlay.active {
+    display: flex;
+}
+.login-box {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(40px);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 25px 50px rgba(0,0,0,0.1);
+    padding: 40px;
+    border-radius: 32px;
+    width: 100%;
+    max-width: 400px;
+}
+.login-logo {
+    width: 60px;
+    height: 60px;
+    background: var(--primary);
+    color: white;
+    font-weight: 800;
+    font-size: 18px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px auto;
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.2);
+}
