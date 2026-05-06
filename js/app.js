@@ -1664,12 +1664,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 <title>Kiszedési Jegyzék - ${run.date} - ${run.courier}</title>
                 ${styles}
                 <style>
-                    body { background: white !important; padding: 20px !important; color: black; }
+                    body { background: white !important; padding: 10px !important; color: black; }
                     .app-container { max-width: 1200px; margin: 0 auto; box-shadow: none; background: transparent; padding: 0; position: relative; min-height: 100vh; }
-                    .order-card { break-inside: avoid; margin-bottom: 20px; box-shadow: none; border: 1px solid #e2e8f0; }
+                    .order-card { break-inside: avoid; margin-bottom: 8px; box-shadow: none; border: 1px solid #e2e8f0; padding: 6px !important; }
+                    .order-header { margin-bottom: 4px !important; padding-bottom: 4px !important; }
+                    .items-table td { padding: 2px 4px !important; vertical-align: middle !important; font-size: 11px !important; }
                     .no-print { display: none !important; }
-                    .col-flex-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; height: 100%; min-height: 40px; }
-                    .marker-lbl { font-size: 8px; color: #64748b; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1; white-space: nowrap; margin-bottom: -1px; }
+                    .col-flex-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0px; }
+                    .marker-lbl { font-size: 7px; color: #64748b; font-weight: 800; text-transform: uppercase; line-height: 1; margin-bottom: 1px; }
                     .print-document-header { text-align: center; margin-bottom: 6px; border-bottom: 1.5px solid black; padding-bottom: 4px; }
                     .print-document-header h1 { font-size: 16px; margin: 0; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
                     .print-document-footer { 
@@ -1839,6 +1841,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         padding: 10px;
                         text-align: left;
                         border-bottom: 1px solid #e2e8f0;
+                        vertical-align: middle;
                     }
                     th {
                         background: #f8fafc;

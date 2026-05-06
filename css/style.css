@@ -451,20 +451,9 @@ body {
     100% { transform: scale(0.5) rotate(10deg) translateY(100px); opacity: 0; filter: blur(10px); }
 }
 
-.order-card.has-error {
-    border: 2px solid rgba(239, 68, 68, 0.4);
-    background: rgba(254, 242, 242, 0.7);
-}
-
-.order-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    border-bottom: 1px solid rgba(0,0,0,0.06);
-    padding-bottom: 16px;
-    position: relative;
-}
-
+.order-card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 12px; transition: transform 0.2s, box-shadow 0.2s; position: relative; overflow: hidden; }
+.order-card.has-error { border: 2px solid rgba(239, 68, 68, 0.4); background: rgba(254, 242, 242, 0.7); }
+.order-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; }
 .header-left { display: flex; gap: 16px; }
 
 /* Sorszám (Dinamikus) */
@@ -558,7 +547,7 @@ body {
 /* Táblázat */
 .items-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .items-table th { text-align: left; color: var(--text-muted); font-weight: 600; font-size: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(0,0,0,0.06); }
-.items-table td { padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.04); vertical-align: middle; }
+.items-table td { padding: 4px 6px; border-bottom: 1px solid rgba(0,0,0,0.04); vertical-align: middle; font-size: 13px; }
 .items-table tr:last-child td { border-bottom: none; }
 .items-table tr:nth-child(even) { background-color: rgba(0,0,0,0.02); }
 
@@ -580,8 +569,8 @@ body {
 }
 .checkbox-box.marker { border-color: #94a3b8; }
 
-.col-flex-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; height: 100%; min-height: 40px; }
-.marker-lbl { font-size: 8px; color: #64748b; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1; white-space: nowrap; margin-bottom: -1px; }
+.col-flex-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 24px; }
+.marker-lbl { font-size: 7.5px; color: #64748b; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1; white-space: nowrap; margin-bottom: 0px; }
 
 /* Modal (Premium Redesign) */
 .modal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); align-items: center; justify-content: center; z-index: 2000; }
