@@ -88,8 +88,14 @@ A `js/app.js`-ben lévő `HistoryManager` felel a szállítási körök kezelés
 - **Szemetes (Trash) Rendszer:** A törölt szállítási körök nem törlődnek véglegesen, hanem egy 90 napos megőrzésű szemetesbe kerülnek, ahonnan bármikor visszaállíthatók.
 - **Elszámolás Követése:** Az Elszámolások fülön mostantól cégek szerint csoportosítva láthatók a fuvarok, cégre lebontott összesített kintlévőség kijelzéssel.
 - **Fix és Dinamikus Partnerlista:** A mentéskor választható fix partnerlista (LétaiSela, Sela, stb.) kiegészült az új partnerek felvételének lehetőségével. Az új partnerek automatikusan bekerülnek a szűrők közé is.
-- **Globális Szűrés:** Mostantól a Szedések és a Szemetes fülön is teljeskörűen működik a cég és dátum alapú szűrés.
+### 2026. május 6. - Logisztikai Statisztika & Kompakt Dizájn
+- **Statisztika (Lead Time) rendszer:** Munkanap-alapú késéskövetés (>6 nap), időszaki szűréssel és ignorálási lehetőséggel.
+- **Kompakt Nyomtatási Kép:** Dinamikus sor-magasság és optimalizált térkihasználás A4 lapra.
+- **Szemetes 90 nap:** Adatmegőrzési idő kitolása.
+- **Partnerkezelés:** Dinamikus lista és cégcsoportosított elszámolás.
+- **UI/UX:** Flex-layout alapú címke igazítás és munkanap-badge.
 
+---
 ### Legutóbbi frissítés: 2026. május 5. (Firebase Migráció & Publikálás)
 - **Firebase Cloud Firestore:** A `localStorage` teljesen kivezetve, az adatbázis átköltözött a felhőbe. A `HistoryManager` aszinkronná vált.
 - **Firebase Authentication:** E-mail/jelszó alapú bejelentkezési réteg (Login Overlay) implementálása az adatok védelme érdekében. A Firestore adatbázis szabályai élesítve (`request.auth != null`).

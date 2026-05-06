@@ -216,6 +216,7 @@
                 <button id="tab-btn-history" class="tab-btn active" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid var(--primary-color); font-weight: 600; color: var(--primary-color); cursor: pointer;">Szedések</button>
                 <button id="tab-btn-accounting" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Elszámolások</button>
                 <button id="tab-btn-trash" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Szemetes</button>
+                <button id="tab-btn-stats" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Statisztika</button>
             </div>
             <div class="modal-body" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; padding-top: 0;">
                 
@@ -278,6 +279,26 @@
                     </div>
                     <div id="trash-runs-container" style="display: flex; flex-direction: column; gap: 10px;">
                         <!-- JS generálja ide a törölt köröket -->
+                    </div>
+                </div>
+
+                <!-- Tab 4: Statisztika -->
+                <div id="tab-content-stats" style="display: none; flex: 1;">
+                    <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                        <div style="flex: 1;">
+                            <label style="font-size: 11px; color: #64748b; margin-bottom: 4px; display: block;">Rendelés leadásának időszaka:</label>
+                            <div style="display: flex; gap: 6px; align-items: center;">
+                                <input type="date" id="stats-date-start" style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                                <span>-</span>
+                                <input type="date" id="stats-date-end" style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                            </div>
+                        </div>
+                        <div id="stats-summary-box" style="text-align: right; border-left: 2px solid #e2e8f0; padding-left: 15px;">
+                            <!-- Statisztikai doboz -->
+                        </div>
+                    </div>
+                    <div id="stats-runs-container" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- JS generálja ide a késedelmes rendeléseket -->
                     </div>
                 </div>
 

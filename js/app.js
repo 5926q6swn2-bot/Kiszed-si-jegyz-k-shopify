@@ -201,6 +201,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabContentTrash = document.getElementById('tab-content-trash');
     const accountingRunsContainer = document.getElementById('accounting-runs-container');
     const trashRunsContainer = document.getElementById('trash-runs-container');
+    const statsRunsContainer = document.getElementById('stats-runs-container');
+    const statsSummaryBox = document.getElementById('stats-summary-box');
+    const statsDateStart = document.getElementById('stats-date-start');
+    const statsDateEnd = document.getElementById('stats-date-end');
     const accountingFilterPending = document.getElementById('accounting-filter-pending');
     const historyCompanyFilter = document.getElementById('history-company-filter');
     const trashCompanyFilter = document.getElementById('trash-company-filter');
@@ -575,6 +579,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const outstandingBalance = parseFloat(row['Outstanding Balance']) || 0;
                 const shippingCost = parseFloat(row['Shipping']) || 0;
                 const notes = (row['Notes'] || '').toLowerCase();
+                const createdAtStr = row['Created at'] || '';
                 let isCOD = false;
                 let codAmount = 0;
 
@@ -643,6 +648,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     isPaid: isPaid,
                     isCOD: isCOD,
                     codAmount: codAmount,
+                    orderDate: createdAtStr,
+                    isPlannedDelay: false,
                     errors: errors,
                     items: []
                 });
@@ -707,6 +714,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (/(panel|pvc|spc|akusztikus|pb-|lj-|ps-)/.test(lowerName)) return 1;
         if (/(ragasztó)/.test(lowerName)) return 2;
         return 3;
+    }
+
+    // Segédfüggvény munkanapok számolásához
+    function getBusinessDaysCount(startDate, endDate) {
+        if (!startDate || !endDate) return 0;
+        let count = 0;
+        let curDate = new Date(startDate.getTime());
+        curDate.setHours(12, 0, 0, 0);
+        const targetDate = new Date(endDate.getTime());
+        targetDate.setHours(12, 0, 0, 0);
+
+        while (curDate < targetDate) {
+            curDate.setDate(curDate.getDate() + 1);
+            const dayOfWeek = curDate.getDay();
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Nem vasárnap és nem szombat
+                count++;
+            }
+        }
+        return count;
     }
 
     function isProfile(name) {
@@ -790,14 +816,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             }).join('');
 
+            // Lead Time (Átfutási idő) számítása
+            let delayBadge = '';
+            let orderDateHtml = '';
+            if (order.orderDate) {
+                const oDate = new Date(order.orderDate);
+                const deliveryDate = new Date(); // Aktuális idő
+                const businessDays = getBusinessDaysCount(oDate, deliveryDate);
+                
+                const formattedOrderDate = oDate.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' });
+                orderDateHtml = `<div style="font-size: 11px; color: #64748b; margin-top: 2px;">Rendelés: ${formattedOrderDate}</div>`;
+
+                if (businessDays > 6 && !order.isPlannedDelay) {
+                    delayBadge = `<span class="badge" style="background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; margin-left: 8px; font-size: 10px; padding: 2px 8px;">⚠️ ${businessDays} munkanap késés</span>`;
+                }
+            }
+
             card.innerHTML = `
                 <div class="order-header">
                     <div class="header-left">
                         <div class="order-index">${index + 1}</div>
                         <div>
-                            <div class="order-id" data-field="id">${order.id}</div>
+                            <div class="order-id" data-field="id">
+                                ${order.id}
+                                ${delayBadge}
+                            </div>
                             <div class="order-customer" data-field="shippingName">${order.shippingName}</div>
                             <div class="order-address" data-field="address">${order.address}</div>
+                            ${orderDateHtml}
                         </div>
                     </div>
                     <div class="order-meta">
@@ -1139,16 +1185,20 @@ document.addEventListener('DOMContentLoaded', () => {
     tabBtnHistory.addEventListener('click', () => switchHistoryTab('history'));
     tabBtnAccounting.addEventListener('click', () => switchHistoryTab('accounting'));
     tabBtnTrash.addEventListener('click', () => switchHistoryTab('trash'));
+    tabBtnStats.addEventListener('click', () => switchHistoryTab('stats'));
+
+    statsDateStart.addEventListener('change', () => renderStatistics());
+    statsDateEnd.addEventListener('change', () => renderStatistics());
 
     async function switchHistoryTab(tab) {
         // Reset all tabs
-        [tabBtnHistory, tabBtnAccounting, tabBtnTrash].forEach(btn => {
+        [tabBtnHistory, tabBtnAccounting, tabBtnTrash, tabBtnStats].forEach(btn => {
             btn.classList.remove('active');
             btn.style.borderBottomColor = 'transparent';
             btn.style.color = '#64748b';
             btn.style.fontWeight = '500';
         });
-        [tabContentHistory, tabContentAccounting, tabContentTrash].forEach(content => {
+        [tabContentHistory, tabContentAccounting, tabContentTrash, tabContentStats].forEach(content => {
             content.style.display = 'none';
         });
 
@@ -1174,6 +1224,13 @@ document.addEventListener('DOMContentLoaded', () => {
             tabContentTrash.style.display = 'block';
             await HistoryManager.autoCleanupTrash();
             renderTrashRuns();
+        } else if (tab === 'stats') {
+            tabBtnStats.classList.add('active');
+            tabBtnStats.style.borderBottomColor = 'var(--primary-color)';
+            tabBtnStats.style.color = 'var(--primary-color)';
+            tabBtnStats.style.fontWeight = '600';
+            tabContentStats.style.display = 'block';
+            renderStatistics();
         }
     }
 
@@ -1396,7 +1453,7 @@ document.addEventListener('DOMContentLoaded', () => {
             accountingRunsContainer.appendChild(groupEl);
         });
 
-        // Eseménykezelők újracsatolása (mivel dinamikusan generáltuk az elemeket)
+        // Eseménykezelők újracsatolása
         accountingRunsContainer.querySelectorAll('.btn-print-summary').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const runId = e.target.getAttribute('data-id');
@@ -1417,6 +1474,120 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (await HistoryManager.updateSettlementStatus(docId, false)) renderAccountingRuns();
             });
         });
+    }
+
+    async function renderStatistics() {
+        const runs = await HistoryManager.getAllRuns();
+        statsRunsContainer.innerHTML = '';
+        
+        let totalOrders = 0;
+        let lateOrders = [];
+        
+        const startD = statsDateStart.value ? new Date(statsDateStart.value) : null;
+        const endD = statsDateEnd.value ? new Date(statsDateEnd.value) : null;
+        if (startD) startD.setHours(0, 0, 0, 0);
+        if (endD) endD.setHours(23, 59, 59, 999);
+
+        runs.forEach(run => {
+            run.orders.forEach(order => {
+                if (!order.orderDate) return;
+                const oDate = new Date(order.orderDate);
+                
+                // Időszak szűrés (Rendelés napja alapján)
+                if (startD && oDate < startD) return;
+                if (endD && oDate > endD) return;
+
+                totalOrders++;
+
+                // Késés számítás
+                const deliveryDate = new Date(run.date);
+                const businessDays = getBusinessDaysCount(oDate, deliveryDate);
+
+                if (businessDays > 6 && !order.isDelayIgnored) {
+                    lateOrders.push({
+                        ...order,
+                        runDate: run.date,
+                        runId: run.id,
+                        docId: run.docId,
+                        delay: businessDays,
+                        company: run.company
+                    });
+                }
+            });
+        });
+
+        // Statisztikai doboz frissítése
+        const lateCount = lateOrders.length;
+        const latePercent = totalOrders > 0 ? Math.round((lateCount / totalOrders) * 100) : 0;
+        statsSummaryBox.innerHTML = `
+            <div style="font-size: 11px; color: #64748b;">Összes rend.: <strong>${totalOrders} db</strong></div>
+            <div style="font-size: 18px; font-weight: 800; color: #b91c1c;">${lateCount} késés</div>
+            <div style="font-size: 12px; font-weight: 600; color: #ef4444;">Arány: ${latePercent}%</div>
+        `;
+
+        if (lateOrders.length === 0) {
+            statsRunsContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 30px;">Nincs késedelmes rendelés az adott időszakban.</p>';
+            return;
+        }
+
+        // Listázás
+        lateOrders.sort((a, b) => b.delay - a.delay).forEach(item => {
+            const el = document.createElement('div');
+            el.className = 'history-run-card';
+            el.style.borderLeft = '4px solid #ef4444';
+            el.style.padding = '12px 16px';
+            
+            el.innerHTML = `
+                <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <span style="font-weight: 800; color: #b91c1c;">#${item.id}</span>
+                        <span style="background: #fee2e2; color: #b91c1c; font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 700;">${item.delay} munkanap</span>
+                    </div>
+                    <div style="font-size: 13px; font-weight: 700;">${item.shippingName}</div>
+                    <div style="font-size: 11px; color: #64748b;">Rendelve: ${new Date(item.orderDate).toLocaleDateString('hu-HU')} • Kiszállítva: ${item.runDate}</div>
+                    <div style="font-size: 11px; color: #0f172a; font-weight: 600; margin-top: 2px;">Szállító: ${item.company || '-'}</div>
+                </div>
+                <div>
+                    <button class="btn btn-secondary btn-sm btn-ignore-delay" data-doc-id="${item.docId}" data-order-id="${item.id}" title="Rendben van / Szándékos késés">Pipa</button>
+                </div>
+            `;
+            statsRunsContainer.appendChild(el);
+        });
+
+        // Pipa gomb kezelése
+        statsRunsContainer.querySelectorAll('.btn-ignore-delay').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const docId = e.target.getAttribute('data-doc-id');
+                const orderId = e.target.getAttribute('data-order-id');
+                
+                const confirmed = await CustomDialog.confirm('Biztosan kiveszed ezt a rendelést a késési statisztikából?', 'Szándékos késés jelölése', 'info');
+                if (confirmed) {
+                    await ignoreDelayInFirestore(docId, orderId);
+                    renderStatistics();
+                }
+            });
+        });
+    }
+
+    async function ignoreDelayInFirestore(docId, orderId) {
+        try {
+            const runs = await HistoryManager.getAllRuns();
+            const run = runs.find(r => r.docId === docId);
+            if (!run) return;
+
+            const updatedOrders = run.orders.map(o => {
+                if (o.id === orderId) return { ...o, isDelayIgnored: true };
+                return o;
+            });
+
+            const docRef = doc(db, HistoryManager.COLLECTION_NAME, docId);
+            await updateDoc(docRef, { orders: updatedOrders });
+            return true;
+        } catch (e) {
+            console.error("Hiba a késés elrejtésénél: ", e);
+            return false;
+        }
+    }
     }
 
     accountingFilterPending.addEventListener('change', () => {
