@@ -266,7 +266,16 @@
 
                 <!-- Tab 3: Szemetes -->
                 <div id="tab-content-trash" style="display: none; flex: 1;">
-                    <p style="font-size: 11px; color: #94a3b8; margin-bottom: 10px; font-style: italic;">A 30 napnál régebbi tételek automatikusan törlődnek.</p>
+                    <p style="font-size: 11px; color: #94a3b8; margin-bottom: 10px; font-style: italic;">A 90 napnál régebbi tételek automatikusan törlődnek.</p>
+                    <div style="margin-bottom: 15px; display: flex; gap: 6px; align-items: center; background: #f1f5f9; padding: 10px; border-radius: 8px;">
+                        <select id="trash-company-filter" style="width: 140px; padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 13px;">
+                            <option value="">Összes cég</option>
+                            <!-- JS dinamikusan tölti -->
+                        </select>
+                        <input type="date" id="trash-date-start" style="width: 135px; padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit;">
+                        <span style="color: #94a3b8; font-weight: bold;">-</span>
+                        <input type="date" id="trash-date-end" style="width: 135px; padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit;">
+                    </div>
                     <div id="trash-runs-container" style="display: flex; flex-direction: column; gap: 10px;">
                         <!-- JS generálja ide a törölt köröket -->
                     </div>

@@ -203,6 +203,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const trashRunsContainer = document.getElementById('trash-runs-container');
     const accountingFilterPending = document.getElementById('accounting-filter-pending');
     const historyCompanyFilter = document.getElementById('history-company-filter');
+    const trashCompanyFilter = document.getElementById('trash-company-filter');
+    const trashDateStart = document.getElementById('trash-date-start');
+    const trashDateEnd = document.getElementById('trash-date-end');
     const psNewCompanyGroup = document.getElementById('ps-new-company-group');
     const psNewCompanyInput = document.getElementById('ps-new-company');
 
@@ -373,9 +376,9 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         autoCleanupTrash: async function() {
-            const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+            const ninetyDaysAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
             try {
-                const q = query(collection(db, this.TRASH_COLLECTION_NAME), where('deletedAt', '<', thirtyDaysAgo));
+                const q = query(collection(db, this.TRASH_COLLECTION_NAME), where('deletedAt', '<', ninetyDaysAgo));
                 const querySnapshot = await getDocs(q);
                 const deletePromises = [];
                 querySnapshot.forEach(docSnap => {
@@ -1098,6 +1101,8 @@ document.addEventListener('DOMContentLoaded', () => {
         historyDateStart.value = '';
         historyDateEnd.value = '';
         historySearchInput.value = '';
+        trashDateStart.value = '';
+        trashDateEnd.value = '';
         await populateCompanyFilters();
         switchHistoryTab('history');
         historyModal.classList.add('active');
@@ -1114,15 +1119,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (r.company) companies.add(r.company);
         });
 
-        const currentVal = historyCompanyFilter.value;
-        historyCompanyFilter.innerHTML = '<option value="">Összes cég</option>';
-        Array.from(companies).sort().forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c;
-            opt.textContent = c;
-            historyCompanyFilter.appendChild(opt);
+        // Töltsük fel mindkét szűrőt (History és Trash)
+        const currentHistVal = historyCompanyFilter.value;
+        const currentTrashVal = trashCompanyFilter.value;
+        
+        [historyCompanyFilter, trashCompanyFilter].forEach(select => {
+            const currentVal = select === historyCompanyFilter ? currentHistVal : currentTrashVal;
+            select.innerHTML = '<option value="">Összes cég</option>';
+            Array.from(companies).sort().forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c;
+                select.appendChild(opt);
+            });
+            select.value = currentVal;
         });
-        historyCompanyFilter.value = currentVal;
     }
 
     tabBtnHistory.addEventListener('click', () => switchHistoryTab('history'));
@@ -1180,11 +1191,14 @@ document.addEventListener('DOMContentLoaded', () => {
     historyDateStart.addEventListener('change', onDateChange);
     historyDateEnd.addEventListener('change', onDateChange);
     historyCompanyFilter.addEventListener('change', onDateChange);
+    trashCompanyFilter.addEventListener('change', () => renderTrashRuns());
+    trashDateStart.addEventListener('change', () => renderTrashRuns());
+    trashDateEnd.addEventListener('change', () => renderTrashRuns());
 
-    function isFiltered(run) {
+    function isFiltered(run, isTrash = false) {
         // 1. Dátum szűrés
-        const startD = historyDateStart.value;
-        const endD = historyDateEnd.value;
+        const startD = isTrash ? trashDateStart.value : historyDateStart.value;
+        const endD = isTrash ? trashDateEnd.value : historyDateEnd.value;
         const runD = new Date(run.date);
         runD.setHours(12, 0, 0, 0);
         
@@ -1200,7 +1214,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // 2. Cég szűrés
-        const companyFilter = historyCompanyFilter.value;
+        const companyFilter = isTrash ? trashCompanyFilter.value : historyCompanyFilter.value;
         if (companyFilter && run.company !== companyFilter) {
             return false;
         }
@@ -1243,7 +1257,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 historySearchResults.style.display = 'block';
                 historyRunsView.style.display = 'none';
             } else {
-                await renderHistoryRuns(true);
+                await renderHistoryRuns();
                 historySearchResults.style.display = 'none';
                 historyRunsView.style.display = 'block';
             }
@@ -1254,19 +1268,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function renderHistoryRuns(applyDateFilter = false) {
-        let runs = await HistoryManager.getAllRuns();
-        if (applyDateFilter) {
-            runs = runs.filter(r => isDateInRange(r.date));
-        }
+    async function renderHistoryRuns() {
+        const runs = await HistoryManager.getAllRuns();
         historyRunsContainer.innerHTML = '';
         
-        if(runs.length === 0) {
-            historyRunsContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">Még nincsenek elmentett szállítási körök.</p>';
+        // Szűrés a dátum/cég szerint
+        const filteredRuns = runs.filter(r => isFiltered(r));
+
+        if(filteredRuns.length === 0) {
+            historyRunsContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 13px; text-align: center; margin-top: 20px;">Nincsenek a feltételnek megfelelő mentett körök.</p>';
             return;
         }
         
-        runs.forEach(run => {
+        filteredRuns.forEach(run => {
             const el = document.createElement('div');
             el.className = 'history-run-card';
             
@@ -1410,11 +1424,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     async function renderTrashRuns() {
-        const runs = await HistoryManager.getTrashRuns();
+        let runs = await HistoryManager.getTrashRuns();
         trashRunsContainer.innerHTML = '';
         
+        // Szűrés
+        runs = runs.filter(r => isFiltered(r, true));
+
         if(runs.length === 0) {
-            trashRunsContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 13px; text-align: center; margin-top: 20px;">A szemetes üres.</p>';
+            trashRunsContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 13px; text-align: center; margin-top: 20px;">Nincsenek a feltételnek megfelelő törölt körök.</p>';
             return;
         }
 
@@ -1651,7 +1668,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     .app-container { max-width: 1200px; margin: 0 auto; box-shadow: none; background: transparent; padding: 0; position: relative; min-height: 100vh; }
                     .order-card { break-inside: avoid; margin-bottom: 20px; box-shadow: none; border: 1px solid #e2e8f0; }
                     .no-print { display: none !important; }
-                    .marker-lbl { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 8.5px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1; white-space: nowrap; }
+                    .col-flex-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; height: 100%; min-height: 40px; }
+                    .marker-lbl { font-size: 8px; color: #64748b; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1; white-space: nowrap; margin-bottom: -1px; }
                     .print-document-header { text-align: center; margin-bottom: 6px; border-bottom: 1.5px solid black; padding-bottom: 4px; }
                     .print-document-header h1 { font-size: 16px; margin: 0; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
                     .print-document-footer { 
