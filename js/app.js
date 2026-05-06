@@ -1479,6 +1479,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <meta charset="UTF-8">
                 <title>Szállítólevelek - ${run.date}</title>
                 <style>
+                    @page { size: A4 portrait; margin: 15mm; }
                     body {
                         font-family: 'Inter', sans-serif, Arial;
                         margin: 0;
@@ -1488,17 +1489,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     .page {
                         width: 210mm;
-                        min-height: 297mm;
-                        padding: 20mm;
+                        padding: 18mm 20mm;
                         box-sizing: border-box;
+                        break-after: page;
                         page-break-after: always;
                         background: white;
-                        margin: 20mm auto;
+                        margin: 15mm auto;
                         box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
                     }
                     @media print {
                         body { background: none; }
-                        .page { margin: 0; border: none; padding: 15mm; page-break-after: always; box-shadow: none; }
+                        .page { margin: 0; border: none; padding: 0; box-shadow: none; break-after: page; page-break-after: always; }
+                        .signatures { break-inside: avoid; page-break-inside: avoid; margin-top: 30px; }
+                        .summary { break-inside: avoid; page-break-inside: avoid; }
+                        table { break-inside: auto; }
+                        tr { break-inside: avoid; page-break-inside: avoid; }
+                        h3 { break-after: avoid; page-break-after: avoid; }
                     }
                     .header {
                         display: flex;
@@ -1753,7 +1759,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             }).join('');
 
-            notesHtml += `
+            return `
                 <div class="page">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
                         <div class="doc-title" style="margin-bottom: 0;">Szállítólevél</div>

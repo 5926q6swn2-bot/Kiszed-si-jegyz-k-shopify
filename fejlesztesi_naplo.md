@@ -1,80 +1,80 @@
-﻿# KiszedĂ©si JegyzĂ©k Shopify - DokumentĂˇciĂł Ă©s FejlesztĂ©si NaplĂł
+# Kiszedési Jegyzék Shopify - Dokumentáció és Fejlesztési Napló
 
-Ez a dokumentum a projekt teljes leĂ­rĂˇsĂˇt, hasznĂˇlati ĂştmutatĂłjĂˇt Ă©s a fejlesztĂ©sek tĂ¶rtĂ©netĂ©t tartalmazza. 
-**CĂ©lja:** Ha Ăşj gĂ©pen vagy Ăşj fejlesztĹ‘vel (pl. egy Ăşj Antigravity munkamenetben) nyitod meg a projektet, ebbĹ‘l a fĂˇjlbĂłl azonnal vilĂˇgos legyen a teljes kontextus Ă©s a munkafolyamat.
-
----
-
-## đźš€ Hogyan folytassuk a munkĂˇt egy Ăşj gĂ©pen?
-Amikor leklĂłnoztad a GitHub-rĂłl a projektet egy Ăşj gĂ©pre, Ă©s elindĂ­tod az Antigravity-t:
-1. Az elsĹ‘ ĂĽzeneted ez legyen az AI-nak: *"Szia! KĂ©rlek, olvasd el a `fejlesztesi_naplo.md` fĂˇjlt, Ă©s folytassuk a munkĂˇt a TODO lista alapjĂˇn!"*
-2. A munka vĂ©geztĂ©vel mindig kĂ©rd meg az AI-t, hogy frissĂ­tse ezt a naplĂłt az Ăşj eredmĂ©nyekkel.
-3. VĂ©gĂĽl mentsd el a szokĂˇsos Git parancsokkal (`git add .`, `git commit -m "..."`, `git push`).
+Ez a dokumentum a projekt teljes leírását, használati útmutatóját és a fejlesztések történetét tartalmazza. 
+**Célja:** Ha új gépen vagy új fejlesztővel (pl. egy új Antigravity munkamenetben) nyitod meg a projektet, ebből a fájlból azonnal világos legyen a teljes kontextus és a munkafolyamat.
 
 ---
 
-## đź“¦ A Projekt CĂ©lja Ă©s MĹ±kĂ¶dĂ©se
-Egy bĂ¶ngĂ©szĹ‘bĹ‘l futtathatĂł, helyi (Local Storage) adattĂˇrolĂˇst hasznĂˇlĂł raktĂˇri szedĹ‘lista Ă©s elszĂˇmolĂł rendszer Shopify webĂˇruhĂˇzakhoz.
-- **KezdĂ©s:** A Shopify-bĂłl exportĂˇlt megrendelĂ©sek CSV fĂˇjljĂˇnak beolvasĂˇsa.
-- **FeldolgozĂˇs:** A rendszer automatikusan formĂˇzza a termĂ©keket, kiszĹ±ri a duplikĂˇlt rendelĂ©seket, Ă©s vizuĂˇlis jelzĂ©seket ad a problĂ©mĂˇs rendelĂ©sekrĹ‘l (pl. hiĂˇnyzĂł utalĂˇs, lappangĂł utĂˇnvĂ©t).
-- **Kimenet:** NyomtathatĂł, vonalkĂłdos SzedĂ©si JegyzĂ©k Ă©s kĂ©toldalas "Ă–sszesĂ­tĹ‘ Ă©s KorrekciĂłs lap" a futĂˇroknak a pĂ©nzĂĽgyi elszĂˇmolĂˇshoz.
-
-### HasznĂˇlati ĂštmutatĂł (FelhasznĂˇlĂłknak)
-1. Nyisd meg az `index.html` fĂˇjlt a bĂ¶ngĂ©szĹ‘dben (vagy futtass egy helyi szervert a mappĂˇban).
-2. TĂ¶ltsd fel a Shopify-bĂłl lementett napi CSV fĂˇjlt.
-3. EllenĹ‘rizd a listĂˇt, szĂĽksĂ©g esetĂ©n adj hozzĂˇ rendelĂ©seket kĂ©zzel.
-4. Nyomtasd ki a listĂˇt. A nyomtatĂˇs elindĂ­tĂˇsakor a rendszer elmenti az adott "SzĂˇllĂ­tĂˇsi KĂ¶rt".
-5. Az "ElĹ‘zmĂ©nyek" gombra kattintva bĂˇrmikor visszakeresheted, Ăşjranyomtathatod a korĂˇbbi kĂ¶rĂ¶ket, Ă©s az "ElszĂˇmolĂˇsok" fĂĽlĂ¶n kinyomtathatod a futĂˇrok pĂ©nzĂĽgyi elszĂˇmolĂł lapjĂˇt.
+## 🚀 Hogyan folytassuk a munkát egy új gépen?
+Amikor leklónoztad a GitHub-ról a projektet egy új gépre, és elindítod az Antigravity-t:
+1. **Első lépésként: Olvasd el a `gemini alap skill.md` fájlt!** Ez tartalmazza a WAT architektúrát és az ügymenetet.
+2. Az első üzeneted ez legyen az AI-nak: *"Szia! Kérlek, olvasd el a `fejlesztesi_naplo.md` és a `gemini alap skill.md` fájlokat, és folytassuk a munkát a TODO lista alapján!"*
+3. A munka végeztével mindig kérd meg az AI-t, hogy frissítse ezt a naplót az új eredményekkel.
+4. Végül mentsd el a szokásos Git parancsokkal (`git add .`, `git commit -m "..."`, `git push`).
 
 ---
 
-## đź›  AktuĂˇlis Technikai Stack
+## 📦 A Projekt Célja és Működése
+Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Shopify webáruházakhoz.
+- **Kezdés:** A Shopify-ból exportált megrendelések CSV fájljának beolvasása.
+- **Feldolgozás:** A rendszer automatikusan formázza a termékeket, kiszűri a duplikált rendeléseket, és vizuális jelzéseket ad a problémás rendelésekről (pl. hiányzó utalás, lappangó utánvét).
+- **Kimenet:** Nyomtatható Szedési Jegyzék és kétoldalas "Összesítő és Korrekciós lap" a futároknak a pénzügyi elszámoláshoz.
+
+### Használati Útmutató (Felhasználóknak)
+1. Nyisd meg az `index.html` fájlt a böngésződben (vagy futtass egy helyi szervert a mappában).
+2. Töltsd fel a Shopify-ból lementett napi CSV fájlt.
+3. Ellenőrizd a listát, szükség esetén adj hozzá rendeléseket kézzel.
+4. Nyomtasd ki a listát. A nyomtatás elindításakor a rendszer elmenti az adott "Szállítási Kört".
+5. Az "Előzmények" gombra kattintva bármikor visszakeresheted, újranyomtathatod a korábbi köröket, és az "Elszámolások" fülön kinyomtathatod a futárok pénzügyi elszámoló lapját.
+
+---
+
+## 🛠 Aktuális Technikai Stack
 - **Frontend**: Vanilla HTML5, CSS3 (Modern, Apple/Glassmorphism design)
 - **Logika**: Vanilla JavaScript (ES Modules, `app.js`)
-- **AdatbĂˇzis & Backend**: Google Firebase (Cloud Firestore)
-- **AutentikĂˇciĂł**: Firebase Authentication (E-mail/JelszĂł)
-- **KĂĽlsĹ‘ kĂ¶nyvtĂˇrak**: 
-  - `PapaParse` (CSV importĂˇlĂˇshoz)
-  - `Sortable.js` (Drag & drop funkciĂłkhoz)
+- **Adatbázis & Backend**: Google Firebase (Cloud Firestore)
+- **Autentikáció**: Firebase Authentication (E-mail/Jelszó)
+- **Külső könyvtárak**: 
+  - `PapaParse` (CSV importáláshoz)
+  - `Sortable.js` (Drag & drop funkciókhoz)
   - Firebase SDK v10.8.0
 
-## 3. Rendszer ArchitektĂşra
+## 3. Rendszer Architektúra
 
-### Adatfolyam Ă©s FelhĹ‘ SzinkronizĂˇciĂł
-Az alkalmazĂˇs korĂˇbban helyi `localStorage`-et hasznĂˇlt, de Ăˇt lett ĂˇllĂ­tva a Firebase Cloud Firestore-ra. A bejelentkezett felhasznĂˇlĂłk adatai valĂłs idĹ‘ben mentĹ‘dnek a felhĹ‘be. 
-A bejelentkezĂ©st az `index.html` tetejĂ©re helyezett overlay rĂ©teg (Login Screen) vĂ©gzi, a Firebase funkciĂłk inicializĂˇlĂˇsa a `js/firebase-config.js` fĂˇjlban tĂ¶rtĂ©nik.
+### Adatfolyam és Felhő Szinkronizáció
+Az alkalmazás korábban helyi `localStorage`-et használt, de át lett állítva a Firebase Cloud Firestore-ra. A bejelentkezett felhasználók adatai valós időben mentődnek a felhőbe. 
+A bejelentkezést az `index.html` tetejére helyezett overlay réteg (Login Screen) végzi, a Firebase funkciók inicializálása a `js/firebase-config.js` fájlban történik.
 
 ### A `HistoryManager` objektum
-A `js/app.js`-ben lĂ©vĹ‘ `HistoryManager` felel a szĂˇllĂ­tĂˇsi kĂ¶rĂ¶k kezelĂ©sĂ©Ă©rt. Most mĂˇr aszinkron Firebase metĂłdusokat hasznĂˇl (`getDocs`, `addDoc`, `deleteDoc`, `updateDoc`). 
-**Fontos szabĂˇly:** Ha Ăşj modult vagy logikĂˇt Ă­rsz, aminek hozzĂˇ kell fĂ©rnie az elĹ‘zmĂ©nyekhez, mindenhol `await` kulcsszĂłval kell meghĂ­vni ezeket a fĂĽggvĂ©nyeket.
+A `js/app.js`-ben lévő `HistoryManager` felel a szállítási körök kezeléséért. Most már aszinkron Firebase metódusokat használ (`getDocs`, `addDoc`, `deleteDoc`, `updateDoc`). 
+**Fontos szabály:** Ha új modult vagy logikát írsz, aminek hozzá kell férnie az előzményekhez, mindenhol `await` kulcsszóval kell meghívni ezeket a függvényeket.
 
 ---
 
-## đź“ť FejlesztĂ©si NaplĂł (Changelog)
+## 📝 Fejlesztési Napló (Changelog)
 
-### LegutĂłbbi frissĂ­tĂ©s: 2026. mĂˇjus 6. (Rendszer javĂ­tĂˇsok Ă©s szĂ©pĂ­tĂ©sek)
-- **UtĂˇnvĂ©t FelismerĂ©s JavĂ­tĂˇs:** A Shopify Notes mezĹ‘bĹ‘l az "uv" kulcsszĂł felismerĂ©se regex-re ĂˇllĂ­tva, hogy az `uv:12000`, `uv12000`, `12000 uv` formĂˇtumok mind megfelelĹ‘en feldolgozĂłdjanak. A lappangĂł utĂˇnvĂ©t ellenĹ‘rzĂ©s is robusztusabb lett.
-- **Drag & Drop Sorrend SzinkronizĂˇlĂˇs:** A kĂˇrtyĂˇk drag & drop mozgatĂˇsakor a belsĹ‘ `orders[]` tĂ¶mb is frissĂĽl, Ă­gy a szĂˇllĂ­tĂłlevelek Ă©s a nyomtatĂˇs sorrendje mindig a felhasznĂˇlĂł Ăˇltal beĂˇllĂ­tott sorrendet kĂ¶veti.
-- **CĂ©g Badge az ElszĂˇmolĂˇsokon:** Az elszĂˇmolĂˇs kĂˇrtyĂˇk jobb felsĹ‘ sarkĂˇban most feltĹ±nĹ‘ sĂ¶tĂ©t badge mutatja a szĂˇllĂ­tĂł cĂ©g nevĂ©t.
-- **Ă–sszesĂ­tĹ‘ Nyomtatott Lapon CĂ©g NĂ©v:** Az Ă–sszesĂ­tĹ‘ (ĂtadĂˇs-ĂtvĂ©tel) nyomtatott lapon a cĂ©g neve nagy, kitĂ¶ltĂ¶tt blokkban jelenik meg.
-- **NyomtatĂˇsi Sorrend:** Ăšj sorrend: 2Ă— Ă–sszesĂ­tĹ‘ lap, 1Ă— KorrekciĂłs lap, majd az Ă¶sszes szĂˇllĂ­tĂłlevĂ©l kĂ©tszer egymĂˇs utĂˇn (1-N, majd 1-N).
-- **SzĂˇllĂ­tĂłlevelek DĂˇtum TĂ¶rlĂ©se:** Az egyedi szĂˇllĂ­tĂłlevelek alĂˇĂ­rĂˇs blokkjaibĂłl tĂ¶rĂ¶lve a felesleges dĂˇtumozĂˇsi sorok.
-- **Profilok NyomtatĂˇsban:** Az "Ă–sszekĂ©szĂ­tett profilok" sor alatt a rĂ©szletes profillista nyomtatĂˇskor is lĂˇtszodik.
+### Legutóbbi frissítés: 2026. május 6. (Rendszer javítások és szépítések)
+- **Utánvét Felismerés Javítás:** A Shopify Notes mezőből az "uv" kulcsszó felismerése regex-re állítva, hogy az `uv:12000`, `uv12000`, `12000 uv` formátumok mind megfelelően feldolgozódjanak. A lappangó utánvét ellenőrzés is robusztusabb lett.
+- **Drag & Drop Sorrend Szinkronizálás:** A kártyák drag & drop mozgatásakor a belső `orders[]` tömb is frissül, így a szállítólevelek és a nyomtatás sorrendje mindig a felhasználó által beállított sorrendet követi.
+- **Cég Badge az Elszámolásokon:** Az elszámolás kártyák jobb felső sarkában most feltűnő sötét badge mutatja a szállító cég nevét.
+- **Összesítő Nyomtatott Lapon Cég Név:** Az Összesítő (Átadás-Átvétel) nyomtatott lapon a cég neve nagy, kitöltött blokkban jelenik meg.
+- **Nyomtatási Sorrend:** Új sorrend: 2× Összesítő lap, 1× Korrekciós lap, majd az összes szállítólevél kétszer egymás után (1-N, majd 1-N).
+- **Szállítólevelek Dátum Törlése:** Az egyedi szállítólevelek aláírás blokkjaiból törölve a felesleges dátumozási sorok.
+- **Profilok Nyomtatásban:** Az "Összekészített profilok" sor alatt a részletes profillista nyomtatáskor is látszodik.
 
-### LegutĂłbbi frissĂ­tĂ©s: 2026. mĂˇjus 5. (Firebase MigrĂˇciĂł & PublikĂˇlĂˇs)
-- **Firebase Cloud Firestore:** A `localStorage` teljesen kivezetve, az adatbĂˇzis ĂˇtkĂ¶ltĂ¶zĂ¶tt a felhĹ‘be. A `HistoryManager` aszinkronnĂˇ vĂˇlt.
-- **Firebase Authentication:** E-mail/jelszĂł alapĂş bejelentkezĂ©si rĂ©teg (Login Overlay) implementĂˇlĂˇsa az adatok vĂ©delme Ă©rdekĂ©ben. A Firestore adatbĂˇzis szabĂˇlyai Ă©lesĂ­tve (`request.auth != null`).
-- **ES Modules:** A script betĂ¶ltĂ©sek modulĂˇris architektĂşrĂˇra Ăˇlltak Ăˇt a biztonsĂˇgos Firebase SDK importĂˇlĂˇsok miatt.
-- **PublikĂˇlĂˇs (GitHub Pages):** Az alkalmazĂˇs most mĂˇr weboldalkĂ©nt is ĂĽzemel a GitHub Pages-en keresztĂĽl, amely automatikusan (CI/CD) frissĂĽl push-olĂˇs utĂˇn.
+### Legutóbbi frissítés: 2026. május 5. (Firebase Migráció & Publikálás)
+- **Firebase Cloud Firestore:** A `localStorage` teljesen kivezetve, az adatbázis átköltözött a felhőbe. A `HistoryManager` aszinkronná vált.
+- **Firebase Authentication:** E-mail/jelszó alapú bejelentkezési réteg (Login Overlay) implementálása az adatok védelme érdekében. A Firestore adatbázis szabályai élesítve (`request.auth != null`).
+- **ES Modules:** A script betöltések moduláris architektúrára álltak át a biztonságos Firebase SDK importálások miatt.
+- **Publikálás (GitHub Pages):** Az alkalmazás most már weboldalként is üzemel a GitHub Pages-en keresztül, amely automatikusan (CI/CD) frissül push-olás után.
 
-### KorĂˇbbi frissĂ­tĂ©s: 2026. mĂˇjus 5. (DĂ©lelĹ‘tt)
-- **ElszĂˇmolĂˇsok fĂĽl javĂ­tĂˇsa:** A HTML szerkezetben javĂ­tva lett egy hiĂˇnyzĂł `</div>` lezĂˇrĂł elem, Ă­gy az ElszĂˇmolĂˇsok fĂĽl Ăşjra lĂˇthatĂł Ă©s megfelelĹ‘en listĂˇzza az elmentett fuvarokat a vĂˇrhatĂł utĂˇnvĂ©t Ă¶sszegĂ©vel.
-- **DĂˇtumtartomĂˇny SzĹ±rĂ©s:** Az elĹ‘zmĂ©nyeknĂ©l a napi szĹ±rĹ‘ le lett cserĂ©lve egy "KezdĹ‘ dĂˇtum (tĂłl)" Ă©s "ZĂˇrĂł dĂˇtum (ig)" szĹ±rĹ‘re, amely a SzedĂ©sek Ă©s az ElszĂˇmolĂˇsok fĂĽlĂ¶n is mĹ±kĂ¶dik.
-- **Git & GitHub IntegrĂˇciĂł:** A projekt verziĂłkĂ¶vetĂ©st kapott Ă©s feltĂ¶ltĂ©sre kerĂĽlt a GitHub-ra. LĂ©trejĂ¶tt a `.gitignore` fĂˇjl a felesleges fĂˇjlok szĹ±rĂ©sĂ©re.
+### Korábbi frissítés: 2026. május 5. (Délelőtt)
+- **Elszámolások fül javítása:** A HTML szerkezetben javítva lett egy hiányzó `</div>` lezáró elem, így az Elszámolások fül újra látható és megfelelően listázza az elmentett fuvarokat a várható utánvét összegével.
+- **Dátumtartomány Szűrés:** Az előzményeknél a napi szűrő le lett cserélve egy "Kezdő dátum (tól)" és "Záró dátum (ig)" szűrőre, amely a Szedések és az Elszámolások fülön is működik.
+- **Git & GitHub Integráció:** A projekt verziókövetést kapott és feltöltésre került a GitHub-ra. Létrejött a `.gitignore` fájl a felesleges fájlok szűrésére.
 
 ---
 
-## đźŽŻ KĂ¶vetkezĹ‘ LĂ©pĂ©sek (TODO)
-- [ ] *Itt gyĹ±jtjĂĽk majd az Ăşj funkciĂł Ă¶tleteket Ă©s a megoldandĂł hibĂˇkat.*
-- [ ] *Pl.: LehetĹ‘sĂ©g a korĂˇbbi fuvarok CSV-ben tĂ¶rtĂ©nĹ‘ exportĂˇlĂˇsĂˇra a kĂ¶nyvelĂ©snek.*
-
+## 🎯 Következő Lépések (TODO)
+- [ ] *Itt gyűjtjük majd az új funkció ötleteket és a megoldandó hibákat.*
+- [ ] *Pl.: Lehetőség a korábbi fuvarok CSV-ben történő exportálására a könyvelésnek.*
