@@ -668,8 +668,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (item.isCollapsedProfile && item.subItems && item.subItems.length > 0) {
                     toggleHtml = ` <span class="profile-toggle no-print" data-toggle-id="${order.internalId}-${iIdx}" style="cursor: pointer; color: var(--primary); font-size: 11px; margin-left: 6px; font-weight: 600;">▼</span>`;
                     subItemsHtml = `
-                        <div id="sub-${order.internalId}-${iIdx}" class="profile-subitems" style="display: none; padding: 6px 0 0 12px; font-size: 11px; color: #475569;">
-                            ${item.subItems.map(sub => `<div style="margin-bottom: 2px;">• ${sub.qty} db - ${sub.name}</div>`).join('')}
+                        <div id="sub-${order.internalId}-${iIdx}" class="profile-subitems" style="padding: 4px 0 0 12px; font-size: 10px; color: #64748b; line-height: 1.3;">
+                            ${item.subItems.map(sub => `<div style="margin-bottom: 1px;">• ${sub.qty} db - ${sub.name}</div>`).join('')}
                         </div>
                     `;
                 }
@@ -1499,8 +1499,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     @media print {
                         body { background: none; }
-                        .page { margin: 0; border: none; padding: 0; box-shadow: none; break-after: page; page-break-after: always; }
-                        .signatures { break-inside: avoid; page-break-inside: avoid; margin-top: 30px; }
+                        .page { 
+                            margin: 0; 
+                            border: none; 
+                            padding: 10mm 15mm; 
+                            box-shadow: none; 
+                            break-after: page; 
+                            page-break-after: always; 
+                            width: 100%;
+                            height: 100%;
+                            position: relative;
+                        }
+                        .signatures { break-inside: avoid; page-break-inside: avoid; margin-top: 25px; }
                         .summary { break-inside: avoid; page-break-inside: avoid; }
                         table { break-inside: auto; }
                         tr { break-inside: avoid; page-break-inside: avoid; }
@@ -1595,10 +1605,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         height: 30px;
                     }
                     .footer {
-                        margin-top: 50px;
+                        margin-top: 25px;
                         text-align: center;
-                        font-size: 12px;
+                        font-size: 11px;
                         color: #94a3b8;
+                        border-top: 1px dashed #e2e8f0;
+                        padding-top: 10px;
                     }
                 </style>
             </head>
@@ -1613,10 +1625,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 totalCOD += order.codAmount;
             }
             order.items.forEach(item => {
-                if (!aggregatedItems[item.name]) {
-                    aggregatedItems[item.name] = 0;
+                if (item.isCollapsedProfile && item.subItems && item.subItems.length > 0) {
+                    item.subItems.forEach(sub => {
+                        if (!aggregatedItems[sub.name]) {
+                            aggregatedItems[sub.name] = 0;
+                        }
+                        aggregatedItems[sub.name] += sub.qty;
+                    });
+                } else {
+                    if (!aggregatedItems[item.name]) {
+                        aggregatedItems[item.name] = 0;
+                    }
+                    aggregatedItems[item.name] += item.qty;
                 }
-                aggregatedItems[item.name] += item.qty;
             });
         });
 
@@ -1751,6 +1772,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const itemsHtml = order.items.map(item => {
                 const itemTotal = item.price * item.qty;
                 totalOrderValue += itemTotal;
+
+                if (item.isCollapsedProfile && item.subItems && item.subItems.length > 0) {
+                    // Ha összekészített profil, akkor CSAK a tételeit listázzuk, a gyűjtőnevet nem
+                    return item.subItems.map(sub => `
+                        <tr>
+                            <td style="padding-left: 20px;">• ${sub.name}</td>
+                            <td class="text-right">${sub.qty} db</td>
+                        </tr>
+                    `).join('');
+                }
+
                 return `
                     <tr>
                         <td>${item.name}</td>

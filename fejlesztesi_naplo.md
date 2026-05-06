@@ -10,7 +10,30 @@ Amikor leklónoztad a GitHub-ról a projektet egy új gépre, és elindítod az 
 1. **Első lépésként: Olvasd el a `gemini alap skill.md` fájlt!** Ez tartalmazza a WAT architektúrát és az ügymenetet.
 2. Az első üzeneted ez legyen az AI-nak: *"Szia! Kérlek, olvasd el a `fejlesztesi_naplo.md` és a `gemini alap skill.md` fájlokat, és folytassuk a munkát a TODO lista alapján!"*
 3. A munka végeztével mindig kérd meg az AI-t, hogy frissítse ezt a naplót az új eredményekkel.
-4. Végül mentsd el a szokásos Git parancsokkal (`git add .`, `git commit -m "..."`, `git push`).
+4. Végül mentsd el Git-tel — **lásd a Git szabályokat lent!**
+
+---
+
+## 📋 Git Munkafolyamat Szabályok
+
+> [!IMPORTANT]
+> **Commit üzenet szabály:** Az AI soha nem futtathat `git commit` parancsot addig, amíg a felhasználó nem adja meg a commit üzenet szövegét. A folyamat mindig ez:
+> 1. AI elvégzi a munkát
+> 2. AI megmutatja: *"Kész! Add meg a commit üzenet szövegét, és én futtatom a `git add . → git commit → git push` parancsokat."*
+> 3. Felhasználó megadja a nevet (pl. `"fix: utánvét javítás"`)
+> 4. AI futtatja: `git add .` majd `git commit -m "[felhasználó szövege]"` majd `git push`
+
+### A 3 alapparancs (ezt kell megtanulni)
+```bash
+git add .                           # 1. Összegyűjt MINDEN változást
+git commit -m "leírás amit te adsz meg"  # 2. Pillanatkép mentése
+git push                            # 3. Feltöltés GitHub-ra → webhely frissül ~1-2 perc múlva
+```
+
+### Ellenőrzés push után
+- Várd meg az ~1-2 percet
+- Böngészőben: **`Ctrl + Shift + R`** (kényszer-frissítés, cache nélkül)
+- GitHub Actions státusz: `https://github.com/5926q6swn2-bot/Kiszed-si-jegyz-k-shopify/actions`
 
 ---
 
@@ -60,7 +83,8 @@ A `js/app.js`-ben lévő `HistoryManager` felel a szállítási körök kezelés
 - **Összesítő Nyomtatott Lapon Cég Név:** Az Összesítő (Átadás-Átvétel) nyomtatott lapon a cég neve nagy, kitöltött blokkban jelenik meg.
 - **Nyomtatási Sorrend:** Új sorrend: 2× Összesítő lap, 1× Korrekciós lap, majd az összes szállítólevél kétszer egymás után (1-N, majd 1-N).
 - **Szállítólevelek Dátum Törlése:** Az egyedi szállítólevelek aláírás blokkjaiból törölve a felesleges dátumozási sorok.
-- **Profilok Nyomtatásban:** Az "Összekészített profilok" sor alatt a részletes profillista nyomtatáskor is látszodik.
+- **Profilok Nyomtatásban:** Az "Összekészített profilok" sor alatt a részletes profillista nyomtatáskor is látszódik (a szedőlistán és az egyedi szállítóleveleken is).
+- **Nyomtatási Elrendezés Finomhangolása:** A lábléc ("Nem minősül számlának") helyzete és az oldalszegélyek optimalizálva lettek az A4-es papírhoz az elcsúszások elkerülése érdekében.
 
 ### Legutóbbi frissítés: 2026. május 5. (Firebase Migráció & Publikálás)
 - **Firebase Cloud Firestore:** A `localStorage` teljesen kivezetve, az adatbázis átköltözött a felhőbe. A `HistoryManager` aszinkronná vált.
