@@ -195,9 +195,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyRunsView = document.getElementById('history-runs-view');
     const tabBtnHistory = document.getElementById('tab-btn-history');
     const tabBtnAccounting = document.getElementById('tab-btn-accounting');
+    const tabBtnTrash = document.getElementById('tab-btn-trash');
     const tabContentHistory = document.getElementById('tab-content-history');
     const tabContentAccounting = document.getElementById('tab-content-accounting');
+    const tabContentTrash = document.getElementById('tab-content-trash');
     const accountingRunsContainer = document.getElementById('accounting-runs-container');
+    const trashRunsContainer = document.getElementById('trash-runs-container');
 
     // Állapot
     let orders = [];
@@ -208,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- HistoryManager (Előzmények kezelése Firestore-al) ---
     const HistoryManager = {
         COLLECTION_NAME: 'szedolista_history',
+        TRASH_COLLECTION_NAME: 'szedolista_trash',
         
         getAllRuns: async function() {
             try {
@@ -291,13 +295,94 @@ document.addEventListener('DOMContentLoaded', () => {
         
         deleteRun: async function(runId) {
             const runs = await this.getAllRuns();
-            const runToDelete = runs.find(r => r.id === runId);
-            if (runToDelete && runToDelete.docId) {
+            const runToMove = runs.find(r => r.id === runId);
+            if (runToMove && runToMove.docId) {
                 try {
-                    await deleteDoc(doc(db, this.COLLECTION_NAME, runToDelete.docId));
+                    const trashData = {
+                        ...runToMove,
+                        deletedAt: Date.now()
+                    };
+                    delete trashData.docId; // Ne vigyük át a régi doksi azonosítót
+                    
+                    // 1. Áthelyezés a szemetesbe
+                    await addDoc(collection(db, this.TRASH_COLLECTION_NAME), trashData);
+                    
+                    // 2. Törlés az eredeti helyről
+                    await deleteDoc(doc(db, this.COLLECTION_NAME, runToMove.docId));
+                    return true;
                 } catch(e) {
-                    console.error("Hiba a törlésnél: ", e);
+                    console.error("Hiba a szemetesbe mozgatásnál: ", e);
+                    return false;
                 }
+            }
+            return false;
+        },
+
+        getTrashRuns: async function() {
+            try {
+                const q = query(collection(db, this.TRASH_COLLECTION_NAME), orderBy('deletedAt', 'desc'));
+                const querySnapshot = await getDocs(q);
+                const runs = [];
+                querySnapshot.forEach((docSnap) => {
+                    runs.push({
+                        ...docSnap.data(),
+                        docId: docSnap.id
+                    });
+                });
+                return runs;
+            } catch (e) {
+                console.error("Hiba a szemetes lekérdezésénél: ", e);
+                return [];
+            }
+        },
+
+        restoreRun: async function(docId) {
+            try {
+                const docRef = doc(db, this.TRASH_COLLECTION_NAME, docId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const runData = docSnap.data();
+                    const restoredData = { ...runData };
+                    delete restoredData.deletedAt;
+                    
+                    // 1. Vissza az eredeti gyűjteménybe
+                    await addDoc(collection(db, this.COLLECTION_NAME), restoredData);
+                    
+                    // 2. Törlés a szemetesből
+                    await deleteDoc(docRef);
+                    return true;
+                }
+            } catch (e) {
+                console.error("Hiba a visszaállításnál: ", e);
+            }
+            return false;
+        },
+
+        permanentDeleteRun: async function(docId) {
+            try {
+                await deleteDoc(doc(db, this.TRASH_COLLECTION_NAME, docId));
+                return true;
+            } catch (e) {
+                console.error("Hiba a végleges törlésnél: ", e);
+                return false;
+            }
+        },
+
+        autoCleanupTrash: async function() {
+            const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+            try {
+                const q = query(collection(db, this.TRASH_COLLECTION_NAME), where('deletedAt', '<', thirtyDaysAgo));
+                const querySnapshot = await getDocs(q);
+                const deletePromises = [];
+                querySnapshot.forEach(docSnap => {
+                    deletePromises.push(deleteDoc(docSnap.ref));
+                });
+                await Promise.all(deletePromises);
+                if (deletePromises.length > 0) {
+                    console.log(`${deletePromises.length} régi elem törölve a szemetesből.`);
+                }
+            } catch (e) {
+                console.error("Hiba az automata takarításnál: ", e);
             }
         },
 
@@ -678,7 +763,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <tr>
                         <td class="col-check"><div class="col-flex-center"><div class="checkbox-box"></div></div></td>
                         <td class="col-marker">${showMarker ? '<div class="col-flex-center"><span class="marker-lbl">címke</span><div class="checkbox-box marker"></div></div>' : ''}</td>
-                        <td class="col-qty nowrap"><strong data-field="itemQty-${iIdx}">${item.qty} db</strong></td>
+                        <td class="col-qty nowrap">${item.isCollapsedProfile ? '' : `<strong data-field="itemQty-${iIdx}">${item.qty} db</strong>`}</td>
                         <td class="col-name" data-field="itemName-${iIdx}">${item.name}${toggleHtml}${subItemsHtml}</td>
                     </tr>
                 `;
@@ -987,30 +1072,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
     tabBtnHistory.addEventListener('click', () => switchHistoryTab('history'));
     tabBtnAccounting.addEventListener('click', () => switchHistoryTab('accounting'));
+    tabBtnTrash.addEventListener('click', () => switchHistoryTab('trash'));
 
-    function switchHistoryTab(tab) {
+    async function switchHistoryTab(tab) {
+        // Reset all tabs
+        [tabBtnHistory, tabBtnAccounting, tabBtnTrash].forEach(btn => {
+            btn.classList.remove('active');
+            btn.style.borderBottomColor = 'transparent';
+            btn.style.color = '#64748b';
+            btn.style.fontWeight = '500';
+        });
+        [tabContentHistory, tabContentAccounting, tabContentTrash].forEach(content => {
+            content.style.display = 'none';
+        });
+
         if (tab === 'history') {
             tabBtnHistory.classList.add('active');
             tabBtnHistory.style.borderBottomColor = 'var(--primary-color)';
             tabBtnHistory.style.color = 'var(--primary-color)';
-            tabBtnAccounting.classList.remove('active');
-            tabBtnAccounting.style.borderBottomColor = 'transparent';
-            tabBtnAccounting.style.color = '#64748b';
-            
+            tabBtnHistory.style.fontWeight = '600';
             tabContentHistory.style.display = 'block';
-            tabContentAccounting.style.display = 'none';
             handleHistorySearch();
-        } else {
+        } else if (tab === 'accounting') {
             tabBtnAccounting.classList.add('active');
             tabBtnAccounting.style.borderBottomColor = 'var(--primary-color)';
             tabBtnAccounting.style.color = 'var(--primary-color)';
-            tabBtnHistory.classList.remove('active');
-            tabBtnHistory.style.borderBottomColor = 'transparent';
-            tabBtnHistory.style.color = '#64748b';
-
-            tabContentHistory.style.display = 'none';
+            tabBtnAccounting.style.fontWeight = '600';
             tabContentAccounting.style.display = 'block';
             renderAccountingRuns();
+        } else if (tab === 'trash') {
+            tabBtnTrash.classList.add('active');
+            tabBtnTrash.style.borderBottomColor = 'var(--primary-color)';
+            tabBtnTrash.style.color = 'var(--primary-color)';
+            tabBtnTrash.style.fontWeight = '600';
+            tabContentTrash.style.display = 'block';
+            await HistoryManager.autoCleanupTrash();
+            renderTrashRuns();
         }
     }
 
@@ -1019,8 +1116,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const onDateChange = () => {
         if (tabContentHistory.style.display !== 'none') {
             handleHistorySearch();
-        } else {
+        } else if (tabContentAccounting.style.display !== 'none') {
             renderAccountingRuns();
+        } else {
+            renderTrashRuns();
         }
     };
     historyDateStart.addEventListener('change', onDateChange);
@@ -1195,6 +1294,61 @@ document.addEventListener('DOMContentLoaded', () => {
                 const runId = e.target.closest('button').getAttribute('data-id');
                 if (runId) {
                     generateDeliveryNotesHtml(runId);
+                }
+            });
+        });
+    }
+
+    async function renderTrashRuns() {
+        const runs = await HistoryManager.getTrashRuns();
+        trashRunsContainer.innerHTML = '';
+        
+        if(runs.length === 0) {
+            trashRunsContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 13px; text-align: center; margin-top: 20px;">A szemetes üres.</p>';
+            return;
+        }
+
+        runs.forEach(run => {
+            const el = document.createElement('div');
+            el.className = 'history-run-card';
+            el.style.borderLeft = '4px solid #94a3b8';
+            
+            const deletedDate = new Date(run.deletedAt).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const origDate = run.date;
+            
+            el.innerHTML = `
+                <div class="history-run-info">
+                    <div class="history-run-title" style="color: #64748b;">${origDate} - ${run.company || '-'}</div>
+                    <div class="history-run-meta">Törölve: ${deletedDate} • ${run.orders.length} rendelés</div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-primary btn-sm btn-restore-run" data-id="${run.docId}" style="background: #15803d;">Visszaállítás</button>
+                    <button class="btn btn-secondary btn-sm btn-permanent-delete-run" data-id="${run.docId}" title="Végleges törlés" style="color: #b91c1c;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </div>
+            `;
+            trashRunsContainer.appendChild(el);
+        });
+
+        trashRunsContainer.querySelectorAll('.btn-restore-run').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const docId = e.target.getAttribute('data-id');
+                const ok = await HistoryManager.restoreRun(docId);
+                if (ok) {
+                    await renderTrashRuns();
+                    await CustomDialog.alert('A szállítási kör sikeresen visszaállítva az előzményekbe!', 'Visszaállítva', 'success');
+                }
+            });
+        });
+
+        trashRunsContainer.querySelectorAll('.btn-permanent-delete-run').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const docId = e.target.closest('button').getAttribute('data-id');
+                const confirm = await CustomDialog.confirm('Biztosan VÉGLEGESEN törlöd ezt a kört? Ezután már nem lehet visszaállítani!', 'Végleges Törlés', 'error', true);
+                if(confirm) {
+                    await HistoryManager.permanentDeleteRun(docId);
+                    await renderTrashRuns();
                 }
             });
         });
@@ -1387,6 +1541,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     .app-container { max-width: 1200px; margin: 0 auto; box-shadow: none; background: transparent; padding: 0; position: relative; min-height: 100vh; }
                     .order-card { break-inside: avoid; margin-bottom: 20px; box-shadow: none; border: 1px solid #e2e8f0; }
                     .no-print { display: none !important; }
+                    .marker-lbl { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 9px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1; }
                     .print-document-header { text-align: center; margin-bottom: 6px; border-bottom: 1.5px solid black; padding-bottom: 4px; }
                     .print-document-header h1 { font-size: 16px; margin: 0; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
                     .print-document-footer { 
@@ -1850,19 +2005,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
 
-                    <div class="signatures">
-                        <div class="signature-box">
-                            <div class="signature-line"></div>
-                            <div>Átadó</div></div>
+                    <div style="break-inside: avoid; page-break-inside: avoid; margin-top: 40px;">
+                        <div class="signatures" style="margin-top: 0;">
+                            <div class="signature-box">
+                                <div class="signature-line"></div>
+                                <div>Átadó</div>
+                            </div>
+                            <div class="signature-box">
+                                <div class="signature-line"></div>
+                                <div>Átvette (Vevő)</div>
+                            </div>
                         </div>
-                        <div class="signature-box">
-                            <div class="signature-line"></div>
-                            <div>Átvette (Vevő)</div></div>
+                        <div class="footer" style="margin-top: 20px;">
+                            Ez a dokumentum a szállítást kísérő bizonylat. Nem minősül számlának.
                         </div>
-                    </div>
-
-                    <div class="footer">
-                        Ez a dokumentum a szállítást kísérő bizonylat. Nem minősül számlának.
                     </div>
                 </div>
             `;

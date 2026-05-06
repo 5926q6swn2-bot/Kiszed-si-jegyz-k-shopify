@@ -202,6 +202,7 @@
             <div class="modal-tabs" style="display: flex; border-bottom: 1px solid #e2e8f0; margin-bottom: 15px;">
                 <button id="tab-btn-history" class="tab-btn active" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid var(--primary-color); font-weight: 600; color: var(--primary-color); cursor: pointer;">Szedések</button>
                 <button id="tab-btn-accounting" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Elszámolások</button>
+                <button id="tab-btn-trash" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Szemetes</button>
             </div>
             <div class="modal-body" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; padding-top: 0;">
                 
@@ -239,6 +240,14 @@
                 <div id="tab-content-accounting" style="display: none; flex: 1;">
                     <div id="accounting-runs-container" style="display: flex; flex-direction: column; gap: 10px;">
                         <!-- JS generálja ide az elszámolásokat -->
+                    </div>
+                </div>
+
+                <!-- Tab 3: Szemetes -->
+                <div id="tab-content-trash" style="display: none; flex: 1;">
+                    <p style="font-size: 11px; color: #94a3b8; margin-bottom: 10px; font-style: italic;">A 30 napnál régebbi tételek automatikusan törlődnek.</p>
+                    <div id="trash-runs-container" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- JS generálja ide a törölt köröket -->
                     </div>
                 </div>
 
