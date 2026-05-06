@@ -86,6 +86,8 @@ A `js/app.js`-ben lévő `HistoryManager` felel a szállítási körök kezelés
 - **Profilok Nyomtatásban:** Az "Összekészített profilok" sor alatt a részletes profillista nyomtatáskor is látszódik (a szedőlistán és az egyedi szállítóleveleken is).
 - **Nyomtatási Elrendezés Finomhangolása:** A lábléc ("Nem minősül számlának") helyzete és az oldalszegélyek optimalizálva lettek az A4-es papírhoz az elcsúszások elkerülése érdekében.
 - **Szemetes (Trash) Rendszer:** A törölt szállítási körök nem törlődnek véglegesen, hanem egy 30 napos megőrzésű szemetesbe kerülnek, ahonnan bármikor visszaállíthatók.
+- **Elszámolás Követése:** Az Elszámolások fülön mostantól cégek szerint csoportosítva láthatók a fuvarok, cégre lebontott összesített kintlévőség kijelzéssel.
+- **Fix és Dinamikus Partnerlista:** A mentéskor választható fix partnerlista (LétaiSela, Sela, stb.) kiegészült az új partnerek felvételének lehetőségével. Az új partnerek automatikusan bekerülnek a szűrők közé is.
 
 ### Legutóbbi frissítés: 2026. május 5. (Firebase Migráció & Publikálás)
 - **Firebase Cloud Firestore:** A `localStorage` teljesen kivezetve, az adatbázis átköltözött a felhőbe. A `HistoryManager` aszinkronná vált.

@@ -581,7 +581,7 @@ body {
 .checkbox-box.marker { border-color: #94a3b8; }
 
 .col-flex-center { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
-.marker-lbl { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 9px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1; }
+.marker-lbl { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 8.5px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1; white-space: nowrap; }
 
 /* Modal (Premium Redesign) */
 .modal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); align-items: center; justify-content: center; z-index: 2000; }

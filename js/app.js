@@ -201,6 +201,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabContentTrash = document.getElementById('tab-content-trash');
     const accountingRunsContainer = document.getElementById('accounting-runs-container');
     const trashRunsContainer = document.getElementById('trash-runs-container');
+    const accountingFilterPending = document.getElementById('accounting-filter-pending');
+    const historyCompanyFilter = document.getElementById('history-company-filter');
+    const psNewCompanyGroup = document.getElementById('ps-new-company-group');
+    const psNewCompanyInput = document.getElementById('ps-new-company');
 
     // Állapot
     let orders = [];
@@ -383,6 +387,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (e) {
                 console.error("Hiba az automata takarításnál: ", e);
+            }
+        },
+
+        updateSettlementStatus: async function(docId, isSettled) {
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                await updateDoc(docRef, {
+                    isSettled: isSettled,
+                    settledAt: isSettled ? Date.now() : null
+                });
+                return true;
+            } catch (e) {
+                console.error("Hiba az elszámolás állapot frissítésénél: ", e);
+                return false;
             }
         },
 
@@ -1002,15 +1020,30 @@ document.addEventListener('DOMContentLoaded', () => {
             psCompanyInput.value = '';
             psSenderInput.value = 'capsula';
         }
+        psCompanyInput.value = '';
+        psNewCompanyGroup.style.display = 'none';
+        psNewCompanyInput.value = '';
         printSettingsModal.classList.add('active');
         psCompanyInput.focus();
+    });
+
+    psCompanyInput.addEventListener('change', () => {
+        if (psCompanyInput.value === 'new') {
+            psNewCompanyGroup.style.display = 'block';
+            psNewCompanyInput.focus();
+        } else {
+            psNewCompanyGroup.style.display = 'none';
+        }
     });
 
     btnConfirmPrint.addEventListener('click', async () => {
         const date = psDateInput.value;
         const pickupDate = psPickupDateInput.value;
+        let company = psCompanyInput.value;
+        if (company === 'new') {
+            company = psNewCompanyInput.value.trim();
+        }
         const courier = psCourierInput.value.trim();
-        const company = psCompanyInput.value.trim();
         const sender = psSenderInput.value;
         const shouldPrintDeliveryNotes = psPrintDeliveryNotesInput.checked;
         
@@ -1061,14 +1094,36 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Előzmények (History) ---
-    btnHistory.addEventListener('click', () => {
+    btnHistory.addEventListener('click', async () => {
         historyDateStart.value = '';
         historyDateEnd.value = '';
         historySearchInput.value = '';
+        await populateCompanyFilters();
         switchHistoryTab('history');
         historyModal.classList.add('active');
         historySearchInput.focus();
     });
+
+    async function populateCompanyFilters() {
+        const runs = await HistoryManager.getAllRuns();
+        const companies = new Set();
+        // Alapértelmezett cégek, amiket mindenképp mutatunk
+        ['LétaiSela', 'Sela', 'ÁdámFuvar', 'FákóTrans', 'Mizsei'].forEach(c => companies.add(c));
+        
+        runs.forEach(r => {
+            if (r.company) companies.add(r.company);
+        });
+
+        const currentVal = historyCompanyFilter.value;
+        historyCompanyFilter.innerHTML = '<option value="">Összes cég</option>';
+        Array.from(companies).sort().forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = c;
+            historyCompanyFilter.appendChild(opt);
+        });
+        historyCompanyFilter.value = currentVal;
+    }
 
     tabBtnHistory.addEventListener('click', () => switchHistoryTab('history'));
     tabBtnAccounting.addEventListener('click', () => switchHistoryTab('accounting'));
@@ -1124,13 +1179,13 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     historyDateStart.addEventListener('change', onDateChange);
     historyDateEnd.addEventListener('change', onDateChange);
+    historyCompanyFilter.addEventListener('change', onDateChange);
 
-    function isDateInRange(runDateStr) {
+    function isFiltered(run) {
+        // 1. Dátum szűrés
         const startD = historyDateStart.value;
         const endD = historyDateEnd.value;
-        if (!startD && !endD) return true;
-        
-        const runD = new Date(runDateStr);
+        const runD = new Date(run.date);
         runD.setHours(12, 0, 0, 0);
         
         if (startD) {
@@ -1143,6 +1198,13 @@ document.addEventListener('DOMContentLoaded', () => {
             e.setHours(23, 59, 59, 999);
             if (runD > e) return false;
         }
+
+        // 2. Cég szűrés
+        const companyFilter = historyCompanyFilter.value;
+        if (companyFilter && run.company !== companyFilter) {
+            return false;
+        }
+
         return true;
     }
 
@@ -1238,66 +1300,114 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function renderAccountingRuns() {
         let runs = await HistoryManager.getAllRuns();
-        const hasDateFilter = historyDateStart.value || historyDateEnd.value;
-        if (hasDateFilter) {
-            runs = runs.filter(r => isDateInRange(r.date));
+        const onlyPending = accountingFilterPending.checked;
+
+        // Szűrés
+        runs = runs.filter(r => isFiltered(r));
+        if (onlyPending) {
+            runs = runs.filter(r => !r.isSettled);
         }
 
         accountingRunsContainer.innerHTML = '';
         
         if(runs.length === 0) {
-            accountingRunsContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">Nincsenek a feltételnek megfelelő szállítási körök.</p>';
+            accountingRunsContainer.innerHTML = `<p style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">Nincsenek a feltételnek megfelelő elszámolások.</p>`;
             return;
         }
 
+        // Csoportosítás cégek szerint
+        const groups = {};
         runs.forEach(run => {
-            const el = document.createElement('div');
-            el.style.border = '1px solid #e2e8f0';
-            el.style.borderRadius = '8px';
-            el.style.padding = '15px';
-            el.style.background = '#f8fafc';
-            el.style.display = 'flex';
-            el.style.justifyContent = 'space-between';
-            el.style.alignItems = 'center';
-            el.style.position = 'relative';
-            el.style.paddingTop = '32px';
-            
-            let totalCOD = 0;
-            run.orders.forEach(o => {
-                if(o.isCOD) totalCOD += o.codAmount;
-            });
-
-            el.innerHTML = `
-                <div style="position: absolute; top: 0; right: 0; background: #0f172a; color: white; padding: 5px 16px; border-radius: 0 8px 0 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; white-space: nowrap;">
-                    ${run.company || '-'}
-                </div>
-                <div>
-                    <div style="font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">Kiszállítás: ${run.date}</div>
-                    <div style="font-size: 12px; color: #64748b;">
-                        Szállító: <strong>${run.courier}</strong> | 
-                        Rendelések: <strong>${run.orders.length} db</strong>
-                    </div>
-                    <div style="font-size: 13px; color: #b91c1c; font-weight: 600; margin-top: 5px;">Várható Utánvét: ${totalCOD.toLocaleString('hu-HU')} Ft</div>
-                </div>
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn btn-secondary btn-print-summary" data-id="${run.id}" style="padding: 6px 12px; font-size: 12px; display: flex; align-items: center; gap: 5px;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                        Összesítő és Korrekció
-                    </button>
-                </div>
-            `;
-            accountingRunsContainer.appendChild(el);
+            const comp = run.company || 'Egyéb';
+            if (!groups[comp]) groups[comp] = [];
+            groups[comp].push(run);
         });
 
+        Object.keys(groups).sort().forEach(companyName => {
+            const companyRuns = groups[companyName];
+            let companyTotalCOD = 0;
+            companyRuns.forEach(r => {
+                if (!r.isSettled) {
+                    r.orders.forEach(o => { if(o.isCOD) companyTotalCOD += o.codAmount; });
+                }
+            });
+
+            const groupEl = document.createElement('div');
+            groupEl.className = 'accounting-company-group';
+            groupEl.style.marginBottom = '25px';
+            
+            groupEl.innerHTML = `
+                <div style="background: #0f172a; color: white; padding: 10px 16px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 700; letter-spacing: 0.5px;">${companyName}</span>
+                    <span style="font-size: 13px; background: #334155; padding: 2px 10px; border-radius: 20px;">Függőben: <strong>${companyTotalCOD.toLocaleString('hu-HU')} Ft</strong></span>
+                </div>
+                <div class="group-runs" style="border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px; padding: 10px; background: #f8fafc; display: flex; flex-direction: column; gap: 8px;">
+                </div>
+            `;
+
+            const runsContainer = groupEl.querySelector('.group-runs');
+            companyRuns.forEach(run => {
+                const el = document.createElement('div');
+                el.className = 'history-run-card accounting-card';
+                el.style.margin = '0';
+                el.style.background = run.isSettled ? '#f0fdf4' : 'white';
+                el.style.borderColor = run.isSettled ? '#bcf0da' : '#e2e8f0';
+                
+                let runCOD = 0;
+                run.orders.forEach(o => { if(o.isCOD) runCOD += o.codAmount; });
+
+                const statusBadge = run.isSettled 
+                    ? '<span style="color: #15803d; font-size: 10px; font-weight: 700;">✅ ELSZÁMOLVA</span>' 
+                    : '<span style="color: #9a3412; font-size: 10px; font-weight: 700;">⏳ FÜGGŐ</span>';
+
+                el.innerHTML = `
+                    <div style="flex: 1;">
+                        <div style="margin-bottom: 4px;">${statusBadge}</div>
+                        <div style="font-size: 13px; font-weight: 700; color: var(--text-primary);">Kiszállítás: ${run.date}</div>
+                        <div style="font-size: 11px; color: #64748b;">Szállító: ${run.courier} • ${run.orders.length} db rendelés</div>
+                        <div style="font-size: 12px; color: #b91c1c; font-weight: 600; margin-top: 2px;">Utánvét: ${runCOD.toLocaleString('hu-HU')} Ft</div>
+                    </div>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <button class="btn btn-secondary btn-print-summary" data-id="${run.id}" style="padding: 5px 8px; font-size: 11px;" title="Összesítő nyomtatása">Nyomtatás</button>
+                        ${!run.isSettled ? `
+                            <button class="btn btn-primary btn-settle-run" data-doc-id="${run.docId}" style="padding: 5px 10px; font-size: 11px; background: #15803d;">Kiegyenlítve</button>
+                        ` : `
+                            <button class="btn btn-secondary btn-unsettle-run" data-doc-id="${run.docId}" style="padding: 5px 10px; font-size: 10px;">Visszaállítás</button>
+                        `}
+                    </div>
+                `;
+                runsContainer.appendChild(el);
+            });
+
+            accountingRunsContainer.appendChild(groupEl);
+        });
+
+        // Eseménykezelők újracsatolása (mivel dinamikusan generáltuk az elemeket)
         accountingRunsContainer.querySelectorAll('.btn-print-summary').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const runId = e.target.closest('button').getAttribute('data-id');
-                if (runId) {
-                    generateDeliveryNotesHtml(runId);
-                }
+                const runId = e.target.getAttribute('data-id');
+                if (runId) generateDeliveryNotesHtml(runId);
+            });
+        });
+
+        accountingRunsContainer.querySelectorAll('.btn-settle-run').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const docId = e.target.getAttribute('data-doc-id');
+                if (await HistoryManager.updateSettlementStatus(docId, true)) renderAccountingRuns();
+            });
+        });
+
+        accountingRunsContainer.querySelectorAll('.btn-unsettle-run').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const docId = e.target.getAttribute('data-doc-id');
+                if (await HistoryManager.updateSettlementStatus(docId, false)) renderAccountingRuns();
             });
         });
     }
+
+    accountingFilterPending.addEventListener('change', () => {
+        renderAccountingRuns();
+    });
 
     async function renderTrashRuns() {
         const runs = await HistoryManager.getTrashRuns();
@@ -1541,7 +1651,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     .app-container { max-width: 1200px; margin: 0 auto; box-shadow: none; background: transparent; padding: 0; position: relative; min-height: 100vh; }
                     .order-card { break-inside: avoid; margin-bottom: 20px; box-shadow: none; border: 1px solid #e2e8f0; }
                     .no-print { display: none !important; }
-                    .marker-lbl { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 9px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1; }
+                    .marker-lbl { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 8.5px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1; white-space: nowrap; }
                     .print-document-header { text-align: center; margin-bottom: 6px; border-bottom: 1.5px solid black; padding-bottom: 4px; }
                     .print-document-header h1 { font-size: 16px; margin: 0; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
                     .print-document-footer { 
