@@ -473,8 +473,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 let codAmount = 0;
 
                 let noteCodAmount = null;
-                const matchBefore = notes.match(/(\d[\d\s\.]*?)\s*(?:ft|huf)?\s*(?:ut[aá]nv[eé]t|uv\b)/);
-                const matchAfter = notes.match(/(?:ut[aá]nv[eé]t|uv\b).*?(\d[\d\s\.]*)/);
+                const matchBefore = notes.match(/(\d[\d\s\.]*?)\s*(?:ft|huf)?\s*(?:ut[aá]nv[eé]t|\buv)/i);
+                const matchAfter = notes.match(/(?:ut[aá]nv[eé]t|\buv).*?(\d[\d\s\.]*)/i);
 
                 if (matchBefore) {
                     noteCodAmount = parseInt(matchBefore[1].replace(/[\s\.]/g, ''));
@@ -488,7 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         codAmount = outstandingBalance;
                         
                         // LAPPANGÓ UTÁNVÉT FIGYELMEZTETÉS
-                        if (!notes.includes('utánvét') && !notes.includes('utanvet') && !notes.includes(' uv')) {
+                        if (!/ut[aá]nv[eé]t|\buv/i.test(notes)) {
                             errors.push({
                                 id: Math.random().toString(36).substr(2, 9),
                                 title: "Lappangó Utánvét!",
@@ -668,7 +668,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (item.isCollapsedProfile && item.subItems && item.subItems.length > 0) {
                     toggleHtml = ` <span class="profile-toggle no-print" data-toggle-id="${order.internalId}-${iIdx}" style="cursor: pointer; color: var(--primary); font-size: 11px; margin-left: 6px; font-weight: 600;">▼</span>`;
                     subItemsHtml = `
-                        <div id="sub-${order.internalId}-${iIdx}" class="profile-subitems no-print" style="display: none; padding: 6px 0 0 12px; font-size: 11px; color: #475569;">
+                        <div id="sub-${order.internalId}-${iIdx}" class="profile-subitems" style="display: none; padding: 6px 0 0 12px; font-size: 11px; color: #475569;">
                             ${item.subItems.map(sub => `<div style="margin-bottom: 2px;">• ${sub.qty} db - ${sub.name}</div>`).join('')}
                         </div>
                     `;
@@ -730,7 +730,9 @@ document.addEventListener('DOMContentLoaded', () => {
             easing: "cubic-bezier(0.34, 1.56, 0.64, 1)", 
             ghostClass: 'sortable-ghost',
             dragClass: 'sortable-drag',
-            onEnd: function() {
+            onEnd: function(evt) {
+                const movedItem = orders.splice(evt.oldIndex, 1)[0];
+                orders.splice(evt.newIndex, 0, movedItem);
                 updateIndexes();
             }
         });
@@ -1158,6 +1160,8 @@ document.addEventListener('DOMContentLoaded', () => {
             el.style.display = 'flex';
             el.style.justifyContent = 'space-between';
             el.style.alignItems = 'center';
+            el.style.position = 'relative';
+            el.style.paddingTop = '32px';
             
             let totalCOD = 0;
             run.orders.forEach(o => {
@@ -1165,10 +1169,12 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             el.innerHTML = `
+                <div style="position: absolute; top: 0; right: 0; background: #0f172a; color: white; padding: 5px 16px; border-radius: 0 8px 0 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; white-space: nowrap;">
+                    ${run.company || '-'}
+                </div>
                 <div>
                     <div style="font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">Kiszállítás: ${run.date}</div>
                     <div style="font-size: 12px; color: #64748b;">
-                        Cég: <strong>${run.company || '-'}</strong> | 
                         Szállító: <strong>${run.courier}</strong> | 
                         Rendelések: <strong>${run.orders.length} db</strong>
                     </div>
@@ -1177,7 +1183,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="display: flex; gap: 8px;">
                     <button class="btn btn-secondary btn-print-summary" data-id="${run.id}" style="padding: 6px 12px; font-size: 12px; display: flex; align-items: center; gap: 5px;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                        Összesítő és Korrekció (2 oldal)
+                        Összesítő és Korrekció
                     </button>
                 </div>
             `;
@@ -1637,10 +1643,12 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
 
-        notesHtml += `
+        // === Összesítő lap HTML (2x kell) ===
+        const summaryPageHtml = `
             <div class="page">
                 <div class="doc-title" style="font-size: 28px; margin-bottom: 5px;">Összesítő (Átadás-Átvétel)</div>
-                <div style="text-align: center; color: #64748b; font-size: 14px; margin-bottom: 30px;">Kelt: ${run.date} | Szállító: ${run.courier}</div>
+                <div style="text-align: center; color: #64748b; font-size: 14px; margin-bottom: 10px;">Kelt: ${run.date} | Szállító: ${run.courier}</div>
+                <div style="text-align: center; background: #0f172a; color: white; font-size: 22px; font-weight: 800; padding: 12px 24px; border-radius: 10px; margin-bottom: 30px; letter-spacing: 1px;">${run.company || '-'}</div>
 
                 <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 30px; text-align: center;">
                     <div style="font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 5px; text-transform: uppercase;">Összes beszedendő utánvét a körben:</div>
@@ -1679,6 +1687,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>
             
+        `;
+        // === Korrekciós lap HTML (1x kell) ===
+        const correctionPageHtml = `
             <div class="page">
                 <div class="doc-title" style="font-size: 28px; margin-bottom: 5px;">Korrekciós és Elszámoló Lap</div>
                 <div style="text-align: center; color: #64748b; font-size: 14px; margin-bottom: 30px;">Kelt: ${run.date} | Szállító: ${run.courier} | Kitöltendő visszavételkor!</div>
@@ -1728,7 +1739,8 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
-        run.orders.forEach((order) => {
+        // === Szállítólevelek HTML (2x kell, sorban kétszer) ===
+        const deliveryNotesHtmlAll = run.orders.map((order) => {
             let totalOrderValue = 0;
             const itemsHtml = order.items.map(item => {
                 const itemTotal = item.price * item.qty;
@@ -1803,13 +1815,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="signatures">
                         <div class="signature-box">
                             <div class="signature-line"></div>
-                            <div>Átadó</div>
-                            <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Dátum: ...............................</div>
+                            <div>Átadó</div></div>
                         </div>
                         <div class="signature-box">
                             <div class="signature-line"></div>
-                            <div>Átvette (Vevő)</div>
-                            <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Dátum: ...............................</div>
+                            <div>Átvette (Vevő)</div></div>
                         </div>
                     </div>
 
@@ -1818,7 +1828,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
             `;
-        });
+        }).join('');
+
+        // === Összerakás: 2x Összesítő, 1x Korrekciós, 2x Szállítólevelek sorozat ===
+        notesHtml += summaryPageHtml + summaryPageHtml + correctionPageHtml + deliveryNotesHtmlAll + deliveryNotesHtmlAll;
 
         notesHtml += `
             <script>

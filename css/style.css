@@ -681,6 +681,7 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
     .checkbox-box { border: 1px solid #000 !important; width: 14px; height: 14px; border-radius: 3px !important; background: transparent !important; box-shadow: none !important; vertical-align: middle; }
     .marker-lbl { color: #000 !important; font-weight: 800; font-size: 8px; top: -10px; }
     .error-box { display: none !important; }
+    .profile-subitems { display: block !important; }
 }
 
 /* History Modals & Cards */
