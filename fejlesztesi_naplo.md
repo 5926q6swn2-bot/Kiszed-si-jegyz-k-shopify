@@ -56,19 +56,15 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **UI/UX:** Flex-layout alapú címke igazítás és munkanap-badge.
 
 ---
-### Legutóbbi frissítés: 2026. május 5. (Firebase Migráció & Publikálás)
-- **Firebase Cloud Firestore:** A `localStorage` teljesen kivezetve, az adatbázis átköltözött a felhőbe. A `HistoryManager` aszinkronná vált.
-- **Firebase Authentication:** E-mail/jelszó alapú bejelentkezési réteg (Login Overlay) implementálása az adatok védelme érdekében. A Firestore adatbázis szabályai élesítve (`request.auth != null`).
-- **ES Modules:** A script betöltések moduláris architektúrára álltak át a biztonságos Firebase SDK importálások miatt.
-- **Publikálás (GitHub Pages):** Az alkalmazás most már weboldalként is üzemel a GitHub Pages-en keresztül, amely automatikusan (CI/CD) frissül push-olás után.
-
-### Korábbi frissítés: 2026. május 5. (Délelőtt)
-- **Elszámolások fül javítása:** A HTML szerkezetben javítva lett egy hiányzó `</div>` lezáró elem, így az Elszámolások fül újra látható és megfelelően listázza az elmentett fuvarokat a várható utánvét összegével.
-- **Dátumtartomány Szűrés:** Az előzményeknél a napi szűrő le lett cserélve egy "Kezdő dátum (tól)" és "Záró dátum (ig)" szűrőre, amely a Szedések és az Elszámolások fülön is működik.
-- **Git & GitHub Integráció:** A projekt verziókövetést kapott és feltöltésre került a GitHub-ra. Létrejött a `.gitignore` fájl a felesleges fájlok szűrésére.
+### 2026. május 7. - Kritikus Hibajavítások & GitHub Pages Optimalizálás
+- **Beépített Login (Hybrid Auth):** A GitHub Pages-en fellépő modul-betöltési és gyorsítótár (cache) problémák miatt a bejelentkezési logika közvetlenül az `index.html`-be került beágyazásra. Ez garantálja a hozzáférést akkor is, ha az `app.js` betöltése késik vagy blokkolva van.
+- **Firebase SDK Import Javítás:** Pótolva lettek a hiányzó Firestore függvények (`where`, `limit`, `getDoc`, `setDoc`, `writeBatch`, `deleteField`, `arrayUnion`, `arrayRemove`, `increment`) a `firebase-config.js` fájlban. Ezek hiánya miatt az `app.js` korábban nem tudott elindulni.
+- **DOM Referencia Tisztítás:** Eltávolítva az összes olyan JavaScript hivatkozás (`global-drag-overlay`, `edit-overlay`), amely nem létező HTML elemekre mutatott, megállítva ezzel a script futását.
+- **Cache-Busting Technika:** Verziózott script betöltés (`app.js?v=3`) bevezetése, hogy a böngészők kényszerítve legyenek a legfrissebb kód letöltésére.
+- **Stabilitás:** A rendszer újra elérhető, a bejelentkezés után a gombok és a funkciók (Importálás, HistoryManager) újra működőképesek.
 
 ---
 
 ## 🎯 Következő Lépések (TODO)
-- [ ] **CSV Export**: Lehetőség a korábbi fuvarok CSV-ben történő exportálására a könyvelésnek.
+- [ ] **CSV Export**: Lehetőség a korábbi fuvarok CSV-ben történő exportálására a könyvelésnek. (Előkészítve)
 - [ ] **Kereső**: Global search funkció a mentett szállítási körök és elszámolások között.
