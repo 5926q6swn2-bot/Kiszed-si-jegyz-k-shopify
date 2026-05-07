@@ -1582,7 +1582,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return false;
         }
     }
-    }
 
     accountingFilterPending.addEventListener('change', () => {
         renderAccountingRuns();
