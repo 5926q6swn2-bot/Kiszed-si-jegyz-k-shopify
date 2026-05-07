@@ -1,6 +1,8 @@
-import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from './firebase-config.js';
+import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, query, orderBy } from './firebase-config.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+    console.log("KOPJ Rendszer: app.js elindult");
+
     // --- GLOBÁLIS HIBAJELZŐ ---
     window.onerror = function(msg, url, lineNo, columnNo, error) {
         alert("KRITIKUS HIBA:\n" + msg + "\nSor: " + lineNo + "\nFile: " + url);
@@ -10,39 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- FIREBASE AUTHENTICATION ---
     const loginOverlay = document.getElementById('login-overlay');
     const mainApp = document.getElementById('main-app');
-    const loginForm = document.getElementById('login-form');
-    const loginError = document.getElementById('login-error');
     const btnLogout = document.getElementById('btn-logout');
     const userEmailDisplay = document.getElementById('user-email-display');
-
-    if (loginForm) {
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            // AZONNALI TESZT: Ha ezt látod, fut a kód!
-            document.body.style.backgroundColor = 'black';
-            
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
-            const btnLogin = document.getElementById('btn-login');
-            
-            console.log("LOGIN START");
-            loginError.style.display = 'none';
-            btnLogin.disabled = true;
-            btnLogin.textContent = 'Belépés...';
-            
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-            } catch (error) {
-                console.error("LOGIN ERROR", error);
-                loginError.style.display = 'block';
-                loginError.textContent = 'Hiba: ' + error.message;
-                alert("Bejelentkezési hiba!\n" + error.message);
-            } finally {
-                btnLogin.disabled = false;
-                btnLogin.textContent = 'Belépés';
-            }
-        });
-    }
 
     onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -57,9 +28,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    btnLogout.addEventListener('click', () => {
-        signOut(auth);
-    });
+    if (btnLogout) {
+        btnLogout.addEventListener('click', () => {
+            signOut(auth);
+        });
+    }
 
 
     // --- EGYEDI DIALOG RENDSZER ---
