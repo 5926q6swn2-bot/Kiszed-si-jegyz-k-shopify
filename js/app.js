@@ -1,6 +1,12 @@
 import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from './firebase-config.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+    // --- GLOBÁLIS HIBAJELZŐ ---
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+        alert("KRITIKUS HIBA:\n" + msg + "\nSor: " + lineNo + "\nFile: " + url);
+        return false;
+    };
+
     // --- FIREBASE AUTHENTICATION ---
     const loginOverlay = document.getElementById('login-overlay');
     const mainApp = document.getElementById('main-app');
@@ -8,6 +14,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginError = document.getElementById('login-error');
     const btnLogout = document.getElementById('btn-logout');
     const userEmailDisplay = document.getElementById('user-email-display');
+
+    if (loginForm) {
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const btnLogin = document.getElementById('btn-login');
+            
+            console.log("LOGIN START");
+            loginError.style.display = 'none';
+            btnLogin.disabled = true;
+            btnLogin.textContent = 'Belépés...';
+            
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                console.error("LOGIN ERROR", error);
+                loginError.style.display = 'block';
+                loginError.textContent = 'Hiba: ' + error.message;
+                alert("Bejelentkezési hiba!\n" + error.message);
+            } finally {
+                btnLogin.disabled = false;
+                btnLogin.textContent = 'Belépés';
+            }
+        });
+    }
 
     onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -19,31 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Kijelentkezve
             loginOverlay.classList.add('active');
             mainApp.style.display = 'none';
-        }
-    });
-
-    loginForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
-        loginError.style.display = 'none';
-        const btnLogin = document.getElementById('btn-login');
-        
-        console.log("Bejelentkezési kísérlet indítása...", email);
-        btnLogin.disabled = true;
-        btnLogin.textContent = 'Belépés...';
-        
-        try {
-            await signInWithEmailAndPassword(auth, email, password);
-            console.log("Sikeres Firebase bejelentkezés!");
-        } catch (error) {
-            console.error("Firebase hiba:", error);
-            loginError.style.display = 'block';
-            loginError.textContent = 'Hiba: ' + error.message;
-            alert("Bejelentkezési hiba történt!\nKód: " + error.code + "\nÜzenet: " + error.message);
-        } finally {
-            btnLogin.disabled = false;
-            btnLogin.textContent = 'Belépés';
         }
     });
 
