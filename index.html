@@ -377,6 +377,14 @@
             </div>
         </div>
     </div>
+    <script>
+        window.addEventListener('error', function(e) {
+            if (e.target.src) {
+                alert('HIBA: Nem sikerült betölteni a fájlt: ' + e.target.src);
+            }
+        }, true);
+        console.log("Index.html betöltve, app.js indítása...");
+    </script>
     <script type="module" src="js/app.js"></script>
 </body>
 </html>
