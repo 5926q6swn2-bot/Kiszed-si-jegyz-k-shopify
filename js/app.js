@@ -1,4 +1,4 @@
-import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, query, orderBy } from './firebase-config.js';
+import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, query, orderBy, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from './firebase-config.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log("KOPJ Rendszer: app.js elindult");
@@ -15,6 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnLogout = document.getElementById('btn-logout');
     const userEmailDisplay = document.getElementById('user-email-display');
 
+    // (A bejelentkezést már az index.html kezeli)
+    
     onAuthStateChanged(auth, (user) => {
         if (user) {
             // Bejelentkezve
