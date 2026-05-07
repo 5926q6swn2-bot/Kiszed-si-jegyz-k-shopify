@@ -182,6 +182,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnSaveManual = document.getElementById('btn-save-manual');
     const editOverlay = document.getElementById('edit-overlay');
     
+    // Biztonsági ellenőrzés: ha valami hiányzik, ne haljon meg a script
+    if (!loginForm) console.error("HIÁNYZIK: login-form");
+    if (!mainApp) console.error("HIÁNYZIK: main-app");
+    if (!loginOverlay) console.error("HIÁNYZIK: login-overlay");
+    
     // History & Print Form Elemek
     const btnConfirmPrint = document.getElementById('btn-confirm-print');
     const psPickupDateInput = document.getElementById('ps-pickup-date');
