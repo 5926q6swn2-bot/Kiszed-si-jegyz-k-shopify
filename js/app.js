@@ -28,14 +28,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const password = document.getElementById('login-password').value;
         loginError.style.display = 'none';
         const btnLogin = document.getElementById('btn-login');
+        
+        console.log("Bejelentkezési kísérlet indítása...", email);
         btnLogin.disabled = true;
         btnLogin.textContent = 'Belépés...';
         
         try {
             await signInWithEmailAndPassword(auth, email, password);
+            console.log("Sikeres Firebase bejelentkezés!");
         } catch (error) {
+            console.error("Firebase hiba:", error);
             loginError.style.display = 'block';
-            loginError.textContent = 'Hibás e-mail cím vagy jelszó!';
+            loginError.textContent = 'Hiba: ' + error.message;
+            alert("Bejelentkezési hiba történt!\nKód: " + error.code + "\nÜzenet: " + error.message);
         } finally {
             btnLogin.disabled = false;
             btnLogin.textContent = 'Belépés';
@@ -158,7 +163,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('file-input');
     const orderList = document.getElementById('order-list');
     const emptyState = document.getElementById('empty-state');
-    const globalDragOverlay = document.getElementById('global-drag-overlay');
     const printDateDisplay = document.getElementById('print-date-display');
     
     // Island & Top Gombok

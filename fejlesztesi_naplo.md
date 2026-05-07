@@ -1,76 +1,35 @@
 # Kiszedési Jegyzék Shopify - Dokumentáció és Fejlesztési Napló
 
-Ez a dokumentum a projekt teljes leírását, használati útmutatóját és a fejlesztések történetét tartalmazza. 
-**Célja:** Ha új gépen vagy új fejlesztővel (pl. egy új Antigravity munkamenetben) nyitod meg a projektet, ebből a fájlból azonnal világos legyen a teljes kontextus és a munkafolyamat.
+Ez a dokumentum a projekt teljes leírását, technikai specifikációit és a fejlesztések részletes történetét tartalmazza. 
+**Célja:** Minden munkamenet elején biztosítani a teljes kontextust az AI ágens számára.
 
 ---
 
-## 🚀 Hogyan folytassuk a munkát egy új gépen?
-Amikor leklónoztad a GitHub-ról a projektet egy új gépre, és elindítod az Antigravity-t:
-1. **Első lépésként: Olvasd el a `gemini alap skill.md` fájlt!** Ez tartalmazza a WAT architektúrát és az ügymenetet.
-2. Az első üzeneted ez legyen az AI-nak: *"Szia! Kérlek, olvasd el a `fejlesztesi_naplo.md` és a `gemini alap skill.md` fájlokat, és folytassuk a munkát a TODO lista alapján!"*
-3. A munka végeztével mindig kérd meg az AI-t, hogy frissítse ezt a naplót az új eredményekkel.
-4. Végül mentsd el Git-tel — **lásd a Git szabályokat lent!**
+## 🏗️ Projekt Specifikáció & Design Guidelines
 
----
+Az ágensnek minden módosításkor tartania kell magát az alábbi stack-hez és stílushoz:
 
-## 📋 Git Munkafolyamat Szabályok
-
-> [!IMPORTANT]
-> **Commit üzenet szabály:** Az AI soha nem futtathat `git commit` parancsot addig, amíg a felhasználó nem adja meg a commit üzenet szövegét. A folyamat mindig ez:
-> 1. AI elvégzi a munkát
-> 2. AI megmutatja: *"Kész! Add meg a commit üzenet szövegét, és én futtatom a `git add . → git commit → git push` parancsokat."*
-> 3. Felhasználó megadja a nevet (pl. `"fix: utánvét javítás"`)
-> 4. AI futtatja: `git add .` majd `git commit -m "[felhasználó szövege]"` majd `git push`
-
-### A 3 alapparancs (ezt kell megtanulni)
-```bash
-git add .                           # 1. Összegyűjt MINDEN változást
-git commit -m "leírás amit te adsz meg"  # 2. Pillanatkép mentése
-git push                            # 3. Feltöltés GitHub-ra → webhely frissül ~1-2 perc múlva
-```
-
-### Ellenőrzés push után
-- Várd meg az ~1-2 percet
-- Böngészőben: **`Ctrl + Shift + R`** (kényszer-frissítés, cache nélkül)
-- GitHub Actions státusz: `https://github.com/5926q6swn2-bot/Kiszed-si-jegyz-k-shopify/actions`
+- **Frontend**: Vanilla HTML5, CSS3.
+- **Dizájn Irányzat**: Modern, Apple-stílusú **Glassmorphism** (áttetsző rétegek, blur effekt, lekerekített sarkok, tiszta tipográfia).
+- **Logika**: Vanilla JavaScript (Szigorúan **ES Modules** architektúra, `app.js`).
+- **Adatbázis & Backend**: Google Firebase (Cloud Firestore & Authentication).
+- **Alapszabály**: Minden Firebase/Firestore hívást aszinkron módon, `await` kulcsszóval kell kezelni (különösen a `HistoryManager` objektumban).
 
 ---
 
 ## 📦 A Projekt Célja és Működése
 Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Shopify webáruházakhoz.
-- **Kezdés:** A Shopify-ból exportált megrendelések CSV fájljának beolvasása.
-- **Feldolgozás:** A rendszer automatikusan formázza a termékeket, kiszűri a duplikált rendeléseket, és vizuális jelzéseket ad a problémás rendelésekről (pl. hiányzó utalás, lappangó utánvét).
-- **Kimenet:** Nyomtatható Szedési Jegyzék és kétoldalas "Összesítő és Korrekciós lap" a futároknak a pénzügyi elszámoláshoz.
-
-### Használati Útmutató (Felhasználóknak)
-1. Nyisd meg az `index.html` fájlt a böngésződben (vagy futtass egy helyi szervert a mappában).
-2. Töltsd fel a Shopify-ból lementett napi CSV fájlt.
-3. Ellenőrizd a listát, szükség esetén adj hozzá rendeléseket kézzel.
-4. Nyomtasd ki a listát. A nyomtatás elindításakor a rendszer elmenti az adott "Szállítási Kört".
-5. Az "Előzmények" gombra kattintva bármikor visszakeresheted, újranyomtathatod a korábbi köröket, és az "Elszámolások" fülön kinyomtathatod a futárok pénzügyi elszámoló lapját.
+- **Kezdés:** A Shopify-ból exportált megrendelések CSV fájljának beolvasása (`PapaParse`).
+- **Feldolgozás:** Automatikus termék formázás, duplikáció szűrés, és vizuális jelzések a problémás rendelésekről (pl. hiányzó utalás, lappangó utánvét).
+- **Kimenet:** Nyomtatható Szedési Jegyzék és kétoldalas "Összesítő és Korrekciós lap" a futároknak.
 
 ---
 
-## 🛠 Aktuális Technikai Stack
-- **Frontend**: Vanilla HTML5, CSS3 (Modern, Apple/Glassmorphism design)
-- **Logika**: Vanilla JavaScript (ES Modules, `app.js`)
-- **Adatbázis & Backend**: Google Firebase (Cloud Firestore)
-- **Autentikáció**: Firebase Authentication (E-mail/Jelszó)
-- **Külső könyvtárak**: 
-  - `PapaParse` (CSV importáláshoz)
-  - `Sortable.js` (Drag & drop funkciókhoz)
-  - Firebase SDK v10.8.0
+## 🔄 Session Handover (Aktuális Állapot)
 
-## 3. Rendszer Architektúra
-
-### Adatfolyam és Felhő Szinkronizáció
-Az alkalmazás korábban helyi `localStorage`-et használt, de át lett állítva a Firebase Cloud Firestore-ra. A bejelentkezett felhasználók adatai valós időben mentődnek a felhőbe. 
-A bejelentkezést az `index.html` tetejére helyezett overlay réteg (Login Screen) végzi, a Firebase funkciók inicializálása a `js/firebase-config.js` fájlban történik.
-
-### A `HistoryManager` objektum
-A `js/app.js`-ben lévő `HistoryManager` felel a szállítási körök kezeléséért. Most már aszinkron Firebase metódusokat használ (`getDocs`, `addDoc`, `deleteDoc`, `updateDoc`). 
-**Fontos szabály:** Ha új modult vagy logikát írsz, aminek hozzá kell férnie az előzményekhez, mindenhol `await` kulcsszóval kell meghívni ezeket a függvényeket.
+- **Utolsó aktív modell**: [Ide írd a legutóbbi modellt, pl. Gemini 3.1 Pro]
+- **Státusz**: A rendszer stabil, a legutóbbi logisztikai statisztikák és a nyomtatási kép finomhangolása megtörtént.
+- **Folytatás**: A lenti TODO lista első elemével.
 
 ---
 
@@ -88,6 +47,7 @@ A `js/app.js`-ben lévő `HistoryManager` felel a szállítási körök kezelés
 - **Szemetes (Trash) Rendszer:** A törölt szállítási körök nem törlődnek véglegesen, hanem egy 90 napos megőrzésű szemetesbe kerülnek, ahonnan bármikor visszaállíthatók.
 - **Elszámolás Követése:** Az Elszámolások fülön mostantól cégek szerint csoportosítva láthatók a fuvarok, cégre lebontott összesített kintlévőség kijelzéssel.
 - **Fix és Dinamikus Partnerlista:** A mentéskor választható fix partnerlista (LétaiSela, Sela, stb.) kiegészült az új partnerek felvételének lehetőségével. Az új partnerek automatikusan bekerülnek a szűrők közé is.
+
 ### 2026. május 6. - Logisztikai Statisztika & Kompakt Dizájn
 - **Statisztika (Lead Time) rendszer:** Munkanap-alapú késéskövetés (>6 nap), időszaki szűréssel és ignorálási lehetőséggel.
 - **Kompakt Nyomtatási Kép:** Dinamikus sor-magasság és optimalizált térkihasználás A4 lapra.
@@ -110,5 +70,5 @@ A `js/app.js`-ben lévő `HistoryManager` felel a szállítási körök kezelés
 ---
 
 ## 🎯 Következő Lépések (TODO)
-- [ ] *Itt gyűjtjük majd az új funkció ötleteket és a megoldandó hibákat.*
-- [ ] *Pl.: Lehetőség a korábbi fuvarok CSV-ben történő exportálására a könyvelésnek.*
+- [ ] **CSV Export**: Lehetőség a korábbi fuvarok CSV-ben történő exportálására a könyvelésnek.
+- [ ] **Kereső**: Global search funkció a mentett szállítási körök és elszámolások között.
