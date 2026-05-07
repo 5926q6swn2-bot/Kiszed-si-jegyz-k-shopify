@@ -1310,59 +1310,40 @@ document.addEventListener('DOMContentLoaded', () => {
         
         filteredRuns.forEach(run => {
             const el = document.createElement('div');
-            el.className = 'history-run-card';
-            el.style.display = 'flex';
-            el.style.alignItems = 'center';
-            el.style.justifyContent = 'space-between';
-            el.style.padding = '20px 28px';
-            el.style.gap = '24px';
-            el.style.marginBottom = '12px';
-            el.style.background = '#fff';
-            el.style.borderRadius = '20px';
-            el.style.boxShadow = '0 4px 20px rgba(0,0,0,0.03)';
-            el.style.border = '1px solid rgba(0,0,0,0.05)';
-            
+            el.className = 'history-apple-card';
             const dateStr = new Date(run.timestamp).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-            
             el.innerHTML = `
-                <div class="h-section-info" style="min-width: 180px;">
-                    <div style="font-size: 16px; font-weight: 800; color: #1e293b; margin-bottom: 2px;">${run.date}</div>
-                    <div style="font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase;">${run.orders.length} rendelés • ${dateStr}</div>
-                </div>
-
-                <div class="h-section-print" style="flex: 1; display: flex; flex-direction: column; gap: 10px; border-left: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9; padding: 0 24px;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 11px; background: #334155; color: white; padding: 3px 10px; border-radius: 6px; font-weight: 700; text-transform: uppercase;">${run.company || '-'}</span>
-                        <span style="font-size: 14px; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 8px;">
-                            <i class="ph-bold ph-user" style="color: #64748b; font-size: 16px;"></i>
-                            ${run.courier}
-                        </span>
+                <div class="hac-header">
+                    <div style="flex:1;min-width:0;">
+                        <div class="hac-date">${run.date}</div>
+                        <div class="hac-meta" style="margin-top:2px;">
+                            <i class="ph-bold ph-user" style="font-size:11px;color:#374151;"></i><span style="font-weight:600;color:#374151;">${run.courier}</span>
+                            <span style="color:#d1d5db;">·</span><span style="color:#94a3b8;">${run.orders.length} rendelés · ${dateStr}</span>
+                        </div>
                     </div>
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                        <button class="btn btn-secondary btn-sm btn-print-picking" data-id="${run.id}" style="padding: 10px 18px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; border-radius: 12px; border: 1.5px solid #e2e8f0;">
-                            <i class="ph-bold ph-clipboard-text" style="font-size: 18px;"></i>
-                            Szedőlista
+                    <span class="hac-company">${run.company || '-'}</span>
+                </div>
+                <div class="hac-footer">
+                    <div class="hac-prints">
+                        <button class="hac-print-btn btn-print-picking" data-id="${run.id}">
+                            <i class="ph-bold ph-clipboard-text"></i>Szedőlista
                         </button>
-                        <button class="btn btn-secondary btn-sm btn-print-delivery" data-id="${run.id}" style="padding: 10px 18px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; border-radius: 12px; border: 1.5px solid #e2e8f0;">
-                            <i class="ph-bold ph-truck" style="font-size: 18px;"></i>
-                            Szállítók
+                        <button class="hac-print-btn btn-print-delivery" data-id="${run.id}">
+                            <i class="ph-bold ph-truck"></i>Szállítók
                         </button>
-                        <button class="btn btn-secondary btn-sm btn-print-summary" data-id="${run.id}" style="padding: 10px 18px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; border-radius: 12px; border: 1.5px solid #e2e8f0;">
-                            <i class="ph-bold ph-file-text" style="font-size: 18px;"></i>
-                            Összesítő
+                        <button class="hac-print-btn btn-print-summary" data-id="${run.id}">
+                            <i class="ph-bold ph-file-text"></i>Összesítő
                         </button>
-                        <button class="btn btn-secondary btn-sm btn-print-bundle" data-id="${run.id}" style="padding: 12px 22px; font-size: 12px; font-weight: 800; background: #0a0a0a; color: #fff; border: none; display: flex; align-items: center; gap: 10px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-                            <i class="ph-bold ph-printer" style="font-size: 20px;"></i>
-                            TELJES NYOMTATÁSI CSOMAG
+                        <button class="hac-print-btn hac-print-primary btn-print-bundle" data-id="${run.id}">
+                            <i class="ph-bold ph-printer"></i>Teljes csomag
                         </button>
                     </div>
-                </div>
-
-                <div class="h-section-actions" style="display: flex; gap: 12px; align-items: center;">
-                    <button class="btn btn-primary btn-load-run" data-id="${run.id}" style="padding: 14px 28px; font-size: 14px; font-weight: 700; border-radius: 14px; background: #3b82f6; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);">Kör betöltése</button>
-                    <button class="btn btn-secondary btn-delete-run" data-id="${run.id}" style="width: 54px; height: 54px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #dc2626; border: none; background: #fee2e2; transition: all 0.2s;" title="Törlés">
-                        <i class="ph-bold ph-trash" style="font-size: 24px;"></i>
-                    </button>
+                    <div class="hac-actions">
+                        <button class="hac-btn-load btn-load-run" data-id="${run.id}">Betöltés</button>
+                        <button class="hac-btn-del btn-delete-run" data-id="${run.id}" title="Törlés">
+                            <i class="ph-bold ph-trash"></i>
+                        </button>
+                    </div>
                 </div>
             `;
             historyRunsContainer.appendChild(el);
@@ -1421,32 +1402,42 @@ document.addEventListener('DOMContentLoaded', () => {
             const runsContainer = groupEl.querySelector('.group-runs');
             companyRuns.forEach(run => {
                 const el = document.createElement('div');
-                el.className = 'history-run-card accounting-card';
+                el.className = 'unified-card';
                 el.style.margin = '0';
-                el.style.background = run.isSettled ? '#f0fdf4' : 'white';
-                el.style.borderColor = run.isSettled ? '#bcf0da' : '#e2e8f0';
-                
+
                 let runCOD = 0;
                 run.orders.forEach(o => { if(o.isCOD) runCOD += o.codAmount; });
 
-                const statusBadge = run.isSettled 
-                    ? '<span style="color: #15803d; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ph-check-circle" style="font-size: 13px;"></i> ELSZÁMOLVA</span>' 
-                    : '<span style="color: #9a3412; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ph-hourglass" style="font-size: 13px;"></i> FÜGGŐ</span>';
+                const settledBadge = run.isSettled
+                    ? `<span class="hac-badge hac-badge-green"><i class="ph-bold ph-check-circle" style="font-size:10px;"></i>Elszámolva</span>`
+                    : '';
 
                 el.innerHTML = `
-                    <div style="flex: 1;">
-                        <div style="margin-bottom: 4px;">${statusBadge}</div>
-                        <div style="font-size: 13px; font-weight: 700; color: var(--text-primary);">Kiszállítás: ${run.date}</div>
-                        <div style="font-size: 11px; color: #64748b;">Szállító: ${run.courier} • ${run.orders.length} db rendelés</div>
-                        <div style="font-size: 12px; color: #b91c1c; font-weight: 600; margin-top: 2px;">Utánvét: ${runCOD.toLocaleString('hu-HU')} Ft</div>
-                    </div>
-                    <div style="display: flex; gap: 6px; align-items: center;">
-                        <button class="btn btn-secondary btn-print-summary" data-id="${run.id}" style="padding: 5px 8px; font-size: 11px;" title="Összesítő nyomtatása">Nyomtatás</button>
-                        ${!run.isSettled ? `
-                            <button class="btn btn-primary btn-settle-run" data-doc-id="${run.docId}" style="padding: 5px 10px; font-size: 11px; background: #15803d;">Kiegyenlítve</button>
-                        ` : `
-                            <button class="btn btn-secondary btn-unsettle-run" data-doc-id="${run.docId}" style="padding: 5px 10px; font-size: 10px;">Visszaállítás</button>
-                        `}
+                    <div class="hac-header" style="padding:13px 16px 11px;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                                <div class="hac-date" style="font-size:14px;">${run.date}</div>
+                                ${settledBadge}
+                            </div>
+                            <div class="hac-meta" style="margin-top:2px;">
+                                <span class="hac-company" style="font-size:9px;padding:3px 8px;">${run.company || '-'}</span>
+                                <span style="color:#d1d5db;">·</span><i class="ph-bold ph-user" style="font-size:11px;color:#374151;"></i><span style="font-weight:600;color:#374151;">${run.courier}</span>
+                                <span style="color:#d1d5db;">·</span><span style="color:#94a3b8;">${run.orders.length} rendelés</span>
+                                ${runCOD > 0 ? `<span style="color:#d1d5db;">·</span><strong style="color:#b91c1c;font-weight:600;">${runCOD.toLocaleString('hu-HU')} Ft</strong>` : ''}
+                            </div>
+                        </div>
+                        <div class="hac-actions">
+                            <button class="hac-btn-action hac-btn-ghost btn-print-summary" data-id="${run.id}">
+                                <i class="ph-bold ph-printer" style="font-size:12px;"></i>Nyomtatás
+                            </button>
+                            ${!run.isSettled ? `
+                                <button class="hac-btn-action hac-btn-green btn-settle-run" data-doc-id="${run.docId}">
+                                    <i class="ph-bold ph-check-circle" style="font-size:12px;"></i>Kiegyenlítve
+                                </button>
+                            ` : `
+                                <button class="hac-btn-action hac-btn-ghost btn-unsettle-run" data-doc-id="${run.docId}">Visszaállítás</button>
+                            `}
+                        </div>
                     </div>
                 `;
                 runsContainer.appendChild(el);
@@ -1535,22 +1526,26 @@ document.addEventListener('DOMContentLoaded', () => {
         // Listázás
         lateOrders.sort((a, b) => b.delay - a.delay).forEach(item => {
             const el = document.createElement('div');
-            el.className = 'history-run-card';
-            el.style.borderLeft = '4px solid #ef4444';
-            el.style.padding = '12px 16px';
-            
+            el.className = 'history-apple-card';
             el.innerHTML = `
-                <div style="flex: 1;">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                        <span style="font-weight: 800; color: #b91c1c;">#${item.id}</span>
-                        <span style="background: #fee2e2; color: #b91c1c; font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 700;">${item.delay} munkanap</span>
+                <div class="hac-header" style="padding:13px 16px;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                            <div class="hac-date" style="font-size:14px;">${item.shippingName}</div>
+                            <span class="hac-badge hac-badge-red"><i class="ph-bold ph-warning" style="font-size:10px;"></i>${item.delay} munkanap</span>
+                        </div>
+                        <div class="hac-meta">
+                            #${item.id}
+                            <span style="color:#d1d5db;">·</span>Rendelve: ${new Date(item.orderDate).toLocaleDateString('hu-HU')}
+                            <span style="color:#d1d5db;">·</span>Kiszállítva: ${item.runDate}
+                            <span style="color:#d1d5db;">·</span>${item.company || '-'}
+                        </div>
                     </div>
-                    <div style="font-size: 13px; font-weight: 700;">${item.shippingName}</div>
-                    <div style="font-size: 11px; color: #64748b;">Rendelve: ${new Date(item.orderDate).toLocaleDateString('hu-HU')} • Kiszállítva: ${item.runDate}</div>
-                    <div style="font-size: 11px; color: #0f172a; font-weight: 600; margin-top: 2px;">Szállító: ${item.company || '-'}</div>
-                </div>
-                <div>
-                    <button class="btn btn-secondary btn-sm btn-ignore-delay" data-doc-id="${item.docId}" data-order-id="${item.id}" title="Rendben van / Szándékos késés">Pipa</button>
+                    <div class="hac-actions">
+                        <button class="hac-btn-action hac-btn-ghost btn-ignore-delay" data-doc-id="${item.docId}" data-order-id="${item.id}" title="Rendben van">
+                            <i class="ph-bold ph-check" style="font-size:12px;"></i>Rendben
+                        </button>
+                    </div>
                 </div>
             `;
             statsRunsContainer.appendChild(el);
@@ -1609,22 +1604,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
         runs.forEach(run => {
             const el = document.createElement('div');
-            el.className = 'history-run-card';
-            el.style.borderLeft = '4px solid #94a3b8';
-            
+            el.className = 'history-apple-card';
             const deletedDate = new Date(run.deletedAt).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-            const origDate = run.date;
-            
             el.innerHTML = `
-                <div class="history-run-info">
-                    <div class="history-run-title" style="color: #64748b;">${origDate} - ${run.company || '-'}</div>
-                    <div class="history-run-meta">Törölve: ${deletedDate} • ${run.orders.length} rendelés</div>
-                </div>
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn btn-primary btn-sm btn-restore-run" data-id="${run.docId}" style="background: #15803d;">Visszaállítás</button>
-                    <button class="btn btn-secondary btn-sm btn-permanent-delete-run" data-id="${run.docId}" title="Végleges törlés" style="color: #b91c1c;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                    </button>
+                <div class="hac-header" style="padding:13px 16px;">
+                    <div style="flex:1;min-width:0;">
+                        <div class="hac-date">${run.date}</div>
+                        <div class="hac-meta" style="margin-top:2px;">
+                            <span class="hac-company" style="font-size:9px;padding:3px 8px;">${run.company || '-'}</span>
+                            <span style="color:#d1d5db;">·</span><i class="ph-bold ph-user" style="font-size:11px;color:#374151;"></i><span style="font-weight:600;color:#374151;">${run.courier || '-'}</span>
+                            <span style="color:#d1d5db;">·</span><span style="color:#94a3b8;">${run.orders.length} rendelés · ${deletedDate}</span>
+                        </div>
+                    </div>
+                    <div class="hac-actions">
+                        <button class="hac-btn-action hac-btn-green btn-restore-run" data-id="${run.docId}">
+                            <i class="ph-bold ph-arrow-counter-clockwise" style="font-size:12px;"></i>Visszaállítás
+                        </button>
+                        <button class="hac-btn-del btn-permanent-delete-run" data-id="${run.docId}" title="Végleges törlés">
+                            <i class="ph-bold ph-trash"></i>
+                        </button>
+                    </div>
                 </div>
             `;
             trashRunsContainer.appendChild(el);
@@ -2529,14 +2528,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     codHtml = `<span class="badge badge-paid">Fizetve</span>`;
                 }
 
-                const itemsHtml = order.items.map(item => `
+                const itemsHtml = order.items.map(item => {
+                    const subItemsHtml = (item.isCollapsedProfile && item.subItems?.length > 0)
+                        ? `<div style="font-size: 9px; color: #475569; margin-top: 3px; padding-left: 6px; line-height: 1.6;">${item.subItems.map(sub => `<div>• ${sub.qty} db &nbsp;${sub.name}</div>`).join('')}</div>`
+                        : '';
+                    return `
                     <tr>
                         <td class="col-check"><div class="col-flex-center"><div class="checkbox-box"></div></div></td>
                         <td class="col-marker">${needsMarkerLabel(item.name) ? '<div class="col-flex-center"><span class="marker-lbl">címke</span><div class="checkbox-box marker"></div></div>' : ''}</td>
-                        <td class="col-qty"><strong>${item.qty} db</strong></td>
-                        <td class="col-name">${item.name}</td>
-                    </tr>
-                `).join('');
+                        <td class="col-qty">${item.isCollapsedProfile ? '' : `<strong>${item.qty} db</strong>`}</td>
+                        <td class="col-name">${item.name}${subItemsHtml}</td>
+                    </tr>`;
+                }).join('');
 
                 return `
                     <div class="order-card ${order.errors?.length > 0 ? 'has-error' : ''}">

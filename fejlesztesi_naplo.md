@@ -28,8 +28,8 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ## 🔄 Session Handover (Aktuális Állapot)
 
 - **Utolsó aktív modell**: Claude Sonnet 4.6
-- **Státusz**: A rendszer stabil. Az Előzmények felület teljesen redesignolva, az emoji-k eltávolítva, Phosphor Bold ikonkönyvtárra váltottunk. A nyomtatási workflow egyszerűsítve.
-- **Folytatás**: A lenti TODO lista alapján CSV export implementálása a könyveléshez.
+- **Státusz**: A rendszer stabil. Az Előzmények modal mind a 4 füle Apple-inspired kártyarendszerre lett átdolgozva (`history-apple-card`, `hac-*` CSS osztályok). A nyomtatott szedőlistán az összekészített profilok részletei is látszódnak.
+- **Folytatás**: Nincs aktív TODO. Következő session igény szerint.
 
 ---
 
@@ -80,8 +80,23 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+### 2026. május 7. (2. session) - Profilok nyomtatásban & Előzmények Apple UI
+
+- **Profilok a nyomtatott szedőlistán:** A `generatePickingHtml` függvényben az "Összekészített profilok" sor alatt kicsiben (9px, szürke) megjelennek az egyedi profilok (`• N db Profil neve`), hogy a szedő ellenőrizni tudja. Az összesített mennyiség cella üresen marad (a "1 db" félrevezető lett volna).
+- **Előzmények modal — Apple-inspired redesign:** Mind a 4 fül (Szedések, Elszámolások, Szemetes, Statisztika) egységes `history-apple-card` kártyarendszert kapott. Elvek: fehér kártya, nincs színes fejléccsík, tipográfiai hierarchia, szürke footer szekció a másodlagos akcióknak.
+  - **Szedések:** Header (dátum + cég fekete pill + futár), Footer (4 nyomtatási gomb + Betöltés + törlés ikon).
+  - **Elszámolások:** Kártya header (dátum + opcionális "Elszámolva" zöld badge + cég pill + futár + összeg), akciógombok jobbra.
+  - **Szemetes:** Dátum + cég + futár + "törölve" idő, Visszaállítás + végleges törlés.
+  - **Statisztika:** Ügyfélnév + piros késés-badge + meta (rendelés ID, dátumok, cég), Rendben gomb.
+- **Info-hierarchia javítása:** Minden kártyán egységesen: cég = sötét fekete pill (`hac-company`), futár = félkövér sötétszürke (`font-weight:600; color:#374151`), dátum = nagy vastag (`15px, 700`), másodlagos info = halványszürke (`#94a3b8`).
+- **Elszámolások fül egyszerűsítés:** Az agresszív piros FÜGGŐ fejléccsík eltávolítva — az elszámolás státusz kis zöld badge-ként jelenik meg a dátum mellett, nem teljes szélességű sávként.
+
+#### Tanulságok:
+- **Colored header bar = nem Apple.** Fehér kártya + tipográfiai hierarchia sokkal elegánsabb, mint színes fejlécsávok.
+- **Info-hierarchia:** Cég és futár neve mindig legyen egyformán kiemelve minden fülön — konzisztencia a kulcs.
+- **Footer szekció:** A másodlagos akciók (nyomtatás) footer szürke sávba kerülnek — szűk nézetben eltűnhet, ez szándékos.
+
+---
+
 ## Következő Lépések (TODO)
-- [x] **Kereső**: Globális mély-keresés (ID, Név, Cím, Telefon, Termékek) az összes korábbi szállítási körben.
-- [x] **Előzmények Redesign**: Tágas, flex-alapú "Vezérlőpult" felület dedikált nyomtatási gombokkal.
-- [x] **Phosphor Ikonok**: Egységes, professzionális ikonkönyvtár bevezetése, teljes emoji-irtás.
-- [ ] **CSV Export**: Lehetőség a korábbi fuvarok CSV-ben történő exportálására a könyvelésnek.
+- [ ] **Előzmények szűrés újraírása:** A jelenlegi szűrés (dátum, cég) nem megbízható. Újraírás professzionálisan: dátumtartomány szűrő, cég dropdown, szűrés törlése (reset) gomb, aktív szűrők vizuális jelzése (pl. badge a szűrő mellett), azonnali visszajelzés ha nincs találat.
