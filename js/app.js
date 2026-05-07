@@ -18,6 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            // AZONNALI TESZT: Ha ezt látod, fut a kód!
+            document.body.style.backgroundColor = 'black';
+            
             const email = document.getElementById('login-email').value;
             const password = document.getElementById('login-password').value;
             const btnLogin = document.getElementById('btn-login');
