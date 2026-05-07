@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kiszedési Jegyzék Shopify</title>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <link rel="stylesheet" href="css/style.css">
     <!-- Lokális könyvtárak betöltése -->
     <script src="libs/papaparse.min.js"></script>
@@ -189,11 +190,6 @@
                         <input type="text" id="ps-courier" placeholder="Pl.: Pista, Kovács János" required>
                     </div>
 
-                    <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
-                        <input type="checkbox" id="ps-print-delivery-notes" checked style="width: 16px; height: 16px; margin: 0; cursor: pointer;">
-                        <label for="ps-print-delivery-notes" style="margin: 0; cursor: pointer;">Szállítólevelek nyomtatása is</label>
-                    </div>
-
                     <div class="modal-actions" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
                         <button type="button" class="btn btn-secondary close-print-settings">Mégse</button>
                         <button type="button" class="btn btn-primary" id="btn-confirm-print">Mentés és Nyomtatás</button>
@@ -205,7 +201,7 @@
 
     <!-- History Search Modal -->
     <div id="history-modal" class="modal no-print">
-        <div class="modal-content" style="max-width: 600px; height: 80vh; display: flex; flex-direction: column;">
+        <div class="modal-content modal-large" style="height: 80vh; display: flex; flex-direction: column;">
             <div class="modal-header">
                 <h2>Előzmények és Keresés</h2>
                 <button class="close-modal close-history">
@@ -223,7 +219,7 @@
                 <div class="form-group" style="margin-bottom: 20px; display: flex; gap: 10px;">
                     <div style="position: relative; flex: 1;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 12px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                        <input type="text" id="history-search-input" placeholder="Keresés rendelésszám vagy név alapján..." style="padding-left: 36px;">
+                        <input type="text" id="history-search-input" placeholder="Globális keresés (Név, ID, Cím, Telefon, Termék)..." style="padding-left: 36px; font-size: 13px;">
                     </div>
                     <div style="display: flex; gap: 6px; align-items: center;">
                         <select id="history-company-filter" style="width: 140px; padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 13px;">
@@ -427,6 +423,7 @@
             }
         });
     </script>
-    <script type="module" src="js/app.js?v=3"></script>
+    <script type="module" src="js/app.js"></script>
+    <div id="print-area"></div>
 </body>
 </html>

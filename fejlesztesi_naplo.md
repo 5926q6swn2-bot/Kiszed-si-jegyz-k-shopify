@@ -27,9 +27,9 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 🔄 Session Handover (Aktuális Állapot)
 
-- **Utolsó aktív modell**: [Ide írd a legutóbbi modellt, pl. Gemini 3.1 Pro]
-- **Státusz**: A rendszer stabil, a legutóbbi logisztikai statisztikák és a nyomtatási kép finomhangolása megtörtént.
-- **Folytatás**: A lenti TODO lista első elemével.
+- **Utolsó aktív modell**: Claude Sonnet 4.6
+- **Státusz**: A rendszer stabil. Az Előzmények felület teljesen redesignolva, az emoji-k eltávolítva, Phosphor Bold ikonkönyvtárra váltottunk. A nyomtatási workflow egyszerűsítve.
+- **Folytatás**: A lenti TODO lista alapján CSV export implementálása a könyveléshez.
 
 ---
 
@@ -64,7 +64,24 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Stabilitás:** A rendszer újra elérhető, a bejelentkezés után a gombok és a funkciók (Importálás, HistoryManager) újra működőképesek.
 
 ---
+### 2026. május 7. (Este) - Előzmények UI Redesign, Phosphor Ikoncsere, Nyomtatás Egyszerűsítés
 
-## 🎯 Következő Lépések (TODO)
-- [ ] **CSV Export**: Lehetőség a korábbi fuvarok CSV-ben történő exportálására a könyvelésnek. (Előkészítve)
-- [ ] **Kereső**: Global search funkció a mentett szállítási körök és elszámolások között.
+- **Előzmények Vezérlőpult Redesign:** A history modal kártyái flex-alapú, tágas elrendezést kaptak (20px padding, 24px gap, 20px border-radius). Minden sorban 3 szekció: bal (dátum/meta), közép (cég+futár + nyomtatási gombok), jobb (Kör betöltése + Törlés).
+- **Phosphor Bold ikonkönyvtár:** Bevezettük a `@phosphor-icons/web` CDN-t (`<head>`-be, CSS elé). Az összes emojit és korábbi FontAwesome ikont lecseréltük egységes, vastag vonalú Phosphor Bold ikonokra (`ph-clipboard-text`, `ph-truck`, `ph-file-text`, `ph-printer`, `ph-trash`, `ph-user`, `ph-calendar`, `ph-check-circle`, `ph-hourglass`, `ph-map-pin`, `ph-package`).
+- **Teljes Emoji-mentesítés:** Az egész UI-ból eltávolítottuk az összes emojit (státusz badge-ek, keresési találatok, szedőlista print fejléc).
+- **Nyomtatási Workflow Egyszerűsítés:** Eltávolítottuk a "Szállítólevelek nyomtatása is" jelölőnégyzetet. A "Mentés és Nyomtatás" mostantól mindig teljes csomagot nyomtat. Külön nyomtatáshoz az Előzmények 4 dedikált gombja áll rendelkezésre.
+- **Gombfeliratok:** `Össz.` → `Összesítő`, `CSOMAG` → `TELJES NYOMTATÁSI CSOMAG`.
+- **Törlés gomb:** 54×54px, halvány piros háttér (`#fee2e2`), `ph-trash` (24px) ikon.
+
+#### Tanulságok:
+- **Emojik tiltottak a UI-ban** — üzleti szoftverben azonnal olcsóvá teszik a megjelenést. Mindig vektoros ikont kell használni.
+- **Ikonkönyvtár a session elején döntendő** — egy projekt = egy könyvtár (Phosphor Bold).
+- **`view_file` előbb, `replace_file_content` utána** — minden módosítás előtt kötelező ellenőrizni a TargetContent pontos szövegét.
+
+---
+
+## Következő Lépések (TODO)
+- [x] **Kereső**: Globális mély-keresés (ID, Név, Cím, Telefon, Termékek) az összes korábbi szállítási körben.
+- [x] **Előzmények Redesign**: Tágas, flex-alapú "Vezérlőpult" felület dedikált nyomtatási gombokkal.
+- [x] **Phosphor Ikonok**: Egységes, professzionális ikonkönyvtár bevezetése, teljes emoji-irtás.
+- [ ] **CSV Export**: Lehetőség a korábbi fuvarok CSV-ben történő exportálására a könyvelésnek.

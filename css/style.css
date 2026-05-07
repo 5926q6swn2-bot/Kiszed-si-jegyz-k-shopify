@@ -597,6 +597,7 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
 .m-item-name { flex: 1; }
 .btn-remove-item { background: #fef2f2; border: none; color: var(--danger); width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
 .btn-remove-item:hover { background: #fee2e2; }
+.modal-content.modal-large { max-width: 1000px; width: 95%; }
 .modal-footer { padding: 20px 32px; border-top: 1px solid rgba(0,0,0,0.06); display: flex; justify-content: flex-end; gap: 12px; background: rgba(248, 250, 252, 0.5); border-radius: 0 0 28px 28px; }
 .btn-secondary { background: rgba(255, 255, 255, 0.8); color: var(--text-main); border: 1px solid rgba(255, 255, 255, 0.5); }
 .btn-primary { background: var(--primary); color: white; border: none; }
@@ -753,4 +754,43 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
     justify-content: center;
     margin: 0 auto 20px auto;
     box-shadow: 0 10px 20px rgba(15, 23, 42, 0.2);
+}
+
+/* --- PRINTING SYSTEM --- */
+#print-area {
+    display: none;
+}
+
+@media print {
+    /* Elrejtünk mindent, ami nem a nyomtatási terület */
+    body > *:not(#print-area) {
+        display: none !important;
+    }
+    
+    #print-area {
+        display: block !important;
+        background: white !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+    }
+
+    .print-page {
+        page-break-after: always;
+        break-after: page;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        min-height: 100vh;
+    }
+
+    /* Biztosítjuk, hogy a színek és háttérképek megjelenjenek */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    .no-print {
+        display: none !important;
+    }
 }

@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FIREBASE AUTHENTICATION ---
     const loginOverlay = document.getElementById('login-overlay');
+    const loginForm = document.getElementById('login-form');
     const mainApp = document.getElementById('main-app');
     const btnLogout = document.getElementById('btn-logout');
     const userEmailDisplay = document.getElementById('user-email-display');
@@ -167,10 +168,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnSaveManual = document.getElementById('btn-save-manual');
     const editOverlay = document.getElementById('edit-overlay');
     
-    // Biztonsági ellenőrzés: ha valami hiányzik, ne haljon meg a script
-    if (!loginForm) console.error("HIÁNYZIK: login-form");
-    if (!mainApp) console.error("HIÁNYZIK: main-app");
-    if (!loginOverlay) console.error("HIÁNYZIK: login-overlay");
+    // Biztonsági ellenőrzés
+    if (!loginForm) console.warn("HIÁNYZIK: login-form");
+    if (!mainApp) console.warn("HIÁNYZIK: main-app");
+    if (!loginOverlay) console.warn("HIÁNYZIK: login-overlay");
     
     // History & Print Form Elemek
     const btnConfirmPrint = document.getElementById('btn-confirm-print');
@@ -179,7 +180,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const psCourierInput = document.getElementById('ps-courier');
     const psCompanyInput = document.getElementById('ps-company');
     const psSenderInput = document.getElementById('ps-sender');
-    const psPrintDeliveryNotesInput = document.getElementById('ps-print-delivery-notes');
     const historySearchInput = document.getElementById('history-search-input');
     const historyDateStart = document.getElementById('history-date-start');
     const historyDateEnd = document.getElementById('history-date-end');
@@ -190,9 +190,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabBtnHistory = document.getElementById('tab-btn-history');
     const tabBtnAccounting = document.getElementById('tab-btn-accounting');
     const tabBtnTrash = document.getElementById('tab-btn-trash');
+    const tabBtnStats = document.getElementById('tab-btn-stats');
     const tabContentHistory = document.getElementById('tab-content-history');
     const tabContentAccounting = document.getElementById('tab-content-accounting');
     const tabContentTrash = document.getElementById('tab-content-trash');
+    const tabContentStats = document.getElementById('tab-content-stats');
     const accountingRunsContainer = document.getElementById('accounting-runs-container');
     const trashRunsContainer = document.getElementById('trash-runs-container');
     const statsRunsContainer = document.getElementById('stats-runs-container');
@@ -265,30 +267,23 @@ document.addEventListener('DOMContentLoaded', () => {
             
             let matches = [];
             runs.forEach(run => {
-                let runMatched = run.courier.toLowerCase().includes(q) || (run.company && run.company.toLowerCase().includes(q));
-                if (runMatched) {
-                    matches.push({
-                        isRunMatch: true,
-                        runId: run.id,
-                        runDate: run.date,
-                        runCourier: run.courier,
-                        runCompany: run.company || '-',
-                        orderCount: run.orders.length
-                    });
-                } else {
-                    run.orders.forEach(order => {
-                        if(order.id.toLowerCase().includes(q) || order.shippingName.toLowerCase().includes(q)) {
-                            matches.push({
-                                isRunMatch: false,
-                                runId: run.id,
-                                runDate: run.date,
-                                runCourier: run.courier,
-                                orderId: order.id,
-                                orderName: order.shippingName
-                            });
-                        }
-                    });
-                }
+                run.orders.forEach(order => {
+                    const itemsMatch = order.items.some(it => it.name.toLowerCase().includes(q));
+                    const nameMatch = order.shippingName.toLowerCase().includes(q);
+                    const idMatch = order.id.toLowerCase().includes(q);
+                    const addrMatch = order.address && order.address.toLowerCase().includes(q);
+                    const phoneMatch = order.shippingPhone && order.shippingPhone.includes(q);
+
+                    if(idMatch || nameMatch || addrMatch || phoneMatch || itemsMatch) {
+                        matches.push({
+                            runId: run.id,
+                            runDate: run.date,
+                            runCourier: run.courier,
+                            runCompany: run.company || '-',
+                            ...order
+                        });
+                    }
+                });
             });
             return matches;
         },
@@ -1088,7 +1083,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const courier = psCourierInput.value.trim();
         const sender = psSenderInput.value;
-        const shouldPrintDeliveryNotes = psPrintDeliveryNotesInput.checked;
         
         if(!date || !pickupDate || !courier || !company) {
             await CustomDialog.alert('Kérlek adj meg minden adatot (dátumok, cég neve, futár neve)!', 'Hiányos adatok', 'warning');
@@ -1096,7 +1090,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const cleanOrders = JSON.parse(JSON.stringify(orders)); // Deep copy
-        
         printSettingsModal.classList.remove('active');
         
         if (currentLoadedRunId) {
@@ -1110,30 +1103,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             const newRun = await HistoryManager.saveRun(date, pickupDate, courier, company, sender, cleanOrders);
-            currentLoadedRunId = newRun ? newRun.id : currentLoadedRunId; // Nyomtatás után a jelenlegit tekintjük aktívnak, hátha újra nyomtatná
+            currentLoadedRunId = newRun ? newRun.id : currentLoadedRunId;
         }
-        
-        // Rövid várakozás, hogy a modal eltűnjön mielőtt kinyomtatjuk
-        setTimeout(() => {
-            // Update print footer in DOM before printing main screen
-            const pfCompany = document.getElementById('print-footer-company');
-            const pfCourier = document.getElementById('print-footer-courier');
-            const pfPickup = document.getElementById('print-footer-pickup');
-            const pfDelivery = document.getElementById('print-footer-delivery');
-            if(pfCompany) pfCompany.textContent = company || '-';
-            if(pfCourier) pfCourier.textContent = courier;
-            if(pfPickup) pfPickup.textContent = pickupDate || date;
-            if(pfDelivery) pfDelivery.textContent = date;
 
-            window.print();
-            
-            // Ha kért szállítólevelet is, nyissuk meg a másik fület egy kis késleltetéssel
-            if (shouldPrintDeliveryNotes && currentLoadedRunId) {
-                setTimeout(() => {
-                    generateDeliveryNotesHtml(currentLoadedRunId);
-                }, 1000);
-            }
-        }, 150);
+        // --- ÚJ EGYABLAKOS NYOMTATÁS (Mindig mindent) ---
+        const run = await HistoryManager.getRunById(currentLoadedRunId);
+        if (run) {
+            await UnifiedPrinter.printBundle(run);
+        }
     });
 
     // --- Előzmények (History) ---
@@ -1334,26 +1311,57 @@ document.addEventListener('DOMContentLoaded', () => {
         filteredRuns.forEach(run => {
             const el = document.createElement('div');
             el.className = 'history-run-card';
+            el.style.display = 'flex';
+            el.style.alignItems = 'center';
+            el.style.justifyContent = 'space-between';
+            el.style.padding = '20px 28px';
+            el.style.gap = '24px';
+            el.style.marginBottom = '12px';
+            el.style.background = '#fff';
+            el.style.borderRadius = '20px';
+            el.style.boxShadow = '0 4px 20px rgba(0,0,0,0.03)';
+            el.style.border = '1px solid rgba(0,0,0,0.05)';
             
             const dateStr = new Date(run.timestamp).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             
             el.innerHTML = `
-                <div class="history-run-info">
-                    <div class="history-run-title">${run.date} - ${run.company || '-'} (${run.courier})</div>
-                    <div class="history-run-meta">Létrehozva: ${dateStr} • ${run.orders.length} rendelés</div>
+                <div class="h-section-info" style="min-width: 180px;">
+                    <div style="font-size: 16px; font-weight: 800; color: #1e293b; margin-bottom: 2px;">${run.date}</div>
+                    <div style="font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase;">${run.orders.length} rendelés • ${dateStr}</div>
                 </div>
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn btn-primary btn-sm btn-load-run" data-id="${run.id}">Visszatöltés</button>
-                    <button class="btn btn-secondary btn-sm btn-view-pdf" data-id="${run.id}">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                        PDF
-                    </button>
-                    <button class="btn btn-secondary btn-sm btn-view-delivery-note" data-id="${run.id}" title="Szállítólevelek">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                        Szállító
-                    </button>
-                    <button class="btn btn-secondary btn-sm btn-delete-run" data-id="${run.id}">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+
+                <div class="h-section-print" style="flex: 1; display: flex; flex-direction: column; gap: 10px; border-left: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9; padding: 0 24px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 11px; background: #334155; color: white; padding: 3px 10px; border-radius: 6px; font-weight: 700; text-transform: uppercase;">${run.company || '-'}</span>
+                        <span style="font-size: 14px; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 8px;">
+                            <i class="ph-bold ph-user" style="color: #64748b; font-size: 16px;"></i>
+                            ${run.courier}
+                        </span>
+                    </div>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button class="btn btn-secondary btn-sm btn-print-picking" data-id="${run.id}" style="padding: 10px 18px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; border-radius: 12px; border: 1.5px solid #e2e8f0;">
+                            <i class="ph-bold ph-clipboard-text" style="font-size: 18px;"></i>
+                            Szedőlista
+                        </button>
+                        <button class="btn btn-secondary btn-sm btn-print-delivery" data-id="${run.id}" style="padding: 10px 18px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; border-radius: 12px; border: 1.5px solid #e2e8f0;">
+                            <i class="ph-bold ph-truck" style="font-size: 18px;"></i>
+                            Szállítók
+                        </button>
+                        <button class="btn btn-secondary btn-sm btn-print-summary" data-id="${run.id}" style="padding: 10px 18px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; border-radius: 12px; border: 1.5px solid #e2e8f0;">
+                            <i class="ph-bold ph-file-text" style="font-size: 18px;"></i>
+                            Összesítő
+                        </button>
+                        <button class="btn btn-secondary btn-sm btn-print-bundle" data-id="${run.id}" style="padding: 12px 22px; font-size: 12px; font-weight: 800; background: #0a0a0a; color: #fff; border: none; display: flex; align-items: center; gap: 10px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                            <i class="ph-bold ph-printer" style="font-size: 20px;"></i>
+                            TELJES NYOMTATÁSI CSOMAG
+                        </button>
+                    </div>
+                </div>
+
+                <div class="h-section-actions" style="display: flex; gap: 12px; align-items: center;">
+                    <button class="btn btn-primary btn-load-run" data-id="${run.id}" style="padding: 14px 28px; font-size: 14px; font-weight: 700; border-radius: 14px; background: #3b82f6; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);">Kör betöltése</button>
+                    <button class="btn btn-secondary btn-delete-run" data-id="${run.id}" style="width: 54px; height: 54px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #dc2626; border: none; background: #fee2e2; transition: all 0.2s;" title="Törlés">
+                        <i class="ph-bold ph-trash" style="font-size: 24px;"></i>
                     </button>
                 </div>
             `;
@@ -1422,8 +1430,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 run.orders.forEach(o => { if(o.isCOD) runCOD += o.codAmount; });
 
                 const statusBadge = run.isSettled 
-                    ? '<span style="color: #15803d; font-size: 10px; font-weight: 700;">✅ ELSZÁMOLVA</span>' 
-                    : '<span style="color: #9a3412; font-size: 10px; font-weight: 700;">⏳ FÜGGŐ</span>';
+                    ? '<span style="color: #15803d; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ph-check-circle" style="font-size: 13px;"></i> ELSZÁMOLVA</span>' 
+                    : '<span style="color: #9a3412; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ph-hourglass" style="font-size: 13px;"></i> FÜGGŐ</span>';
 
                 el.innerHTML = `
                     <div style="flex: 1;">
@@ -1649,30 +1657,117 @@ document.addEventListener('DOMContentLoaded', () => {
         hsResultsContainer.innerHTML = '';
         
         if(matches.length === 0) {
-            hsResultsContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">Nincs találat.</p>';
+            hsResultsContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">Nincs találat.</p>';
             return;
         }
         
         matches.forEach(m => {
             const el = document.createElement('div');
-            el.className = 'history-search-match';
+            el.className = 'history-run-card search-result-card';
+            el.style.display = 'flex';
+            el.style.alignItems = 'center';
+            el.style.justifyContent = 'space-between';
+            el.style.padding = '20px 28px';
+            el.style.gap = '24px';
+            el.style.marginBottom = '12px';
+            el.style.background = '#fff';
+            el.style.borderRadius = '20px';
+            el.style.boxShadow = '0 4px 20px rgba(0,0,0,0.03)';
+            el.style.borderLeft = '6px solid #3b82f6';
+            
+            const itemsSummary = m.items.map(it => `${it.qty}× ${it.name}`).join(', ');
+            
             el.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        Rendelés: <strong>${m.orderId}</strong> (${m.orderName})
-                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Szállítás: ${m.runDate} • Futár: ${m.runCourier}</div>
+                <div class="s-section-info" style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                        <span style="font-weight: 900; color: #3b82f6; font-size: 15px;">#${m.id}</span>
+                        <span style="font-size: 10px; background: #0f172a; color: white; padding: 2px 8px; border-radius: 4px; font-weight: 700;">${m.runCompany}</span>
+                        <span style="font-size: 11px; background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 4px; font-weight: 600; display: flex; align-items: center; gap: 5px;"><i class="ph-bold ph-calendar" style="font-size: 13px;"></i> ${m.runDate}</span>
                     </div>
-                    <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-secondary btn-sm btn-load-run" data-id="${m.runId}">Kör betöltése</button>
-                        <button class="btn btn-secondary btn-sm btn-view-pdf" data-id="${m.runId}">PDF</button>
-                        <button class="btn btn-secondary btn-sm btn-view-delivery-note" data-id="${m.runId}">Szállító</button>
+                    <div style="font-size: 17px; font-weight: 800; color: #1e293b; margin-bottom: 2px;">${m.shippingName}</div>
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                        <i class="ph-bold ph-map-pin" style="color: #94a3b8; font-size: 16px;"></i>
+                        ${m.address || '-'}
+                    </div>
+                    <div style="font-size: 11px; color: #475569; background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0; line-height: 1.4;">
+                        <i class="ph-bold ph-package" style="margin-right: 5px; color: #64748b; font-size: 14px;"></i>
+                        <strong>Tételek:</strong> ${itemsSummary}
+                    </div>
+                </div>
+
+                <div class="s-section-actions" style="display: flex; flex-direction: column; gap: 10px; min-width: 320px; border-left: 1px solid #f1f5f9; padding-left: 24px;">
+                    <button class="btn btn-primary btn-load-run" data-id="${m.runId}" style="padding: 12px; font-size: 13px; font-weight: 700; border-radius: 12px; background: #3b82f6;">Kör betöltése</button>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
+                        <button class="btn btn-secondary btn-sm btn-print-picking" data-id="${m.runId}" style="padding: 10px; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; border: 1.5px solid #e2e8f0;">
+                            <i class="ph-bold ph-clipboard-text"></i>
+                            Szedő
+                        </button>
+                        <button class="btn btn-secondary btn-sm btn-print-delivery" data-id="${m.runId}" style="padding: 10px; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; border: 1.5px solid #e2e8f0;">
+                            <i class="ph-bold ph-truck"></i>
+                            Szállítók
+                        </button>
+                        <button class="btn btn-secondary btn-sm btn-print-summary" data-id="${m.runId}" style="padding: 10px; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; border: 1.5px solid #e2e8f0;">
+                            <i class="ph-bold ph-file-text"></i>
+                            Összesítő
+                        </button>
+                        <button class="btn btn-secondary btn-sm btn-print-bundle" data-id="${m.runId}" style="padding: 10px; font-size: 11px; font-weight: 800; background: #0a0a0a; color: #fff; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px;">
+                            <i class="ph-bold ph-printer"></i>
+                            CSOMAG
+                        </button>
                     </div>
                 </div>
             `;
             hsResultsContainer.appendChild(el);
         });
 
-        attachHistoryEvents();
+        // Eseménykezelők a keresési találatokhoz
+        hsResultsContainer.querySelectorAll('.btn-load-run').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const runId = e.target.getAttribute('data-id');
+                const run = await HistoryManager.getRunById(runId);
+                if (run) {
+                    const confirm = await CustomDialog.confirm(`Biztosan betöltöd ezt a kört? (${run.date} - ${run.courier})<br>A jelenlegi (nem mentett) adataid elvesznek!`, 'Kör betöltése', 'warning');
+                    if (confirm) {
+                        orders = JSON.parse(JSON.stringify(run.orders));
+                        currentLoadedRunId = run.id;
+                        renderOrders();
+                        historyModal.classList.remove('active');
+                    }
+                }
+            });
+        });
+
+        hsResultsContainer.querySelectorAll('.btn-print-picking').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const runId = e.target.getAttribute('data-id');
+                const run = await HistoryManager.getRunById(runId);
+                if (run) await UnifiedPrinter.printSingle(run, 'picking');
+            });
+        });
+
+        hsResultsContainer.querySelectorAll('.btn-print-delivery').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const runId = e.target.getAttribute('data-id');
+                const run = await HistoryManager.getRunById(runId);
+                if (run) await UnifiedPrinter.printSingle(run, 'delivery');
+            });
+        });
+
+        hsResultsContainer.querySelectorAll('.btn-print-summary').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const runId = e.target.getAttribute('data-id');
+                const run = await HistoryManager.getRunById(runId);
+                if (run) await UnifiedPrinter.printSingle(run, 'summary');
+            });
+        });
+
+        hsResultsContainer.querySelectorAll('.btn-print-bundle').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const runId = e.target.getAttribute('data-id');
+                const run = await HistoryManager.getRunById(runId);
+                if (run) await UnifiedPrinter.printBundle(run);
+            });
+        });
     }
 
     function attachHistoryEvents() {
@@ -1698,21 +1793,35 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        document.querySelectorAll('.btn-view-pdf').forEach(btn => {
+        document.querySelectorAll('.btn-print-picking').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 const runId = e.target.closest('button').getAttribute('data-id');
                 const run = await HistoryManager.getRunById(runId);
-                if(!run) return;
-                openPdfView(run);
+                if (run) await UnifiedPrinter.printSingle(run, 'picking');
             });
         });
 
-        document.querySelectorAll('.btn-view-delivery-note').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.btn-print-delivery').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
                 const runId = e.target.closest('button').getAttribute('data-id');
-                if (runId) {
-                    generateDeliveryNotesHtml(runId);
-                }
+                const run = await HistoryManager.getRunById(runId);
+                if (run) await UnifiedPrinter.printSingle(run, 'delivery');
+            });
+        });
+
+        document.querySelectorAll('.btn-print-summary').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const runId = e.target.closest('button').getAttribute('data-id');
+                const run = await HistoryManager.getRunById(runId);
+                if (run) await UnifiedPrinter.printSingle(run, 'summary');
+            });
+        });
+
+        document.querySelectorAll('.btn-print-bundle').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const runId = e.target.closest('button').getAttribute('data-id');
+                const run = await HistoryManager.getRunById(runId);
+                if (run) await UnifiedPrinter.printBundle(run);
             });
         });
 
@@ -1815,7 +1924,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return `<style>${Array.from(sheet.cssRules).map(rule => rule.cssText).join('')}</style>`;
             }).join('\n');
         } catch (e) {
-            styles = `<link rel="stylesheet" href="css/style.css">`;
+            styles = `<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">`;
         }
 
         const dateStr = new Date(run.timestamp).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -2370,86 +2480,217 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    btnSaveManual.addEventListener('click', async () => {
-        const orderNum = document.getElementById('m-order-num').value.trim();
-        const customer = document.getElementById('m-customer').value.trim();
-        const address = document.getElementById('m-address').value.trim();
-        const phone = document.getElementById('m-phone').value.trim();
-        const balance = parseFloat(document.getElementById('m-balance').value) || 0;
-        
-        if (!orderNum || !customer || !address) {
-            await CustomDialog.alert('Kérlek töltsd ki az alap adatokat (Rendelésszám, Név, Cím)!', 'Hiányos adatok', 'warning');
-            return;
-        }
+    // --- UNIFIED PRINTER (Egyablakos Nyomtatási Rendszer) ---
+    const UnifiedPrinter = {
+        area: document.getElementById('print-area'),
 
-        if (editingOrderInternalId === null && orders.some(o => o.id === orderNum)) {
-            await CustomDialog.alert('Ez a rendelésszám már szerepel a listában!', 'Hiba', 'error');
-            return;
-        }
+        printBundle: async function(run) {
+            this.clear();
+            const pickingHtml = this.generatePickingHtml(run);
+            const summaryHtml = this.generateSummaryHtml(run, true); // 2x summary
+            const correctionHtml = this.generateCorrectionHtml(run);
+            const deliveryHtml = this.generateDeliveryNotesHtml(run, true); // 2x delivery
 
-        if (editingOrderInternalId !== null) {
-            if (orders.some(o => o.id === orderNum && o.internalId !== editingOrderInternalId)) {
-                await CustomDialog.alert('Ez a rendelésszám már szerepel a listában!', 'Hiba', 'error');
-                return;
-            }
-        }
+            this.area.innerHTML = pickingHtml + summaryHtml + correctionHtml + deliveryHtml;
+            this.execute();
+        },
 
-        const itemRows = document.querySelectorAll('.m-item-row');
-        let newItems = [];
+        printSingle: async function(run, type) {
+            this.clear();
+            let html = '';
+            if (type === 'picking') html = this.generatePickingHtml(run);
+            if (type === 'summary') html = this.generateSummaryHtml(run, false) + this.generateCorrectionHtml(run);
+            if (type === 'delivery') html = this.generateDeliveryNotesHtml(run, true);
 
-        itemRows.forEach(row => {
-            const qty = parseInt(row.querySelector('.m-item-qty').value) || 0;
-            const name = row.querySelector('.m-item-name').value.trim();
-            if (qty > 0 && name) {
-                newItems.push({ name, qty });
-            }
-        });
+            this.area.innerHTML = html;
+            this.execute();
+        },
 
-        if (newItems.length === 0) {
-            await CustomDialog.alert('Legalább egy érvényes tételt adj meg!', 'Nincs tétel', 'warning');
-            return;
-        }
+        clear: function() {
+            this.area.innerHTML = '';
+        },
 
-        newItems.sort((a, b) => {
-            const typeA = getItemTypeWeight(a.name);
-            const typeB = getItemTypeWeight(b.name);
-            return typeA - typeB;
-        });
+        execute: function() {
+            // Rövid várakozás a renderelésre
+            setTimeout(() => {
+                window.print();
+                this.clear();
+            }, 500);
+        },
 
-        if (editingOrderInternalId !== null) {
-            const order = orders.find(o => o.internalId === editingOrderInternalId);
-            if (order) {
-                order.id = orderNum;
-                order.shippingName = customer;
-                order.address = address;
-                if (!order.fullAddress) order.fullAddress = address; // Keep original full address if it exists, otherwise use new
-                order.shippingPhone = phone;
-                order.billingPhone = phone;
-                order.isCOD = balance > 0;
-                order.codAmount = balance;
-                order.items = newItems;
-            }
-        } else {
-            orders.push({
-                id: orderNum,
-                internalId: Math.random().toString(36).substr(2, 9),
-                shippingName: customer,
-                billingName: '',
-                address: address,
-                fullAddress: address,
-                shippingPhone: phone,
-                billingPhone: phone,
-                tags: 'számla ki', 
-                isBankDeposit: false,
-                isPaid: false,
-                isCOD: balance > 0,
-                codAmount: balance,
-                errors: [],
-                items: newItems
+        generatePickingHtml: function(run) {
+            const cardsHtml = run.orders.map((order, index) => {
+                let codHtml = '';
+                if (order.isBankDeposit) {
+                    codHtml = `<span class="badge ${order.isPaid ? 'badge-paid' : 'badge-warning'}">${order.isPaid ? 'UTALVA' : 'UTALÁST VÁRUNK'}</span>`;
+                } else if (order.isCOD) {
+                    codHtml = `<span class="badge badge-cod">UTÁNVÉT: ${order.codAmount.toLocaleString('hu-HU')} Ft</span>`;
+                } else {
+                    codHtml = `<span class="badge badge-paid">Fizetve</span>`;
+                }
+
+                const itemsHtml = order.items.map(item => `
+                    <tr>
+                        <td class="col-check"><div class="col-flex-center"><div class="checkbox-box"></div></div></td>
+                        <td class="col-marker">${needsMarkerLabel(item.name) ? '<div class="col-flex-center"><span class="marker-lbl">címke</span><div class="checkbox-box marker"></div></div>' : ''}</td>
+                        <td class="col-qty"><strong>${item.qty} db</strong></td>
+                        <td class="col-name">${item.name}</td>
+                    </tr>
+                `).join('');
+
+                return `
+                    <div class="order-card ${order.errors?.length > 0 ? 'has-error' : ''}">
+                        <div class="order-header">
+                            <div class="header-left">
+                                <div class="order-index">${index + 1}</div>
+                                <div>
+                                    <div class="order-id">${order.id}</div>
+                                    <div class="order-customer">${order.shippingName}</div>
+                                    <div class="order-address">${order.address}</div>
+                                </div>
+                            </div>
+                            <div class="order-meta">${codHtml}</div>
+                        </div>
+                        <table class="items-table"><tbody>${itemsHtml}</tbody></table>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="print-page" style="padding: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 4px solid #000; padding-bottom: 12px; margin-bottom: 25px;">
+                        <div>
+                            <h1 style="margin: 0; font-size: 32px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase;">Kiszedési Jegyzék</h1>
+                            <div style="font-size: 18px; color: #000; font-weight: 800; margin-top: 5px;">Kiszállítás napja: ${run.date}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; margin-bottom: 4px;">Szállító Partner & Futár</div>
+                            <div style="background: #000; color: #fff; padding: 6px 15px; border-radius: 8px; font-size: 20px; font-weight: 900; display: inline-block;">
+                                ${run.company} <span style="color: #64748b; font-weight: 400; margin: 0 8px;">|</span> ${run.courier}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="order-list">${cardsHtml}</div>
+                </div>
+            `;
+        },
+
+        generateSummaryHtml: function(run, double) {
+            let aggregatedItems = {};
+            let totalCOD = 0;
+            run.orders.forEach(order => {
+                if (order.isCOD) totalCOD += order.codAmount;
+                order.items.forEach(item => {
+                    const name = item.name;
+                    aggregatedItems[name] = (aggregatedItems[name] || 0) + item.qty;
+                });
             });
-        }
 
-        renderOrders();
-        manualModal.classList.remove('active');
-    });
+            const itemsHtml = Object.keys(aggregatedItems).sort().map(name => `
+                <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${name}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700;">${aggregatedItems[name]} db</td>
+                </tr>
+            `).join('');
+
+            const page = `
+                <div class="print-page" style="padding: 40px;">
+                    <div style="text-align: center; font-size: 28px; font-weight: 800; margin-bottom: 10px;">ÖSSZESÍTŐ (Átadás-Átvétel)</div>
+                    <div style="text-align: center; margin-bottom: 20px;">${run.date} | ${run.courier}</div>
+                    <div style="background: #000; color: #fff; text-align: center; padding: 15px; font-size: 24px; font-weight: 800; border-radius: 8px; margin-bottom: 30px;">${run.company}</div>
+                    
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 30px; text-align: center;">
+                        <div style="font-size: 14px; color: #64748b; margin-bottom: 5px;">ÖSSZES UTÁNVÉT A KÖRBEN:</div>
+                        <div style="font-size: 32px; font-weight: 800; color: #b91c1c;">${totalCOD.toLocaleString('hu-HU')} Ft</div>
+                    </div>
+
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead><tr style="background: #f1f5f9;"><th style="text-align: left; padding: 10px;">Megnevezés</th><th style="text-align: right; padding: 10px;">Mennyiség</th></tr></thead>
+                        <tbody>${itemsHtml}</tbody>
+                    </table>
+
+                    <div style="margin-top: 100px; display: flex; justify-content: space-between;">
+                        <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átadó (Raktár)</div>
+                        <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átvette (Futár)</div>
+                    </div>
+                </div>
+            `;
+            return double ? page + page : page;
+        },
+
+        generateCorrectionHtml: function(run) {
+            const rows = run.orders.map(o => `
+                <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 700;">${o.id}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${o.shippingName}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right;">${o.isCOD ? o.codAmount.toLocaleString('hu-HU') + ' Ft' : 'Fizetve'}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;"></td>
+                </tr>
+            `).join('');
+
+            return `
+                <div class="print-page" style="padding: 40px;">
+                    <div style="text-align: center; font-size: 26px; font-weight: 800; margin-bottom: 10px;">KORREKCIÓS ÉS ELSZÁMOLÓ LAP</div>
+                    <div style="text-align: center; margin-bottom: 30px;">${run.date} | ${run.courier} | ${run.company}</div>
+                    
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead><tr style="background: #f1f5f9;"><th style="text-align: left; padding: 8px;">ID</th><th style="text-align: left; padding: 8px;">Vevő</th><th style="text-align: right; padding: 8px;">Utánvét</th><th style="text-align: center; padding: 8px;">Sikertelen</th><th style="text-align: left; padding: 8px;">Megjegyzés</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+
+                    <div style="margin-top: 50px; width: 350px; margin-left: auto;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Várható utánvét:</span><strong>${(run.orders.reduce((sum, o) => sum + (o.isCOD ? o.codAmount : 0), 0)).toLocaleString('hu-HU')} Ft</strong></div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Meghiúsult:</span><span>.................... Ft</span></div>
+                        <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; border-top: 2px solid #000; padding-top: 10px;"><span>Befizetve:</span><span>.................... Ft</span></div>
+                    </div>
+                </div>
+            `;
+        },
+
+        generateDeliveryNotesHtml: function(run, double) {
+            const senderData = run.sender === 'ev' 
+                ? {
+                    name: "Egyéni Vállalkozó (Példa)",
+                    address: "1234 Példaváros, Minta utca 1.",
+                    bank: "00000000-00000000",
+                    phone: "+36 30 000 0000",
+                    email: "pelda@email.com"
+                }
+                : {
+                    name: "Capsula Houses Kft.",
+                    address: "Széles utca 70., 2040, Budaörs, Magyarország",
+                    bank: "11735005-26088969",
+                    phone: "+36 70 590 8157",
+                    email: "info@panelburkolat.com"
+                };
+
+            const generateSingleNote = (order) => `
+                <div class="print-page" style="padding: 60px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;">
+                        <div style="font-size: 24px; font-weight: 800;">SZÁLLÍTÓLEVÉL</div>
+                        <div style="font-size: 28px; font-weight: 900; border: 3px solid #000; padding: 10px 20px;">${order.id}</div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 40px;">
+                        <div style="width: 45%;"><strong>Eladó:</strong><br>${senderData.name}<br>${senderData.address}<br>${senderData.bank}</div>
+                        <div style="width: 45%;"><strong>Vevő:</strong><br>${order.shippingName}<br>${order.address}<br>${order.shippingPhone || ''}</div>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">
+                        <thead><tr style="border-bottom: 2px solid #000;"><th style="text-align: left; padding: 10px;">Tétel</th><th style="text-align: right; padding: 10px;">Mennyiség</th></tr></thead>
+                        <tbody>${order.items.map(it => `<tr><td style="padding: 10px; border-bottom: 1px solid #eee;">${it.name}</td><td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">${it.qty} db</td></tr>`).join('')}</tbody>
+                    </table>
+                    <div style="background: #f8fafc; padding: 20px; text-align: right; font-size: 18px; font-weight: 800;">
+                        Fizetendő (Utánvét): ${order.isCOD ? order.codAmount.toLocaleString('hu-HU') + ' Ft' : '0 Ft (FIZETVE)'}
+                    </div>
+                    <div style="margin-top: 100px; display: flex; justify-content: space-between;">
+                        <div style="width: 200px; border-top: 1px solid #000; text-align: center; padding-top: 10px;">Átadó</div>
+                        <div style="width: 200px; border-top: 1px solid #000; text-align: center; padding-top: 10px;">Átvevő</div>
+                    </div>
+                </div>
+            `;
+
+            const firstSet = run.orders.map(o => generateSingleNote(o)).join('');
+            return double ? firstSet + firstSet : firstSet;
+        }
+    };
 });

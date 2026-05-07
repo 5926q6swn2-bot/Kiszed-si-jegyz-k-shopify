@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const url = require('url');
 
 const PORT = 8080;
 const MIME_TYPES = {
@@ -14,10 +15,15 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
-  let filePath = '.' + req.url;
-  // Ha elfelejtik beírni az index.html-t:
-  if (filePath === './' || filePath === './?') filePath = './index.html';
+  const parsedUrl = url.parse(req.url);
+  let pathname = parsedUrl.pathname;
 
+  // Alapértelmezett index.html
+  if (pathname === '/' || pathname === '') {
+    pathname = '/index.html';
+  }
+
+  const filePath = path.join(__dirname, pathname);
   const extname = String(path.extname(filePath)).toLowerCase();
   const contentType = MIME_TYPES[extname] || 'application/octet-stream';
 
@@ -25,10 +31,10 @@ const server = http.createServer((req, res) => {
     if (err) {
       if (err.code == 'ENOENT') {
         res.writeHead(404);
-        res.end('404 Not Found');
+        res.end('404 Not Found - A fájl nem található: ' + pathname);
       } else {
         res.writeHead(500);
-        res.end('Hiba: ' + err.code);
+        res.end('Szerver hiba: ' + err.code);
       }
     } else {
       res.writeHead(200, { 'Content-Type': contentType });

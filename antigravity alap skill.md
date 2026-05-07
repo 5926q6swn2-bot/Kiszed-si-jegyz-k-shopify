@@ -102,6 +102,28 @@ Every project MUST have a `fejlesztesi_naplo.md` file. This is your "short-term 
 
 ---
 
+## 8. Robust Development & Debugging Rules (NEW)
+
+🛡️ **Fail-Safe Coding & Event Listeners:**
+- **Check Before Listen:** Always wrap event listeners in existence checks (e.g., `if (button) { button.addEventListener... }`). This prevents the script from crashing if a UI element is missing from a specific page.
+- **No Naked Variables:** Never use or check a variable (especially DOM elements) without declaring it (`const`/`let`) at the top of the scope.
+
+🔍 **Console-First Debugging:**
+- If the UI is unresponsive (buttons don't click, modals don't open), **the very first step** is to check the Browser Console (`F12`).
+- Identify the exact error (ReferenceError, SyntaxError, 404) and line number before attempting to fix the code.
+
+🧱 **Syntax & Structural Integrity:**
+- After large-scale code movements or refactoring, perform a "Brace Audit." Ensure every `{` has a matching `}` and that no block (like `DOMContentLoaded`) was closed prematurely.
+- Avoid duplicate declarations of the same variable name within the same scope.
+
+🌐 **Environment Awareness (Local Servers):**
+- Local development servers (like `server.js`) must be robust enough to handle URL query parameters (e.g., `?v=3`) and not treat them as part of the filename. Use standard libraries (`url`, `path`) for path resolution.
+
+🧪 **Incremental Verification:**
+- After implementing a new feature, verify that the **existing core features** (e.g., Main Navigation, Import, Reset) still function correctly.
+
+---
+
 ## 🚀 Session Start Protocol
 
 1. **Initialize:** Read this `skill.md` to understand your operational rules.
