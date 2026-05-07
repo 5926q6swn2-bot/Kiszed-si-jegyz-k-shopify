@@ -10,6 +10,7 @@
     <script src="libs/Sortable.min.js"></script>
 </head>
 <body>
+    <div id="update-indicator" style="background: #ef4444; color: white; text-align: center; padding: 5px; font-size: 12px; font-weight: bold; position: fixed; top: 0; left: 0; right: 0; z-index: 9999;">RENDSZER FRISSÍTVE (V2)</div>
     <!-- Bejelentkező Képernyő (Login Overlay) -->
     <div id="login-overlay" class="login-overlay active no-print">
         <div class="login-box">
@@ -18,11 +19,11 @@
             <form id="login-form">
                 <div class="form-group">
                     <label>E-mail cím (vagy felhasználónév)</label>
-                    <input type="email" id="login-email" placeholder="pl.: teszt@raktar.hu" required>
+                    <input type="email" id="login-email" placeholder="pl.: teszt@raktar.hu" required autocomplete="email">
                 </div>
                 <div class="form-group" style="margin-bottom: 25px;">
                     <label>Jelszó</label>
-                    <input type="password" id="login-password" placeholder="••••••••" required>
+                    <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
                 </div>
                 <button type="submit" id="btn-login" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 14px; font-size: 16px;">
                     Belépés
@@ -385,6 +386,6 @@
         }, true);
         console.log("Index.html betöltve, app.js indítása...");
     </script>
-    <script type="module" src="js/app.js"></script>
+    <script type="module" src="js/app.js?v=2"></script>
 </body>
 </html>
