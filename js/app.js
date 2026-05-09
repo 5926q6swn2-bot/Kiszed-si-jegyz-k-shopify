@@ -242,11 +242,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const newRun = {
                 id: 'run_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
                 date: date,
+                originalDate: date,
                 pickupDate: pickupDate || date,
                 courier: courier,
                 company: company,
                 sender: sender || 'capsula',
                 timestamp: Date.now(),
+                isPrinted: true,
                 orders: ordersList,
                 userId: auth.currentUser ? auth.currentUser.uid : null
             };
@@ -413,7 +415,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         company: company,
                         sender: sender || 'capsula',
                         orders: ordersList,
-                        timestamp: Date.now()
+                        timestamp: Date.now(),
+                        isModified: true,
+                        modifiedAt: Date.now(),
+                        modifyCount: increment(1)
                     });
                     return true;
                 } catch(e) {
@@ -575,11 +580,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 let noteCodAmount = null;
                 const matchBefore = notes.match(/(\d[\d\s\.]*?)\s*(?:ft|huf)?\s*(?:ut[aá]nv[eé]t|\buv)/i);
                 const matchAfter = notes.match(/(?:ut[aá]nv[eé]t|\buv).*?(\d[\d\s\.]*)/i);
+                const matchFt = notes.match(/(\d(?:[\d .]*\d)?)\s*ft/i);
 
                 if (matchBefore) {
                     noteCodAmount = parseInt(matchBefore[1].replace(/[\s\.]/g, ''));
                 } else if (matchAfter) {
                     noteCodAmount = parseInt(matchAfter[1].replace(/[\s\.]/g, ''));
+                } else if (matchFt) {
+                    noteCodAmount = parseInt(matchFt[1].replace(/[\s\.]/g, ''));
                 }
 
                 if (!isBankDeposit) {
@@ -588,7 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         codAmount = outstandingBalance;
                         
                         // LAPPANGÓ UTÁNVÉT FIGYELMEZTETÉS
-                        if (!/ut[aá]nv[eé]t|\buv/i.test(notes)) {
+                        if (!/ut[aá]nv[eé]t|\buv/i.test(notes) && noteCodAmount === null) {
                             errors.push({
                                 id: Math.random().toString(36).substr(2, 9),
                                 title: "Lappangó Utánvét!",
@@ -822,6 +830,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             card.innerHTML = `
+                <div class="drag-handle no-print" title="Húzd át az átrendezéshez">
+                    <i class="ph-bold ph-dots-six-vertical"></i>
+                </div>
                 <div class="order-header">
                     <div class="header-left">
                         <div class="order-index">${index + 1}</div>
@@ -866,17 +877,62 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sortableInstance) {
             sortableInstance.destroy();
         }
+        const scrollContainer = document.querySelector('.content-body');
         sortableInstance = new Sortable(orderList, {
-            animation: 350,
-            easing: "cubic-bezier(0.34, 1.56, 0.64, 1)", 
+            animation: 80,
+            easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+            handle: '.drag-handle',
             ghostClass: 'sortable-ghost',
-            dragClass: 'sortable-drag',
+            chosenClass: 'sortable-chosen',
+            scroll: scrollContainer || true,
+            scrollSensitivity: 80,
+            scrollSpeed: 12,
+            onStart: function() {
+                orderList.classList.add('dragging-active');
+                document.body.style.userSelect = 'none';
+                document.body.style.webkitUserSelect = 'none';
+            },
+            onMove: function(evt) {
+                if (!evt.related) return;
+                const items = Array.from(orderList.children);
+                const relatedIndex = items.indexOf(evt.related);
+                if (relatedIndex < 0) return;
+                const newPos = evt.willInsertAfter ? relatedIndex + 1 : relatedIndex;
+                const ghost = orderList.querySelector('.sortable-ghost');
+                if (ghost) {
+                    const badge = ghost.querySelector('.order-index');
+                    if (badge) badge.textContent = newPos + 1;
+                }
+            },
             onEnd: function(evt) {
+                orderList.classList.remove('dragging-active');
+                document.body.style.userSelect = '';
+                document.body.style.webkitUserSelect = '';
                 const movedItem = orders.splice(evt.oldIndex, 1)[0];
                 orders.splice(evt.newIndex, 0, movedItem);
                 updateIndexes();
             }
         });
+
+        // Compact custom drag image via native setDragImage (runs after Sortable binds dragstart, so overrides it)
+        if (!orderList.dataset.dragImgListenerSet) {
+            orderList.dataset.dragImgListenerSet = '1';
+            orderList.addEventListener('dragstart', function(e) {
+                if (!e.dataTransfer) return;
+                const card = e.target.closest('.order-card');
+                if (!card) return;
+                const badgeEl = card.querySelector('.order-index');
+                const idEl = card.querySelector('.order-id');
+                const badgeNum = badgeEl ? badgeEl.textContent.trim() : '';
+                const orderId = idEl ? (idEl.firstChild && idEl.firstChild.nodeType === 3 ? idEl.firstChild.textContent.trim() : idEl.textContent.trim().split('\n')[0].trim()) : '';
+                const img = document.createElement('div');
+                img.style.cssText = 'position:fixed;top:-200px;left:0;background:rgba(255,255,255,0.97);border:2px solid #6366f1;border-radius:12px;padding:8px 16px 8px 10px;display:flex;align-items:center;gap:10px;min-width:160px;box-shadow:0 8px 20px rgba(0,0,0,0.15);';
+                img.innerHTML = `<div style="width:28px;height:28px;background:#1e293b;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">${badgeNum}</div><span style="font-weight:700;font-size:14px;color:#1e293b;">${orderId}</span>`;
+                document.body.appendChild(img);
+                e.dataTransfer.setDragImage(img, 25, 20);
+                requestAnimationFrame(() => img.remove());
+            });
+        }
     }
 
     function updateIndexes() {
@@ -981,6 +1037,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     editingOrderInternalId = internalId;
                     document.getElementById('manual-modal-title').textContent = 'Megrendelés Szerkesztése';
                     document.getElementById('manual-modal-desc').textContent = 'Adatok módosítása';
+                    document.getElementById('btn-save-manual').textContent = 'Mentés';
                     
                     document.getElementById('m-order-num').value = order.id;
                     document.getElementById('m-customer').value = order.shippingName;
@@ -1061,9 +1118,60 @@ document.addEventListener('DOMContentLoaded', () => {
         psCompanyInput.value = '';
         psNewCompanyGroup.style.display = 'none';
         psNewCompanyInput.value = '';
+        // Nyomtatási togglek visszaállítása: mind a 3 aktív, "csak mentés" ki
+        ['picking', 'summary', 'delivery'].forEach(t => {
+            const chk = document.getElementById(`ps-chk-${t}`);
+            const lbl = document.querySelector(`.ps-print-toggle[data-type="${t}"]`);
+            if (chk) chk.checked = true;
+            if (lbl) { lbl.style.border = '1.5px solid #3b82f6'; lbl.style.background = '#eff6ff'; lbl.style.color = '#1e40af'; }
+        });
+        const noneChk = document.getElementById('ps-chk-none');
+        const noneLbl = document.getElementById('ps-save-only-lbl');
+        if (noneChk) noneChk.checked = false;
+        if (noneLbl) { noneLbl.style.border = '1.5px solid #e2e8f0'; noneLbl.style.background = '#f8fafc'; noneLbl.style.color = '#475569'; }
+
         printSettingsModal.classList.add('active');
         psCompanyInput.focus();
     });
+
+    // Nyomtatási toggle logika (checkboxok)
+    function setPrintToggleStyle(lbl, active) {
+        lbl.style.border = active ? '1.5px solid #3b82f6' : '1.5px solid #e2e8f0';
+        lbl.style.background = active ? '#eff6ff' : '#f8fafc';
+        lbl.style.color = active ? '#1e40af' : '#475569';
+    }
+
+    ['picking', 'summary', 'delivery'].forEach(t => {
+        const lbl = document.querySelector(`.ps-print-toggle[data-type="${t}"]`);
+        if (!lbl) return;
+        lbl.addEventListener('click', () => {
+            const chk = document.getElementById(`ps-chk-${t}`);
+            chk.checked = !chk.checked;
+            setPrintToggleStyle(lbl, chk.checked);
+            // Ha valamelyik dokumentum be van kapcsolva, "csak mentés" legyen ki
+            const noneChk = document.getElementById('ps-chk-none');
+            const noneLbl = document.getElementById('ps-save-only-lbl');
+            if (chk.checked) { noneChk.checked = false; setPrintToggleStyle(noneLbl, false); }
+        });
+    });
+
+    const saveOnlyLbl = document.getElementById('ps-save-only-lbl');
+    if (saveOnlyLbl) {
+        saveOnlyLbl.addEventListener('click', () => {
+            const noneChk = document.getElementById('ps-chk-none');
+            noneChk.checked = !noneChk.checked;
+            setPrintToggleStyle(saveOnlyLbl, noneChk.checked);
+            // Ha "csak mentés" be van kapcsolva, minden dokumentum toggle ki
+            if (noneChk.checked) {
+                ['picking', 'summary', 'delivery'].forEach(t => {
+                    const chk = document.getElementById(`ps-chk-${t}`);
+                    const lbl = document.querySelector(`.ps-print-toggle[data-type="${t}"]`);
+                    chk.checked = false;
+                    setPrintToggleStyle(lbl, false);
+                });
+            }
+        });
+    }
 
     psCompanyInput.addEventListener('change', () => {
         if (psCompanyInput.value === 'new') {
@@ -1089,15 +1197,18 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const printPicking = document.getElementById('ps-chk-picking')?.checked ?? true;
+        const printSummary = document.getElementById('ps-chk-summary')?.checked ?? true;
+        const printDelivery = document.getElementById('ps-chk-delivery')?.checked ?? true;
+        const printNone = document.getElementById('ps-chk-none')?.checked ?? false;
         const cleanOrders = JSON.parse(JSON.stringify(orders)); // Deep copy
         printSettingsModal.classList.remove('active');
-        
+
         if (currentLoadedRunId) {
             const choice = await CustomDialog.choice('Ezt a kört az előzményekből töltötted be.<br>Szeretnéd felülírni a korábbit, vagy teljesen új körként mentsük el?', 'Felülírás', 'Mentés Újként', 'Előzmények frissítése', 'info');
-            
-            if (choice === 1) { // Felülírás
+            if (choice === 1) {
                 await HistoryManager.updateRun(currentLoadedRunId, date, pickupDate, courier, company, sender, cleanOrders);
-            } else { // Mentés Újként
+            } else {
                 const newRun = await HistoryManager.saveRun(date, pickupDate, courier, company, sender, cleanOrders);
                 currentLoadedRunId = newRun ? newRun.id : currentLoadedRunId;
             }
@@ -1106,11 +1217,12 @@ document.addEventListener('DOMContentLoaded', () => {
             currentLoadedRunId = newRun ? newRun.id : currentLoadedRunId;
         }
 
-        // --- ÚJ EGYABLAKOS NYOMTATÁS (Mindig mindent) ---
+        if (printNone || (!printPicking && !printSummary && !printDelivery)) return;
+
         const run = await HistoryManager.getRunById(currentLoadedRunId);
-        if (run) {
-            await UnifiedPrinter.printBundle(run);
-        }
+        if (!run) return;
+
+        await UnifiedPrinter.printCustom(run, { picking: printPicking, summary: printSummary, delivery: printDelivery });
     });
 
     // --- Előzmények (History) ---
@@ -1209,25 +1321,72 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const onDateChange = () => {
         if (tabContentHistory.style.display !== 'none') {
-            handleHistorySearch();
+            // Ha van aktív szöveges keresés, azt is frissítjük az új szűrőkkel
+            if (historySearchInput.value.trim().length >= 2) {
+                handleHistorySearch();
+            } else {
+                renderHistoryRuns();
+            }
         } else if (tabContentAccounting.style.display !== 'none') {
             renderAccountingRuns();
         } else {
             renderTrashRuns();
         }
+        updateFilterButtonState();
     };
-    historyDateStart.addEventListener('change', onDateChange);
-    historyDateEnd.addEventListener('change', onDateChange);
-    historyCompanyFilter.addEventListener('change', onDateChange);
+
+    function updateFilterButtonState() {
+        const btnApply = document.getElementById('btn-apply-filter');
+        const btnClear = document.getElementById('btn-clear-filter');
+        if (!btnApply || !btnClear) return;
+        const hasFilter = historyDateStart.value || historyDateEnd.value || historyCompanyFilter.value;
+        btnClear.style.border = hasFilter ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0';
+        btnClear.style.color = hasFilter ? '#ef4444' : '#64748b';
+    }
+
+    const btnApplyFilter = document.getElementById('btn-apply-filter');
+    const btnClearFilter = document.getElementById('btn-clear-filter');
+
+    if (btnApplyFilter) {
+        btnApplyFilter.addEventListener('click', onDateChange);
+    }
+
+    if (btnClearFilter) {
+        btnClearFilter.addEventListener('click', () => {
+            historyDateStart.value = '';
+            historyDateEnd.value = '';
+            historyCompanyFilter.value = '';
+            onDateChange();
+        });
+    }
+
+    // Cég szűrő: frissíti a gombot + újraindítja a keresést ha van aktív szöveg
+    historyCompanyFilter.addEventListener('change', () => {
+        updateFilterButtonState();
+        if (historySearchInput.value.trim().length >= 2) {
+            handleHistorySearch();
+        }
+    });
     trashCompanyFilter.addEventListener('change', () => renderTrashRuns());
     trashDateStart.addEventListener('change', () => renderTrashRuns());
     trashDateEnd.addEventListener('change', () => renderTrashRuns());
 
+    function isDateInRange(dateStr) {
+        const startD = historyDateStart.value;
+        const endD = historyDateEnd.value;
+        const d = new Date(dateStr);
+        d.setHours(12, 0, 0, 0);
+        if (startD) { const s = new Date(startD); s.setHours(0,0,0,0); if (d < s) return false; }
+        if (endD)   { const e = new Date(endD);   e.setHours(23,59,59,999); if (d > e) return false; }
+        return true;
+    }
+
     function isFiltered(run, isTrash = false) {
-        // 1. Dátum szűrés
+        // 1. Dátum szűrés — mindig az eredeti kiszállítási dátum alapján
         const startD = isTrash ? trashDateStart.value : historyDateStart.value;
         const endD = isTrash ? trashDateEnd.value : historyDateEnd.value;
-        const runD = new Date(run.date);
+        const filterDate = run.originalDate || run.date;
+        const runD = new Date(filterDate);
         runD.setHours(12, 0, 0, 0);
         
         if (startD) {
@@ -1252,44 +1411,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleHistorySearch() {
         const q = historySearchInput.value.trim().toLowerCase();
-        const hasDateFilter = historyDateStart.value || historyDateEnd.value;
-        
-        if(q.length >= 2 || hasDateFilter) {
-            let matches = [];
-            if (q.length >= 2) {
-                matches = await HistoryManager.searchOrders(q);
-                if (hasDateFilter) {
-                    matches = matches.filter(m => isDateInRange(m.runDate));
-                }
-            } else if (hasDateFilter) {
-                const allRuns = await HistoryManager.getAllRuns();
-                const filteredRuns = allRuns.filter(r => isDateInRange(r.date));
-                matches = [];
-                filteredRuns.forEach(r => {
-                    r.orders.forEach(o => {
-                        matches.push({
-                            runId: r.id,
-                            runDate: r.date,
-                            runCourier: r.courier,
-                            runCompany: r.company,
-                            orderId: o.id,
-                            orderName: o.shippingName,
-                            orderAddress: o.fullAddress
-                        });
-                    });
+
+        if (q.length >= 2) {
+            // Szöveges keresés: dátum + cég szűrő is érvényes egyszerre (isFiltered-en át)
+            const allRuns = await HistoryManager.getAllRuns();
+            const filteredRuns = allRuns.filter(r => isFiltered(r));
+
+            const matches = [];
+            filteredRuns.forEach(run => {
+                run.orders.forEach(order => {
+                    const nameMatch  = order.shippingName?.toLowerCase().includes(q);
+                    const idMatch    = order.id?.toLowerCase().includes(q);
+                    const addrMatch  = order.address?.toLowerCase().includes(q);
+                    const phoneMatch = order.shippingPhone?.includes(q);
+                    const itemsMatch = order.items?.some(it => it.name.toLowerCase().includes(q));
+                    if (idMatch || nameMatch || addrMatch || phoneMatch || itemsMatch) {
+                        matches.push({ runId: run.id, runDate: run.date, runCourier: run.courier, runCompany: run.company, ...order });
+                    }
                 });
-            }
-            
-            if (q.length >= 2 || (hasDateFilter && matches.length > 0)) {
-                renderSearchResults(matches);
-                historySearchResults.style.display = 'block';
-                historyRunsView.style.display = 'none';
-            } else {
-                await renderHistoryRuns();
-                historySearchResults.style.display = 'none';
-                historyRunsView.style.display = 'block';
-            }
+            });
+
+            historySearchResults.style.display = 'block';
+            historyRunsView.style.display = 'none';
+            renderSearchResults(matches);
         } else {
+            // Böngésző mód: csak kártyák, dátum + cég szűrővel
             historySearchResults.style.display = 'none';
             historyRunsView.style.display = 'block';
             await renderHistoryRuns();
@@ -1312,10 +1458,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const el = document.createElement('div');
             el.className = 'history-apple-card';
             const dateStr = new Date(run.timestamp).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const modifiedBadge = run.isModified
+                ? `<span class="hac-badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;display:inline-flex;align-items:center;gap:4px;"><i class="ph-bold ph-pencil-simple" style="font-size:10px;"></i>Módosítva${run.modifyCount > 1 ? ` (${run.modifyCount}×)` : ''}</span>`
+                : '';
             el.innerHTML = `
                 <div class="hac-header">
                     <div style="flex:1;min-width:0;">
-                        <div class="hac-date">${run.date}</div>
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
+                            <div class="hac-date">${run.date}</div>
+                            ${modifiedBadge}
+                        </div>
                         <div class="hac-meta" style="margin-top:2px;">
                             <i class="ph-bold ph-user" style="font-size:11px;color:#374151;"></i><span style="font-weight:600;color:#374151;">${run.courier}</span>
                             <span style="color:#d1d5db;">·</span><span style="color:#94a3b8;">${run.orders.length} rendelés · ${dateStr}</span>
@@ -1679,7 +1831,7 @@ document.addEventListener('DOMContentLoaded', () => {
             el.innerHTML = `
                 <div class="s-section-info" style="flex: 1;">
                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                        <span style="font-weight: 900; color: #3b82f6; font-size: 15px;">#${m.id}</span>
+                        <span style="font-weight: 900; color: #3b82f6; font-size: 15px;">${m.id}</span>
                         <span style="font-size: 10px; background: #0f172a; color: white; padding: 2px 8px; border-radius: 4px; font-weight: 700;">${m.runCompany}</span>
                         <span style="font-size: 11px; background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 4px; font-weight: 600; display: flex; align-items: center; gap: 5px;"><i class="ph-bold ph-calendar" style="font-size: 13px;"></i> ${m.runDate}</span>
                     </div>
@@ -1783,9 +1935,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Deep copy restoring orders
                 orders = JSON.parse(JSON.stringify(run.orders));
-                // Update internal IDs to avoid conflicts if they somehow get merged later
                 orders.forEach(o => o.internalId = Math.random().toString(36).substr(2, 9));
-                
+                currentLoadedRunId = run.id;
+
                 renderOrders();
                 historyModal.classList.remove('active');
                 CustomDialog.alert(`Kör betöltve: ${run.date} - ${run.courier} (${orders.length} rendelés)`, 'Sikeres betöltés', 'info');
@@ -2449,6 +2601,7 @@ document.addEventListener('DOMContentLoaded', () => {
         editingOrderInternalId = null;
         document.getElementById('manual-modal-title').textContent = 'Manuális Rendelés';
         document.getElementById('manual-modal-desc').textContent = 'Kézi felvitel a listához';
+        document.getElementById('btn-save-manual').textContent = 'Hozzáadás';
         document.getElementById('manual-order-form').reset();
         mItemsContainer.innerHTML = `
             <div class="m-item-row">
@@ -2479,6 +2632,78 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    btnSaveManual.addEventListener('click', () => {
+        const orderNum = document.getElementById('m-order-num').value.trim();
+        const customerName = document.getElementById('m-customer').value.trim();
+        const address = document.getElementById('m-address').value.trim();
+        const phone = document.getElementById('m-phone').value.trim();
+        const balanceRaw = parseFloat(document.getElementById('m-balance').value) || 0;
+
+        if (!orderNum || !customerName) {
+            alert('A rendelésszám és a vevő neve kötelező!');
+            return;
+        }
+
+        const items = [];
+        document.querySelectorAll('#m-items-container .m-item-row').forEach(row => {
+            const qty = parseInt(row.querySelector('.m-item-qty').value) || 0;
+            const name = row.querySelector('.m-item-name').value.trim();
+            if (qty > 0 && name) items.push({ name, qty });
+        });
+
+        if (items.length === 0) {
+            alert('Legalább egy tételt meg kell adni!');
+            return;
+        }
+
+        const isCOD = balanceRaw > 0;
+
+        if (editingOrderInternalId) {
+            const order = orders.find(o => o.internalId === editingOrderInternalId);
+            if (order) {
+                order.id = orderNum;
+                order.shippingName = customerName;
+                order.billingName = customerName;
+                order.address = address;
+                order.fullAddress = address;
+                order.shippingPhone = phone;
+                order.billingPhone = phone;
+                order.isCOD = isCOD;
+                order.codAmount = isCOD ? balanceRaw : 0;
+                order.isBankDeposit = false;
+                order.isPaid = !isCOD;
+                order.items = items;
+                order.isManuallyEdited = true;
+            }
+        } else {
+            orders.push({
+                id: orderNum,
+                internalId: Math.random().toString(36).substr(2, 9),
+                shippingName: customerName,
+                billingName: customerName,
+                address: address,
+                fullAddress: address,
+                shippingPhone: phone,
+                billingPhone: phone,
+                tags: '',
+                isBankDeposit: false,
+                isPaid: !isCOD,
+                isCOD: isCOD,
+                codAmount: isCOD ? balanceRaw : 0,
+                orderDate: '',
+                isPlannedDelay: false,
+                isManuallyEdited: true,
+                errors: [],
+                items: items
+            });
+        }
+
+        manualModal.classList.remove('active');
+        editingOrderInternalId = null;
+        renderOrders();
+        updatePrintButtonState();
+    });
+
     // --- UNIFIED PRINTER (Egyablakos Nyomtatási Rendszer) ---
     const UnifiedPrinter = {
         area: document.getElementById('print-area'),
@@ -2501,6 +2726,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (type === 'summary') html = this.generateSummaryHtml(run, false) + this.generateCorrectionHtml(run);
             if (type === 'delivery') html = this.generateDeliveryNotesHtml(run, true);
 
+            this.area.innerHTML = html;
+            this.execute();
+        },
+
+        printCustom: async function(run, types) {
+            this.clear();
+            let html = '';
+            if (types.picking) html += this.generatePickingHtml(run);
+            if (types.summary) html += this.generateSummaryHtml(run, true) + this.generateCorrectionHtml(run);
+            if (types.delivery) html += this.generateDeliveryNotesHtml(run, true);
+            if (!html) return;
             this.area.innerHTML = html;
             this.execute();
         },

@@ -98,5 +98,43 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+---
+
+### 2026. május 9. - Utólagos Módosítás Kezelése
+
+- **`isPrinted: true`** flag minden új `saveRun()`-nál.
+- **`isModified: true` + `modifiedAt`** flag minden `updateRun()`-nál (felülíráskor).
+- **"Módosítva" badge** — sárga pill az előzmény kártyán ha `run.isModified`.
+- **Nyomtatási choice felülírás után** — "Teljes csomag újra" vs "Csak szállítólevelek" dialog.
+- **`currentLoadedRunId` bug javítva** — az előzmények fülről betöltött körök mostantól helyen állítják be `currentLoadedRunId`-t, így a "Felülírás" opció rájuk is működik.
+
+### 2026. május 9. - Szerkesztett Adatok Prioritása & Save Handler Javítás
+
+- **`btnSaveManual` click handler pótolva:** A "Hozzáadás" / "Mentés" gombnak korábban semmilyen eseménykezelője nem volt — a manuális hozzáadás és a szerkesztés néma volt. A handler most teljes rendelés-objektumot ír az `orders[]`-ba szerkesztéskor (felülírás) és új felvitelkor (push), majd `renderOrders()` + `updatePrintButtonState()` hívással frissíti a UI-t.
+- **`isManuallyEdited: true` flag:** Minden kézzel szerkesztett vagy manuálisan létrehozott rendelés kap egy flag-et.
+- **Gombfelirat kontextus szerint:** Szerkesztési módban "Mentés", új felvitelnél "Hozzáadás".
+- **Előzmények is helyes:** A mentés `orders[]` deep copy-ját menti Firestore-ba, így az előzményben is a szerkesztett adatok jelennek meg.
+
+### 2026. május 9. - Utánvét Ft-alapú Felismerés
+
+- **`matchFt` regex hozzáadva:** A notes mezőből mostantól a `NUMBER Ft` minta is felismeri az utánvét összeget, `uv`/`utánvét` kulcsszó nélkül is. Támogatott formátumok: `448 120Ft`, `448.120 Ft`, `448120Ft`, `448 120 ft` stb. (pont és szóköz ezresválasztóként).
+- **Lappangó Utánvét figyelmeztetés szűkítve:** Csak akkor tüzel, ha sem `uv`/`utánvét` kulcsszó, sem Ft-összeg nem szerepel a notes-ban.
+
+### 2026. május 9. - Drag & Drop Kompakt Mód & Fluiditás
+
+- **Natív DnD visszaállítva:** `forceFallback: true` eltávolítva — a böngésző natív HTML5 drag & drop API-ját használja, ami jóval fluidabb mint a JavaScript egéresemény-alapú fallback.
+- **Kompakt drag kép (`setDragImage`):** A `dragstart` eseményen egyszer regisztrált listener egy off-screen div-et (badge + rendelésszám) illeszt be drag képként a natív API-on keresztül, majd azonnal eltávolítja azt a DOM-ból.
+- **Pozíció badge a ghost-on:** Az `onMove` callbackben a `.sortable-ghost` (a lista-beli helyőrző elem) `.order-index` badge-e dinamikusan frissül az aktuális ejtési pozícióra, így a felhasználó látja az új sorszámot mielőtt elengedné.
+- **Ghost stílus:** Kék szegély, kék badge, `height: 52px` — kompakt és egyértelmű helyfoglaló.
+- **Szövegkijelölés tiltva:** `user-select: none` CSS + JS `body.style.userSelect` az `onStart`/`onEnd` pároson — húzás közben semmi nem jelölődik ki.
+- **`animation: 80`, easing finomhangolva:** Gyorsabb kártyaátrendező animáció (Material Design easing: `cubic-bezier(0.4, 0, 0.2, 1)`).
+- **`dataset.dragImgListenerSet` guard:** A `dragstart` listener egyszer kerül fel az `orderList`-re (nem halmozódik `renderOrders()` újrahívásakor).
+
+---
+
 ## Következő Lépések (TODO)
-- [ ] **Előzmények szűrés újraírása:** A jelenlegi szűrés (dátum, cég) nem megbízható. Újraírás professzionálisan: dátumtartomány szűrő, cég dropdown, szűrés törlése (reset) gomb, aktív szűrők vizuális jelzése (pl. badge a szűrő mellett), azonnali visszajelzés ha nincs találat.
+- [x] **Előzmények szűrés újraírása:** Megoldva. Egységes szűrési logika (`isFiltered`): dátum (`originalDate` alapján), cég, szöveg — minden kombináció működik. Szűrés/Törlés gombok, aktív szűrő piros Törlés gomb jelzéssel, "nincs találat" visszajelzés.
+- [x] **Drag & Drop fluiditás:** Megoldva. Natív DnD, kompakt `setDragImage`, ghost badge dinamikus pozíció, szövegkijelölés tiltva.
+- [x] **Szerkesztett adatok prioritása:** Megoldva. Save handler pótolva, `orders[]` az egyetlen forrás, előzményekben is érvényes.
+- [x] **Utólagos módosítás kezelése:** Megoldva. `isPrinted`/`isModified` flagek, "Módosítva" badge az előzmény kártyán, felülírás után nyomtatási choice dialog (teljes csomag vs csak szállítólevelek). `currentLoadedRunId` hiba is javítva.
+- [ ] **Sorrend mód gomb:** Dedikált "Rendezés" gomb a toolbar-on, ami kompakt módba kapcsolja az összes kártyát (csak sorszám + rendelésszám látszik, a kártyák drasztikusan kisebbek). Ebben a módban a drag & drop gyors és áttekinthető. Újra megnyomva visszaállnak a teljes kártyák az új sorrenddel. A gomb legyen toggle (aktív állapotban más színű / ikonnal jelölve).

@@ -190,9 +190,31 @@
                         <input type="text" id="ps-courier" placeholder="Pl.: Pista, Kovács János" required>
                     </div>
 
+                    <div class="form-group" style="margin-top: 8px;">
+                        <label style="margin-bottom: 8px; display: block; font-weight: 600; font-size: 13px; color: #374151;">Mit nyomtassunk?</label>
+                        <div style="display: flex; gap: 6px;" id="ps-print-type-group">
+                            <label class="ps-print-toggle active" data-type="picking" style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 12px;border-radius:10px;border:1.5px solid #3b82f6;background:#eff6ff;cursor:pointer;font-size:13px;font-weight:600;color:#1e40af;">
+                                <input type="checkbox" id="ps-chk-picking" checked style="display:none;">
+                                <i class="ph-bold ph-clipboard-text"></i>Szedőlista
+                            </label>
+                            <label class="ps-print-toggle active" data-type="summary" style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 12px;border-radius:10px;border:1.5px solid #3b82f6;background:#eff6ff;cursor:pointer;font-size:13px;font-weight:600;color:#1e40af;">
+                                <input type="checkbox" id="ps-chk-summary" checked style="display:none;">
+                                <i class="ph-bold ph-file-text"></i>Összesítő
+                            </label>
+                            <label class="ps-print-toggle active" data-type="delivery" style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 12px;border-radius:10px;border:1.5px solid #3b82f6;background:#eff6ff;cursor:pointer;font-size:13px;font-weight:600;color:#1e40af;">
+                                <input type="checkbox" id="ps-chk-delivery" checked style="display:none;">
+                                <i class="ph-bold ph-truck"></i>Szállítólevelek
+                            </label>
+                        </div>
+                        <label class="ps-print-toggle" id="ps-save-only-lbl" data-type="none" style="margin-top:6px;display:flex;align-items:center;gap:7px;padding:10px 12px;border-radius:10px;border:1.5px solid #e2e8f0;background:#f8fafc;cursor:pointer;font-size:13px;font-weight:600;color:#475569;">
+                            <input type="checkbox" id="ps-chk-none" style="display:none;">
+                            <i class="ph-bold ph-floppy-disk"></i>Csak mentés, nyomtatás nélkül
+                        </label>
+                    </div>
+
                     <div class="modal-actions" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
                         <button type="button" class="btn btn-secondary close-print-settings">Mégse</button>
-                        <button type="button" class="btn btn-primary" id="btn-confirm-print">Mentés és Nyomtatás</button>
+                        <button type="button" class="btn btn-primary" id="btn-confirm-print">Mentés</button>
                     </div>
                 </form>
             </div>
@@ -229,6 +251,12 @@
                         <input type="date" id="history-date-start" title="Kezdő dátum (tól)" style="width: 135px; padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit;">
                         <span style="color: #94a3b8; font-weight: bold;">-</span>
                         <input type="date" id="history-date-end" title="Záró dátum (ig)" style="width: 135px; padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit;">
+                        <button type="button" id="btn-apply-filter" title="Szűrés aktiválása" style="padding: 10px 14px; border-radius: 8px; border: 1.5px solid #3b82f6; background: #3b82f6; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                            <i class="ph-bold ph-funnel"></i>Szűrés
+                        </button>
+                        <button type="button" id="btn-clear-filter" title="Szűrés törlése" style="padding: 10px 14px; border-radius: 8px; border: 1.5px solid #e2e8f0; background: #f8fafc; color: #64748b; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                            <i class="ph-bold ph-x"></i>Törlés
+                        </button>
                     </div>
                 </div>
 

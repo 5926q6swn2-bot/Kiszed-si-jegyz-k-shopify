@@ -396,31 +396,82 @@ body {
 }
 
 /* Látványos Drag and Drop Animációk */
-.sortable-ghost {
-    opacity: 0.2 !important;
-    background: rgba(0, 0, 0, 0.05) !important;
-    border: 2px dashed rgba(15, 23, 42, 0.4) !important;
-    transform: scale(0.95);
+.drag-handle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #cbd5e1;
+    cursor: grab;
+    border-radius: 16px 0 0 16px;
+    transition: background 0.15s, color 0.15s;
+    font-size: 18px;
 }
 
-.sortable-drag {
-    opacity: 1 !important;
-    background: rgba(255, 255, 255, 0.95) !important;
-    backdrop-filter: blur(40px) !important;
-    transform: scale(1.05) rotate(2deg) !important;
-    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15), 0 0 0 2px var(--primary) !important;
+.drag-handle:hover { background: #f1f5f9; color: #64748b; }
+.drag-handle:active { cursor: grabbing; }
+
+.order-card { position: relative; padding-left: 32px !important; }
+
+/* Compact mód drag közben - minden kártya */
+.dragging-active .order-card:not(.sortable-ghost) {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+}
+.dragging-active .order-card:not(.sortable-ghost) .items-table,
+.dragging-active .order-card:not(.sortable-ghost) .error-box,
+.dragging-active .order-card:not(.sortable-ghost) .order-customer,
+.dragging-active .order-card:not(.sortable-ghost) .order-address,
+.dragging-active .order-card:not(.sortable-ghost) .order-meta,
+.dragging-active .order-card:not(.sortable-ghost) [style*="font-size: 11px"] {
+    display: none !important;
+}
+.dragging-active .order-card:not(.sortable-ghost) .order-header {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+}
+.dragging-active .order-card:not(.sortable-ghost) .order-id {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    color: #475569 !important;
+}
+
+.sortable-ghost {
+    opacity: 0.6 !important;
+    background: #eff6ff !important;
+    border: 2px dashed #3b82f6 !important;
+    transform: none !important;
+    height: 52px !important;
+    overflow: hidden !important;
+}
+
+.sortable-ghost .order-index {
+    background: #3b82f6 !important;
+    transform: scale(1.15) !important;
+}
+
+.dragging-active,
+.dragging-active * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+
+.sortable-chosen {
+    box-shadow: 0 0 0 2px var(--primary) !important;
+    background: rgba(255,255,255,0.98) !important;
     cursor: grabbing !important;
-    z-index: 100;
 }
 
 .order-card:not(.editing):not(.sortable-drag):hover {
-    transform: translateY(-4px);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
     border-color: rgba(255, 255, 255, 1);
     background: rgba(255, 255, 255, 0.85);
 }
-
-.order-card:active { cursor: grabbing; }
 
 /* SZERKESZTÉS (FOCUS MODE) */
 .order-card.editing {
