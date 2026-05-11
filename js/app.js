@@ -157,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnReset = document.getElementById('btn-reset');
     const btnPrint = document.getElementById('btn-print');
     const btnHistory = document.getElementById('btn-history');
+    const btnSortMode = document.getElementById('btn-sort-mode');
     
     // Modal Elemek
     const manualModal = document.getElementById('manual-modal');
@@ -212,6 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Állapot
     let orders = [];
     let sortableInstance = null;
+    let sortModeActive = false;
     let currentLoadedRunId = null;
     let editingOrderInternalId = null;
 
@@ -434,12 +436,26 @@ document.addEventListener('DOMContentLoaded', () => {
     renderOrders();
 
 
+    // --- Rendezési mód toggle ---
+    if (btnSortMode) {
+        btnSortMode.addEventListener('click', () => {
+            if (orders.length === 0) return;
+            sortModeActive = !sortModeActive;
+            orderList.classList.toggle('sort-mode-active', sortModeActive);
+            btnSortMode.classList.toggle('sort-mode-btn-active', sortModeActive);
+            initSortable();
+        });
+    }
+
     // --- Reset ---
     btnReset.addEventListener('click', async () => {
         if(orders.length === 0) return;
         const isConfirmed = await CustomDialog.confirm('Biztosan törlöd az összes eddigi rendelést a listából?', 'Lista Törlése', 'warning', true);
         if(isConfirmed) {
             orders = [];
+            sortModeActive = false;
+            orderList.classList.remove('sort-mode-active');
+            if (btnSortMode) btnSortMode.classList.remove('sort-mode-btn-active');
             renderOrders();
         }
     });
@@ -553,6 +569,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
+                // 1b. Removed tétel ellenőrzés
+                if (tags.toLowerCase().includes('removed')) {
+                    errors.push({
+                        id: Math.random().toString(36).substr(2, 9),
+                        title: "Törölt tétel!",
+                        desc: "Törölt tétel van a megrendelésben, kérlek ellenőrizd le a Shopifyban!"
+                    });
+                }
+
                 // 2. Utalás ellenőrzés (Bank Deposit & not paid)
                 const financialStatus = (row['Financial Status'] || '').toLowerCase();
                 const paymentMethod = (row['Payment Method'] || '').toLowerCase();
@@ -609,15 +634,28 @@ document.addEventListener('DOMContentLoaded', () => {
                             let expectedAmount = outstandingBalance;
                             
                             // 10 Ft kerekítési tolerancia a sima egyenlegre vagy a szállítás nélküli egyenlegre
-                            if (Math.abs(outstandingBalance - noteCodAmount) <= 10 || 
+                            if (Math.abs(outstandingBalance - noteCodAmount) <= 10 ||
                                 (outstandingBalance > 250000 && Math.abs((outstandingBalance - shippingGross) - noteCodAmount) <= 10)) {
                                 codAmount = noteCodAmount; // Helyes! Nincs hiba.
                             } else {
-                                errors.push({
-                                    id: Math.random().toString(36).substr(2, 9),
-                                    title: "Utánvét Eltérés",
-                                    desc: `Utánvét a shopifyban: ${outstandingBalance} Ft, a Notes-ban ${noteCodAmount} Ft kérlek ellenőrizd!`
-                                });
+                                // Shopify CSV bug: order edit után az Outstanding Balance nem frissül helyesen.
+                                // Két eset: ÁFA exkluzív (hozzáadva) vagy inkluzív (már benne van az árban)
+                                const subtotal = parseFloat(row['Subtotal']) || 0;
+                                const tax1Name = row['Tax 1 Name'] || '';
+                                const vatMatch = tax1Name.match(/(\d+(?:\.\d+)?)\s*%/);
+                                const vatRate = vatMatch ? parseFloat(vatMatch[1]) / 100 : 0.27;
+                                const calculatedExclusive = Math.round((subtotal + shippingCost) * (1 + vatRate));
+                                const calculatedInclusive = Math.round(subtotal + shippingCost);
+                                const matchesCalc = Math.abs(calculatedExclusive - noteCodAmount) <= 10 || Math.abs(calculatedInclusive - noteCodAmount) <= 10;
+                                if (matchesCalc && Math.abs(outstandingBalance - noteCodAmount) > 10) {
+                                    codAmount = noteCodAmount; // CSV bug, notes helyes, nincs hiba
+                                } else {
+                                    errors.push({
+                                        id: Math.random().toString(36).substr(2, 9),
+                                        title: "Utánvét Eltérés",
+                                        desc: `Utánvét a shopifyban: ${outstandingBalance} Ft, a Notes-ban ${noteCodAmount} Ft kérlek ellenőrizd!`
+                                    });
+                                }
                             }
                         }
                     } else if (noteCodAmount !== null && noteCodAmount > 0) {
@@ -647,23 +685,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     codAmount: codAmount,
                     orderDate: createdAtStr,
                     isPlannedDelay: false,
+                    isFulfilled: fulfillmentStatus === 'fulfilled',
                     errors: errors,
                     items: []
                 });
             }
 
+            const lineFulfillmentStatus = (row['Lineitem fulfillment status'] || '').toLowerCase();
             if (itemQty > 0 && itemName) {
-                // Check if item already exists in this order (to merge quantities)
                 const order = orderMap.get(orderNum);
-                const existingItem = order.items.find(i => i.name === itemName);
-                if (existingItem) {
-                    existingItem.qty += itemQty;
-                } else {
-                    order.items.push({
-                        name: itemName,
-                        qty: itemQty,
-                        price: itemPrice
-                    });
+                // Ha a rendelés "fulfilled" de a tétel "pending" → el lett távolítva a rendelésből, kihagyjuk
+                if (!(order.isFulfilled && lineFulfillmentStatus === 'pending')) {
+                    const existingItem = order.items.find(i => i.name === itemName);
+                    if (existingItem) {
+                        existingItem.qty += itemQty;
+                    } else {
+                        order.items.push({
+                            name: itemName,
+                            qty: itemQty,
+                            price: itemPrice
+                        });
+                    }
                 }
             }
         });
@@ -733,7 +775,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function isProfile(name) {
-        return /profil/i.test(name);
+        return /profil/i.test(name) && name !== "Összekészített profilok";
     }
 
     function needsMarkerLabel(name, isCollapsedProfile) {
@@ -874,6 +916,10 @@ document.addEventListener('DOMContentLoaded', () => {
         updatePrintButtonState();
         updateIndexes();
 
+        initSortable();
+    }
+
+    function initSortable() {
         if (sortableInstance) {
             sortableInstance.destroy();
         }
@@ -881,7 +927,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sortableInstance = new Sortable(orderList, {
             animation: 80,
             easing: "cubic-bezier(0.4, 0, 0.2, 1)",
-            handle: '.drag-handle',
+            handle: sortModeActive ? '.order-card' : '.drag-handle',
             ghostClass: 'sortable-ghost',
             chosenClass: 'sortable-chosen',
             scroll: scrollContainer || true,
@@ -2765,14 +2811,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const itemsHtml = order.items.map(item => {
-                    const subItemsHtml = (item.isCollapsedProfile && item.subItems?.length > 0)
+                    const isCollapsed = item.isCollapsedProfile || item.name === "Összekészített profilok";
+                    const subItemsHtml = (isCollapsed && item.subItems?.length > 0)
                         ? `<div style="font-size: 9px; color: #475569; margin-top: 3px; padding-left: 6px; line-height: 1.6;">${item.subItems.map(sub => `<div>• ${sub.qty} db &nbsp;${sub.name}</div>`).join('')}</div>`
                         : '';
                     return `
                     <tr>
                         <td class="col-check"><div class="col-flex-center"><div class="checkbox-box"></div></div></td>
                         <td class="col-marker">${needsMarkerLabel(item.name) ? '<div class="col-flex-center"><span class="marker-lbl">címke</span><div class="checkbox-box marker"></div></div>' : ''}</td>
-                        <td class="col-qty">${item.isCollapsedProfile ? '' : `<strong>${item.qty} db</strong>`}</td>
+                        <td class="col-qty">${isCollapsed ? '' : `<strong>${item.qty} db</strong>`}</td>
                         <td class="col-name">${item.name}${subItemsHtml}</td>
                     </tr>`;
                 }).join('');
@@ -2912,7 +2959,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 40px;">
                         <div style="width: 45%;"><strong>Eladó:</strong><br>${senderData.name}<br>${senderData.address}<br>${senderData.bank}</div>
-                        <div style="width: 45%;"><strong>Vevő:</strong><br>${order.shippingName}<br>${order.address}<br>${order.shippingPhone || ''}</div>
+                        <div style="width: 45%;"><strong>Vevő:</strong><br>${order.shippingName}<br>${order.fullAddress || order.address}<br>${order.shippingPhone || ''}</div>
                     </div>
                     <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">
                         <thead><tr style="border-bottom: 2px solid #000;"><th style="text-align: left; padding: 10px;">Tétel</th><th style="text-align: right; padding: 10px;">Mennyiség</th></tr></thead>

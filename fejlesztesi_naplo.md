@@ -28,7 +28,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ## 🔄 Session Handover (Aktuális Állapot)
 
 - **Utolsó aktív modell**: Claude Sonnet 4.6
-- **Státusz**: A rendszer stabil. Az Előzmények modal mind a 4 füle Apple-inspired kártyarendszerre lett átdolgozva (`history-apple-card`, `hac-*` CSS osztályok). A nyomtatott szedőlistán az összekészített profilok részletei is látszódnak.
+- **Státusz**: A rendszer stabil. Rendezési mód (sort mode) elkészült, DnD vizuálok teljesen átdolgozva. 6 db Shopify CSV-specifikus bugjavítás és a cache-busting is aktív (`app.js?v=4`).
 - **Folytatás**: Nincs aktív TODO. Következő session igény szerint.
 
 ---
@@ -132,9 +132,43 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+### 2026. május 11. - Shopify CSV Bugok Kezelése & Rendezési Mód
+
+#### Hibajavítások (Shopify CSV korlátai)
+
+- **Teljes cím a nyomtatott szállítóleveleken:** A szállítólevelek fejlécében `order.fullAddress || order.address` fallback — a teljes cím (ország + irányítószám + város + utca) minden esetben látszik, nem csak az utca.
+- **"Removed" tételek szűrése CSV-ből:** Shopify nem jelöl meg eltávolított tételeket a CSV-ben — két védelmi réteg:
+  1. Ha a rendelés `fulfilled` és az adott sornak `Lineitem fulfillment status = pending` → a tétel ki van zárva (utólag eltávolított elem).
+  2. Ha a rendelésen van `removed` Shopify tag → nyomtatás le van tiltva piros hibaüzenettel ("Törölt tétel van a megrendelésben, kérlek ellenőrizd le a Shopifyban!").
+- **Utánvét Eltérés hamis pozitív javítása (Shopify Outstanding Balance bug):** Shopify CSV editált rendelések után hibás `Outstanding Balance`-t exportál (összeadja az újat, de nem vonja le a régit). Auto-detektálás: ha `(Subtotal + Shipping) × VAT` **vagy** `(Subtotal + Shipping)` egyezik a notes-ban lévő utánvét összeggel, de az `Outstanding Balance` eltér → a notes értékét fogadjuk el, nem keletkezik hiba. Mindkét ÁFA-számítási módot ellenőrzi (ÁFA-s és ÁFA-n felüli árstruktúra).
+- **"Összekészített profilok" alatti részletek hiányának javítása:** Az `isProfile()` regex (`/profil/i`) véletlenül matchelte az "Összekészített profilok" nevet is → a profilok újra összecsuklottak magukba. Javítás: `isProfile()` kizárja a névegyezést. A `generatePickingHtml` is defenzíven ellenőrzi az `item.isCollapsedProfile || item.name === "Összekészített profilok"` feltételt.
+- **Cache-busting:** `index.html`-ben `app.js?v=4` → böngésző mindig a legfrissebb kódot tölti be.
+
+#### Technikai tanulságok (Shopify CSV):
+- Az `Outstanding Balance` mező **nem megbízható** szerkesztett rendeléseknél.
+- Az `items` szûrés egyetlen megbízható módja teljesített rendelésnél: `isFulfilled === true && lineFulfillmentStatus === 'pending'` kombináció.
+- A `removed` tag munkafolyamat szükséges a teljesítés előtti esetekhez.
+
+---
+
+#### Rendezési Mód (Sort Mode)
+
+- **"Rendezés" toggle gomb a dynamic island-ban** (print előtt, saját sziget-szakasz nélkül). Aktív állapotban sárga-borostyán kiemelés (`sort-mode-btn-active`).
+- **Kompakt kártyanézet aktív módban:** Az összes kártya drasztikusan kisebb — csak a sorszám badge és a rendelésszám látszik, minden más (tételek, cím, vevő, gombok, drag handle) el van rejtve CSS-sel (nem újrarenderelés).
+- **Teljes kártya drag handle:** Sort módban az egész kártya húzható (nem csak a kis handle ikon) — `initSortable()` keretben `handle: sortModeActive ? '.order-card' : '.drag-handle'`.
+- **`initSortable()` kiemelve:** A Sortable.js inicializálás külön függvénybe kerül, amelyet `renderOrders()` és a toggle gomb is hív — nincs kódduplikáció.
+- **Reset-nél sort mode visszaáll:** Ha a lista törlődik, `sortModeActive = false` és az összes CSS class visszaáll.
+
+#### DnD vizuálok teljes átdolgozása (sort módban):
+- **Fogott kártya ("chosen"):** `scale(1.04) rotate(1.2deg)` + nagy kék árnyék + fehér háttér + kék szegély — egyértelműen "felemelkedett" hatás.
+- **Landing zone ("ghost"):** Élénk kék fill (`#dbeafe`), kék szegély + 5px glowing outline, belső tartalom rejtett, `::after` pseudo-elem mutatja: **"↕  ide kerül"** szöveg középre igazítva.
+- **Többi kártya húzás közben:** `opacity: 0.45` — a figyelem a fogott és a célpont kártyán van, minden más háttérbe kerül.
+
+---
+
 ## Következő Lépések (TODO)
-- [x] **Előzmények szűrés újraírása:** Megoldva. Egységes szűrési logika (`isFiltered`): dátum (`originalDate` alapján), cég, szöveg — minden kombináció működik. Szűrés/Törlés gombok, aktív szűrő piros Törlés gomb jelzéssel, "nincs találat" visszajelzés.
+- [x] **Előzmények szűrés újraírása:** Megoldva.
 - [x] **Drag & Drop fluiditás:** Megoldva. Natív DnD, kompakt `setDragImage`, ghost badge dinamikus pozíció, szövegkijelölés tiltva.
-- [x] **Szerkesztett adatok prioritása:** Megoldva. Save handler pótolva, `orders[]` az egyetlen forrás, előzményekben is érvényes.
-- [x] **Utólagos módosítás kezelése:** Megoldva. `isPrinted`/`isModified` flagek, "Módosítva" badge az előzmény kártyán, felülírás után nyomtatási choice dialog (teljes csomag vs csak szállítólevelek). `currentLoadedRunId` hiba is javítva.
-- [ ] **Sorrend mód gomb:** Dedikált "Rendezés" gomb a toolbar-on, ami kompakt módba kapcsolja az összes kártyát (csak sorszám + rendelésszám látszik, a kártyák drasztikusan kisebbek). Ebben a módban a drag & drop gyors és áttekinthető. Újra megnyomva visszaállnak a teljes kártyák az új sorrenddel. A gomb legyen toggle (aktív állapotban más színű / ikonnal jelölve).
+- [x] **Szerkesztett adatok prioritása:** Megoldva.
+- [x] **Utólagos módosítás kezelése:** Megoldva.
+- [x] **Sorrend mód gomb:** Megoldva. Dynamic island "Rendezés" toggle gomb, kompakt kártyák, teljes kártya drag handle, amber aktív szín, reset lista törlésnél.
