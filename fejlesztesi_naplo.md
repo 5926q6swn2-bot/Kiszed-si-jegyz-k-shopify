@@ -166,9 +166,41 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+---
+
+### 2026. május 13. - Előzmények UI kompaktosítás, Preview és Összevonás
+
+#### Kompakt kártyalayout (Szedések fül)
+- **Egysor design:** A 2-soros (header + footer) kártyák egyetlen ~50px-es sorrá sűrűsödtek. Bal: cég pill + dátum + módosítás badge + futár + rendelésszám + időpont. Közép: 3 ikon-only nyomtatógomb + fekete "Teljes" gomb. Jobb: Betöltés + törlés + preview toggle.
+- **Modal padding csökkentve:** `32px → 16px`, kártyák közötti rés `10px → 5px`. Egyszerre 6-8 szedés látszik laptopon (volt 2-3).
+- **Trash / Statisztika kártyák érintetlenek.**
+
+#### Rendelés Preview
+- **Chevron toggle gomb** minden kártyán — kattintásra kinyílik egy chip-sor az összes rendelésszámmal és vevőnévvel.
+- **Chip hover:** kék keret, tooltip mutatja a szállítási címet.
+- **CSS:** `max-height` animáció, `open` class toggle.
+
+#### Szedések Összevonása
+- **"Összevonás" toggle gomb** a Korábbi Szállítási Körök fejléce mellett.
+- Aktív módban checkboxok jelennek meg a kártyákon, lila sticky action bar alul (kijelölt körök száma + Összevon gomb).
+- **Merge modal:** új dátum / szállítócég / futár megadása (előre kitöltve az első kör adataival).
+- **Adatmodell:** összevont kör kap `isMerged: true`, `mergedFromIds[]`, `mergedFromDocIds[]` flageket. Eredeti körök `isMergedInto` flaget kapnak és eltűnnek a listából.
+- **Összevont badge:** lila "Összevont (N kör)" jelzés az összevont kör kártyáján.
+- **Visszavon gomb:** sárga "Visszavon" gomb az összevont kártyán — confirm után visszaállítja az eredetieket (`isMergedInto` törlése), az összevont kör törlődik.
+- **Többszörös összevonás:** biztonságos, szintenkénti undo (AB+C→ABC visszavon → AB és C jön vissza, AB saját visszavonója megmarad).
+- **Cache-busting:** `app.js?v=7`
+
+#### Technikai tanulságok:
+- Az összevont és eredeti körök elkülönítése `isMergedInto` flaggel (nem külön kollekció) — egyszerű, Firestore-barát megoldás.
+- `mergedFromDocIds` (Firestore doc ID-k) tárolása a merged runban kulcsfontosságú a pontos visszavonáshoz.
+- Szintenkénti undo: `revertMerge` csak egy szintet von vissza — nem kell rekurzió, a mélységi lánc minden eleme önálló entitás.
+
+---
+
 ## Következő Lépések (TODO)
 - [x] **Előzmények szűrés újraírása:** Megoldva.
-- [x] **Drag & Drop fluiditás:** Megoldva. Natív DnD, kompakt `setDragImage`, ghost badge dinamikus pozíció, szövegkijelölés tiltva.
+- [x] **Drag & Drop fluiditás:** Megoldva.
 - [x] **Szerkesztett adatok prioritása:** Megoldva.
 - [x] **Utólagos módosítás kezelése:** Megoldva.
-- [x] **Sorrend mód gomb:** Megoldva. Dynamic island "Rendezés" toggle gomb, kompakt kártyák, teljes kártya drag handle, amber aktív szín, reset lista törlésnél.
+- [x] **Sorrend mód gomb:** Megoldva.
+- [x] **Előzmények kompakt layout + preview + összevonás:** Megoldva.

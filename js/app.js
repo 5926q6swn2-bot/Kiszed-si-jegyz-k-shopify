@@ -209,6 +209,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const trashDateEnd = document.getElementById('trash-date-end');
     const psNewCompanyGroup = document.getElementById('ps-new-company-group');
     const psNewCompanyInput = document.getElementById('ps-new-company');
+    const btnToggleMergeMode = document.getElementById('btn-toggle-merge-mode');
+    const mergeActionBar = document.getElementById('merge-action-bar');
+    const mergeSelectionLabel = document.getElementById('merge-selection-label');
+    const btnDoMerge = document.getElementById('btn-do-merge');
+    const btnCancelMergeMode = document.getElementById('btn-cancel-merge-mode');
+    const mergeModal = document.getElementById('merge-modal');
+    const mergeDate = document.getElementById('merge-date');
+    const mergeCompany = document.getElementById('merge-company');
+    const mergeCourier = document.getElementById('merge-courier');
+    const btnMergeSubmit = document.getElementById('btn-merge-submit');
+    const btnMergeCancel = document.getElementById('btn-merge-cancel');
+    const closeMergeModal = document.getElementById('close-merge-modal');
+    const mergeModalSubtitle = document.getElementById('merge-modal-subtitle');
 
     // Állapot
     let orders = [];
@@ -216,6 +229,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let sortModeActive = false;
     let currentLoadedRunId = null;
     let editingOrderInternalId = null;
+    let mergeSelectionMode = false;
+    const selectedForMerge = new Set();
 
     // --- HistoryManager (Előzmények kezelése Firestore-al) ---
     const HistoryManager = {
@@ -400,6 +415,58 @@ document.addEventListener('DOMContentLoaded', () => {
                 return true;
             } catch (e) {
                 console.error("Hiba az elszámolás állapot frissítésénél: ", e);
+                return false;
+            }
+        },
+
+        mergeRuns: async function(selectedRunIds, newDate, newCourier, newCompany) {
+            try {
+                const runs = await this.getAllRuns();
+                const selectedRuns = runs.filter(r => selectedRunIds.includes(r.id));
+                if (selectedRuns.length < 2) return null;
+
+                const allOrders = selectedRuns.flatMap(r => r.orders);
+                const mergedId = 'run_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                const mergedData = {
+                    id: mergedId,
+                    date: newDate,
+                    originalDate: newDate,
+                    pickupDate: newDate,
+                    courier: newCourier,
+                    company: newCompany,
+                    orders: allOrders,
+                    timestamp: Date.now(),
+                    isPrinted: false,
+                    isMerged: true,
+                    mergedFromIds: selectedRuns.map(r => r.id),
+                    mergedFromDocIds: selectedRuns.map(r => r.docId),
+                    mergedAt: Date.now(),
+                };
+                await addDoc(collection(db, this.COLLECTION_NAME), mergedData);
+                for (const run of selectedRuns) {
+                    const docRef = doc(db, this.COLLECTION_NAME, run.docId);
+                    await updateDoc(docRef, { isMergedInto: mergedId, mergedAt: Date.now() });
+                }
+                return mergedData;
+            } catch (e) {
+                console.error("Hiba az összevonásnál:", e);
+                return null;
+            }
+        },
+
+        revertMerge: async function(mergedRunDocId) {
+            try {
+                const runs = await this.getAllRuns();
+                const mergedRun = runs.find(r => r.docId === mergedRunDocId);
+                if (!mergedRun || !mergedRun.mergedFromDocIds) return false;
+                for (const origDocId of mergedRun.mergedFromDocIds) {
+                    const docRef = doc(db, this.COLLECTION_NAME, origDocId);
+                    await updateDoc(docRef, { isMergedInto: deleteField(), mergedAt: deleteField() });
+                }
+                await deleteDoc(doc(db, this.COLLECTION_NAME, mergedRunDocId));
+                return true;
+            } catch (e) {
+                console.error("Hiba a visszavonásnál:", e);
                 return false;
             }
         },
@@ -1316,6 +1383,87 @@ document.addEventListener('DOMContentLoaded', () => {
     tabBtnTrash.addEventListener('click', () => switchHistoryTab('trash'));
     tabBtnStats.addEventListener('click', () => switchHistoryTab('stats'));
 
+    function updateMergeBar() {
+        const count = selectedForMerge.size;
+        mergeSelectionLabel.textContent = `${count} kör kijelölve`;
+        btnDoMerge.disabled = count < 2;
+        btnDoMerge.style.opacity = count < 2 ? '0.4' : '1';
+        btnDoMerge.style.cursor = count < 2 ? 'not-allowed' : 'pointer';
+    }
+
+    function enterMergeMode() {
+        mergeSelectionMode = true;
+        selectedForMerge.clear();
+        historyRunsContainer.classList.add('merge-mode-active');
+        mergeActionBar.style.display = 'block';
+        btnToggleMergeMode.style.background = '#eef2ff';
+        btnToggleMergeMode.style.color = '#6366f1';
+        btnToggleMergeMode.style.borderColor = '#a5b4fc';
+        updateMergeBar();
+    }
+
+    function exitMergeMode() {
+        mergeSelectionMode = false;
+        selectedForMerge.clear();
+        historyRunsContainer.classList.remove('merge-mode-active');
+        mergeActionBar.style.display = 'none';
+        btnToggleMergeMode.style.background = '';
+        btnToggleMergeMode.style.color = '';
+        btnToggleMergeMode.style.borderColor = '';
+        renderHistoryRuns();
+    }
+
+    btnToggleMergeMode.addEventListener('click', () => {
+        if (mergeSelectionMode) exitMergeMode();
+        else enterMergeMode();
+    });
+
+    btnCancelMergeMode.addEventListener('click', () => exitMergeMode());
+
+    btnDoMerge.addEventListener('click', () => {
+        if (selectedForMerge.size < 2) return;
+        // Pre-fill modal
+        mergeDate.value = new Date().toISOString().split('T')[0];
+        const allRuns = Array.from(historyRunsContainer.querySelectorAll('.run-select-cb:checked'));
+        const firstCard = allRuns[0]?.closest('.history-apple-card');
+        const companyText = firstCard?.querySelector('.hac-company')?.textContent?.trim() || '';
+        const courierText = firstCard?.querySelector('.hac-courier')?.textContent?.trim() || '';
+        if (mergeCompany.querySelector(`option[value="${companyText}"]`)) mergeCompany.value = companyText;
+        mergeCourier.value = courierText;
+        const totalOrders = Array.from(selectedForMerge).reduce((sum, id) => {
+            const cb = historyRunsContainer.querySelector(`.run-select-cb[data-id="${id}"]`);
+            const ts = cb?.closest('.history-apple-card')?.querySelector('.hac-timestamp')?.textContent || '';
+            const m = ts.match(/^(\d+) r/);
+            return sum + (m ? parseInt(m[1]) : 0);
+        }, 0);
+        mergeModalSubtitle.textContent = `${selectedForMerge.size} kör · ${totalOrders} rendelés összesen`;
+        mergeModal.classList.add('active');
+    });
+
+    [btnMergeCancel, closeMergeModal].forEach(b => b.addEventListener('click', () => mergeModal.classList.remove('active')));
+
+    btnMergeSubmit.addEventListener('click', async () => {
+        const newDate = mergeDate.value;
+        const newCompany = mergeCompany.value;
+        const newCourier = mergeCourier.value.trim();
+        if (!newDate || !newCompany || !newCourier) {
+            await CustomDialog.alert('Kérlek töltsd ki az összes mezőt.', 'Hiányos adatok', 'warning');
+            return;
+        }
+        btnMergeSubmit.disabled = true;
+        btnMergeSubmit.textContent = 'Összevonás...';
+        const result = await HistoryManager.mergeRuns(Array.from(selectedForMerge), newDate, newCourier, newCompany);
+        btnMergeSubmit.disabled = false;
+        btnMergeSubmit.innerHTML = '<i class="ph-bold ph-git-merge"></i>Összevonás végrehajtása';
+        mergeModal.classList.remove('active');
+        if (result) {
+            exitMergeMode();
+            CustomDialog.alert(`Összevonás kész. Az új kör ${result.orders.length} rendelést tartalmaz.`, 'Sikeres összevonás', 'info');
+        } else {
+            CustomDialog.alert('Hiba történt az összevonás során.', 'Hiba', 'warning');
+        }
+    });
+
     statsDateStart.addEventListener('change', () => renderStatistics());
     statsDateEnd.addEventListener('change', () => renderStatistics());
 
@@ -1500,48 +1648,67 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        filteredRuns.forEach(run => {
+        // Összevont eredetiek elrejtése
+        const visibleRuns = filteredRuns.filter(r => !r.isMergedInto);
+
+        visibleRuns.forEach(run => {
             const el = document.createElement('div');
             el.className = 'history-apple-card';
+            if (selectedForMerge.has(run.id)) el.classList.add('merge-selected');
             const dateStr = new Date(run.timestamp).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             const modifiedBadge = run.isModified
                 ? `<span class="hac-badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;display:inline-flex;align-items:center;gap:4px;"><i class="ph-bold ph-pencil-simple" style="font-size:10px;"></i>Módosítva${run.modifyCount > 1 ? ` (${run.modifyCount}×)` : ''}</span>`
                 : '';
+            const mergedBadge = run.isMerged
+                ? `<span class="hac-badge hac-badge-merged"><i class="ph-bold ph-git-merge" style="font-size:9px;"></i>Összevont (${run.mergedFromIds?.length || 0} kör)</span>`
+                : '';
+            const previewChips = run.orders.map(o =>
+                `<span class="hac-order-chip" title="${o.address || ''}"><span class="hac-chip-id">${o.id}</span><span class="hac-chip-name">${o.shippingName || ''}</span></span>`
+            ).join('');
+            const revertBtn = run.isMerged
+                ? `<button class="hac-btn-action hac-btn-revert btn-revert-merge" data-doc-id="${run.docId}" title="Összevonás visszavonása"><i class="ph-bold ph-arrow-counter-clockwise" style="font-size:11px;"></i>Visszavon</button>`
+                : '';
             el.innerHTML = `
-                <div class="hac-header">
-                    <div style="flex:1;min-width:0;">
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
-                            <div class="hac-date">${run.date}</div>
-                            ${modifiedBadge}
-                        </div>
-                        <div class="hac-meta" style="margin-top:2px;">
-                            <i class="ph-bold ph-user" style="font-size:11px;color:#374151;"></i><span style="font-weight:600;color:#374151;">${run.courier}</span>
-                            <span style="color:#d1d5db;">·</span><span style="color:#94a3b8;">${run.orders.length} rendelés · ${dateStr}</span>
-                        </div>
+                <div class="hac-row">
+                    <label class="hac-checkbox-wrap" title="Kijelölés összevonáshoz">
+                        <input type="checkbox" class="run-select-cb" data-id="${run.id}" ${selectedForMerge.has(run.id) ? 'checked' : ''}>
+                    </label>
+                    <div class="hac-info">
+                        <span class="hac-company">${run.company || '-'}</span>
+                        <span class="hac-date">${run.date}</span>
+                        ${mergedBadge}${modifiedBadge}
+                        <span class="hac-sep">·</span>
+                        <i class="ph-bold ph-user" style="font-size:10px;color:#374151;"></i><span class="hac-courier">${run.courier}</span>
+                        <span class="hac-sep">·</span>
+                        <span class="hac-timestamp">${run.orders.length} r · ${dateStr}</span>
                     </div>
-                    <span class="hac-company">${run.company || '-'}</span>
-                </div>
-                <div class="hac-footer">
                     <div class="hac-prints">
-                        <button class="hac-print-btn btn-print-picking" data-id="${run.id}">
-                            <i class="ph-bold ph-clipboard-text"></i>Szedőlista
+                        <button class="hac-print-btn btn-print-picking" data-id="${run.id}" title="Szedőlista">
+                            <i class="ph-bold ph-clipboard-text"></i>
                         </button>
-                        <button class="hac-print-btn btn-print-delivery" data-id="${run.id}">
-                            <i class="ph-bold ph-truck"></i>Szállítók
+                        <button class="hac-print-btn btn-print-delivery" data-id="${run.id}" title="Szállítólevelek">
+                            <i class="ph-bold ph-truck"></i>
                         </button>
-                        <button class="hac-print-btn btn-print-summary" data-id="${run.id}">
-                            <i class="ph-bold ph-file-text"></i>Összesítő
+                        <button class="hac-print-btn btn-print-summary" data-id="${run.id}" title="Összesítő">
+                            <i class="ph-bold ph-file-text"></i>
                         </button>
-                        <button class="hac-print-btn hac-print-primary btn-print-bundle" data-id="${run.id}">
-                            <i class="ph-bold ph-printer"></i>Teljes csomag
+                        <button class="hac-print-btn hac-print-primary btn-print-bundle" data-id="${run.id}" title="Teljes csomag nyomtatása">
+                            <i class="ph-bold ph-printer"></i>Teljes
                         </button>
                     </div>
                     <div class="hac-actions">
+                        ${revertBtn}
                         <button class="hac-btn-load btn-load-run" data-id="${run.id}">Betöltés</button>
                         <button class="hac-btn-del btn-delete-run" data-id="${run.id}" title="Törlés">
                             <i class="ph-bold ph-trash"></i>
                         </button>
+                        <button class="hac-btn-preview btn-toggle-preview" title="Rendelések előnézete">
+                            <i class="ph-bold ph-caret-down"></i>
+                        </button>
                     </div>
+                </div>
+                <div class="hac-preview">
+                    <div class="hac-preview-inner">${previewChips}</div>
                 </div>
             `;
             historyRunsContainer.appendChild(el);
@@ -2029,6 +2196,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(confirm) {
                     await HistoryManager.deleteRun(runId);
                     renderHistoryRuns();
+                }
+            });
+        });
+
+        document.querySelectorAll('.btn-toggle-preview').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const card = btn.closest('.history-apple-card');
+                const preview = card.querySelector('.hac-preview');
+                const isOpen = preview.classList.toggle('open');
+                btn.classList.toggle('active', isOpen);
+            });
+        });
+
+        document.querySelectorAll('.run-select-cb').forEach(cb => {
+            cb.addEventListener('change', () => {
+                const runId = cb.dataset.id;
+                if (cb.checked) {
+                    selectedForMerge.add(runId);
+                    cb.closest('.history-apple-card').classList.add('merge-selected');
+                } else {
+                    selectedForMerge.delete(runId);
+                    cb.closest('.history-apple-card').classList.remove('merge-selected');
+                }
+                updateMergeBar();
+            });
+        });
+
+        document.querySelectorAll('.btn-revert-merge').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const docId = btn.dataset.docId;
+                const ok = await CustomDialog.confirm('Visszavonod az összevonást? Az eredeti körök visszakerülnek a listába, az összevont kör törlődik.', 'Összevonás visszavonása', 'warning', true);
+                if (!ok) return;
+                const success = await HistoryManager.revertMerge(docId);
+                if (success) {
+                    await renderHistoryRuns();
+                    CustomDialog.alert('Az összevonás sikeresen visszavonva.', 'Visszavonva', 'info');
                 }
             });
         });

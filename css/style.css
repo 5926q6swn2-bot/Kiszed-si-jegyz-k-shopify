@@ -817,10 +817,10 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
 /* Apple-inspired History Cards */
 .history-apple-card {
     background: #fff;
-    border-radius: 16px;
+    border-radius: 10px;
     border: 1px solid rgba(0,0,0,0.06);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 14px rgba(0,0,0,0.04);
-    margin-bottom: 9px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 2px 8px rgba(0,0,0,0.03);
+    margin-bottom: 5px;
     overflow: hidden;
     transition: box-shadow 0.2s ease;
 }
@@ -956,6 +956,136 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
     font-size: 15px;
 }
 .hac-btn-del:hover { background: #fee2e2; color: #dc2626; }
+
+/* Kompakt egysor kártya (Szedések fül) */
+.hac-row {
+    display: flex;
+    align-items: center;
+    padding: 9px 12px;
+    gap: 10px;
+}
+.hac-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+.hac-row .hac-date {
+    font-size: 13px;
+    font-weight: 700;
+    color: #111827;
+    letter-spacing: -0.2px;
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+.hac-sep { color: #d1d5db; font-size: 11px; }
+.hac-courier { font-weight: 600; color: #374151; font-size: 12px; white-space: nowrap; }
+.hac-timestamp { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+#history-modal .modal-body { padding: 0 16px 16px; }
+#history-runs-container { gap: 5px !important; }
+
+/* Preview toggle gomb */
+.hac-btn-preview {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    background: transparent;
+    color: #94a3b8;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+.hac-btn-preview:hover { background: #f1f5f9; color: #374151; }
+.hac-btn-preview.active { color: #3b82f6; background: #eff6ff; }
+.hac-btn-preview i { transition: transform 0.2s ease; display: block; }
+.hac-btn-preview.active i { transform: rotate(180deg); }
+
+/* Preview panel */
+.hac-preview {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+}
+.hac-preview.open { max-height: 200px; }
+.hac-preview-inner {
+    padding: 7px 12px 9px;
+    border-top: 1px solid #f1f5f9;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+/* Rendelés chip */
+.hac-order-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: default;
+    transition: border-color 0.15s, background 0.15s;
+}
+.hac-order-chip:hover { background: #f0f9ff; border-color: #93c5fd; }
+.hac-chip-id { font-weight: 700; color: #111827; }
+.hac-chip-name { color: #64748b; }
+
+/* Összevonás — checkbox */
+.hac-checkbox-wrap {
+    display: none;
+    align-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.hac-checkbox-wrap input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #6366f1;
+    cursor: pointer;
+}
+.merge-mode-active .hac-checkbox-wrap { display: flex; }
+
+/* Kijelölt kártya */
+.history-apple-card.merge-selected {
+    border-color: #a5b4fc;
+    box-shadow: 0 0 0 2px #e0e7ff, 0 1px 3px rgba(0,0,0,0.05);
+    background: #fafaff;
+}
+
+/* Összevont badge */
+.hac-badge-merged {
+    background: #eef2ff;
+    color: #4338ca;
+    border: 1px solid #c7d2fe;
+}
+
+/* Visszavon gomb */
+.hac-btn-revert {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+.hac-btn-revert:hover { background: #fde68a; }
 .history-run-info {
     display: flex;
     flex-direction: column;

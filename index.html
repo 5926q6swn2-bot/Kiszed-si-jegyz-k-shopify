@@ -275,9 +275,26 @@
 
                 <!-- Korábbi Szállítási Körök -->
                 <div id="history-runs-view" style="flex: 1;">
-                    <h3 style="font-size: 14px; margin-bottom: 10px; color: var(--text-primary);">Korábbi Szállítási Körök</h3>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <h3 style="font-size: 14px; margin: 0; color: var(--text-primary);">Korábbi Szállítási Körök</h3>
+                        <button id="btn-toggle-merge-mode" style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;font-size:12px;font-weight:600;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#475569;cursor:pointer;font-family:inherit;">
+                            <i class="ph-bold ph-git-merge" style="font-size:13px;"></i>Összevonás
+                        </button>
+                    </div>
                     <div id="history-runs-container" style="display: flex; flex-direction: column; gap: 10px;">
                         <!-- JS generálja ide a köröket -->
+                    </div>
+                </div>
+                <!-- Összevonás action bar -->
+                <div id="merge-action-bar" style="display:none;position:sticky;bottom:0;background:rgba(255,255,255,0.97);backdrop-filter:blur(8px);border-top:1px solid #e2e8f0;padding:10px 0;margin-top:10px;border-radius:0 0 12px 12px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                        <span id="merge-selection-label" style="font-size:13px;font-weight:600;color:#374151;">0 kör kijelölve</span>
+                        <div style="display:flex;gap:8px;">
+                            <button id="btn-do-merge" disabled style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;font-size:13px;font-weight:700;border:none;border-radius:9px;background:#6366f1;color:#fff;cursor:pointer;font-family:inherit;opacity:0.4;">
+                                <i class="ph-bold ph-git-merge"></i>Összevon
+                            </button>
+                            <button id="btn-cancel-merge-mode" style="padding:8px 14px;font-size:13px;font-weight:600;border:1.5px solid #e2e8f0;border-radius:9px;background:#f8fafc;color:#64748b;cursor:pointer;font-family:inherit;">Mégse</button>
+                        </div>
                     </div>
                 </div>
                 </div>
@@ -455,7 +472,49 @@
             }
         });
     </script>
-    <script type="module" src="js/app.js?v=4"></script>
+    <script type="module" src="js/app.js?v=7"></script>
     <div id="print-area"></div>
+
+    <!-- Összevonás Modal -->
+    <div id="merge-modal" class="modal no-print">
+        <div class="modal-content" style="max-width:460px;">
+            <div class="modal-header" style="padding:20px 24px;">
+                <div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <i class="ph-bold ph-git-merge" style="font-size:18px;color:#6366f1;"></i>
+                        <h2 style="font-size:16px;font-weight:700;margin:0;">Szedések Összevonása</h2>
+                    </div>
+                    <p id="merge-modal-subtitle" style="font-size:12px;color:#94a3b8;margin:4px 0 0 26px;">2 kör · 0 rendelés összesen</p>
+                </div>
+                <button class="close-modal" id="close-merge-modal" style="background:none;border:none;cursor:pointer;font-size:20px;color:#94a3b8;">×</button>
+            </div>
+            <div class="modal-body" style="padding:20px 24px;display:flex;flex-direction:column;gap:14px;">
+                <div class="form-group">
+                    <label style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;display:block;">Szállítás dátuma</label>
+                    <input type="date" id="merge-date" style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:14px;">
+                </div>
+                <div class="form-group">
+                    <label style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;display:block;">Szállítócég</label>
+                    <select id="merge-company" style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:14px;background:#fff;">
+                        <option value="LétaiSela">LétaiSela</option>
+                        <option value="Sela">Sela</option>
+                        <option value="ÁdámFuvar">ÁdámFuvar</option>
+                        <option value="FákóTrans">FákóTrans</option>
+                        <option value="Mizsei">Mizsei</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;display:block;">Futár neve</label>
+                    <input type="text" id="merge-courier" placeholder="Pl.: Pista" style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:14px;">
+                </div>
+            </div>
+            <div class="modal-footer" style="padding:16px 24px;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #f1f5f9;">
+                <button id="btn-merge-cancel" style="padding:9px 18px;font-size:13px;font-weight:600;border:1.5px solid #e2e8f0;border-radius:9px;background:#f8fafc;color:#64748b;cursor:pointer;font-family:inherit;">Mégse</button>
+                <button id="btn-merge-submit" style="display:inline-flex;align-items:center;gap:7px;padding:9px 20px;font-size:13px;font-weight:700;border:none;border-radius:9px;background:#6366f1;color:#fff;cursor:pointer;font-family:inherit;">
+                    <i class="ph-bold ph-git-merge"></i>Összevonás végrehajtása
+                </button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
