@@ -6,9 +6,11 @@
     <title>Kiszedési Jegyzék Shopify</title>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <!-- Lokális könyvtárak betöltése -->
     <script src="libs/papaparse.min.js"></script>
     <script src="libs/Sortable.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
     <!-- Bejelentkező Képernyő (Login Overlay) -->
@@ -55,10 +57,6 @@
                 <button id="btn-logout" class="btn btn-secondary" style="padding: 8px 12px; font-size: 13px;" title="Kijelentkezés">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                 </button>
-                <button id="btn-history" class="btn btn-secondary" style="display: flex; gap: 8px; align-items: center;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                    Előzmények
-                </button>
             </div>
         </header>
 
@@ -83,7 +81,7 @@
             <div id="print-footer" class="print-document-footer print-only">
                 <span style="color: #64748b; text-transform: uppercase; margin-right: 15px;">Szállítási Adatok:</span>
                 <span style="margin-right: 15px;">Cég: <strong id="print-footer-company">-</strong></span>
-                <span style="margin-right: 15px;">Futár: <strong id="print-footer-courier">-</strong></span>
+                <span style="margin-right: 15px;">Szállító: <strong id="print-footer-courier">-</strong></span>
                 <span style="margin-right: 15px;">Felvétel: <strong id="print-footer-pickup">-</strong></span>
                 <span>Kiszállítás: <strong id="print-footer-delivery">-</strong></span>
             </div>
@@ -116,6 +114,11 @@
                 <span>Rendezés</span>
             </button>
             <div class="island-divider"></div>
+            <button id="btn-quick-delivery" class="island-btn" title="Gyors Szállítólevél">
+                <i class="ph-bold ph-lightning"></i>
+                <span>Gyors SzL</span>
+            </button>
+            <div class="island-divider"></div>
             <button id="btn-print" class="island-btn action-btn" disabled title="Nyomtatás">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                 <span>Nyomtatás</span>
@@ -124,6 +127,14 @@
     </div>
 
 
+
+    <!-- HISTORY ISLAND (Jobb oldali lebegő pill) -->
+    <div id="history-island" class="history-island no-print">
+        <button id="btn-history" class="island-btn">
+            <i class="ph-bold ph-clock-counter-clockwise"></i>
+            <span>Előzmények</span>
+        </button>
+    </div>
 
     <!-- EGYEDI DIALOG RENDSZER (CUSTOM MODALS) -->
     <div id="custom-dialog-overlay" class="custom-dialog-overlay no-print">
@@ -190,7 +201,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label>Futár / Sofőr Neve</label>
+                        <label>Szállító neve</label>
                         <input type="text" id="ps-courier" placeholder="Pl.: Pista, Kovács János" required>
                     </div>
 
@@ -230,17 +241,42 @@
         <div class="modal-content modal-large" style="height: 80vh; display: flex; flex-direction: column;">
             <div class="modal-header">
                 <h2>Előzmények és Keresés</h2>
-                <button class="close-modal close-history">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
+                <div style="display:flex;align-items:center;gap:4px;">
+                    <button id="btn-open-trash" title="Szemetes" style="background:none;border:none;cursor:pointer;padding:8px 10px;border-radius:10px;color:#94a3b8;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;font-family:inherit;transition:all .15s;">
+                        <i class="ph-bold ph-trash" style="font-size:17px;"></i>
+                    </button>
+                    <button class="close-modal close-history" style="background:none;border:none;cursor:pointer;padding:8px;border-radius:10px;color:#94a3b8;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
             </div>
             <div class="modal-tabs" style="display: flex; border-bottom: 1px solid #e2e8f0; margin-bottom: 15px;">
                 <button id="tab-btn-history" class="tab-btn active" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid var(--primary-color); font-weight: 600; color: var(--primary-color); cursor: pointer;">Szedések</button>
+                <button id="tab-btn-quick" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;"><i class="ph-bold ph-lightning" style="font-size: 13px;"></i>Gyors SzL</button>
                 <button id="tab-btn-accounting" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Elszámolások</button>
-                <button id="tab-btn-trash" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Szemetes</button>
                 <button id="tab-btn-stats" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Statisztika</button>
             </div>
             <div class="modal-body" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; padding-top: 0;">
+
+                <!-- Szemetes nézet (tab helyett) -->
+                <div id="trash-view" style="display:none; flex-direction:column; flex:1;">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;">
+                        <button id="btn-close-trash" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;font-size:13px;font-weight:600;border:1.5px solid #e2e8f0;border-radius:9px;background:#f8fafc;color:#475569;cursor:pointer;font-family:inherit;">
+                            <i class="ph-bold ph-arrow-left" style="font-size:13px;"></i>Vissza
+                        </button>
+                        <span style="font-weight:700;font-size:15px;color:#0f172a;">Szemetes</span>
+                        <span style="font-size:12px;color:#94a3b8;font-style:italic;">90 nap után automatikusan törlődik</span>
+                    </div>
+                    <div style="margin-bottom: 12px; display: flex; gap: 6px; align-items: center;">
+                        <select id="trash-company-filter" style="width: 140px; padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 13px;">
+                            <option value="">Összes cég</option>
+                        </select>
+                        <input type="date" id="trash-date-start" style="width: 135px; padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit;">
+                        <span style="color: #94a3b8; font-weight: bold;">-</span>
+                        <input type="date" id="trash-date-end" style="width: 135px; padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit;">
+                    </div>
+                    <div id="trash-runs-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
+                </div>
                 
                 <div class="form-group" style="margin-bottom: 20px; display: flex; gap: 10px;">
                     <div style="position: relative; flex: 1;">
@@ -299,10 +335,17 @@
                 </div>
                 </div>
 
-                <!-- Tab 2: Elszámolások -->
+                <!-- Tab 2: Gyors SzL -->
+                <div id="tab-content-quick" style="display: none; flex: 1;">
+                    <div id="quick-runs-container" style="display: flex; flex-direction: column; gap: 6px;">
+                        <!-- JS generálja -->
+                    </div>
+                </div>
+
+                <!-- Tab 3: Elszámolások -->
                 <div id="tab-content-accounting" style="display: none; flex: 1;">
                     <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px; background: #f1f5f9; padding: 10px; border-radius: 8px;">
-                        <input type="checkbox" id="accounting-filter-pending" style="width: 18px; height: 18px; cursor: pointer;">
+                        <input type="checkbox" id="accounting-filter-pending" checked style="width: 18px; height: 18px; cursor: pointer;">
                         <label for="accounting-filter-pending" style="margin: 0; font-size: 13px; font-weight: 600; cursor: pointer; color: #475569;">Csak a kiegyenlítésre váró fuvarok mutatása</label>
                     </div>
                     <div id="accounting-runs-container" style="display: flex; flex-direction: column; gap: 10px;">
@@ -310,41 +353,18 @@
                     </div>
                 </div>
 
-                <!-- Tab 3: Szemetes -->
-                <div id="tab-content-trash" style="display: none; flex: 1;">
-                    <p style="font-size: 11px; color: #94a3b8; margin-bottom: 10px; font-style: italic;">A 90 napnál régebbi tételek automatikusan törlődnek.</p>
-                    <div style="margin-bottom: 15px; display: flex; gap: 6px; align-items: center; background: #f1f5f9; padding: 10px; border-radius: 8px;">
-                        <select id="trash-company-filter" style="width: 140px; padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 13px;">
-                            <option value="">Összes cég</option>
-                            <!-- JS dinamikusan tölti -->
-                        </select>
-                        <input type="date" id="trash-date-start" style="width: 135px; padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit;">
-                        <span style="color: #94a3b8; font-weight: bold;">-</span>
-                        <input type="date" id="trash-date-end" style="width: 135px; padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit;">
-                    </div>
-                    <div id="trash-runs-container" style="display: flex; flex-direction: column; gap: 10px;">
-                        <!-- JS generálja ide a törölt köröket -->
-                    </div>
-                </div>
 
                 <!-- Tab 4: Statisztika -->
                 <div id="tab-content-stats" style="display: none; flex: 1;">
-                    <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
-                        <div style="flex: 1;">
-                            <label style="font-size: 11px; color: #64748b; margin-bottom: 4px; display: block;">Rendelés leadásának időszaka:</label>
-                            <div style="display: flex; gap: 6px; align-items: center;">
-                                <input type="date" id="stats-date-start" style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
-                                <span>-</span>
-                                <input type="date" id="stats-date-end" style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
-                            </div>
-                        </div>
-                        <div id="stats-summary-box" style="text-align: right; border-left: 2px solid #e2e8f0; padding-left: 15px;">
-                            <!-- Statisztikai doboz -->
-                        </div>
+                    <div style="margin-bottom: 16px; display: flex; gap: 8px; align-items: center; background: #f8fafc; padding: 11px 14px; border-radius: 12px; border: 1px solid #e2e8f0; flex-wrap: wrap;">
+                        <span style="font-size: 12px; color: #64748b; font-weight: 600;">Terítés időszaka:</span>
+                        <input type="date" id="stats-date-start" style="padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; font-family: inherit;">
+                        <span style="color: #94a3b8;">–</span>
+                        <input type="date" id="stats-date-end" style="padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; font-family: inherit;">
+                        <button id="stats-clear-btn" style="background: none; border: 1.5px solid #e2e8f0; color: #64748b; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-family: inherit;">Összes</button>
                     </div>
-                    <div id="stats-runs-container" style="display: flex; flex-direction: column; gap: 10px;">
-                        <!-- JS generálja ide a késedelmes rendeléseket -->
-                    </div>
+                    <div id="stats-summary-box" style="display:none;"></div>
+                    <div id="stats-runs-container" style="display: flex; flex-direction: column; gap: 18px;"></div>
                 </div>
 
             </div>
@@ -472,7 +492,7 @@
             }
         });
     </script>
-    <script type="module" src="js/app.js?v=7"></script>
+    <script type="module" src="js/app.js?v=19"></script>
     <div id="print-area"></div>
 
     <!-- Összevonás Modal -->
@@ -504,7 +524,7 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;display:block;">Futár neve</label>
+                    <label style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;display:block;">Szállító neve</label>
                     <input type="text" id="merge-courier" placeholder="Pl.: Pista" style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:inherit;font-size:14px;">
                 </div>
             </div>
@@ -512,6 +532,81 @@
                 <button id="btn-merge-cancel" style="padding:9px 18px;font-size:13px;font-weight:600;border:1.5px solid #e2e8f0;border-radius:9px;background:#f8fafc;color:#64748b;cursor:pointer;font-family:inherit;">Mégse</button>
                 <button id="btn-merge-submit" style="display:inline-flex;align-items:center;gap:7px;padding:9px 20px;font-size:13px;font-weight:700;border:none;border-radius:9px;background:#6366f1;color:#fff;cursor:pointer;font-family:inherit;">
                     <i class="ph-bold ph-git-merge"></i>Összevonás végrehajtása
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- Gyors Szállítólevél Modal -->
+    <div id="quick-delivery-modal" class="modal no-print">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <i class="ph-bold ph-lightning" style="font-size:20px;color:#3b82f6;"></i>
+                    <div>
+                        <h2 style="margin:0;">Gyors Szállítólevél</h2>
+                        <p style="margin:2px 0 0;font-size:12px;color:#94a3b8;">Ad-hoc kiszállítás — 3 példány, nincs mentés</p>
+                    </div>
+                </div>
+                <button class="close-modal close-quick-delivery">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="modal-body" style="display:flex;flex-direction:column;gap:0;">
+
+                <!-- Feladó -->
+                <div class="form-group">
+                    <label>Feladó (Saját cég)</label>
+                    <select id="qd-sender" style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;background:#f8fafc;font-size:14px;font-family:inherit;">
+                        <option value="capsula">Capsula Houses Kft.</option>
+                        <option value="ev">Egyéni Vállalkozó</option>
+                    </select>
+                </div>
+
+                <!-- Szállító Cég -->
+                <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:12px;">
+                    <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Szállító Cég</div>
+                    <div class="form-group" style="margin-bottom:8px;">
+                        <input type="text" id="qd-company" placeholder="Szállító cég neve (opcionális)" style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;background:#fff;font-size:14px;font-family:inherit;box-sizing:border-box;">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <textarea id="qd-company-details" placeholder="Egyéb adatok (sofőr neve, rendszám, cím stb.) — opcionális" rows="2" style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;background:#fff;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
+                    </div>
+                </div>
+
+                <!-- Átvevő -->
+                <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:12px;">
+                    <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Átvevő adatai</div>
+                    <div style="display:flex;gap:8px;margin-bottom:8px;">
+                        <input type="text" id="qd-recipient" placeholder="Átvevő neve" style="flex:1;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;font-family:inherit;">
+                        <input type="text" id="qd-recipient-company" placeholder="Cége (opcionális)" style="flex:1;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;font-family:inherit;">
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <input type="text" id="qd-address" placeholder="Szállítási cím" style="flex:1;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;font-family:inherit;">
+                        <input type="tel" id="qd-phone" placeholder="Telefon" style="flex:1;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;font-family:inherit;">
+                    </div>
+                </div>
+
+                <!-- Tételek -->
+                <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">Tételek</div>
+                        <button type="button" id="btn-qd-add-item" class="btn btn-secondary btn-sm" style="font-size:12px;padding:5px 10px;border-radius:8px;">+ Sor</button>
+                    </div>
+                    <div id="qd-items-container">
+                        <div class="m-item-row" style="display:flex;gap:8px;margin-bottom:6px;">
+                            <input type="number" class="m-item-qty" placeholder="Db" min="1" value="1" style="width:60px;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;">
+                            <input type="text" class="m-item-name" placeholder="Termék megnevezése" style="flex:1;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;">
+                            <button type="button" class="btn-remove-item" style="background:none;border:none;font-size:18px;color:#94a3b8;cursor:pointer;padding:4px 8px;">×</button>
+                        </div>
+                    </div>
+                </div>
+
+
+            </div>
+            <div class="modal-footer" style="padding:16px 24px;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #f1f5f9;margin-top:16px;">
+                <button type="button" class="btn btn-secondary close-quick-delivery">Mégse</button>
+                <button type="button" id="btn-confirm-quick-delivery" style="display:inline-flex;align-items:center;gap:7px;padding:10px 22px;font-size:14px;font-weight:700;border:none;border-radius:10px;background:#3b82f6;color:#fff;cursor:pointer;font-family:inherit;">
+                    <i class="ph-bold ph-printer"></i>Nyomtatás (2 pld.)
                 </button>
             </div>
         </div>

@@ -158,9 +158,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnPrint = document.getElementById('btn-print');
     const btnHistory = document.getElementById('btn-history');
     const btnSortMode = document.getElementById('btn-sort-mode');
-    
+    const btnQuickDelivery = document.getElementById('btn-quick-delivery');
+
     // Modal Elemek
     const manualModal = document.getElementById('manual-modal');
+    const quickDeliveryModal = document.getElementById('quick-delivery-modal');
     const printSettingsModal = document.getElementById('print-settings-modal');
     const historyModal = document.getElementById('history-modal');
     const btnCloseModals = document.querySelectorAll('.close-modal');
@@ -189,13 +191,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const hsResultsContainer = document.getElementById('hs-results-container');
     const historyRunsView = document.getElementById('history-runs-view');
     const tabBtnHistory = document.getElementById('tab-btn-history');
+    const tabBtnQuick = document.getElementById('tab-btn-quick');
     const tabBtnAccounting = document.getElementById('tab-btn-accounting');
-    const tabBtnTrash = document.getElementById('tab-btn-trash');
     const tabBtnStats = document.getElementById('tab-btn-stats');
     const tabContentHistory = document.getElementById('tab-content-history');
+    const tabContentQuick = document.getElementById('tab-content-quick');
     const tabContentAccounting = document.getElementById('tab-content-accounting');
-    const tabContentTrash = document.getElementById('tab-content-trash');
     const tabContentStats = document.getElementById('tab-content-stats');
+    const trashView = document.getElementById('trash-view');
+    const modalTabsBar = document.querySelector('#history-modal .modal-tabs');
+    const modalSearchBar = document.querySelector('#history-modal .modal-body > .form-group');
+    const quickRunsContainer = document.getElementById('quick-runs-container');
     const accountingRunsContainer = document.getElementById('accounting-runs-container');
     const trashRunsContainer = document.getElementById('trash-runs-container');
     const statsRunsContainer = document.getElementById('stats-runs-container');
@@ -231,6 +237,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let editingOrderInternalId = null;
     let mergeSelectionMode = false;
     const selectedForMerge = new Set();
+    let statsLeafletMap = null;
+    const geoCache = JSON.parse(localStorage.getItem('hu_zip_geocache_v1') || '{}');
 
     // --- HistoryManager (Előzmények kezelése Firestore-al) ---
     const HistoryManager = {
@@ -405,16 +413,34 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        updateSettlementStatus: async function(docId, isSettled) {
+        updateSettlementStatus: async function(docId, settledAmount, totalCOD, uncollectedOrderIds = []) {
             try {
+                const isSettled = settledAmount >= totalCOD;
                 const docRef = doc(db, this.COLLECTION_NAME, docId);
                 await updateDoc(docRef, {
                     isSettled: isSettled,
-                    settledAt: isSettled ? Date.now() : null
+                    settledAmount: settledAmount,
+                    uncollectedOrderIds: uncollectedOrderIds,
+                    settledAt: Date.now()
                 });
                 return true;
             } catch (e) {
                 console.error("Hiba az elszámolás állapot frissítésénél: ", e);
+                return false;
+            }
+        },
+
+        revertToPending: async function(docId) {
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                await updateDoc(docRef, {
+                    isSettled: false,
+                    settledAmount: null,
+                    settledAt: null
+                });
+                return true;
+            } catch (e) {
+                console.error("Hiba a visszaállításnál: ", e);
                 return false;
             }
         },
@@ -471,6 +497,42 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
+        saveQuickDeliveryRun: async function(data) {
+            const shortId = Math.random().toString(36).substr(2, 5);
+            const today = new Date().toISOString().split('T')[0];
+            const newRun = {
+                id: 'qdrun_' + Date.now() + '_' + shortId,
+                date: today,
+                pickupDate: today,
+                courier: data.company || '—',
+                company: data.company || '',
+                sender: data.sender || 'capsula',
+                timestamp: Date.now(),
+                isPrinted: true,
+                isQuickDelivery: true,
+                quickDeliveryData: data,
+                orders: [{
+                    id: '#GYORS-' + shortId.toUpperCase(),
+                    shippingName: data.recipient || '—',
+                    address: data.address || '',
+                    fullAddress: data.address || '',
+                    shippingPhone: data.phone || '',
+                    isCOD: false,
+                    codAmount: 0,
+                    items: data.items.length > 0 ? data.items : [{ name: '—', qty: 1 }]
+                }],
+                userId: auth.currentUser ? auth.currentUser.uid : null
+            };
+            try {
+                const docRef = await addDoc(collection(db, this.COLLECTION_NAME), newRun);
+                newRun.docId = docRef.id;
+                return newRun;
+            } catch (e) {
+                console.error("Hiba a gyors szállítólevél mentésnél: ", e);
+                return null;
+            }
+        },
+
         updateRun: async function(runId, date, pickupDate, courier, company, sender, ordersList) {
             const runs = await this.getAllRuns();
             const runToUpdate = runs.find(r => r.id === runId);
@@ -511,6 +573,79 @@ document.addEventListener('DOMContentLoaded', () => {
             orderList.classList.toggle('sort-mode-active', sortModeActive);
             btnSortMode.classList.toggle('sort-mode-btn-active', sortModeActive);
             initSortable();
+        });
+    }
+
+    // --- Gyors Szállítólevél ---
+    const qdItemsContainer = document.getElementById('qd-items-container');
+    const btnQdAddItem = document.getElementById('btn-qd-add-item');
+    const btnConfirmQuickDelivery = document.getElementById('btn-confirm-quick-delivery');
+
+    function addQdItemRow(container) {
+        const row = document.createElement('div');
+        row.className = 'm-item-row';
+        row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;';
+        row.innerHTML = `
+            <input type="number" class="m-item-qty" placeholder="Db" min="1" value="1" style="width:60px;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;">
+            <input type="text" class="m-item-name" placeholder="Termék megnevezése" style="flex:1;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;">
+            <button type="button" class="btn-remove-item" style="background:none;border:none;font-size:18px;color:#94a3b8;cursor:pointer;padding:4px 8px;">×</button>
+        `;
+        row.querySelector('.btn-remove-item').addEventListener('click', () => row.remove());
+        container.appendChild(row);
+    }
+
+    if (btnQuickDelivery) {
+        btnQuickDelivery.addEventListener('click', () => {
+            // Reset form
+            document.getElementById('qd-sender').value = 'capsula';
+            document.getElementById('qd-company').value = '';
+            document.getElementById('qd-company-details').value = '';
+            document.getElementById('qd-recipient').value = '';
+            document.getElementById('qd-recipient-company').value = '';
+            document.getElementById('qd-address').value = '';
+            document.getElementById('qd-phone').value = '';
+            qdItemsContainer.innerHTML = '';
+            addQdItemRow(qdItemsContainer);
+            quickDeliveryModal.classList.add('active');
+        });
+    }
+
+    if (btnQdAddItem) {
+        btnQdAddItem.addEventListener('click', () => addQdItemRow(qdItemsContainer));
+    }
+
+    document.querySelectorAll('.close-quick-delivery').forEach(btn => {
+        btn.addEventListener('click', () => quickDeliveryModal.classList.remove('active'));
+    });
+
+    if (btnConfirmQuickDelivery) {
+        btnConfirmQuickDelivery.addEventListener('click', () => {
+            const sender = document.getElementById('qd-sender').value;
+            const company = document.getElementById('qd-company').value;
+            const companyDetails = document.getElementById('qd-company-details').value.trim();
+            const recipient = document.getElementById('qd-recipient').value.trim();
+            const recipientCompany = document.getElementById('qd-recipient-company').value.trim();
+            const address = document.getElementById('qd-address').value.trim();
+            const phone = document.getElementById('qd-phone').value.trim();
+
+            const items = [];
+            qdItemsContainer.querySelectorAll('.m-item-row').forEach(row => {
+                const qty = parseInt(row.querySelector('.m-item-qty').value) || 1;
+                const name = row.querySelector('.m-item-name').value.trim();
+                if (name) items.push({ qty, name });
+            });
+
+            const qdData = {
+                sender, company, companyDetails,
+                recipient, recipientCompany, address, phone,
+                items
+            };
+
+            UnifiedPrinter.area.innerHTML = UnifiedPrinter.generateQuickDeliveryNoteHtml(qdData);
+            UnifiedPrinter.execute();
+            quickDeliveryModal.classList.remove('active');
+
+            HistoryManager.saveQuickDeliveryRun(qdData).catch(e => console.error('Gyors SzL mentési hiba:', e));
         });
     }
 
@@ -1306,7 +1441,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const sender = psSenderInput.value;
         
         if(!date || !pickupDate || !courier || !company) {
-            await CustomDialog.alert('Kérlek adj meg minden adatot (dátumok, cég neve, futár neve)!', 'Hiányos adatok', 'warning');
+            await CustomDialog.alert('Kérlek adj meg minden adatot (dátumok, cég neve, szállító neve)!', 'Hiányos adatok', 'warning');
             return;
         }
 
@@ -1346,6 +1481,9 @@ document.addEventListener('DOMContentLoaded', () => {
         trashDateStart.value = '';
         trashDateEnd.value = '';
         await populateCompanyFilters();
+        trashView.style.display = 'none';
+        if (modalTabsBar) modalTabsBar.style.display = 'flex';
+        if (modalSearchBar) modalSearchBar.style.display = 'flex';
         switchHistoryTab('history');
         historyModal.classList.add('active');
         historySearchInput.focus();
@@ -1379,9 +1517,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     tabBtnHistory.addEventListener('click', () => switchHistoryTab('history'));
+    tabBtnQuick.addEventListener('click', () => switchHistoryTab('quick'));
     tabBtnAccounting.addEventListener('click', () => switchHistoryTab('accounting'));
-    tabBtnTrash.addEventListener('click', () => switchHistoryTab('trash'));
     tabBtnStats.addEventListener('click', () => switchHistoryTab('stats'));
+
+    document.getElementById('btn-open-trash').addEventListener('click', showTrashView);
+    document.getElementById('btn-close-trash').addEventListener('click', hideTrashView);
 
     function updateMergeBar() {
         const count = selectedForMerge.size;
@@ -1466,16 +1607,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     statsDateStart.addEventListener('change', () => renderStatistics());
     statsDateEnd.addEventListener('change', () => renderStatistics());
+    document.getElementById('stats-clear-btn').addEventListener('click', () => {
+        statsDateStart.value = '';
+        statsDateEnd.value = '';
+        renderStatistics();
+    });
+
+    function showTrashView() {
+        [tabContentHistory, tabContentQuick, tabContentAccounting, tabContentStats].forEach(c => { c.style.display = 'none'; });
+        if (modalTabsBar) modalTabsBar.style.display = 'none';
+        if (modalSearchBar) modalSearchBar.style.display = 'none';
+        trashView.style.display = 'flex';
+        HistoryManager.autoCleanupTrash();
+        renderTrashRuns();
+    }
+
+    function hideTrashView() {
+        trashView.style.display = 'none';
+        if (modalTabsBar) modalTabsBar.style.display = 'flex';
+        if (modalSearchBar) modalSearchBar.style.display = 'flex';
+        switchHistoryTab('history');
+    }
 
     async function switchHistoryTab(tab) {
         // Reset all tabs
-        [tabBtnHistory, tabBtnAccounting, tabBtnTrash, tabBtnStats].forEach(btn => {
+        [tabBtnHistory, tabBtnQuick, tabBtnAccounting, tabBtnStats].forEach(btn => {
             btn.classList.remove('active');
             btn.style.borderBottomColor = 'transparent';
             btn.style.color = '#64748b';
             btn.style.fontWeight = '500';
         });
-        [tabContentHistory, tabContentAccounting, tabContentTrash, tabContentStats].forEach(content => {
+        [tabContentHistory, tabContentQuick, tabContentAccounting, tabContentStats].forEach(content => {
             content.style.display = 'none';
         });
 
@@ -1486,6 +1648,13 @@ document.addEventListener('DOMContentLoaded', () => {
             tabBtnHistory.style.fontWeight = '600';
             tabContentHistory.style.display = 'block';
             handleHistorySearch();
+        } else if (tab === 'quick') {
+            tabBtnQuick.classList.add('active');
+            tabBtnQuick.style.borderBottomColor = '#3b82f6';
+            tabBtnQuick.style.color = '#3b82f6';
+            tabBtnQuick.style.fontWeight = '600';
+            tabContentQuick.style.display = 'block';
+            renderQuickDeliveryRuns();
         } else if (tab === 'accounting') {
             tabBtnAccounting.classList.add('active');
             tabBtnAccounting.style.borderBottomColor = 'var(--primary-color)';
@@ -1493,14 +1662,6 @@ document.addEventListener('DOMContentLoaded', () => {
             tabBtnAccounting.style.fontWeight = '600';
             tabContentAccounting.style.display = 'block';
             renderAccountingRuns();
-        } else if (tab === 'trash') {
-            tabBtnTrash.classList.add('active');
-            tabBtnTrash.style.borderBottomColor = 'var(--primary-color)';
-            tabBtnTrash.style.color = 'var(--primary-color)';
-            tabBtnTrash.style.fontWeight = '600';
-            tabContentTrash.style.display = 'block';
-            await HistoryManager.autoCleanupTrash();
-            renderTrashRuns();
         } else if (tab === 'stats') {
             tabBtnStats.classList.add('active');
             tabBtnStats.style.borderBottomColor = 'var(--primary-color)';
@@ -1648,8 +1809,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // Összevont eredetiek elrejtése
-        const visibleRuns = filteredRuns.filter(r => !r.isMergedInto);
+        // Összevont eredetiek és gyors szállítólevelek elrejtése
+        const visibleRuns = filteredRuns.filter(r => !r.isMergedInto && !r.isQuickDelivery);
 
         visibleRuns.forEach(run => {
             const el = document.createElement('div');
@@ -1662,73 +1823,285 @@ document.addEventListener('DOMContentLoaded', () => {
             const mergedBadge = run.isMerged
                 ? `<span class="hac-badge hac-badge-merged"><i class="ph-bold ph-git-merge" style="font-size:9px;"></i>Összevont (${run.mergedFromIds?.length || 0} kör)</span>`
                 : '';
-            const previewChips = run.orders.map(o =>
-                `<span class="hac-order-chip" title="${o.address || ''}"><span class="hac-chip-id">${o.id}</span><span class="hac-chip-name">${o.shippingName || ''}</span></span>`
-            ).join('');
             const revertBtn = run.isMerged
                 ? `<button class="hac-btn-action hac-btn-revert btn-revert-merge" data-doc-id="${run.docId}" title="Összevonás visszavonása"><i class="ph-bold ph-arrow-counter-clockwise" style="font-size:11px;"></i>Visszavon</button>`
                 : '';
-            el.innerHTML = `
-                <div class="hac-row">
-                    <label class="hac-checkbox-wrap" title="Kijelölés összevonáshoz">
-                        <input type="checkbox" class="run-select-cb" data-id="${run.id}" ${selectedForMerge.has(run.id) ? 'checked' : ''}>
-                    </label>
-                    <div class="hac-info">
-                        <span class="hac-company">${run.company || '-'}</span>
-                        <span class="hac-date">${run.date}</span>
-                        ${mergedBadge}${modifiedBadge}
-                        <span class="hac-sep">·</span>
-                        <i class="ph-bold ph-user" style="font-size:10px;color:#374151;"></i><span class="hac-courier">${run.courier}</span>
-                        <span class="hac-sep">·</span>
-                        <span class="hac-timestamp">${run.orders.length} r · ${dateStr}</span>
+
+            if (run.isQuickDelivery) {
+                const qd = run.quickDeliveryData || {};
+                const qdPreview = [
+                    qd.recipient ? `<span class="hac-order-chip"><span class="hac-chip-id"><i class="ph-bold ph-user" style="font-size:9px;"></i></span><span class="hac-chip-name">${qd.recipient}</span></span>` : '',
+                    qd.recipientCompany ? `<span class="hac-order-chip"><span class="hac-chip-name">${qd.recipientCompany}</span></span>` : '',
+                    qd.address ? `<span class="hac-order-chip"><span class="hac-chip-id"><i class="ph-bold ph-map-pin" style="font-size:9px;"></i></span><span class="hac-chip-name">${qd.address}</span></span>` : '',
+                    ...(qd.items || []).map(it => `<span class="hac-order-chip"><span class="hac-chip-id">${it.qty}×</span><span class="hac-chip-name">${it.name}</span></span>`)
+                ].filter(Boolean).join('');
+                el.innerHTML = `
+                    <div class="hac-row">
+                        <div class="hac-info">
+                            <span class="hac-badge" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;display:inline-flex;align-items:center;gap:4px;"><i class="ph-bold ph-lightning" style="font-size:10px;"></i>Gyors SzL</span>
+                            <span class="hac-date">${run.date}</span>
+                            ${run.company ? `<span class="hac-company">${run.company}</span>` : ''}
+                            <span class="hac-sep">·</span>
+                            <span class="hac-courier">${qd.recipient || '—'}</span>
+                            <span class="hac-sep">·</span>
+                            <span class="hac-timestamp">${dateStr}</span>
+                        </div>
+                        <div class="hac-prints">
+                            <button class="hac-print-btn hac-print-primary btn-reprint-quick" data-id="${run.id}" title="Újra nyomtatás (3 pld.)">
+                                <i class="ph-bold ph-printer"></i>Nyomtatás
+                            </button>
+                        </div>
+                        <div class="hac-actions">
+                            <button class="hac-btn-del btn-delete-run" data-id="${run.id}" title="Törlés">
+                                <i class="ph-bold ph-trash"></i>
+                            </button>
+                            <button class="hac-btn-preview btn-toggle-preview" title="Részletek">
+                                <i class="ph-bold ph-caret-down"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div class="hac-prints">
-                        <button class="hac-print-btn btn-print-picking" data-id="${run.id}" title="Szedőlista">
-                            <i class="ph-bold ph-clipboard-text"></i>
-                        </button>
-                        <button class="hac-print-btn btn-print-delivery" data-id="${run.id}" title="Szállítólevelek">
-                            <i class="ph-bold ph-truck"></i>
-                        </button>
-                        <button class="hac-print-btn btn-print-summary" data-id="${run.id}" title="Összesítő">
-                            <i class="ph-bold ph-file-text"></i>
-                        </button>
-                        <button class="hac-print-btn hac-print-primary btn-print-bundle" data-id="${run.id}" title="Teljes csomag nyomtatása">
-                            <i class="ph-bold ph-printer"></i>Teljes
-                        </button>
+                    <div class="hac-preview">
+                        <div class="hac-preview-inner">${qdPreview || '<span style="color:#94a3b8;font-style:italic;font-size:12px;">Nincs részlet</span>'}</div>
                     </div>
-                    <div class="hac-actions">
-                        ${revertBtn}
-                        <button class="hac-btn-load btn-load-run" data-id="${run.id}">Betöltés</button>
-                        <button class="hac-btn-del btn-delete-run" data-id="${run.id}" title="Törlés">
-                            <i class="ph-bold ph-trash"></i>
-                        </button>
-                        <button class="hac-btn-preview btn-toggle-preview" title="Rendelések előnézete">
-                            <i class="ph-bold ph-caret-down"></i>
-                        </button>
+                `;
+            } else {
+                const previewChips = run.orders.map(o =>
+                    `<span class="hac-order-chip" title="${o.address || ''}"><span class="hac-chip-id">${o.id}</span><span class="hac-chip-name">${o.shippingName || ''}</span></span>`
+                ).join('');
+                el.innerHTML = `
+                    <div class="hac-row">
+                        <label class="hac-checkbox-wrap" title="Kijelölés összevonáshoz">
+                            <input type="checkbox" class="run-select-cb" data-id="${run.id}" ${selectedForMerge.has(run.id) ? 'checked' : ''}>
+                        </label>
+                        <div class="hac-info">
+                            <span class="hac-company">${run.company || '-'}</span>
+                            <span class="hac-date">${run.date}</span>
+                            ${mergedBadge}${modifiedBadge}
+                            <span class="hac-sep">·</span>
+                            <i class="ph-bold ph-user" style="font-size:10px;color:#374151;"></i><span class="hac-courier">${run.courier}</span>
+                            <span class="hac-sep">·</span>
+                            <span class="hac-timestamp">${run.orders.length} r · ${dateStr}</span>
+                        </div>
+                        <div class="hac-prints">
+                            <button class="hac-print-btn btn-print-picking" data-id="${run.id}" title="Szedőlista">
+                                <i class="ph-bold ph-clipboard-text"></i>
+                            </button>
+                            <button class="hac-print-btn btn-print-delivery" data-id="${run.id}" title="Szállítólevelek">
+                                <i class="ph-bold ph-truck"></i>
+                            </button>
+                            <button class="hac-print-btn btn-print-summary" data-id="${run.id}" title="Összesítő">
+                                <i class="ph-bold ph-file-text"></i>
+                            </button>
+                            <button class="hac-print-btn hac-print-primary btn-print-bundle" data-id="${run.id}" title="Teljes csomag nyomtatása">
+                                <i class="ph-bold ph-printer"></i>Teljes
+                            </button>
+                        </div>
+                        <div class="hac-actions">
+                            ${revertBtn}
+                            <button class="hac-btn-load btn-load-run" data-id="${run.id}">Betöltés</button>
+                            <button class="hac-btn-del btn-delete-run" data-id="${run.id}" title="Törlés">
+                                <i class="ph-bold ph-trash"></i>
+                            </button>
+                            <button class="hac-btn-preview btn-toggle-preview" title="Rendelések előnézete">
+                                <i class="ph-bold ph-caret-down"></i>
+                            </button>
+                        </div>
                     </div>
-                </div>
-                <div class="hac-preview">
-                    <div class="hac-preview-inner">${previewChips}</div>
-                </div>
-            `;
+                    <div class="hac-preview">
+                        <div class="hac-preview-inner">${previewChips}</div>
+                    </div>
+                `;
+            }
             historyRunsContainer.appendChild(el);
         });
 
         attachHistoryEvents();
     }
 
+    async function renderQuickDeliveryRuns() {
+        const allRuns = await HistoryManager.getAllRuns();
+        const runs = allRuns.filter(r => r.isQuickDelivery);
+        quickRunsContainer.innerHTML = '';
+
+        if (runs.length === 0) {
+            quickRunsContainer.innerHTML = '<p style="color:#94a3b8;font-size:13px;text-align:center;margin-top:30px;">Nincsenek mentett gyors szállítólevelek.</p>';
+            return;
+        }
+
+        runs.forEach(run => {
+            const el = document.createElement('div');
+            el.className = 'history-apple-card';
+            const dateStr = new Date(run.timestamp).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const qd = run.quickDeliveryData || {};
+            const qdPreview = [
+                qd.recipient ? `<span class="hac-order-chip"><span class="hac-chip-id"><i class="ph-bold ph-user" style="font-size:9px;"></i></span><span class="hac-chip-name">${qd.recipient}</span></span>` : '',
+                qd.recipientCompany ? `<span class="hac-order-chip"><span class="hac-chip-name">${qd.recipientCompany}</span></span>` : '',
+                qd.address ? `<span class="hac-order-chip"><span class="hac-chip-id"><i class="ph-bold ph-map-pin" style="font-size:9px;"></i></span><span class="hac-chip-name">${qd.address}</span></span>` : '',
+                qd.phone ? `<span class="hac-order-chip"><span class="hac-chip-id"><i class="ph-bold ph-phone" style="font-size:9px;"></i></span><span class="hac-chip-name">${qd.phone}</span></span>` : '',
+                ...(qd.items || []).map(it => `<span class="hac-order-chip"><span class="hac-chip-id">${it.qty}×</span><span class="hac-chip-name">${it.name}</span></span>`)
+            ].filter(Boolean).join('');
+
+            el.innerHTML = `
+                <div class="hac-row">
+                    <div class="hac-info">
+                        <span class="hac-date">${run.date}</span>
+                        ${run.company ? `<span class="hac-company">${run.company}</span>` : ''}
+                        <span class="hac-sep">·</span>
+                        <span class="hac-courier">${qd.recipient || '—'}</span>
+                        <span class="hac-sep">·</span>
+                        <span class="hac-timestamp">${dateStr}</span>
+                    </div>
+                    <div class="hac-prints">
+                        <button class="hac-print-btn hac-print-primary btn-reprint-quick" data-id="${run.id}" title="Újra nyomtatás (2 pld.)">
+                            <i class="ph-bold ph-printer"></i>Nyomtatás
+                        </button>
+                    </div>
+                    <div class="hac-actions">
+                        <button class="hac-btn-del btn-delete-quick" data-id="${run.id}" title="Törlés">
+                            <i class="ph-bold ph-trash"></i>
+                        </button>
+                        <button class="hac-btn-preview btn-toggle-preview" title="Részletek">
+                            <i class="ph-bold ph-caret-down"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="hac-preview">
+                    <div class="hac-preview-inner">${qdPreview || '<span style="color:#94a3b8;font-style:italic;font-size:12px;">Nincs részlet</span>'}</div>
+                </div>
+            `;
+            quickRunsContainer.appendChild(el);
+        });
+
+        quickRunsContainer.querySelectorAll('.btn-reprint-quick').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const runId = e.target.closest('button').getAttribute('data-id');
+                const run = await HistoryManager.getRunById(runId);
+                if (run && run.quickDeliveryData) {
+                    UnifiedPrinter.area.innerHTML = UnifiedPrinter.generateQuickDeliveryNoteHtml(run.quickDeliveryData);
+                    UnifiedPrinter.execute();
+                }
+            });
+        });
+
+        quickRunsContainer.querySelectorAll('.btn-delete-quick').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const runId = e.target.closest('button').getAttribute('data-id');
+                const ok = await CustomDialog.confirm('Biztosan törlöd ezt a gyors szállítólevelet?', 'Törlés', 'warning', true);
+                if (ok) {
+                    await HistoryManager.deleteRun(runId);
+                    renderQuickDeliveryRuns();
+                }
+            });
+        });
+
+        quickRunsContainer.querySelectorAll('.btn-toggle-preview').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const card = btn.closest('.history-apple-card');
+                const preview = card.querySelector('.hac-preview');
+                const isOpen = preview.classList.toggle('open');
+                btn.classList.toggle('active', isOpen);
+            });
+        });
+    }
+
+    function showSettlementDialog(run, runCOD) {
+        return new Promise((resolve) => {
+            const codOrders = run.orders.filter(o => o.isCOD);
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+            const rowsHtml = codOrders.map(o => `
+                <label style="display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                    <input type="checkbox" data-order-id="${o.id}" data-amount="${o.codAmount}" checked
+                        style="width:18px;height:18px;cursor:pointer;accent-color:#22c55e;flex-shrink:0;">
+                    <span style="font-size:13px;font-weight:700;color:#374151;min-width:95px;">${o.id}</span>
+                    <span style="font-size:13px;color:#64748b;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.shippingName || '—'}</span>
+                    <span style="font-size:13px;font-weight:700;color:#b91c1c;flex-shrink:0;">${o.codAmount.toLocaleString('hu-HU')} Ft</span>
+                </label>`).join('');
+
+            overlay.innerHTML = `
+                <div style="background:#fff;border-radius:20px;width:100%;max-width:500px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,0.35);overflow:hidden;">
+                    <div style="background:#0f172a;color:#fff;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+                        <div>
+                            <div style="font-weight:700;font-size:15px;letter-spacing:-.2px;">Utánvét rögzítése</div>
+                            <div style="font-size:12px;color:#94a3b8;margin-top:3px;">${run.date} · ${run.courier || '—'} · ${codOrders.length} utánvétes rendelés</div>
+                        </div>
+                        <button id="sd-close" style="background:rgba(255,255,255,.08);border:none;color:#94a3b8;cursor:pointer;padding:6px;border-radius:10px;display:flex;line-height:1;">
+                            <i class="ph-bold ph-x" style="font-size:17px;"></i>
+                        </button>
+                    </div>
+                    <div style="padding:10px 20px 8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0;">
+                        <span style="font-size:12px;color:#64748b;font-weight:600;">Pipáld ki a <strong style="color:#0f172a;">beérkezett</strong> utánvéteket:</span>
+                    </div>
+                    <div style="overflow-y:auto;flex:1;">${rowsHtml}</div>
+                    <div style="padding:14px 20px;border-top:2px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;background:#fff;flex-shrink:0;">
+                        <div>
+                            <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Beérkezett összeg</div>
+                            <div id="sd-total" style="font-size:22px;font-weight:800;color:#0f172a;line-height:1.2;">${runCOD.toLocaleString('hu-HU')} Ft</div>
+                            <div id="sd-missing" style="font-size:12px;font-weight:700;color:#f97316;margin-top:2px;display:none;"></div>
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <button id="sd-cancel" style="background:none;border:1.5px solid #e2e8f0;color:#64748b;font-size:13px;font-weight:600;padding:9px 18px;border-radius:12px;cursor:pointer;font-family:inherit;">Mégse</button>
+                            <button id="sd-save" style="background:#0f172a;border:none;color:#fff;font-size:13px;font-weight:700;padding:9px 20px;border-radius:12px;cursor:pointer;font-family:inherit;">Rögzítés</button>
+                        </div>
+                    </div>
+                </div>`;
+
+            document.body.appendChild(overlay);
+
+            const updateTotal = () => {
+                let total = 0;
+                overlay.querySelectorAll('input[type=checkbox]:checked').forEach(cb => {
+                    total += parseInt(cb.getAttribute('data-amount'));
+                });
+                overlay.querySelector('#sd-total').textContent = total.toLocaleString('hu-HU') + ' Ft';
+                const missing = runCOD - total;
+                const missingEl = overlay.querySelector('#sd-missing');
+                if (missing > 0) {
+                    missingEl.textContent = `−${missing.toLocaleString('hu-HU')} Ft hiányzik`;
+                    missingEl.style.display = 'block';
+                } else {
+                    missingEl.style.display = 'none';
+                }
+            };
+
+            overlay.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', updateTotal));
+
+            const cleanup = () => overlay.remove();
+
+            overlay.querySelector('#sd-close').addEventListener('click', () => { cleanup(); resolve(null); });
+            overlay.querySelector('#sd-cancel').addEventListener('click', () => { cleanup(); resolve(null); });
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) { cleanup(); resolve(null); } });
+
+            overlay.querySelector('#sd-save').addEventListener('click', () => {
+                let settledAmount = 0;
+                const uncollectedOrderIds = [];
+                overlay.querySelectorAll('input[type=checkbox]').forEach(cb => {
+                    if (cb.checked) {
+                        settledAmount += parseInt(cb.getAttribute('data-amount'));
+                    } else {
+                        uncollectedOrderIds.push(cb.getAttribute('data-order-id'));
+                    }
+                });
+                cleanup();
+                resolve({ settledAmount, uncollectedOrderIds });
+            });
+        });
+    }
+
     async function renderAccountingRuns() {
         let runs = await HistoryManager.getAllRuns();
         const onlyPending = accountingFilterPending.checked;
 
-        // Szűrés
+        // Szűrés: csak COD-os fuvarok; részleges is eltűnik ha filter ON
         runs = runs.filter(r => isFiltered(r));
+        runs = runs.filter(r => r.orders.some(o => o.isCOD));
         if (onlyPending) {
-            runs = runs.filter(r => !r.isSettled);
+            runs = runs.filter(r => !r.isSettled && !(r.settledAmount > 0));
         }
 
         accountingRunsContainer.innerHTML = '';
-        
+
         if(runs.length === 0) {
             accountingRunsContainer.innerHTML = `<p style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">Nincsenek a feltételnek megfelelő elszámolások.</p>`;
             return;
@@ -1754,7 +2127,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const groupEl = document.createElement('div');
             groupEl.className = 'accounting-company-group';
             groupEl.style.marginBottom = '25px';
-            
+
             groupEl.innerHTML = `
                 <div style="background: #0f172a; color: white; padding: 10px 16px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-weight: 700; letter-spacing: 0.5px;">${companyName}</span>
@@ -1767,42 +2140,72 @@ document.addEventListener('DOMContentLoaded', () => {
             const runsContainer = groupEl.querySelector('.group-runs');
             companyRuns.forEach(run => {
                 const el = document.createElement('div');
-                el.className = 'unified-card';
-                el.style.margin = '0';
+                el.className = 'unified-card acc-run-card';
+                el.style.cssText = 'margin:0;overflow:hidden;';
 
                 let runCOD = 0;
                 run.orders.forEach(o => { if(o.isCOD) runCOD += o.codAmount; });
+                el.setAttribute('data-total-cod', runCOD);
+                el.setAttribute('data-run-id', run.id);
 
-                const settledBadge = run.isSettled
-                    ? `<span class="hac-badge hac-badge-green"><i class="ph-bold ph-check-circle" style="font-size:10px;"></i>Elszámolva</span>`
-                    : '';
+                const isPartial = !run.isSettled && run.settledAmount > 0;
+                const circleColor = run.isSettled ? '#22c55e' : isPartial ? '#f97316' : '#cbd5e1';
+                const circleBg = run.isSettled ? '#22c55e' : isPartial ? '#fff7ed' : '#fff';
+                const circleTextColor = run.isSettled ? '#fff' : isPartial ? '#f97316' : '#94a3b8';
+                const circleTitle = run.isSettled ? 'Visszaállítás függőbe' : isPartial ? 'Módosítás / Visszaállítás' : 'Visszaérkezett az utánvét';
+                const btnClass = (run.isSettled || isPartial) ? 'btn-unsettle-run' : 'btn-settle-run';
+
+                const statusBadge = run.isSettled
+                    ? `<span class="hac-badge hac-badge-green" style="font-size:10px;"><i class="ph-bold ph-check-circle" style="font-size:10px;"></i>Elszámolva</span>`
+                    : isPartial
+                        ? `<span style="font-size:10px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:1px 7px;">~${run.settledAmount.toLocaleString('hu-HU')} / ${runCOD.toLocaleString('hu-HU')} Ft</span>`
+                        : '';
+
+                const uncollected = run.uncollectedOrderIds || [];
+                const orderChips = run.orders.map(o => {
+                    const isUncollected = o.isCOD && uncollected.includes(o.id);
+                    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f1f5f9;${isUncollected ? 'opacity:.55;' : ''}">
+                        <span style="font-size:12px;font-weight:700;color:#374151;min-width:90px;${isUncollected ? 'text-decoration:line-through;' : ''}">${o.id}</span>
+                        <span style="font-size:12px;color:#64748b;flex:1;">${o.shippingName || '—'}</span>
+                        ${o.isCOD
+                            ? isUncollected
+                                ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem érkezett</span>`
+                                : `<span style="font-size:11px;font-weight:700;color:#b91c1c;">${o.codAmount.toLocaleString('hu-HU')} Ft</span>`
+                            : '<span style="font-size:11px;color:#94a3b8;">fizetve</span>'}
+                    </div>`;
+                }).join('');
 
                 el.innerHTML = `
-                    <div class="hac-header" style="padding:13px 16px 11px;">
+                    <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;">
+                        <button class="${btnClass}" data-doc-id="${run.docId}"
+                            title="${circleTitle}"
+                            style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:2px solid ${circleColor};background:${circleBg};color:${circleTextColor};display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;">
+                            <i class="ph-bold ph-check" style="font-size:16px;"></i>
+                        </button>
                         <div style="flex:1;min-width:0;">
-                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                                <div class="hac-date" style="font-size:14px;">${run.date}</div>
-                                ${settledBadge}
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
+                                <span style="font-size:14px;font-weight:700;color:#0f172a;">${run.date}</span>
+                                ${statusBadge}
                             </div>
-                            <div class="hac-meta" style="margin-top:2px;">
-                                <span class="hac-company" style="font-size:9px;padding:3px 8px;">${run.company || '-'}</span>
-                                <span style="color:#d1d5db;">·</span><i class="ph-bold ph-user" style="font-size:11px;color:#374151;"></i><span style="font-weight:600;color:#374151;">${run.courier}</span>
-                                <span style="color:#d1d5db;">·</span><span style="color:#94a3b8;">${run.orders.length} rendelés</span>
-                                ${runCOD > 0 ? `<span style="color:#d1d5db;">·</span><strong style="color:#b91c1c;font-weight:600;">${runCOD.toLocaleString('hu-HU')} Ft</strong>` : ''}
+                            <div class="hac-meta">
+                                <i class="ph-bold ph-user" style="font-size:11px;color:#374151;"></i>
+                                <span style="font-weight:600;color:#374151;">${run.courier || '—'}</span>
+                                <span style="color:#d1d5db;">·</span>
+                                <span style="color:#94a3b8;">${run.orders.length} rendelés</span>
+                                ${runCOD > 0 ? `<span style="color:#d1d5db;">·</span><strong style="color:#b91c1c;">${runCOD.toLocaleString('hu-HU')} Ft</strong>` : ''}
                             </div>
                         </div>
-                        <div class="hac-actions">
-                            <button class="hac-btn-action hac-btn-ghost btn-print-summary" data-id="${run.id}">
-                                <i class="ph-bold ph-printer" style="font-size:12px;"></i>Nyomtatás
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <button class="hac-btn-action hac-btn-ghost btn-print-summary" data-id="${run.id}" style="font-size:12px;">
+                                <i class="ph-bold ph-printer" style="font-size:12px;"></i>
                             </button>
-                            ${!run.isSettled ? `
-                                <button class="hac-btn-action hac-btn-green btn-settle-run" data-doc-id="${run.docId}">
-                                    <i class="ph-bold ph-check-circle" style="font-size:12px;"></i>Kiegyenlítve
-                                </button>
-                            ` : `
-                                <button class="hac-btn-action hac-btn-ghost btn-unsettle-run" data-doc-id="${run.docId}">Visszaállítás</button>
-                            `}
+                            <button class="acc-expand-btn" style="background:none;border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 8px;cursor:pointer;color:#64748b;display:flex;align-items:center;transition:all .2s;" title="Rendelések mutatása">
+                                <i class="ph-bold ph-caret-down" style="font-size:13px;transition:transform .2s;"></i>
+                            </button>
                         </div>
+                    </div>
+                    <div class="acc-orders-panel" style="display:none;padding:0 14px 12px 62px;border-top:1px solid #f1f5f9;">
+                        ${orderChips}
                     </div>
                 `;
                 runsContainer.appendChild(el);
@@ -1814,121 +2217,428 @@ document.addEventListener('DOMContentLoaded', () => {
         // Eseménykezelők újracsatolása
         accountingRunsContainer.querySelectorAll('.btn-print-summary').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const runId = e.target.getAttribute('data-id');
+                const runId = e.target.closest('button').getAttribute('data-id');
                 if (runId) generateDeliveryNotesHtml(runId);
             });
         });
 
         accountingRunsContainer.querySelectorAll('.btn-settle-run').forEach(btn => {
             btn.addEventListener('click', async (e) => {
-                const docId = e.target.getAttribute('data-doc-id');
-                if (await HistoryManager.updateSettlementStatus(docId, true)) renderAccountingRuns();
+                const button = e.target.closest('button');
+                const docId = button.getAttribute('data-doc-id');
+                const card = button.closest('.acc-run-card');
+                const totalCOD = parseInt(card.getAttribute('data-total-cod'));
+                const runId = card.getAttribute('data-run-id');
+                const run = await HistoryManager.getRunById(runId);
+                if (!run) return;
+                const result = await showSettlementDialog(run, totalCOD);
+                if (result === null) return;
+                if (await HistoryManager.updateSettlementStatus(docId, result.settledAmount, totalCOD, result.uncollectedOrderIds)) renderAccountingRuns();
             });
         });
 
         accountingRunsContainer.querySelectorAll('.btn-unsettle-run').forEach(btn => {
             btn.addEventListener('click', async (e) => {
-                const docId = e.target.getAttribute('data-doc-id');
-                if (await HistoryManager.updateSettlementStatus(docId, false)) renderAccountingRuns();
+                const docId = e.target.closest('button').getAttribute('data-doc-id');
+                const ok = await CustomDialog.confirm('Visszaállítás függőbe?\nAz elszámolási adat törlődik.');
+                if (!ok) return;
+                if (await HistoryManager.revertToPending(docId)) renderAccountingRuns();
+            });
+        });
+
+        accountingRunsContainer.querySelectorAll('.acc-expand-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const card = e.target.closest('.acc-run-card');
+                if (!card) return;
+                const panel = card.querySelector('.acc-orders-panel');
+                const icon = btn.querySelector('i');
+                const isOpen = panel.style.display !== 'none';
+                panel.style.display = isOpen ? 'none' : 'block';
+                icon.style.transform = isOpen ? '' : 'rotate(180deg)';
             });
         });
     }
 
     async function renderStatistics() {
-        const runs = await HistoryManager.getAllRuns();
-        statsRunsContainer.innerHTML = '';
-        
-        let totalOrders = 0;
-        let lateOrders = [];
-        
-        const startD = statsDateStart.value ? new Date(statsDateStart.value) : null;
-        const endD = statsDateEnd.value ? new Date(statsDateEnd.value) : null;
-        if (startD) startD.setHours(0, 0, 0, 0);
-        if (endD) endD.setHours(23, 59, 59, 999);
+        if (statsLeafletMap) { statsLeafletMap.remove(); statsLeafletMap = null; }
+        const allRuns = await HistoryManager.getAllRuns();
+        statsRunsContainer.innerHTML = '<p style="color:#94a3b8;font-size:13px;text-align:center;padding:30px;">Betöltés...</p>';
 
-        runs.forEach(run => {
-            run.orders.forEach(order => {
-                if (!order.orderDate) return;
-                const oDate = new Date(order.orderDate);
-                
-                // Időszak szűrés (Rendelés napja alapján)
-                if (startD && oDate < startD) return;
-                if (endD && oDate > endD) return;
+        const startD = statsDateStart.value ? new Date(statsDateStart.value + 'T00:00:00') : null;
+        const endD   = statsDateEnd.value   ? new Date(statsDateEnd.value   + 'T23:59:59') : null;
 
-                totalOrders++;
-
-                // Késés számítás
-                const deliveryDate = new Date(run.date);
-                const businessDays = getBusinessDaysCount(oDate, deliveryDate);
-
-                if (businessDays > 6 && !order.isDelayIgnored) {
-                    lateOrders.push({
-                        ...order,
-                        runDate: run.date,
-                        runId: run.id,
-                        docId: run.docId,
-                        delay: businessDays,
-                        company: run.company
-                    });
-                }
-            });
+        const runs = allRuns.filter(r => {
+            if (r.isQuickDelivery) return false;
+            if (!r.date) return true;
+            const d = new Date(r.date + 'T00:00:00');
+            if (startD && d < startD) return false;
+            if (endD   && d > endD)   return false;
+            return true;
         });
 
-        // Statisztikai doboz frissítése
-        const lateCount = lateOrders.length;
-        const latePercent = totalOrders > 0 ? Math.round((lateCount / totalOrders) * 100) : 0;
-        statsSummaryBox.innerHTML = `
-            <div style="font-size: 11px; color: #64748b;">Összes rend.: <strong>${totalOrders} db</strong></div>
-            <div style="font-size: 18px; font-weight: 800; color: #b91c1c;">${lateCount} késés</div>
-            <div style="font-size: 12px; font-weight: 600; color: #ef4444;">Arány: ${latePercent}%</div>
-        `;
+        statsRunsContainer.innerHTML = '';
 
-        if (lateOrders.length === 0) {
-            statsRunsContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 30px;">Nincs késedelmes rendelés az adott időszakban.</p>';
+        if (runs.length === 0) {
+            statsRunsContainer.innerHTML = '<p style="color:#94a3b8;font-size:13px;text-align:center;padding:30px;">Nincsenek adatok a kiválasztott időszakban.</p>';
             return;
         }
 
-        // Listázás
-        lateOrders.sort((a, b) => b.delay - a.delay).forEach(item => {
+        const makeSection = (title, icon, contentHtml) => {
             const el = document.createElement('div');
-            el.className = 'history-apple-card';
+            el.style.cssText = 'border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;';
             el.innerHTML = `
-                <div class="hac-header" style="padding:13px 16px;">
-                    <div style="flex:1;min-width:0;">
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                            <div class="hac-date" style="font-size:14px;">${item.shippingName}</div>
-                            <span class="hac-badge hac-badge-red"><i class="ph-bold ph-warning" style="font-size:10px;"></i>${item.delay} munkanap</span>
-                        </div>
-                        <div class="hac-meta">
-                            #${item.id}
-                            <span style="color:#d1d5db;">·</span>Rendelve: ${new Date(item.orderDate).toLocaleDateString('hu-HU')}
-                            <span style="color:#d1d5db;">·</span>Kiszállítva: ${item.runDate}
-                            <span style="color:#d1d5db;">·</span>${item.company || '-'}
-                        </div>
-                    </div>
-                    <div class="hac-actions">
-                        <button class="hac-btn-action hac-btn-ghost btn-ignore-delay" data-doc-id="${item.docId}" data-order-id="${item.id}" title="Rendben van">
-                            <i class="ph-bold ph-check" style="font-size:12px;"></i>Rendben
-                        </button>
-                    </div>
+                <div style="background:#0f172a;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px;">
+                    <i class="ph-bold ${icon}" style="font-size:15px;color:#94a3b8;"></i>
+                    <span style="font-weight:700;font-size:14px;letter-spacing:-.2px;">${title}</span>
                 </div>
-            `;
-            statsRunsContainer.appendChild(el);
-        });
+                <div style="padding:14px 18px;background:#fff;">${contentHtml}</div>`;
+            return el;
+        };
 
-        // Pipa gomb kezelése
-        statsRunsContainer.querySelectorAll('.btn-ignore-delay').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const docId = e.target.getAttribute('data-doc-id');
-                const orderId = e.target.getAttribute('data-order-id');
-                
-                const confirmed = await CustomDialog.confirm('Biztosan kiveszed ezt a rendelést a késési statisztikából?', 'Szándékos késés jelölése', 'info');
-                if (confirmed) {
-                    await ignoreDelayInFirestore(docId, orderId);
-                    renderStatistics();
-                }
+        const makeBar = (value, max, color = '#0f172a') => {
+            const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+            return `<div style="background:#f1f5f9;border-radius:4px;height:7px;flex:1;min-width:60px;overflow:hidden;">
+                <div style="background:${color};height:7px;width:${pct}%;border-radius:4px;"></div></div>`;
+        };
+
+        // ── 1. Szállítói összesítő ──────────────────────────────────────
+        const courierMap = {};
+        runs.forEach(r => {
+            const c = r.courier || '—';
+            if (!courierMap[c]) courierMap[c] = { runs: 0, orders: 0, cod: 0, uncollected: 0 };
+            courierMap[c].runs++;
+            r.orders.forEach(o => {
+                courierMap[c].orders++;
+                if (o.isCOD) courierMap[c].cod += o.codAmount;
+            });
+            (r.uncollectedOrderIds || []).forEach(id => {
+                const o = r.orders.find(x => x.id === id);
+                if (o && o.isCOD) courierMap[c].uncollected += o.codAmount;
             });
         });
+
+        const courierRows = Object.entries(courierMap)
+            .sort((a, b) => b[1].orders - a[1].orders)
+            .map(([name, d]) => `
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;">
+                    <span style="font-size:13px;font-weight:700;color:#0f172a;min-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>
+                    <span style="font-size:12px;color:#64748b;min-width:70px;">${d.runs} terítés</span>
+                    <span style="font-size:12px;color:#64748b;min-width:80px;">${d.orders} rendelés</span>
+                    <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:110px;">${d.cod.toLocaleString('hu-HU')} Ft COD</span>
+                    ${d.uncollected > 0 ? `<span style="font-size:11px;font-weight:700;color:#f97316;">−${d.uncollected.toLocaleString('hu-HU')} Ft kiesett</span>` : ''}
+                </div>`).join('');
+
+        statsRunsContainer.appendChild(makeSection('Szállítói összesítő', 'ph-user',
+            `<div style="display:flex;gap:10px;padding-bottom:7px;border-bottom:2px solid #f1f5f9;margin-bottom:2px;">
+                <span style="font-size:10px;font-weight:700;color:#94a3b8;min-width:130px;">SZÁLLÍTÓ</span>
+                <span style="font-size:10px;font-weight:700;color:#94a3b8;min-width:70px;">TERÍTÉS</span>
+                <span style="font-size:10px;font-weight:700;color:#94a3b8;min-width:80px;">RENDELÉS</span>
+                <span style="font-size:10px;font-weight:700;color:#94a3b8;min-width:110px;">COD ÖSSZEG</span>
+                <span style="font-size:10px;font-weight:700;color:#94a3b8;">KIESETT</span>
+            </div>${courierRows}`
+        ));
+
+        // ── 2. Havi forgalom ───────────────────────────────────────────
+        const monthMap = {};
+        runs.forEach(r => {
+            if (!r.date) return;
+            const m = r.date.substring(0, 7);
+            if (!monthMap[m]) monthMap[m] = { runs: 0, orders: 0 };
+            monthMap[m].runs++;
+            monthMap[m].orders += r.orders.length;
+        });
+
+        const maxOrders = Math.max(...Object.values(monthMap).map(m => m.orders), 1);
+        const monthRows = Object.keys(monthMap).sort().map(m => {
+            const d = monthMap[m];
+            const [y, mo] = m.split('-');
+            return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f1f5f9;">
+                <span style="font-size:12px;font-weight:700;color:#374151;min-width:68px;">${y}. ${mo}.</span>
+                <span style="font-size:12px;color:#64748b;min-width:78px;">${d.runs} terítés</span>
+                <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:70px;">${d.orders} rend.</span>
+                ${makeBar(d.orders, maxOrders)}
+            </div>`;
+        }).join('');
+
+        statsRunsContainer.appendChild(makeSection('Havi forgalom', 'ph-chart-bar', monthRows));
+
+        // ── 3. Havi utánvét volumen ────────────────────────────────────
+        const codMonthMap = {};
+        runs.forEach(r => {
+            if (!r.date) return;
+            const m = r.date.substring(0, 7);
+            if (!codMonthMap[m]) codMonthMap[m] = { total: 0, received: 0, uncollected: 0, pending: 0 };
+            let runCOD = 0;
+            r.orders.forEach(o => { if (o.isCOD) runCOD += o.codAmount; });
+            codMonthMap[m].total += runCOD;
+            if (r.isSettled || r.settledAmount > 0) {
+                const recv = r.settledAmount || 0;
+                codMonthMap[m].received   += recv;
+                codMonthMap[m].uncollected += runCOD - recv;
+            } else {
+                codMonthMap[m].pending += runCOD;
+            }
+        });
+
+        const maxCOD = Math.max(...Object.values(codMonthMap).map(m => m.total), 1);
+        const codRows = Object.keys(codMonthMap).sort()
+            .filter(m => codMonthMap[m].total > 0)
+            .map(m => {
+                const d = codMonthMap[m];
+                const [y, mo] = m.split('-');
+                const recvPct   = maxCOD > 0 ? (d.received    / maxCOD * 100) : 0;
+                const uncPct    = maxCOD > 0 ? (d.uncollected / maxCOD * 100) : 0;
+                const pendPct   = maxCOD > 0 ? (d.pending     / maxCOD * 100) : 0;
+                return `<div style="padding:9px 0;border-bottom:1px solid #f1f5f9;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
+                        <span style="font-size:12px;font-weight:700;color:#374151;min-width:68px;">${y}. ${mo}.</span>
+                        <span style="font-size:13px;font-weight:800;color:#0f172a;">${d.total.toLocaleString('hu-HU')} Ft</span>
+                        ${d.received    > 0 ? `<span style="font-size:11px;font-weight:700;color:#22c55e;">✓ ${d.received.toLocaleString('hu-HU')} Ft</span>` : ''}
+                        ${d.uncollected > 0 ? `<span style="font-size:11px;font-weight:700;color:#f97316;">~ ${d.uncollected.toLocaleString('hu-HU')} Ft kiesett</span>` : ''}
+                        ${d.pending     > 0 ? `<span style="font-size:11px;color:#94a3b8;">${d.pending.toLocaleString('hu-HU')} Ft függőben</span>` : ''}
+                    </div>
+                    <div style="display:flex;height:7px;border-radius:4px;overflow:hidden;background:#f1f5f9;">
+                        <div style="background:#22c55e;width:${recvPct}%;"></div>
+                        <div style="background:#f97316;width:${uncPct}%;"></div>
+                        <div style="background:#cbd5e1;width:${pendPct}%;"></div>
+                    </div>
+                </div>`;
+            }).join('');
+
+        statsRunsContainer.appendChild(makeSection('Havi utánvét volumen', 'ph-money',
+            codRows || '<p style="color:#94a3b8;font-size:13px;">Nincs utánvétes adat</p>'
+        ));
+
+        // ── 4. Top termékek ───────────────────────────────────────────
+        const itemMap = {};
+        runs.forEach(r => r.orders.forEach(o => o.items.forEach(it => {
+            if (!it.name || it.name === '—') return;
+            itemMap[it.name] = (itemMap[it.name] || 0) + (it.qty || 1);
+        })));
+
+        const topItems = Object.entries(itemMap).sort((a, b) => b[1] - a[1]).slice(0, 15);
+        const maxQty = topItems.length > 0 ? topItems[0][1] : 1;
+        const itemRows = topItems.map(([name, qty], i) => `
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f1f5f9;">
+                <span style="font-size:12px;font-weight:700;color:#94a3b8;min-width:22px;text-align:right;">${i + 1}.</span>
+                <span style="font-size:13px;color:#374151;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>
+                <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:45px;text-align:right;">${qty} db</span>
+                ${makeBar(qty, maxQty, '#6366f1')}
+            </div>`).join('');
+
+        statsRunsContainer.appendChild(makeSection('Top szállított termékek', 'ph-package',
+            itemRows || '<p style="color:#94a3b8;font-size:13px;">Nincs termékadat</p>'
+        ));
+
+        // ── 5. Területi sűrűség (térkép) ──────────────────────────────
+        const HU_ZIP = {
+            // Budapest kerületek (3-digit prefix → coords)
+            '101':[47.499,19.039],'102':[47.541,18.974],'103':[47.567,19.040],
+            '104':[47.574,19.093],'105':[47.503,19.052],'106':[47.510,19.062],
+            '107':[47.500,19.071],'108':[47.492,19.076],'109':[47.475,19.071],
+            '110':[47.475,19.132],'111':[47.465,18.998],'112':[47.491,18.978],
+            '113':[47.532,19.064],'114':[47.524,19.117],'115':[47.581,19.111],
+            '116':[47.535,19.168],'117':[47.507,19.212],'118':[47.449,19.142],
+            '119':[47.442,19.110],'120':[47.438,19.067],'121':[47.425,19.058],
+            '122':[47.423,18.978],'123':[47.407,19.094],
+            // Pest megye
+            '2030':[47.390,18.901],'2040':[47.452,18.957],'2045':[47.469,18.897],
+            '2051':[47.575,18.864],'2100':[47.598,19.358],'2120':[47.633,19.137],
+            '2130':[47.698,19.260],'2170':[47.560,19.593],'2220':[47.300,19.135],
+            '2310':[47.405,18.920],'2360':[47.353,19.081],'2400':[46.962,18.935],
+            '2500':[47.795,18.741],'2600':[47.777,19.133],'2700':[47.167,19.800],
+            '2750':[47.033,19.782],'2800':[47.587,18.388],'2900':[47.869,17.267],
+            // Nógrád
+            '3100':[48.098,19.797],
+            // Heves
+            '3000':[47.670,19.680],'3200':[47.785,19.930],'3300':[47.903,20.377],
+            // BAZ
+            '3400':[47.821,20.574],
+            '3526':[48.104,20.778],'3527':[48.104,20.778],'3528':[48.095,20.762],
+            '3529':[48.104,20.778],'3530':[48.095,20.778],'3531':[48.106,20.763],
+            '3532':[48.095,20.762],'3580':[47.912,21.052],
+            '3600':[48.218,20.289],'3700':[48.256,20.637],
+            // Hajdú-Bihar
+            '4024':[47.532,21.627],'4025':[47.532,21.627],'4026':[47.545,21.637],
+            '4027':[47.522,21.597],'4028':[47.552,21.607],'4029':[47.512,21.677],
+            '4031':[47.522,21.647],'4032':[47.502,21.607],'4033':[47.542,21.587],
+            '4034':[47.562,21.657],'4100':[47.217,21.545],'4200':[47.450,21.389],
+            '4220':[47.670,21.516],
+            // Szabolcs-Szatmár
+            '4400':[47.950,21.724],'4700':[47.950,22.323],
+            // JNSz
+            '5000':[47.176,20.182],'5100':[47.522,19.699],
+            // Békés
+            '5600':[46.679,21.088],'5700':[46.647,21.277],'5900':[46.566,20.661],
+            // Bács-Kiskun
+            '6000':[46.906,19.691],'6100':[46.710,19.852],'6400':[46.432,19.482],
+            '6500':[46.179,18.952],'6600':[46.656,20.261],
+            // Csongrád
+            '6720':[46.253,20.148],'6721':[46.253,20.148],'6722':[46.253,20.148],
+            '6723':[46.253,20.148],'6724':[46.253,20.148],'6725':[46.253,20.148],
+            '6726':[46.233,20.148],'6727':[46.253,20.168],
+            '6800':[46.423,20.328],'6900':[46.386,20.089],
+            // Tolna
+            '7100':[46.347,18.706],
+            // Baranya
+            '7400':[46.359,17.796],
+            '7621':[46.073,18.233],'7622':[46.063,18.223],'7623':[46.083,18.243],
+            '7624':[46.063,18.203],'7625':[46.073,18.253],'7630':[46.033,18.213],
+            // Somogy
+            '8600':[46.619,17.635],'8700':[46.359,17.796],
+            // Fejér
+            '8000':[47.187,18.411],'8100':[47.234,18.029],
+            // Veszprém
+            '8200':[47.093,17.910],'8360':[46.758,17.238],
+            '8400':[47.100,17.557],'8500':[47.327,17.470],
+            // Zala
+            '8800':[46.459,16.990],'8900':[46.842,16.842],
+            // Győr-Moson-Sopron
+            '9021':[47.688,17.650],'9022':[47.698,17.640],'9023':[47.678,17.660],
+            '9024':[47.668,17.650],'9025':[47.688,17.660],'9026':[47.698,17.650],
+            '9027':[47.708,17.640],'9028':[47.678,17.630],
+            '9200':[47.869,17.267],'9400':[47.681,16.583],
+            // Vas
+            '9700':[47.231,16.622],'9800':[47.003,16.837],
+        };
+
+        const lookupZip = (zip) => {
+            if (HU_ZIP[zip]) return HU_ZIP[zip];
+            if (zip.startsWith('1') && HU_ZIP[zip.substring(0, 3)]) return HU_ZIP[zip.substring(0, 3)];
+            return null;
+        };
+
+        // zip → {count, label, coords?}
+        // Budapest (1xxx): egybe kezelve egy pontként
+        const BUDAPEST_COORDS = [47.4979, 19.0402];
+        const zipMap = {};
+        runs.forEach(r => r.orders.forEach(o => {
+            if (!o.address) return;
+            const m = o.address.match(/^(\d{4})[,\s]+([^,]+)/);
+            if (!m) return;
+            const zip = m[1];
+            const city = m[2].trim();
+            const isBp = zip.startsWith('1') || city.toLowerCase().startsWith('budapest');
+            const key = isBp ? '__budapest__' : zip;
+            const label = isBp ? 'Budapest' : city;
+            const coords = isBp ? BUDAPEST_COORDS : null;
+            if (!zipMap[key]) zipMap[key] = { count: 0, label, zip: key, coords };
+            zipMap[key].count++;
+        }));
+
+        const sortedLocs = Object.values(zipMap).sort((a, b) => b.count - a.count);
+        const maxLocCount = sortedLocs.length > 0 ? sortedLocs[0].count : 1;
+
+        const mapSectionEl = document.createElement('div');
+        mapSectionEl.style.cssText = 'border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;';
+        mapSectionEl.innerHTML = `
+            <div style="background:#0f172a;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px;">
+                <i class="ph-bold ph-map-pin" style="font-size:15px;color:#94a3b8;"></i>
+                <span style="font-weight:700;font-size:14px;letter-spacing:-.2px;">Területi sűrűség</span>
+                <span id="stats-map-status" style="font-size:11px;color:#64748b;margin-left:auto;"></span>
+            </div>
+            <div style="padding:14px 18px;background:#fff;">
+                <div id="stats-map-leaflet" style="height:360px;border-radius:12px;overflow:hidden;margin-bottom:14px;border:1px solid #e2e8f0;"></div>
+                <div id="stats-location-list"></div>
+            </div>`;
+        statsRunsContainer.appendChild(mapSectionEl);
+
+        // Leaflet init
+        statsLeafletMap = L.map('stats-map-leaflet', { zoomControl: true, scrollWheelZoom: true })
+            .setView([47.18, 19.50], 7);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> © <a href="https://carto.com">CARTO</a>',
+            subdomains: 'abcd', maxZoom: 19
+        }).addTo(statsLeafletMap);
+
+        // Helyszínlista renderelése (szöveges)
+        const locListEl = document.getElementById('stats-location-list');
+        locListEl.innerHTML = sortedLocs.slice(0, 25).map((loc, i) => `
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f1f5f9;">
+                <span style="font-size:12px;font-weight:700;color:#94a3b8;min-width:22px;text-align:right;">${i + 1}.</span>
+                <span style="font-size:13px;color:#374151;flex:1;">${loc.label}</span>
+                <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:60px;text-align:right;">${loc.count} rend.</span>
+                ${makeBar(loc.count, maxLocCount, '#3b82f6')}
+            </div>`).join('') || '<p style="color:#94a3b8;font-size:13px;">Nincs cím adat</p>';
+
+        // Markerek: kis tömör pontok, méret sqrt-skálán
+        const addMarker = (coords, loc) => {
+            const r = 4 + Math.round(Math.sqrt(loc.count / maxLocCount) * 10);
+            L.circleMarker(coords, {
+                radius: r, fillColor: '#1d4ed8', color: '#fff',
+                weight: 1, opacity: 1, fillOpacity: 0.85
+            }).bindTooltip(`<strong>${loc.label}</strong><br>${loc.count} rendelés`, { sticky: true })
+              .addTo(statsLeafletMap);
+        };
+
+        const unknown = [];
+        sortedLocs.forEach(loc => {
+            // Budapest: közvetlen koordináta
+            if (loc.coords) { addMarker(loc.coords, loc); return; }
+            // Lookup tábla
+            const coords = lookupZip(loc.zip);
+            if (coords) {
+                addMarker(coords, loc);
+            } else if (geoCache[loc.zip]) {
+                addMarker(geoCache[loc.zip], loc);
+            } else if (!geoCache[loc.zip + '_miss']) {
+                unknown.push(loc);
+            }
+        });
+
+        // Nominatim queue (1 req/sec)
+        if (unknown.length > 0) {
+            const statusEl = document.getElementById('stats-map-status');
+            if (statusEl) statusEl.textContent = `Geocoding: 0/${unknown.length}…`;
+            (async () => {
+                for (let i = 0; i < unknown.length; i++) {
+                    const loc = unknown[i];
+                    try {
+                        const res = await fetch(
+                            `https://nominatim.openstreetmap.org/search?postalcode=${loc.zip}&country=hu&format=json&limit=1`,
+                            { headers: { 'Accept': 'application/json' } }
+                        );
+                        const data = await res.json();
+                        if (data && data[0]) {
+                            const coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+                            geoCache[loc.zip] = coords;
+                            localStorage.setItem('hu_zip_geocache_v1', JSON.stringify(geoCache));
+                            addMarker(coords, loc);
+                        } else {
+                            geoCache[loc.zip + '_miss'] = true;
+                            localStorage.setItem('hu_zip_geocache_v1', JSON.stringify(geoCache));
+                        }
+                    } catch (_) { /* hálózati hiba — kihagyjuk */ }
+                    if (statusEl) statusEl.textContent = i + 1 < unknown.length
+                        ? `Geocoding: ${i + 1}/${unknown.length}…`
+                        : '';
+                    if (i + 1 < unknown.length) await new Promise(r => setTimeout(r, 1100));
+                }
+            })();
+        }
+
+        // ── 6. Többször szállított rendelések ─────────────────────────
+        const orderRunsMap = {};
+        runs.forEach(r => r.orders.forEach(o => {
+            if (!orderRunsMap[o.id]) orderRunsMap[o.id] = [];
+            orderRunsMap[o.id].push({ runDate: r.date, courier: r.courier });
+        }));
+
+        const multiRows = Object.entries(orderRunsMap)
+            .filter(([, list]) => list.length > 1)
+            .sort((a, b) => b[1].length - a[1].length)
+            .map(([orderId, list]) => `
+                <div style="padding:9px 0;border-bottom:1px solid #f1f5f9;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+                        <span style="font-size:13px;font-weight:700;color:#0f172a;">${orderId}</span>
+                        <span style="font-size:11px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:1px 7px;">${list.length}× szállítva</span>
+                    </div>
+                    <div style="font-size:12px;color:#64748b;">${list.map(x => `${x.runDate} · ${x.courier || '—'}`).join(' → ')}</div>
+                </div>`).join('');
+
+        statsRunsContainer.appendChild(makeSection('Többször szállított rendelések', 'ph-arrows-clockwise',
+            multiRows || '<p style="color:#64748b;font-size:13px;">Nincs többször szállított rendelés.</p>'
+        ));
     }
 
     async function ignoreDelayInFirestore(docId, orderId) {
@@ -2189,6 +2899,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+        document.querySelectorAll('.btn-reprint-quick').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const runId = e.target.closest('button').getAttribute('data-id');
+                const run = await HistoryManager.getRunById(runId);
+                if (run && run.quickDeliveryData) {
+                    UnifiedPrinter.area.innerHTML = UnifiedPrinter.generateQuickDeliveryNoteHtml(run.quickDeliveryData);
+                    UnifiedPrinter.execute();
+                }
+            });
+        });
+
         document.querySelectorAll('.btn-delete-run').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 const runId = e.target.closest('button').getAttribute('data-id');
@@ -2374,7 +3095,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="print-document-footer">
                         <span style="color: #64748b; text-transform: uppercase; margin-right: 15px;">Szállítási Adatok:</span>
                         <span style="margin-right: 15px;">Cég: <strong>${run.company || '-'}</strong></span>
-                        <span style="margin-right: 15px;">Futár: <strong>${run.courier}</strong></span>
+                        <span style="margin-right: 15px;">Szállító: <strong>${run.courier}</strong></span>
                         <span style="margin-right: 15px;">Felvétel: <strong>${run.pickupDate || run.date}</strong></span>
                         <span>Kiszállítás: <strong>${run.date}</strong></span>
                     </div>
@@ -3053,7 +3774,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div style="font-size: 18px; color: #000; font-weight: 800; margin-top: 5px;">Kiszállítás napja: ${run.date}</div>
                         </div>
                         <div style="text-align: right;">
-                            <div style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; margin-bottom: 4px;">Szállító Partner & Futár</div>
+                            <div style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; margin-bottom: 4px;">Szállító Partner & Szállító</div>
                             <div style="background: #000; color: #fff; padding: 6px 15px; border-radius: 8px; font-size: 20px; font-weight: 900; display: inline-block;">
                                 ${run.company} <span style="color: #64748b; font-weight: 400; margin: 0 8px;">|</span> ${run.courier}
                             </div>
@@ -3100,7 +3821,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     <div style="margin-top: 100px; display: flex; justify-content: space-between;">
                         <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átadó (Raktár)</div>
-                        <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átvette (Futár)</div>
+                        <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átvette (Szállító)</div>
                     </div>
                 </div>
             `;
@@ -3180,6 +3901,80 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const firstSet = run.orders.map(o => generateSingleNote(o)).join('');
             return double ? firstSet + firstSet : firstSet;
+        },
+
+        generateQuickDeliveryNoteHtml: function(data) {
+            const senderData = data.sender === 'ev'
+                ? {
+                    name: "Egyéni Vállalkozó (Példa)",
+                    address: "1234 Példaváros, Minta utca 1.",
+                    bank: "00000000-00000000",
+                    phone: "+36 30 000 0000",
+                    email: "pelda@email.com"
+                }
+                : {
+                    name: "Capsula Houses Kft.",
+                    address: "Széles utca 70., 2040, Budaörs, Magyarország",
+                    bank: "11735005-26088969",
+                    phone: "+36 70 590 8157",
+                    email: "info@panelburkolat.com"
+                };
+
+            const itemRows = data.items.length > 0
+                ? data.items.map(it => `<tr><td style="padding:10px;border-bottom:1px solid #eee;">${it.name}</td><td style="padding:10px;border-bottom:1px solid #eee;text-align:right;">${it.qty} db</td></tr>`).join('')
+                : `<tr><td colspan="2" style="padding:10px;color:#94a3b8;font-style:italic;">—</td></tr>`;
+
+            const recipientBlock = [
+                data.recipient,
+                data.recipientCompany,
+                data.address,
+                data.phone
+            ].filter(Boolean).join('<br>') || '<span style="color:#94a3b8;font-style:italic;">—</span>';
+
+            const carrierBlock = [
+                data.company,
+                data.companyDetails
+            ].filter(Boolean).join('<br>') || '<span style="color:#94a3b8;font-style:italic;">—</span>';
+
+            const page = `
+                <div class="print-page" style="padding:60px;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;">
+                        <div style="font-size:24px;font-weight:800;">SZÁLLÍTÓLEVÉL</div>
+                        <div style="font-size:13px;color:#64748b;text-align:right;">Kelt: ${new Date().toLocaleDateString('hu-HU')}</div>
+                    </div>
+
+                    <div style="display:flex;justify-content:space-between;margin-bottom:30px;gap:20px;">
+                        <div style="flex:1;padding:16px;border:1px solid #e2e8f0;border-radius:10px;">
+                            <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Feladó</div>
+                            <strong>${senderData.name}</strong><br>
+                            ${senderData.address}<br>
+                            <span style="color:#64748b;font-size:13px;">${senderData.phone} · ${senderData.email}</span>
+                        </div>
+                        <div style="flex:1;padding:16px;border:1px solid #e2e8f0;border-radius:10px;">
+                            <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Szállító Cég</div>
+                            ${carrierBlock}
+                            <div style="margin-top:20px;font-size:12px;color:#94a3b8;">Rendszám: ……………………</div>
+                        </div>
+                    </div>
+
+                    <div style="padding:16px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:30px;">
+                        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Átvevő</div>
+                        ${recipientBlock}
+                    </div>
+
+                    <table style="width:100%;border-collapse:collapse;margin-bottom:30px;">
+                        <thead><tr style="border-bottom:2px solid #000;"><th style="text-align:left;padding:10px;">Tétel</th><th style="text-align:right;padding:10px;">Mennyiség</th></tr></thead>
+                        <tbody>${itemRows}</tbody>
+                    </table>
+
+                    <div style="display:flex;justify-content:space-between;margin-top:80px;">
+                        <div style="width:220px;text-align:center;border-top:1px solid #000;padding-top:10px;">Átadó (Raktár)</div>
+                        <div style="width:220px;text-align:center;border-top:1px solid #000;padding-top:10px;">Átvevő (Szállító)</div>
+                    </div>
+                </div>
+            `;
+
+            return page + page;
         }
     };
 });

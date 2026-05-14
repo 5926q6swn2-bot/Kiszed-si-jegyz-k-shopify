@@ -197,6 +197,63 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+---
+
+### 2026. május 14. - Gyors Szállítólevél, Előzmények UI újratervezés, Elszámolások, Statisztika térkép
+
+#### Gyors Szállítólevél (Gyors SzL)
+- **Új funkció:** Ad-hoc szállítólevél kiállítása CSV import nélkül, Dynamic Island gombból.
+- **Modal mezők:** Feladó (select), Szállító Cég (szabad szöveg), Átvevő (név/cég/cím/telefon), tételek (dinamikus sorok).
+- **Mentés:** Firestore-ba menti `isQuickDelivery: true` flaggel + `quickDeliveryData` payloaddal.
+- **Terminológia:** "Futár" → "Szállító" az egész UI-ban és nyomtatott lapokon.
+- **COD nincs:** Gyors szállítóleveleken nem jelenik meg utánvét szekció.
+- **2 példány** nyomtatva.
+- **Saját "⚡ Gyors SzL" fül** az Előzmények modalban — szűrve a normál Szedések fülről.
+
+#### Előzmények UI/UX újratervezés
+- **"Előzmények" gomb** kikerült a headerből → saját floating pill jobb alul (`#history-island`, azonos stílus mint Dynamic Island, de `right: 30px`).
+- **Szemetes** kikerült a tabok közül → modal header ikonja; kattintásra slide-in panel nyílik "← Vissza" gombbal, tab sor eltűnik.
+- **4 tab maradt:** Szedések | ⚡ Gyors SzL | Elszámolások | Statisztika.
+
+#### Elszámolások tab — teljes átírás
+- **COD szűrő:** csak utánvétes fuvarok látszanak.
+- **Checkbox alapból bejelölve:** kipipált fuvar azonnal eltűnik; kikapcsolva visszajönnek.
+- **Részleges elszámolás:** `settledAmount` + `uncollectedOrderIds` tárolva Firestoreban.
+- **3 vizuális állapot:** szürke kör (függőben), narancssárga (részleges), zöld (elszámolva).
+- **Részleges + elszámolt egyaránt eltűnik** a "csak függőben" filterből.
+- **`showSettlementDialog(run, runCOD)`:** custom glassmorphism modal, COD rendelések checkboxokkal, élő összesítő, "−X Ft hiányzik" visszajelzés.
+- **Order chips kibővítve:** nem beérkezett rendelések áthúzva + "nem érkezett" badge.
+- **`HistoryManager.revertToPending(docId)`** új függvény.
+
+#### Statisztika tab — teljes újraírás
+- Régi késési statisztika befagyasztva (kód megmarad).
+- **6 új szekció:**
+  1. Szállítói összesítő (terítés / rendelés / COD összeg / kiesett per courier)
+  2. Havi forgalom (CSS sávok)
+  3. Havi utánvét volumen (beérkezett/kiesett/függőben szegmentált sávval)
+  4. Top 15 szállított termék (qty-vel súlyozva)
+  5. Területi sűrűség — **Leaflet.js térkép** (CartoDB Positron tiles)
+  6. Többször szállított rendelések (cross-run duplicate order ID-k)
+- **Dátumszűrő** terítés napja alapján + "Összes" gomb.
+
+#### Területi sűrűség térkép
+- **Budapest egybe kezelve** — minden 1xxx zip egy pont Budapest közepén.
+- **HU_ZIP lookup tábla** (~120 entry): Budapest 23 kerület (3-jegyű prefix) + ~80 vidéki város.
+- **Nominatim fallback** ismeretlen zip-ekre, 1.1s rate limit, `localStorage` cache (`hu_zip_geocache_v1`).
+- **Kompakt tömör pontok:** sqrt-skálán méretezve (4–14px), sötétkék, fehér szegély.
+- **`statsLeafletMap`** module-level változó — destroy + reinit dátumváltáskor.
+
+#### Technikai tanulságok
+- `window.prompt()` kerülendő — mindig `showSettlementDialog`-féle custom modal illeszkedik jobban a glassmorphism UI-hoz.
+- Leaflet `.remove()` kötelező mielőtt ugyanazon div-en újrainicializálunk.
+- Budapest összes zip kód egy pontba vonandó — körzetenként külön pont nem ad értékes info-t.
+- `sqrt`-skála a körök méretezésénél sokkal jobb mint lineáris: 200 vs 10 rendelés nem 20× méretű pontot eredményez.
+
+#### Cache verzió
+`app.js?v=19`
+
+---
+
 ## Következő Lépések (TODO)
 - [x] **Előzmények szűrés újraírása:** Megoldva.
 - [x] **Drag & Drop fluiditás:** Megoldva.
@@ -204,3 +261,4 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - [x] **Utólagos módosítás kezelése:** Megoldva.
 - [x] **Sorrend mód gomb:** Megoldva.
 - [x] **Előzmények kompakt layout + preview + összevonás:** Megoldva.
+- [x] **Gyors Szállítólevél, Előzmények UI redesign, Elszámolások, Statisztika térkép:** Megoldva (2026-05-14).
