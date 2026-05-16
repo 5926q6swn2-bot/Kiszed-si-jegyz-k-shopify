@@ -238,7 +238,7 @@
 
     <!-- History Search Modal -->
     <div id="history-modal" class="modal no-print">
-        <div class="modal-content modal-large" style="height: 80vh; display: flex; flex-direction: column;">
+        <div class="modal-content modal-large" style="height: 92vh; max-height: 92vh; display: flex; flex-direction: column;">
             <div class="modal-header">
                 <h2>Előzmények és Keresés</h2>
                 <div style="display:flex;align-items:center;gap:4px;">
@@ -364,7 +364,7 @@
                         <button id="stats-clear-btn" style="background: none; border: 1.5px solid #e2e8f0; color: #64748b; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-family: inherit;">Összes</button>
                     </div>
                     <div id="stats-summary-box" style="display:none;"></div>
-                    <div id="stats-runs-container" style="display: flex; flex-direction: column; gap: 18px;"></div>
+                    <div id="stats-runs-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; grid-auto-flow: row dense;"></div>
                 </div>
 
             </div>
@@ -492,7 +492,7 @@
             }
         });
     </script>
-    <script type="module" src="js/app.js?v=19"></script>
+    <script type="module" src="js/app.js?v=35"></script>
     <div id="print-area"></div>
 
     <!-- Összevonás Modal -->

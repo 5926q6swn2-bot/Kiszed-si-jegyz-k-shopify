@@ -254,6 +254,55 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+### 2026. május 16. - Elszámolás Visszavonás Javítás, Statisztika Bento Box Redesign, Kiesett Összevonás, Térkép Tooltip
+
+#### Elszámolás "Visszavonás" bugjavítás
+- **Probléma:** Visszavonás után a futár körök "5 kiesett" badge-et mutattak, holott visszaálltak függőbe.
+- **Ok:** A régi handler `updateSettlementStatus(docId, 0, totalCOD, allCodIds, {}, {})` hívott — az összes COD rendelést uncollected-ként írta vissza Firestore-ba.
+- **Javítás:** `btn-nullify-settlement` handler mostantól `revertToPending(docId)`-t hív.
+- **`revertToPending` kibővítve:** `deleteField()` törli az összes settlement-mezőt (`uncollectedOrderIds`, `uncollectedReasons`, `partialOrders`, `settledAmount`, `settledAt`, `isSettled: false`).
+- **Visszavonás gomb láthatóság:** A gomb megjelenik ha `run.isSettled || isPartial || uncollected.length > 0` — korábban az `uncollected.length > 0` feltétel hiányzott, így visszavonás utáni újratöltésnél a gomb eltűnt, holott a badge megmaradt.
+
+#### Statisztika Bento Box Layout
+- **`stats-runs-container`:** `display: flex; flex-direction: column` → `display: grid; grid-template-columns: 1fr 1fr; gap: 14px; grid-auto-flow: row dense`
+- **`makeSection()` frissítve:** `fullWidth` paraméter hozzáadva — Szállítói összesítő, Top termékek, Kiesett rendelések teljes szélességűek; Havi forgalom és Havi utánvét kétoszlopos grid-ben oldalra kerülnek.
+- **Tömörebb padding:** `24px/28px → 10px/14px`, flex layout.
+- **Lenyitható szekciók:** `makeCollapsible(rowsArr, label, visible=5)` helper — alapból top 5 látszik, "Összes mutatása (N)" gombra nyílik ki; egyedi ID-kkel több szekció egymástól független.
+
+#### Térkép Fejlesztések
+- **Görgetésvédelem:** `scrollWheelZoom: false` — az oldal görgethető a térkép felett.
+- **Magyarország fitBounds:** `fitBounds([[45.7, 16.1], [48.6, 22.9]])` — az összes megye, enyhe padding.
+- **Magasság:** `350px → 460px`.
+- **Hover tooltip:** kattintás helyett `bindTooltip` minden markeren — megjelenik a helységnév, rendelések száma, és az összes rendelésszám (numerikusan rendezve).
+- **Dinamikus tooltip grid:** 1-5 rendelés → 1 oszlop (130px max), 6-14 → 2 oszlop (210px), 15+ → 3 oszlop (300px).
+- **`zipMap[key].orderIds[]`** tömb tárolva minden helységnél, order ID-k összegyűjtéséhez.
+
+#### Kiesett + Többször Szállított Összevonás
+- **"Többször szállított rendelések" szekció eltávolítva** — információja beolvadt a Kiesett rendelésekbe.
+- **`orderRunsMap` (Map):** cross-run nyomon követés — minden rendelés ID-hoz tárolja az összes körben való megjelenését (dátum, futár, `isUncollected`, `isPartial`, `wasReceived`, `wasPartialReceived`).
+- **Re-delivery sub-sor:** Ha egy kiesett rendelés egy LATER körben is megjelenik, alatta `renderLaterEntries()` mutatja az eredményt (zöld ✓, sárga ≈, piros ✗ badge).
+- **Sorrendezés:** Kiesett rendelések — utólag átvett rendelések mindig a lista végére kerülnek; azon belül dátum szerint csökkenő sorrend.
+- **Szürke COD összeg:** Ha egy kiesett rendelés utólag `wasReceived || wasPartialReceived` → a COD összeg szürkén jelenik meg (`#94a3b8`), nem fekete.
+- **Kiesett sor layout:** ID 70px fix, vevőnév `flex:1`, jobb oldal `flex-shrink:0` — megszűnt a felesleges középső tér.
+
+#### Nem-COD Rendelések az Elszámolásdialogban
+- **`showSettlementDialog` átírva:** COD és nem-COD rendelések egymástól elkülönítetten kezelve.
+- **Nem-COD sorok:** "Nem utánvétes" badge, egyszerű átadva/nem lett átadva toggle, indoklás dropdown.
+- **`updateTotal()`:** Csak a `data-is-cod="true"` sorokat számolja.
+- **Save handler:** Mindkét típus `uncollectedOrderIds`-ba kerül ha kiesett/nem átadva.
+- **Order chips:** `isUncollected` check eltávolítva az `o.isCOD &&` feltételtől → nem-COD rendelések is mutatják a "nem lett átadva" / "átadva" állapotot.
+
+#### Kritikus Bug: Duplikált `const overlay` szintaktikai hiba
+- **Tünet:** Visszavonás után az összes gomb leállt — sem Előzmények, sem Gyors SzL, sem semmi nem működött.
+- **Ok:** `showSettlementDialog` többlépéses átírásánál az eredeti `const overlay = document.createElement('div')` deklaráció (2040. sor) bent maradt, majd egy másik edit újra hozzáadta (2100. sor). Az ES modul SyntaxError-ral megállt.
+- **Detektálás:** `node --input-type=module < js/app.js 2>&1` — azonnali hibajelzés.
+- **Tanulság:** Komplex függvény több lépéses átírásakor **mindig futtatni kell syntax check-et** a befejezés előtt.
+
+#### Cache verzió
+`app.js?v=35`
+
+---
+
 ## Következő Lépések (TODO)
 - [x] **Előzmények szűrés újraírása:** Megoldva.
 - [x] **Drag & Drop fluiditás:** Megoldva.

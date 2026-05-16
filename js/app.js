@@ -413,7 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        updateSettlementStatus: async function(docId, settledAmount, totalCOD, uncollectedOrderIds = []) {
+        updateSettlementStatus: async function(docId, settledAmount, totalCOD, uncollectedOrderIds = [], uncollectedReasons = {}, partialOrders = {}) {
             try {
                 const isSettled = settledAmount >= totalCOD;
                 const docRef = doc(db, this.COLLECTION_NAME, docId);
@@ -421,6 +421,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     isSettled: isSettled,
                     settledAmount: settledAmount,
                     uncollectedOrderIds: uncollectedOrderIds,
+                    uncollectedReasons: uncollectedReasons,
+                    partialOrders: partialOrders,
                     settledAt: Date.now()
                 });
                 return true;
@@ -436,7 +438,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 await updateDoc(docRef, {
                     isSettled: false,
                     settledAmount: null,
-                    settledAt: null
+                    settledAt: null,
+                    uncollectedOrderIds: deleteField(),
+                    uncollectedReasons: deleteField(),
+                    partialOrders: deleteField()
                 });
                 return true;
             } catch (e) {
@@ -2004,39 +2009,112 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function showSettlementDialog(run, runCOD) {
+    function showSettlementDialog(run, runCOD, existingState = null) {
         return new Promise((resolve) => {
-            const codOrders = run.orders.filter(o => o.isCOD);
+            const codOrders    = run.orders.filter(o => o.isCOD);
+            const nonCodOrders = run.orders.filter(o => !o.isCOD);
+            const prevUncollected  = new Set(existingState?.uncollectedOrderIds || []);
+            const prevReasons      = existingState?.uncollectedReasons || {};
+            const prevPartials     = existingState?.partialOrders || {};
+            const PRESET_REASONS   = ['Sérült csomag','Vevő lemondta','Nem volt otthon','Nem fogadta el'];
+
+            const makeReasonHtml = (orderId, wasUncollected) => {
+                const pr = prevReasons[orderId] || '';
+                const isCustom = pr && !PRESET_REASONS.includes(pr);
+                const selVal   = isCustom ? 'Egyéb' : pr;
+                return `<div class="sd-reason-row" style="display:${wasUncollected?'block':'none'};padding:4px 20px 10px 50px;background:#fff7ed;border-top:1px dashed #fed7aa;">
+                    <select class="sd-reason-select" style="font-size:12px;font-weight:600;color:#92400e;background:#fff;border:1.5px solid #fbbf24;border-radius:8px;padding:4px 8px;cursor:pointer;font-family:inherit;margin-right:8px;">
+                        <option value="">Miért nem lett átadva?</option>
+                        <option value="Sérült csomag" ${selVal==='Sérült csomag'?'selected':''}>Sérült csomag</option>
+                        <option value="Vevő lemondta" ${selVal==='Vevő lemondta'?'selected':''}>Vevő lemondta</option>
+                        <option value="Nem volt otthon" ${selVal==='Nem volt otthon'?'selected':''}>Nem volt otthon</option>
+                        <option value="Nem fogadta el" ${selVal==='Nem fogadta el'?'selected':''}>Nem fogadta el</option>
+                        <option value="Egyéb" ${selVal==='Egyéb'?'selected':''}>Egyéb...</option>
+                    </select>
+                    <input class="sd-reason-other" type="text" placeholder="Megjegyzés..."
+                        value="${isCustom ? pr.replace(/"/g,'&quot;') : ''}"
+                        style="display:${isCustom?'inline-block':'none'};font-size:12px;border:1.5px solid #fbbf24;border-radius:8px;padding:4px 8px;font-family:inherit;width:180px;">
+                </div>`;
+            };
+
+            const codRowsHtml = codOrders.map(o => {
+                const wasUncollected = prevUncollected.has(o.id);
+                const prevPartial    = prevPartials[o.id];
+                const wasPartial     = !wasUncollected && !!prevPartial;
+                return `
+                <div class="sd-order-row" style="border-bottom:1px solid #f1f5f9;">
+                    <label style="display:flex;align-items:center;gap:12px;padding:11px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                        <input type="checkbox" data-order-id="${o.id}" data-amount="${o.codAmount}" data-is-cod="true" ${wasUncollected ? '' : 'checked'}
+                            style="width:18px;height:18px;cursor:pointer;accent-color:#22c55e;flex-shrink:0;">
+                        <span style="font-size:13px;font-weight:700;color:#374151;min-width:95px;">${o.id}</span>
+                        <span style="font-size:13px;color:#64748b;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.shippingName || '—'}</span>
+                        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                            <span class="sd-full-amount" style="font-size:13px;font-weight:700;color:${wasPartial?'#1d4ed8':'#b91c1c'};">${wasPartial ? (prevPartial.amount||o.codAmount).toLocaleString('hu-HU') : o.codAmount.toLocaleString('hu-HU')} Ft</span>
+                            <button class="sd-partial-toggle" onclick="event.stopPropagation();"
+                                style="display:${wasUncollected?'none':'inline-flex'};align-items:center;gap:3px;font-size:10px;font-weight:600;color:${wasPartial?'#1d4ed8':'#64748b'};background:${wasPartial?'#eff6ff':'#f8fafc'};border:1px solid ${wasPartial?'#93c5fd':'#e2e8f0'};border-radius:6px;padding:2px 7px;cursor:pointer;font-family:inherit;flex-shrink:0;">
+                                <i class="ph-bold ph-split-horizontal" style="font-size:9px;"></i> részleges
+                            </button>
+                        </div>
+                    </label>
+                    <div class="sd-partial-row" style="display:${wasPartial?'block':'none'};padding:6px 20px 10px 50px;background:#eff6ff;border-top:1px dashed #93c5fd;">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+                            <span style="font-size:12px;color:#1d4ed8;font-weight:600;">Tényleges összeg:</span>
+                            <input class="sd-partial-amount" type="number" min="0" max="${o.codAmount}"
+                                value="${wasPartial ? (prevPartial.amount||'') : ''}" placeholder="${o.codAmount}"
+                                style="width:90px;font-size:12px;font-weight:700;color:#1e40af;border:1.5px solid #93c5fd;border-radius:8px;padding:4px 8px;font-family:inherit;">
+                            <span style="font-size:12px;color:#64748b;">Ft <span style="color:#94a3b8;">(teljes: ${o.codAmount.toLocaleString('hu-HU')} Ft)</span></span>
+                            <button class="sd-partial-reset" onclick="event.stopPropagation();" style="margin-left:auto;font-size:11px;color:#64748b;background:none;border:1px solid #e2e8f0;border-radius:6px;padding:2px 8px;cursor:pointer;font-family:inherit;">Mégsem</button>
+                        </div>
+                        <input class="sd-partial-comment" type="text" placeholder="Megjegyzés (pl. 1 db tábla sérült)..."
+                            value="${wasPartial ? (prevPartial.comment||'').replace(/"/g,'&quot;') : ''}"
+                            style="width:100%;box-sizing:border-box;font-size:12px;border:1.5px solid #93c5fd;border-radius:8px;padding:5px 8px;font-family:inherit;">
+                    </div>
+                    ${makeReasonHtml(o.id, wasUncollected)}
+                </div>`;
+            }).join('');
+
+            const nonCodRowsHtml = nonCodOrders.map(o => {
+                const wasUncollected = prevUncollected.has(o.id);
+                return `
+                <div class="sd-order-row" style="border-bottom:1px solid #f1f5f9;">
+                    <label style="display:flex;align-items:center;gap:12px;padding:11px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                        <input type="checkbox" data-order-id="${o.id}" data-is-cod="false" ${wasUncollected ? '' : 'checked'}
+                            style="width:18px;height:18px;cursor:pointer;accent-color:#22c55e;flex-shrink:0;">
+                        <span style="font-size:13px;font-weight:700;color:#374151;min-width:95px;">${o.id}</span>
+                        <span style="font-size:13px;color:#64748b;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.shippingName || '—'}</span>
+                        <span style="font-size:11px;color:#64748b;background:#f1f5f9;border-radius:6px;padding:2px 8px;flex-shrink:0;">Nem utánvétes</span>
+                    </label>
+                    ${makeReasonHtml(o.id, wasUncollected)}
+                </div>`;
+            }).join('');
+
+            const hasBoth = codOrders.length > 0 && nonCodOrders.length > 0;
+            const secLabel = (t) => `<div style="padding:6px 20px;font-size:10px;font-weight:700;color:#94a3b8;background:#f8fafc;letter-spacing:.7px;border-bottom:1px solid #e2e8f0;border-top:1px solid #e2e8f0;">${t}</div>`;
+            const rowsHtml =
+                (codOrders.length > 0    ? (hasBoth ? secLabel('UTÁNVÉTES RENDELÉSEK')  : '') + codRowsHtml    : '') +
+                (nonCodOrders.length > 0 ? (hasBoth ? secLabel('EGYÉB RENDELÉSEK')       : '') + nonCodRowsHtml : '');
+
             const overlay = document.createElement('div');
             overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
 
-            const rowsHtml = codOrders.map(o => `
-                <label style="display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-                    <input type="checkbox" data-order-id="${o.id}" data-amount="${o.codAmount}" checked
-                        style="width:18px;height:18px;cursor:pointer;accent-color:#22c55e;flex-shrink:0;">
-                    <span style="font-size:13px;font-weight:700;color:#374151;min-width:95px;">${o.id}</span>
-                    <span style="font-size:13px;color:#64748b;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.shippingName || '—'}</span>
-                    <span style="font-size:13px;font-weight:700;color:#b91c1c;flex-shrink:0;">${o.codAmount.toLocaleString('hu-HU')} Ft</span>
-                </label>`).join('');
-
             overlay.innerHTML = `
-                <div style="background:#fff;border-radius:20px;width:100%;max-width:500px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,0.35);overflow:hidden;">
+                <div style="background:#fff;border-radius:20px;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,0.35);overflow:hidden;">
                     <div style="background:#0f172a;color:#fff;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
                         <div>
-                            <div style="font-weight:700;font-size:15px;letter-spacing:-.2px;">Utánvét rögzítése</div>
-                            <div style="font-size:12px;color:#94a3b8;margin-top:3px;">${run.date} · ${run.courier || '—'} · ${codOrders.length} utánvétes rendelés</div>
+                            <div style="font-weight:700;font-size:15px;letter-spacing:-.2px;">Terítés rögzítése</div>
+                            <div style="font-size:12px;color:#94a3b8;margin-top:3px;">${run.date} · ${run.courier || '—'} · ${run.orders.length} rendelés${codOrders.length > 0 ? ` · ${codOrders.length} utánvétes` : ''}</div>
                         </div>
                         <button id="sd-close" style="background:rgba(255,255,255,.08);border:none;color:#94a3b8;cursor:pointer;padding:6px;border-radius:10px;display:flex;line-height:1;">
                             <i class="ph-bold ph-x" style="font-size:17px;"></i>
                         </button>
                     </div>
                     <div style="padding:10px 20px 8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0;">
-                        <span style="font-size:12px;color:#64748b;font-weight:600;">Pipáld ki a <strong style="color:#0f172a;">beérkezett</strong> utánvéteket:</span>
+                        <span style="font-size:12px;color:#64748b;font-weight:600;">Pipáld ki az <strong style="color:#0f172a;">átadott</strong> rendeléseket · Utánvéteseknél módosítható az összeg</span>
                     </div>
                     <div style="overflow-y:auto;flex:1;">${rowsHtml}</div>
                     <div style="padding:14px 20px;border-top:2px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;background:#fff;flex-shrink:0;">
                         <div>
-                            <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Beérkezett összeg</div>
+                            <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Beérkezett utánvét</div>
                             <div id="sd-total" style="font-size:22px;font-weight:800;color:#0f172a;line-height:1.2;">${runCOD.toLocaleString('hu-HU')} Ft</div>
                             <div id="sd-missing" style="font-size:12px;font-weight:700;color:#f97316;margin-top:2px;display:none;"></div>
                         </div>
@@ -2051,8 +2129,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const updateTotal = () => {
                 let total = 0;
-                overlay.querySelectorAll('input[type=checkbox]:checked').forEach(cb => {
-                    total += parseInt(cb.getAttribute('data-amount'));
+                overlay.querySelectorAll('.sd-order-row').forEach(row => {
+                    const cb = row.querySelector('input[type=checkbox]');
+                    if (!cb.checked || cb.getAttribute('data-is-cod') !== 'true') return;
+                    const fullAmount   = parseInt(cb.getAttribute('data-amount'));
+                    const partialRow   = row.querySelector('.sd-partial-row');
+                    const partialInput = row.querySelector('.sd-partial-amount');
+                    if (partialRow && partialRow.style.display !== 'none' && partialInput.value !== '') {
+                        total += Math.min(parseInt(partialInput.value) || 0, fullAmount);
+                    } else {
+                        total += fullAmount;
+                    }
                 });
                 overlay.querySelector('#sd-total').textContent = total.toLocaleString('hu-HU') + ' Ft';
                 const missing = runCOD - total;
@@ -2065,10 +2152,98 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
 
-            overlay.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', updateTotal));
+            overlay.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', (e) => {
+                const row    = e.target.closest('.sd-order-row');
+                const isCOD  = cb.getAttribute('data-is-cod') === 'true';
+                const reasonRow = row.querySelector('.sd-reason-row');
+                if (e.target.checked) {
+                    reasonRow.style.display = 'none';
+                    const sel = row.querySelector('.sd-reason-select');
+                    const oth = row.querySelector('.sd-reason-other');
+                    if (sel) sel.value = '';
+                    if (oth) { oth.style.display = 'none'; oth.value = ''; }
+                    if (isCOD) {
+                        const pt = row.querySelector('.sd-partial-toggle');
+                        if (pt) pt.style.display = 'inline-flex';
+                    }
+                } else {
+                    if (isCOD) {
+                        const pr = row.querySelector('.sd-partial-row');
+                        const pt = row.querySelector('.sd-partial-toggle');
+                        if (pr) { pr.style.display = 'none'; row.querySelector('.sd-partial-amount').value = ''; row.querySelector('.sd-partial-comment').value = ''; }
+                        if (pt) pt.style.display = 'none';
+                    }
+                    reasonRow.style.display = 'block';
+                }
+                updateTotal();
+            }));
+
+            // Reason select (Egyéb → szabad szöveg)
+            overlay.querySelectorAll('.sd-reason-select').forEach(sel => sel.addEventListener('change', (e) => {
+                const otherInput = e.target.closest('.sd-order-row').querySelector('.sd-reason-other');
+                otherInput.style.display = e.target.value === 'Egyéb' ? 'inline-block' : 'none';
+                if (e.target.value !== 'Egyéb') otherInput.value = '';
+            }));
+
+            // Részleges toggle
+            overlay.querySelectorAll('.sd-partial-toggle').forEach(btn => btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const row = btn.closest('.sd-order-row');
+                const partialRow = row.querySelector('.sd-partial-row');
+                const isOpen = partialRow.style.display !== 'none';
+                if (isOpen) {
+                    partialRow.style.display = 'none';
+                    row.querySelector('.sd-partial-amount').value = '';
+                    row.querySelector('.sd-partial-comment').value = '';
+                    btn.style.background = '#f8fafc';
+                    btn.style.color = '#64748b';
+                    btn.style.borderColor = '#e2e8f0';
+                    row.querySelector('.sd-full-amount').style.color = '#b91c1c';
+                } else {
+                    partialRow.style.display = 'block';
+                    const cb = row.querySelector('input[type=checkbox]');
+                    const amountInput = row.querySelector('.sd-partial-amount');
+                    if (!amountInput.value) amountInput.value = cb.getAttribute('data-amount');
+                    amountInput.focus();
+                    btn.style.background = '#eff6ff';
+                    btn.style.color = '#1d4ed8';
+                    btn.style.borderColor = '#93c5fd';
+                    row.querySelector('.sd-full-amount').style.color = '#1d4ed8';
+                }
+                updateTotal();
+            }));
+
+            // Részleges összeg változásakor frissítsd a totalt és az összeg spanet
+            overlay.querySelectorAll('.sd-partial-amount').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const row = input.closest('.sd-order-row');
+                    const fullAmount = parseInt(row.querySelector('input[type=checkbox]').getAttribute('data-amount'));
+                    const val = Math.min(parseInt(e.target.value) || 0, fullAmount);
+                    row.querySelector('.sd-full-amount').textContent = (val || fullAmount).toLocaleString('hu-HU') + ' Ft';
+                    updateTotal();
+                });
+            });
+
+            // Mégsem (reset partial)
+            overlay.querySelectorAll('.sd-partial-reset').forEach(btn => btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const row = btn.closest('.sd-order-row');
+                row.querySelector('.sd-partial-row').style.display = 'none';
+                row.querySelector('.sd-partial-amount').value = '';
+                row.querySelector('.sd-partial-comment').value = '';
+                const toggle = row.querySelector('.sd-partial-toggle');
+                toggle.style.background = '#f8fafc';
+                toggle.style.color = '#64748b';
+                toggle.style.borderColor = '#e2e8f0';
+                const fullAmount = parseInt(row.querySelector('input[type=checkbox]').getAttribute('data-amount'));
+                row.querySelector('.sd-full-amount').textContent = fullAmount.toLocaleString('hu-HU') + ' Ft';
+                row.querySelector('.sd-full-amount').style.color = '#b91c1c';
+                updateTotal();
+            }));
+
+            updateTotal(); // init (pre-fill esetén)
 
             const cleanup = () => overlay.remove();
-
             overlay.querySelector('#sd-close').addEventListener('click', () => { cleanup(); resolve(null); });
             overlay.querySelector('#sd-cancel').addEventListener('click', () => { cleanup(); resolve(null); });
             overlay.addEventListener('click', (e) => { if (e.target === overlay) { cleanup(); resolve(null); } });
@@ -2076,15 +2251,40 @@ document.addEventListener('DOMContentLoaded', () => {
             overlay.querySelector('#sd-save').addEventListener('click', () => {
                 let settledAmount = 0;
                 const uncollectedOrderIds = [];
-                overlay.querySelectorAll('input[type=checkbox]').forEach(cb => {
+                const uncollectedReasons  = {};
+                const partialOrders       = {};
+
+                overlay.querySelectorAll('.sd-order-row').forEach(row => {
+                    const cb      = row.querySelector('input[type=checkbox]');
+                    const orderId = cb.getAttribute('data-order-id');
+                    const isCOD   = cb.getAttribute('data-is-cod') === 'true';
+
                     if (cb.checked) {
-                        settledAmount += parseInt(cb.getAttribute('data-amount'));
+                        if (isCOD) {
+                            const fullAmount   = parseInt(cb.getAttribute('data-amount'));
+                            const partialRow   = row.querySelector('.sd-partial-row');
+                            const partialInput = row.querySelector('.sd-partial-amount');
+                            if (partialRow && partialRow.style.display !== 'none' && partialInput.value !== '') {
+                                const partialAmount = Math.min(parseInt(partialInput.value) || 0, fullAmount);
+                                const comment = row.querySelector('.sd-partial-comment').value.trim();
+                                settledAmount += partialAmount;
+                                partialOrders[orderId] = { amount: partialAmount, comment };
+                            } else {
+                                settledAmount += fullAmount;
+                            }
+                        }
                     } else {
-                        uncollectedOrderIds.push(cb.getAttribute('data-order-id'));
+                        uncollectedOrderIds.push(orderId);
+                        const sel   = row.querySelector('.sd-reason-select');
+                        const other = row.querySelector('.sd-reason-other');
+                        if (sel) {
+                            const reason = sel.value === 'Egyéb' ? (other.value.trim() || 'Egyéb') : sel.value;
+                            if (reason) uncollectedReasons[orderId] = reason;
+                        }
                     }
                 });
                 cleanup();
-                resolve({ settledAmount, uncollectedOrderIds });
+                resolve({ settledAmount, uncollectedOrderIds, uncollectedReasons, partialOrders });
             });
         });
     }
@@ -2161,17 +2361,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         ? `<span style="font-size:10px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:1px 7px;">~${run.settledAmount.toLocaleString('hu-HU')} / ${runCOD.toLocaleString('hu-HU')} Ft</span>`
                         : '';
 
-                const uncollected = run.uncollectedOrderIds || [];
+                const uncollected    = run.uncollectedOrderIds || [];
+                const reasons        = run.uncollectedReasons || {};
+                const partialOrders  = run.partialOrders || {};
                 const orderChips = run.orders.map(o => {
-                    const isUncollected = o.isCOD && uncollected.includes(o.id);
+                    const isUncollected = uncollected.includes(o.id);
+                    const partialInfo   = o.isCOD && !isUncollected ? partialOrders[o.id] : null;
+                    const reasonText    = isUncollected && reasons[o.id] ? ` · ${reasons[o.id]}` : '';
                     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f1f5f9;${isUncollected ? 'opacity:.55;' : ''}">
                         <span style="font-size:12px;font-weight:700;color:#374151;min-width:90px;${isUncollected ? 'text-decoration:line-through;' : ''}">${o.id}</span>
                         <span style="font-size:12px;color:#64748b;flex:1;">${o.shippingName || '—'}</span>
                         ${o.isCOD
                             ? isUncollected
-                                ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem érkezett</span>`
-                                : `<span style="font-size:11px;font-weight:700;color:#b91c1c;">${o.codAmount.toLocaleString('hu-HU')} Ft</span>`
-                            : '<span style="font-size:11px;color:#94a3b8;">fizetve</span>'}
+                                ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem érkezett<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
+                                : partialInfo
+                                    ? `<span style="font-size:11px;font-weight:700;color:#1d4ed8;">~${partialInfo.amount.toLocaleString('hu-HU')} Ft<span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft${partialInfo.comment ? ' · ' + partialInfo.comment : ''}</span></span>`
+                                    : `<span style="font-size:11px;font-weight:700;color:#b91c1c;">${o.codAmount.toLocaleString('hu-HU')} Ft</span>`
+                            : isUncollected
+                                ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem lett átadva<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
+                                : '<span style="font-size:11px;color:#94a3b8;">átadva</span>'}
                     </div>`;
                 }).join('');
 
@@ -2183,9 +2391,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             <i class="ph-bold ph-check" style="font-size:16px;"></i>
                         </button>
                         <div style="flex:1;min-width:0;">
-                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap;">
                                 <span style="font-size:14px;font-weight:700;color:#0f172a;">${run.date}</span>
                                 ${statusBadge}
+                                ${uncollected.length > 0 ? `<span style="font-size:10px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:1px 7px;"><i class="ph-bold ph-warning" style="font-size:9px;"></i> ${uncollected.length} kiesett</span>` : ''}
                             </div>
                             <div class="hac-meta">
                                 <i class="ph-bold ph-user" style="font-size:11px;color:#374151;"></i>
@@ -2199,6 +2408,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button class="hac-btn-action hac-btn-ghost btn-print-summary" data-id="${run.id}" style="font-size:12px;">
                                 <i class="ph-bold ph-printer" style="font-size:12px;"></i>
                             </button>
+                            ${(run.isSettled || isPartial) ? `<button class="hac-btn-action hac-btn-ghost btn-modify-settlement" data-doc-id="${run.docId}" data-run-id="${run.id}" title="Elszámolás módosítása" style="font-size:12px;">
+                                <i class="ph-bold ph-pencil-simple" style="font-size:12px;"></i>
+                            </button>` : ''}
+                            ${(run.isSettled || isPartial || uncollected.length > 0) ? `<button class="hac-btn-action btn-nullify-settlement" data-doc-id="${run.docId}" data-run-id="${run.id}" title="Visszavonás" style="font-size:11px;font-weight:700;color:#dc2626;background:#fee2e2;border:1.5px solid #fca5a5;border-radius:8px;padding:4px 9px;cursor:pointer;font-family:inherit;flex-shrink:0;">
+                                <i class="ph-bold ph-x-circle" style="font-size:11px;"></i> Visszavonás
+                            </button>` : ''}
                             <button class="acc-expand-btn" style="background:none;border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 8px;cursor:pointer;color:#64748b;display:flex;align-items:center;transition:all .2s;" title="Rendelések mutatása">
                                 <i class="ph-bold ph-caret-down" style="font-size:13px;transition:transform .2s;"></i>
                             </button>
@@ -2233,7 +2448,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!run) return;
                 const result = await showSettlementDialog(run, totalCOD);
                 if (result === null) return;
-                if (await HistoryManager.updateSettlementStatus(docId, result.settledAmount, totalCOD, result.uncollectedOrderIds)) renderAccountingRuns();
+                if (await HistoryManager.updateSettlementStatus(docId, result.settledAmount, totalCOD, result.uncollectedOrderIds, result.uncollectedReasons, result.partialOrders)) renderAccountingRuns();
             });
         });
 
@@ -2243,6 +2458,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ok = await CustomDialog.confirm('Visszaállítás függőbe?\nAz elszámolási adat törlődik.');
                 if (!ok) return;
                 if (await HistoryManager.revertToPending(docId)) renderAccountingRuns();
+            });
+        });
+
+        accountingRunsContainer.querySelectorAll('.btn-nullify-settlement').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const button = e.target.closest('button');
+                const docId  = button.getAttribute('data-doc-id');
+                const ok = await CustomDialog.confirm('Visszavonás?\nAz elszámolás törlődik, a kör függőbe kerül.');
+                if (!ok) return;
+                if (await HistoryManager.revertToPending(docId)) renderAccountingRuns();
+            });
+        });
+
+        accountingRunsContainer.querySelectorAll('.btn-modify-settlement').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const button = e.target.closest('button');
+                const docId = button.getAttribute('data-doc-id');
+                const runId = button.getAttribute('data-run-id');
+                const card = button.closest('.acc-run-card');
+                const totalCOD = parseInt(card.getAttribute('data-total-cod'));
+                const run = await HistoryManager.getRunById(runId);
+                if (!run) return;
+                const existingState = {
+                    uncollectedOrderIds: run.uncollectedOrderIds || [],
+                    uncollectedReasons: run.uncollectedReasons || {},
+                    partialOrders: run.partialOrders || {}
+                };
+                const result = await showSettlementDialog(run, totalCOD, existingState);
+                if (result === null) return;
+                if (await HistoryManager.updateSettlementStatus(docId, result.settledAmount, totalCOD, result.uncollectedOrderIds, result.uncollectedReasons, result.partialOrders)) renderAccountingRuns();
             });
         });
 
@@ -2283,15 +2528,15 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const makeSection = (title, icon, contentHtml) => {
+        const makeSection = (title, icon, contentHtml, fullWidth = false) => {
             const el = document.createElement('div');
-            el.style.cssText = 'border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;';
+            el.style.cssText = `border-radius:14px;overflow:hidden;border:1px solid #e2e8f0;display:flex;flex-direction:column;${fullWidth ? 'grid-column:1/-1;' : ''}`;
             el.innerHTML = `
-                <div style="background:#0f172a;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px;">
-                    <i class="ph-bold ${icon}" style="font-size:15px;color:#94a3b8;"></i>
-                    <span style="font-weight:700;font-size:14px;letter-spacing:-.2px;">${title}</span>
+                <div style="background:#0f172a;color:#fff;padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                    <i class="ph-bold ${icon}" style="font-size:14px;color:#94a3b8;"></i>
+                    <span style="font-weight:700;font-size:13px;letter-spacing:-.2px;">${title}</span>
                 </div>
-                <div style="padding:14px 18px;background:#fff;">${contentHtml}</div>`;
+                <div style="padding:12px 14px;background:#fff;flex:1;">${contentHtml}</div>`;
             return el;
         };
 
@@ -2301,34 +2546,113 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="background:${color};height:7px;width:${pct}%;border-radius:4px;"></div></div>`;
         };
 
+        const makeCollapsible = (rowsArr, label, visible = 5) => {
+            if (rowsArr.length <= visible) return rowsArr.join('');
+            const uid = 'sc' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+            const remaining = rowsArr.length - visible;
+            return rowsArr.slice(0, visible).join('') +
+                `<div id="${uid}" style="display:none;">${rowsArr.slice(visible).join('')}</div>
+                 <button class="stats-expand-btn" data-target="${uid}" data-remaining="${remaining}" data-label="${label}"
+                     style="margin-top:10px;width:100%;font-size:12px;font-weight:600;color:#3b82f6;background:#f8fafc;border:1px solid #dbeafe;border-radius:8px;cursor:pointer;padding:7px 14px;font-family:inherit;text-align:center;">
+                     + ${remaining} további ${label}
+                 </button>`;
+        };
+
+        // ── Cross-run recovery lookup ─────────────────────────────────
+        // Ha egy kiesett rendelés egy LATER körben sikeresen elszámolásra kerül,
+        // ne számítson örök kiesésnek a statisztikában.
+        const successCollected = new Map();
+        runs.forEach(r => {
+            if (!r.isSettled && !(r.settledAmount > 0)) return;
+            const uncollSet = new Set(r.uncollectedOrderIds || []);
+            (r.orders || []).forEach(o => {
+                if (o.isCOD && !uncollSet.has(o.id)) {
+                    if (!successCollected.has(o.id)) successCollected.set(o.id, []);
+                    successCollected.get(o.id).push(r.date);
+                }
+            });
+        });
+        const recoveredSet = new Set();
+        runs.forEach((r, rIdx) => {
+            (r.uncollectedOrderIds || []).forEach(orderId => {
+                const laterDates = (successCollected.get(orderId) || []).filter(d => d > r.date);
+                if (laterDates.length > 0) recoveredSet.add(`${rIdx}::${orderId}`);
+            });
+        });
+        const getRecoveredCOD = (r, rIdx) =>
+            (r.uncollectedOrderIds || []).reduce((sum, id) => {
+                if (!recoveredSet.has(`${rIdx}::${id}`)) return sum;
+                const o = (r.orders || []).find(x => x.id === id);
+                return sum + (o && o.isCOD ? (o.codAmount || 0) : 0);
+            }, 0);
+
         // ── 1. Szállítói összesítő ──────────────────────────────────────
         const courierMap = {};
-        runs.forEach(r => {
+        runs.forEach((r, rIdx) => {
             const c = r.courier || '—';
-            if (!courierMap[c]) courierMap[c] = { runs: 0, orders: 0, cod: 0, uncollected: 0 };
+            if (!courierMap[c]) courierMap[c] = { runs: 0, orders: 0, cod: 0, uncollected: 0, recovered: 0, uncollectedDetails: [] };
             courierMap[c].runs++;
             r.orders.forEach(o => {
                 courierMap[c].orders++;
                 if (o.isCOD) courierMap[c].cod += o.codAmount;
             });
+            const runReasons  = r.uncollectedReasons || {};
+            const runPartials = r.partialOrders || {};
             (r.uncollectedOrderIds || []).forEach(id => {
                 const o = r.orders.find(x => x.id === id);
-                if (o && o.isCOD) courierMap[c].uncollected += o.codAmount;
+                if (!o || !o.isCOD) return;
+                if (recoveredSet.has(`${rIdx}::${id}`)) {
+                    courierMap[c].recovered += o.codAmount;
+                } else {
+                    courierMap[c].uncollected += o.codAmount;
+                    courierMap[c].uncollectedDetails.push({
+                        id, name: o.shippingName || '—', codAmount: o.codAmount,
+                        reason: runReasons[id] || '', date: r.date || '—', isPartial: false
+                    });
+                }
+            });
+            Object.entries(runPartials).forEach(([id, info]) => {
+                const o = r.orders.find(x => x.id === id);
+                if (!o || !o.isCOD) return;
+                const diff = o.codAmount - (info.amount || 0);
+                if (diff <= 0) return;
+                courierMap[c].uncollected += diff;
+                courierMap[c].uncollectedDetails.push({
+                    id, name: o.shippingName || '—', codAmount: diff,
+                    reason: info.comment || '', date: r.date || '—',
+                    isPartial: true, fullAmount: o.codAmount, partialAmount: info.amount
+                });
             });
         });
 
         const courierRows = Object.entries(courierMap)
             .sort((a, b) => b[1].orders - a[1].orders)
-            .map(([name, d]) => `
-                <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;">
-                    <span style="font-size:13px;font-weight:700;color:#0f172a;min-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>
-                    <span style="font-size:12px;color:#64748b;min-width:70px;">${d.runs} terítés</span>
-                    <span style="font-size:12px;color:#64748b;min-width:80px;">${d.orders} rendelés</span>
-                    <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:110px;">${d.cod.toLocaleString('hu-HU')} Ft COD</span>
-                    ${d.uncollected > 0 ? `<span style="font-size:11px;font-weight:700;color:#f97316;">−${d.uncollected.toLocaleString('hu-HU')} Ft kiesett</span>` : ''}
-                </div>`).join('');
+            .map(([name, d]) => {
+                const detailHtml = d.uncollectedDetails.map(det => `
+                    <div style="display:flex;align-items:center;gap:8px;padding:4px 12px;font-size:12px;flex-wrap:wrap;">
+                        <span style="font-weight:700;color:#0f172a;min-width:90px;">${det.id}</span>
+                        <span style="color:#64748b;flex:1;min-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${det.name}</span>
+                        <span style="color:#94a3b8;min-width:82px;">${det.date}</span>
+                        ${det.isPartial
+                            ? `<span style="font-size:10px;font-weight:700;color:#1d4ed8;background:#eff6ff;border-radius:5px;padding:1px 5px;">Részleges</span><span style="font-weight:700;color:#b91c1c;">−${det.codAmount.toLocaleString('hu-HU')} Ft</span>`
+                            : `<span style="font-weight:700;color:#b91c1c;min-width:75px;">${det.codAmount.toLocaleString('hu-HU')} Ft</span>`}
+                        <span style="font-size:11px;color:#64748b;background:#f1f5f9;border-radius:6px;padding:2px 7px;">${det.reason || 'ok nélkül'}</span>
+                    </div>`).join('');
+                return `
+                <div class="stat-courier-wrapper" style="border-bottom:1px solid #f1f5f9;">
+                    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;flex-wrap:wrap;">
+                        <span style="font-size:13px;font-weight:700;color:#0f172a;min-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>
+                        <span style="font-size:12px;color:#64748b;min-width:70px;">${d.runs} terítés</span>
+                        <span style="font-size:12px;color:#64748b;min-width:80px;">${d.orders} rendelés</span>
+                        <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:110px;">${d.cod.toLocaleString('hu-HU')} Ft COD</span>
+                        ${d.uncollected > 0 ? `<span class="courier-kiesett-toggle" style="font-size:11px;font-weight:700;color:#f97316;cursor:pointer;display:inline-flex;align-items:center;gap:3px;user-select:none;">−${d.uncollected.toLocaleString('hu-HU')} Ft kiesett<i class="ph-bold ph-caret-down toggle-chevron" style="font-size:10px;transition:transform .2s;"></i></span>` : ''}
+                        ${d.recovered  > 0 ? `<span style="font-size:11px;color:#64748b;">↩ ${d.recovered.toLocaleString('hu-HU')} Ft utólag beérkezett</span>` : ''}
+                    </div>
+                    ${d.uncollected > 0 ? `<div class="courier-kiesett-detail" style="display:none;padding:4px 0 8px;background:#fffbeb;border-top:1px dashed #fed7aa;border-radius:0 0 6px 6px;">${detailHtml}</div>` : ''}
+                </div>`;
+            }).join('');
 
-        statsRunsContainer.appendChild(makeSection('Szállítói összesítő', 'ph-user',
+        const courierSection = makeSection('Szállítói összesítő', 'ph-user',
             `<div style="display:flex;gap:10px;padding-bottom:7px;border-bottom:2px solid #f1f5f9;margin-bottom:2px;">
                 <span style="font-size:10px;font-weight:700;color:#94a3b8;min-width:130px;">SZÁLLÍTÓ</span>
                 <span style="font-size:10px;font-weight:700;color:#94a3b8;min-width:70px;">TERÍTÉS</span>
@@ -2336,7 +2660,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span style="font-size:10px;font-weight:700;color:#94a3b8;min-width:110px;">COD ÖSSZEG</span>
                 <span style="font-size:10px;font-weight:700;color:#94a3b8;">KIESETT</span>
             </div>${courierRows}`
-        ));
+        , true);
+        statsRunsContainer.appendChild(courierSection);
+        courierSection.querySelectorAll('.courier-kiesett-toggle').forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                const wrapper = toggle.closest('.stat-courier-wrapper');
+                const detail = wrapper.querySelector('.courier-kiesett-detail');
+                const chevron = toggle.querySelector('.toggle-chevron');
+                const isOpen = detail.style.display !== 'none';
+                detail.style.display = isOpen ? 'none' : 'block';
+                chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+            });
+        });
 
         // ── 2. Havi forgalom ───────────────────────────────────────────
         const monthMap = {};
@@ -2364,17 +2699,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // ── 3. Havi utánvét volumen ────────────────────────────────────
         const codMonthMap = {};
-        runs.forEach(r => {
+        runs.forEach((r, rIdx) => {
             if (!r.date) return;
             const m = r.date.substring(0, 7);
-            if (!codMonthMap[m]) codMonthMap[m] = { total: 0, received: 0, uncollected: 0, pending: 0 };
+            if (!codMonthMap[m]) codMonthMap[m] = { total: 0, received: 0, uncollected: 0, pending: 0, recovered: 0 };
             let runCOD = 0;
             r.orders.forEach(o => { if (o.isCOD) runCOD += o.codAmount; });
             codMonthMap[m].total += runCOD;
             if (r.isSettled || r.settledAmount > 0) {
                 const recv = r.settledAmount || 0;
-                codMonthMap[m].received   += recv;
-                codMonthMap[m].uncollected += runCOD - recv;
+                const recoveredCOD = getRecoveredCOD(r, rIdx);
+                codMonthMap[m].received    += recv;
+                codMonthMap[m].uncollected += (runCOD - recv) - recoveredCOD;
+                codMonthMap[m].recovered   += recoveredCOD;
             } else {
                 codMonthMap[m].pending += runCOD;
             }
@@ -2395,6 +2732,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span style="font-size:13px;font-weight:800;color:#0f172a;">${d.total.toLocaleString('hu-HU')} Ft</span>
                         ${d.received    > 0 ? `<span style="font-size:11px;font-weight:700;color:#22c55e;">✓ ${d.received.toLocaleString('hu-HU')} Ft</span>` : ''}
                         ${d.uncollected > 0 ? `<span style="font-size:11px;font-weight:700;color:#f97316;">~ ${d.uncollected.toLocaleString('hu-HU')} Ft kiesett</span>` : ''}
+                        ${d.recovered   > 0 ? `<span style="font-size:11px;color:#64748b;">↩ ${d.recovered.toLocaleString('hu-HU')} Ft utólag beérkezett</span>` : ''}
                         ${d.pending     > 0 ? `<span style="font-size:11px;color:#94a3b8;">${d.pending.toLocaleString('hu-HU')} Ft függőben</span>` : ''}
                     </div>
                     <div style="display:flex;height:7px;border-radius:4px;overflow:hidden;background:#f1f5f9;">
@@ -2416,19 +2754,19 @@ document.addEventListener('DOMContentLoaded', () => {
             itemMap[it.name] = (itemMap[it.name] || 0) + (it.qty || 1);
         })));
 
-        const topItems = Object.entries(itemMap).sort((a, b) => b[1] - a[1]).slice(0, 15);
+        const topItems = Object.entries(itemMap).sort((a, b) => b[1] - a[1]);
         const maxQty = topItems.length > 0 ? topItems[0][1] : 1;
-        const itemRows = topItems.map(([name, qty], i) => `
+        const itemRows = makeCollapsible(topItems.map(([name, qty], i) => `
             <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f1f5f9;">
                 <span style="font-size:12px;font-weight:700;color:#94a3b8;min-width:22px;text-align:right;">${i + 1}.</span>
                 <span style="font-size:13px;color:#374151;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>
                 <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:45px;text-align:right;">${qty} db</span>
                 ${makeBar(qty, maxQty, '#6366f1')}
-            </div>`).join('');
+            </div>`), 'termék');
 
         statsRunsContainer.appendChild(makeSection('Top szállított termékek', 'ph-package',
             itemRows || '<p style="color:#94a3b8;font-size:13px;">Nincs termékadat</p>'
-        ));
+        , true));
 
         // ── 5. Területi sűrűség (térkép) ──────────────────────────────
         const HU_ZIP = {
@@ -2522,44 +2860,48 @@ document.addEventListener('DOMContentLoaded', () => {
             const key = isBp ? '__budapest__' : zip;
             const label = isBp ? 'Budapest' : city;
             const coords = isBp ? BUDAPEST_COORDS : null;
-            if (!zipMap[key]) zipMap[key] = { count: 0, label, zip: key, coords };
+            if (!zipMap[key]) zipMap[key] = { count: 0, label, zip: key, coords, orderIds: [] };
             zipMap[key].count++;
+            zipMap[key].orderIds.push(o.id);
         }));
 
         const sortedLocs = Object.values(zipMap).sort((a, b) => b.count - a.count);
         const maxLocCount = sortedLocs.length > 0 ? sortedLocs[0].count : 1;
 
         const mapSectionEl = document.createElement('div');
-        mapSectionEl.style.cssText = 'border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;';
+        mapSectionEl.style.cssText = 'border-radius:14px;overflow:hidden;border:1px solid #e2e8f0;grid-column:1/-1;display:flex;flex-direction:column;';
         mapSectionEl.innerHTML = `
-            <div style="background:#0f172a;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px;">
-                <i class="ph-bold ph-map-pin" style="font-size:15px;color:#94a3b8;"></i>
-                <span style="font-weight:700;font-size:14px;letter-spacing:-.2px;">Területi sűrűség</span>
+            <div style="background:#0f172a;color:#fff;padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                <i class="ph-bold ph-map-pin" style="font-size:14px;color:#94a3b8;"></i>
+                <span style="font-weight:700;font-size:13px;letter-spacing:-.2px;">Területi sűrűség</span>
                 <span id="stats-map-status" style="font-size:11px;color:#64748b;margin-left:auto;"></span>
             </div>
-            <div style="padding:14px 18px;background:#fff;">
-                <div id="stats-map-leaflet" style="height:360px;border-radius:12px;overflow:hidden;margin-bottom:14px;border:1px solid #e2e8f0;"></div>
+            <div style="padding:12px 14px;background:#fff;flex:1;">
+                <div id="stats-map-leaflet" style="height:460px;border-radius:10px;overflow:hidden;margin-bottom:12px;border:1px solid #e2e8f0;"></div>
                 <div id="stats-location-list"></div>
             </div>`;
         statsRunsContainer.appendChild(mapSectionEl);
 
         // Leaflet init
-        statsLeafletMap = L.map('stats-map-leaflet', { zoomControl: true, scrollWheelZoom: true })
-            .setView([47.18, 19.50], 7);
+        statsLeafletMap = L.map('stats-map-leaflet', { zoomControl: true, scrollWheelZoom: false });
+        statsLeafletMap.fitBounds([[45.7, 16.1], [48.6, 22.9]]);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
             attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> © <a href="https://carto.com">CARTO</a>',
             subdomains: 'abcd', maxZoom: 19
         }).addTo(statsLeafletMap);
 
-        // Helyszínlista renderelése (szöveges)
+        // Helyszínlista renderelése (szöveges, lenyitható)
         const locListEl = document.getElementById('stats-location-list');
-        locListEl.innerHTML = sortedLocs.slice(0, 25).map((loc, i) => `
+        const locRowsArr = sortedLocs.map((loc, i) => `
             <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f1f5f9;">
                 <span style="font-size:12px;font-weight:700;color:#94a3b8;min-width:22px;text-align:right;">${i + 1}.</span>
                 <span style="font-size:13px;color:#374151;flex:1;">${loc.label}</span>
                 <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:60px;text-align:right;">${loc.count} rend.</span>
                 ${makeBar(loc.count, maxLocCount, '#3b82f6')}
-            </div>`).join('') || '<p style="color:#94a3b8;font-size:13px;">Nincs cím adat</p>';
+            </div>`);
+        locListEl.innerHTML = locRowsArr.length > 0
+            ? makeCollapsible(locRowsArr, 'helyszín')
+            : '<p style="color:#94a3b8;font-size:13px;">Nincs cím adat</p>';
 
         // Markerek: kis tömör pontok, méret sqrt-skálán
         const addMarker = (coords, loc) => {
@@ -2567,8 +2909,19 @@ document.addEventListener('DOMContentLoaded', () => {
             L.circleMarker(coords, {
                 radius: r, fillColor: '#1d4ed8', color: '#fff',
                 weight: 1, opacity: 1, fillOpacity: 0.85
-            }).bindTooltip(`<strong>${loc.label}</strong><br>${loc.count} rendelés`, { sticky: true })
-              .addTo(statsLeafletMap);
+            }).bindTooltip(() => {
+                const ids = (loc.orderIds || []).slice().sort((a, b) =>
+                    parseInt(a.replace(/\D/g, '') || '0') - parseInt(b.replace(/\D/g, '') || '0')
+                );
+                const cols  = ids.length <= 5 ? 1 : ids.length <= 14 ? 2 : 3;
+                const maxW  = cols === 1 ? 130 : cols === 2 ? 210 : 300;
+                const idGrid = ids.length > 0
+                    ? `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:3px 12px;margin-top:6px;max-width:${maxW}px;">
+                           ${ids.map(id => `<span style="font-size:11px;font-weight:600;color:#1d4ed8;white-space:nowrap;">${id}</span>`).join('')}
+                       </div>`
+                    : '';
+                return `<div style="padding:2px 0;"><strong style="font-size:13px;">${loc.label}</strong> <span style="font-size:12px;color:#64748b;">· ${loc.count} rendelés</span>${idGrid}</div>`;
+            }, { direction: 'top', offset: [0, -r - 2], opacity: 1 }).addTo(statsLeafletMap);
         };
 
         const unknown = [];
@@ -2617,28 +2970,126 @@ document.addEventListener('DOMContentLoaded', () => {
             })();
         }
 
-        // ── 6. Többször szállított rendelések ─────────────────────────
-        const orderRunsMap = {};
-        runs.forEach(r => r.orders.forEach(o => {
-            if (!orderRunsMap[o.id]) orderRunsMap[o.id] = [];
-            orderRunsMap[o.id].push({ runDate: r.date, courier: r.courier });
-        }));
+        // ── 6+7. Kiesett rendelések (újraszállítás infóval) ───────────
+        // Minden rendelés összes megjelenése: orderId → [{date, courier, isUncollected, isPartial, wasReceived}]
+        const orderRunsMap = new Map();
+        runs.forEach(r => {
+            const rUnc  = new Set(r.uncollectedOrderIds || []);
+            const rPart = r.partialOrders || {};
+            const settled = r.isSettled || (r.settledAmount > 0);
+            r.orders.forEach(o => {
+                if (!orderRunsMap.has(o.id)) orderRunsMap.set(o.id, []);
+                const isUnc  = rUnc.has(o.id);
+                const isPart = !!rPart[o.id];
+                orderRunsMap.get(o.id).push({
+                    date: r.date, courier: r.courier,
+                    isUncollected: isUnc, isPartial: isPart,
+                    wasReceived: !isUnc && !isPart && settled,
+                    wasPartialReceived: isPart && settled,
+                });
+            });
+        });
 
-        const multiRows = Object.entries(orderRunsMap)
-            .filter(([, list]) => list.length > 1)
-            .sort((a, b) => b[1].length - a[1].length)
-            .map(([orderId, list]) => `
-                <div style="padding:9px 0;border-bottom:1px solid #f1f5f9;">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
-                        <span style="font-size:13px;font-weight:700;color:#0f172a;">${orderId}</span>
-                        <span style="font-size:11px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:1px 7px;">${list.length}× szállítva</span>
+        const kiesettRows = [];
+        runs.forEach(r => {
+            const runReasons  = r.uncollectedReasons || {};
+            const runPartials = r.partialOrders || {};
+            (r.uncollectedOrderIds || []).forEach(id => {
+                const o = (r.orders || []).find(x => x.id === id);
+                const laterEntries = (orderRunsMap.get(id) || []).filter(e => e.date > (r.date || ''));
+                kiesettRows.push({
+                    id, isPartial: false, isCOD: !!(o && o.isCOD),
+                    name: o ? (o.shippingName || '—') : '—',
+                    date: r.date || '—', courier: r.courier || '—',
+                    codAmount: o && o.isCOD ? (o.codAmount || 0) : 0,
+                    reason: runReasons[id] || '',
+                    laterEntries,
+                });
+            });
+            Object.entries(runPartials).forEach(([id, info]) => {
+                const o = (r.orders || []).find(x => x.id === id);
+                if (!o || !o.isCOD) return;
+                const diff = o.codAmount - (info.amount || 0);
+                if (diff <= 0) return;
+                const laterEntries = (orderRunsMap.get(id) || []).filter(e => e.date > (r.date || ''));
+                kiesettRows.push({
+                    id, isPartial: true, isCOD: true,
+                    name: o.shippingName || '—',
+                    date: r.date || '—', courier: r.courier || '—',
+                    codAmount: diff, fullAmount: o.codAmount, partialAmount: info.amount,
+                    reason: info.comment || '',
+                    laterEntries,
+                });
+            });
+        });
+        kiesettRows.sort((a, b) => {
+            const aRec = (a.laterEntries || []).some(e => e.wasReceived || e.wasPartialReceived) ? 1 : 0;
+            const bRec = (b.laterEntries || []).some(e => e.wasReceived || e.wasPartialReceived) ? 1 : 0;
+            if (aRec !== bRec) return aRec - bRec;
+            return b.date.localeCompare(a.date);
+        });
+
+        const renderLaterEntries = (entries) => {
+            if (!entries || entries.length === 0) return '';
+            const redeliveries = entries.filter(e => e.date);
+            if (redeliveries.length === 0) return '';
+            const last = redeliveries[redeliveries.length - 1];
+            const outcome = last.isUncollected
+                ? `<span style="font-size:10px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;padding:1px 6px;">ismét kiesett</span>`
+                : last.wasReceived || last.wasPartialReceived
+                    ? `<span style="font-size:10px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:1px 6px;">átvéve ✓</span>`
+                    : `<span style="font-size:10px;color:#94a3b8;background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;">függőben</span>`;
+            return `<div style="margin-top:4px;padding-left:14px;border-left:2px solid #e2e8f0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span style="font-size:11px;color:#94a3b8;">↳</span>
+                <span style="font-size:11px;font-weight:600;color:#64748b;">${redeliveries.length}× újra szállítva</span>
+                <span style="font-size:11px;color:#94a3b8;">·</span>
+                <span style="font-size:11px;color:#64748b;">${last.date} · ${last.courier || '—'}</span>
+                ${outcome}
+            </div>`;
+        };
+
+        const kiesettHtml = makeCollapsible(kiesettRows.map(k => {
+            const isRecovered = k.laterEntries && k.laterEntries.some(e => e.wasReceived || e.wasPartialReceived);
+            const amtColor = isRecovered ? '#94a3b8' : '#b91c1c';
+            return `
+            <div style="padding:8px 0;border-bottom:1px solid #f1f5f9;">
+                <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+                    <span style="font-size:12px;font-weight:700;color:#0f172a;width:70px;flex-shrink:0;">${k.id}</span>
+                    <span style="font-size:12px;color:#64748b;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${k.name}</span>
+                    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
+                        <span style="font-size:11px;color:#94a3b8;">${k.date}</span>
+                        <span style="font-size:11px;color:#374151;">${k.courier}</span>
+                        ${!k.isCOD
+                            ? `<span style="font-size:10px;color:#64748b;background:#f1f5f9;border-radius:5px;padding:1px 6px;">Nem utánvétes</span>`
+                            : k.isPartial
+                                ? `<span style="font-size:10px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #93c5fd;border-radius:5px;padding:1px 6px;">Részleges</span>
+                                   <span style="font-size:12px;font-weight:700;color:${amtColor};">−${k.codAmount.toLocaleString('hu-HU')} Ft</span>`
+                                : k.codAmount > 0
+                                    ? `<span style="font-size:12px;font-weight:700;color:${amtColor};">${k.codAmount.toLocaleString('hu-HU')} Ft</span>`
+                                    : ''}
+                        ${k.reason ? `<span style="font-size:11px;color:#64748b;background:#f1f5f9;border-radius:5px;padding:2px 7px;">${k.reason}</span>` : ''}
                     </div>
-                    <div style="font-size:12px;color:#64748b;">${list.map(x => `${x.runDate} · ${x.courier || '—'}`).join(' → ')}</div>
-                </div>`).join('');
+                </div>
+                ${renderLaterEntries(k.laterEntries)}
+            </div>`;
+        }), 'rendelés');
 
-        statsRunsContainer.appendChild(makeSection('Többször szállított rendelések', 'ph-arrows-clockwise',
-            multiRows || '<p style="color:#64748b;font-size:13px;">Nincs többször szállított rendelés.</p>'
-        ));
+        statsRunsContainer.appendChild(makeSection('Kiesett rendelések', 'ph-warning',
+            kiesettRows.length > 0 ? kiesettHtml : '<p style="color:#94a3b8;font-size:13px;">Nincs kiesett rendelés a kiválasztott időszakban.</p>'
+        , true));
+
+        // Expand/collapse eseménykezelő a lenyitható szekciókhoz
+        statsRunsContainer.querySelectorAll('.stats-expand-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const el = document.getElementById(btn.dataset.target);
+                if (!el) return;
+                const isOpen = el.style.display !== 'none';
+                el.style.display = isOpen ? 'none' : '';
+                btn.textContent = isOpen
+                    ? `+ ${btn.dataset.remaining} további ${btn.dataset.label}`
+                    : 'Kevesebb mutatása';
+            });
+        });
     }
 
     async function ignoreDelayInFirestore(docId, orderId) {
