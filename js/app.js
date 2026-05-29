@@ -1,6 +1,6 @@
-import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, query, orderBy, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from './firebase-config.js';
+import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, query, orderBy, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from './firebase-config.js?v=39';
 
-document.addEventListener('DOMContentLoaded', () => {
+function initApp() {
     console.log("KOPJ Rendszer: app.js elindult");
 
     // --- GLOBÁLIS HIBAJELZŐ ---
@@ -234,10 +234,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let sortableInstance = null;
     let sortModeActive = false;
     let currentLoadedRunId = null;
+    let originalLoadedRun = null;
     let editingOrderInternalId = null;
     let mergeSelectionMode = false;
     const selectedForMerge = new Set();
     let statsLeafletMap = null;
+    let activeStatsTab = 'charts';
     const geoCache = JSON.parse(localStorage.getItem('hu_zip_geocache_v1') || '{}');
 
     // --- HistoryManager (Előzmények kezelése Firestore-al) ---
@@ -413,21 +415,63 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        updateSettlementStatus: async function(docId, settledAmount, totalCOD, uncollectedOrderIds = [], uncollectedReasons = {}, partialOrders = {}) {
+        updateSettlementStatus: async function(docId, settledAmount, totalCOD, uncollectedOrderIds = [], uncollectedReasons = {}, partialOrders = {}, bankTransferredOrderIds = [], uncollectedResponsibility = {}) {
             try {
-                const isSettled = settledAmount >= totalCOD;
                 const docRef = doc(db, this.COLLECTION_NAME, docId);
+                const docSnap = await getDoc(docRef);
+                let isSettled = false;
+                if (docSnap.exists()) {
+                    const runData = docSnap.data();
+                    const ordersList = runData.orders || [];
+                    
+                    let bankTransferredSum = 0;
+                    let uncollectedSum = 0;
+                    let partialDiffs = 0;
+                    
+                    ordersList.forEach(o => {
+                        if (o.isCOD) {
+                            if (bankTransferredOrderIds.includes(o.id)) {
+                                bankTransferredSum += o.codAmount;
+                            } else if (uncollectedOrderIds.includes(o.id)) {
+                                uncollectedSum += o.codAmount;
+                            } else if (partialOrders[o.id]) {
+                                partialDiffs += (o.codAmount - (partialOrders[o.id].amount || 0));
+                            }
+                        }
+                    });
+                    
+                    const expectedAmount = totalCOD - bankTransferredSum - uncollectedSum - partialDiffs;
+                    isSettled = settledAmount >= expectedAmount;
+                } else {
+                    isSettled = settledAmount >= totalCOD;
+                }
+
                 await updateDoc(docRef, {
                     isSettled: isSettled,
                     settledAmount: settledAmount,
                     uncollectedOrderIds: uncollectedOrderIds,
                     uncollectedReasons: uncollectedReasons,
                     partialOrders: partialOrders,
+                    bankTransferredOrderIds: bankTransferredOrderIds,
+                    uncollectedResponsibility: uncollectedResponsibility,
                     settledAt: Date.now()
                 });
                 return true;
             } catch (e) {
                 console.error("Hiba az elszámolás állapot frissítésénél: ", e);
+                return false;
+            }
+        },
+
+        updateResponsibilityInFirestore: async function(docId, orderId, responsibility) {
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                await updateDoc(docRef, {
+                    [`uncollectedResponsibility.${orderId}`]: responsibility
+                });
+                return true;
+            } catch (e) {
+                console.error("Hiba a felelősség frissítésénél: ", e);
                 return false;
             }
         },
@@ -441,7 +485,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     settledAt: null,
                     uncollectedOrderIds: deleteField(),
                     uncollectedReasons: deleteField(),
-                    partialOrders: deleteField()
+                    partialOrders: deleteField(),
+                    bankTransferredOrderIds: deleteField(),
+                    uncollectedResponsibility: deleteField()
                 });
                 return true;
             } catch (e) {
@@ -660,6 +706,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const isConfirmed = await CustomDialog.confirm('Biztosan törlöd az összes eddigi rendelést a listából?', 'Lista Törlése', 'warning', true);
         if(isConfirmed) {
             orders = [];
+            currentLoadedRunId = null;
+            originalLoadedRun = null;
             sortModeActive = false;
             orderList.classList.remove('sort-mode-active');
             if (btnSortMode) btnSortMode.classList.remove('sort-mode-btn-active');
@@ -1097,6 +1145,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="order-meta">
                         <div class="meta-buttons no-print">
+                            <button class="btn-print-order" title="Szállítólevél Nyomtatása" style="display:inline-flex;align-items:center;justify-content:center;padding:5px;cursor:pointer;border:none;background:none;color:#64748b;transition:color .15s;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#64748b'">
+                                <i class="ph-bold ph-printer" style="font-size: 14px;"></i>
+                            </button>
                             <button class="btn-edit" title="Szerkesztés">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                             </button>
@@ -1199,6 +1250,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function attachCardEvents() {
+        document.querySelectorAll('.btn-print-order').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const card = e.target.closest('.order-card');
+                const internalId = card.getAttribute('data-internal-id');
+                const order = orders.find(o => o.internalId === internalId);
+                
+                if (order) {
+                    const tempRun = {
+                        date: new Date().toLocaleDateString('hu-HU'),
+                        courier: 'Egyedi Nyomtatás',
+                        company: 'KOPJ',
+                        sender: 'capsula',
+                        orders: [order]
+                    };
+                    await UnifiedPrinter.printSingle(tempRun, 'delivery');
+                }
+            });
+        });
+
         document.querySelectorAll('.btn-ack').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const orderInternalId = e.target.getAttribute('data-order-internal-id');
@@ -1435,6 +1506,44 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    function detectRunChanges(originalRun, currentOrders) {
+        if (!originalRun || !originalRun.orders) return { added: [], modified: [], deleted: [] };
+        
+        const origOrders = originalRun.orders;
+        const origMap = new Map(origOrders.map(o => [o.id, o]));
+        const currMap = new Map(currentOrders.map(o => [o.id, o]));
+        
+        const added = [];
+        const modified = [];
+        const deleted = [];
+        
+        currentOrders.forEach(o => {
+            if (!origMap.has(o.id)) {
+                added.push(o);
+            } else {
+                const orig = origMap.get(o.id);
+                // Összehasonlítjuk a tételeket és az egyéb fontos mezőket
+                const itemsChanged = JSON.stringify(orig.items.map(it => ({name: it.name, qty: it.qty}))) !== 
+                                     JSON.stringify(o.items.map(it => ({name: it.name, qty: it.qty})));
+                const codChanged = orig.codAmount !== o.codAmount || orig.isCOD !== o.isCOD;
+                const addrChanged = orig.address !== o.address;
+                const phoneChanged = orig.phone !== o.phone;
+                
+                if (itemsChanged || codChanged || addrChanged || phoneChanged) {
+                    modified.push({ order: o, origOrder: orig });
+                }
+            }
+        });
+        
+        origOrders.forEach(o => {
+            if (!currMap.has(o.id)) {
+                deleted.push(o);
+            }
+        });
+        
+        return { added, modified, deleted };
+    }
+
     btnConfirmPrint.addEventListener('click', async () => {
         const date = psDateInput.value;
         const pickupDate = psPickupDateInput.value;
@@ -1460,14 +1569,73 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentLoadedRunId) {
             const choice = await CustomDialog.choice('Ezt a kört az előzményekből töltötted be.<br>Szeretnéd felülírni a korábbit, vagy teljesen új körként mentsük el?', 'Felülírás', 'Mentés Újként', 'Előzmények frissítése', 'info');
             if (choice === 1) {
+                // Módosításdetektálás
+                const changes = detectRunChanges(originalLoadedRun, cleanOrders);
+                const hasChanges = changes.added.length > 0 || changes.modified.length > 0 || changes.deleted.length > 0;
+
                 await HistoryManager.updateRun(currentLoadedRunId, date, pickupDate, courier, company, sender, cleanOrders);
+                originalLoadedRun = await HistoryManager.getRunById(currentLoadedRunId);
+
+                if (hasChanges) {
+                    let msg = `<div style="font-size:13px;color:#374151;line-height:1.5;text-align:left;">`;
+                    msg += `<p style="margin-bottom:10px;font-weight:600;">Módosítások észlelve a körben:</p>`;
+                    
+                    if (changes.added.length > 0) {
+                        msg += `<div style="margin-bottom:8px;"><strong style="color:#16a34a;">Hozzáadott (${changes.added.length} db):</strong><br>`;
+                        msg += `<span style="font-size:11px;color:#64748b;">${changes.added.map(o => o.id).join(', ')}</span></div>`;
+                    }
+                    if (changes.modified.length > 0) {
+                        msg += `<div style="margin-bottom:8px;"><strong style="color:#1d4ed8;">Módosított (${changes.modified.length} db):</strong><br>`;
+                        msg += `<span style="font-size:11px;color:#64748b;">${changes.modified.map(m => m.order.id).join(', ')}</span></div>`;
+                    }
+                    if (changes.deleted.length > 0) {
+                        msg += `<div style="margin-bottom:8px;"><strong style="color:#dc2626;">Törölt (${changes.deleted.length} db):</strong><br>`;
+                        msg += `<span style="font-size:11px;color:#64748b;">${changes.deleted.map(o => o.id).join(', ')}</span></div>`;
+                    }
+                    msg += `<p style="margin-top:12px;font-weight:700;">Hogyan szeretnéd kinyomtatni a változásokat?</p></div>`;
+
+                    const printChoice = await CustomDialog.choice(
+                        msg,
+                        'Részleges (csak az újat/módosítottat)',
+                        'Teljes csomag újra',
+                        'Csak mentés (ne nyomtasson)',
+                        'Módosítás nyomtatása',
+                        'info'
+                    );
+
+                    if (printChoice === 1) {
+                        const targetOrderIds = [
+                            ...changes.added.map(o => o.id),
+                            ...changes.modified.map(m => m.order.id)
+                        ];
+                        if (targetOrderIds.length > 0) {
+                            const run = await HistoryManager.getRunById(currentLoadedRunId);
+                            if (run) {
+                                UnifiedPrinter.clear();
+                                const deliveryHtml = UnifiedPrinter.generateDeliveryNotesHtml(run, true, targetOrderIds);
+                                UnifiedPrinter.area.innerHTML = deliveryHtml;
+                                UnifiedPrinter.execute();
+                            }
+                        } else {
+                            await CustomDialog.alert('Nincs hozzáadott vagy módosított rendelés a részleges nyomtatáshoz (csak törlés történt).', 'Részleges Nyomtatás', 'info');
+                        }
+                        return; // Kilépés, ne nyomtasson teljeset
+                    } else if (printChoice === 2) {
+                        // Folytatás teljes nyomtatással a megszokott módon
+                    } else {
+                        // Csak mentés - kilépés
+                        return;
+                    }
+                }
             } else {
                 const newRun = await HistoryManager.saveRun(date, pickupDate, courier, company, sender, cleanOrders);
                 currentLoadedRunId = newRun ? newRun.id : currentLoadedRunId;
+                originalLoadedRun = newRun ? JSON.parse(JSON.stringify(newRun)) : null;
             }
         } else {
             const newRun = await HistoryManager.saveRun(date, pickupDate, courier, company, sender, cleanOrders);
             currentLoadedRunId = newRun ? newRun.id : currentLoadedRunId;
+            originalLoadedRun = newRun ? JSON.parse(JSON.stringify(newRun)) : null;
         }
 
         if (printNone || (!printPicking && !printSummary && !printDelivery)) return;
@@ -1871,7 +2039,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             } else {
                 const previewChips = run.orders.map(o =>
-                    `<span class="hac-order-chip" title="${o.address || ''}"><span class="hac-chip-id">${o.id}</span><span class="hac-chip-name">${o.shippingName || ''}</span></span>`
+                    `<span class="hac-order-chip" title="${o.address || ''}" style="gap:5px;display:inline-flex;align-items:center;">
+                        <span class="hac-chip-id">${o.id}</span>
+                        <span class="hac-chip-name">${o.shippingName || ''}</span>
+                        <i class="ph-bold ph-printer btn-print-chip-delivery no-print" data-run-id="${run.id}" data-order-id="${o.id}" style="cursor:pointer;color:#64748b;font-size:11px;padding:2px;transition:color .15s;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#64748b'"></i>
+                    </span>`
                 ).join('');
                 el.innerHTML = `
                     <div class="hac-row">
@@ -1918,6 +2090,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             }
             historyRunsContainer.appendChild(el);
+        });
+
+        // Klikk kezelő az előzmények chip-nyomtató gombjaihoz
+        historyRunsContainer.querySelectorAll('.btn-print-chip-delivery').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                const runId = btn.getAttribute('data-run-id');
+                const orderId = btn.getAttribute('data-order-id');
+                const run = await HistoryManager.getRunById(runId);
+                if (run) {
+                    const order = run.orders.find(o => o.id === orderId);
+                    if (order) {
+                        const tempRun = {
+                            date: run.date,
+                            courier: run.courier,
+                            company: run.company,
+                            sender: run.sender || 'capsula',
+                            orders: [order]
+                        };
+                        await UnifiedPrinter.printSingle(tempRun, 'delivery');
+                    }
+                }
+            });
         });
 
         attachHistoryEvents();
@@ -1998,49 +2194,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
-
-        quickRunsContainer.querySelectorAll('.btn-toggle-preview').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const card = btn.closest('.history-apple-card');
-                const preview = card.querySelector('.hac-preview');
-                const isOpen = preview.classList.toggle('open');
-                btn.classList.toggle('active', isOpen);
-            });
-        });
     }
 
     function showSettlementDialog(run, runCOD, existingState = null) {
         return new Promise((resolve) => {
             const codOrders    = run.orders.filter(o => o.isCOD);
             const nonCodOrders = run.orders.filter(o => !o.isCOD);
-            const prevUncollected  = new Set(existingState?.uncollectedOrderIds || []);
-            const prevReasons      = existingState?.uncollectedReasons || {};
-            const prevPartials     = existingState?.partialOrders || {};
-            const PRESET_REASONS   = ['Sérült csomag','Vevő lemondta','Nem volt otthon','Nem fogadta el'];
+            const prevBankTransferred = new Set(existingState?.bankTransferredOrderIds || run.bankTransferredOrderIds || []);
+            const prevUncollected  = new Set(existingState?.uncollectedOrderIds || run.uncollectedOrderIds || []);
+            const prevReasons      = existingState?.uncollectedReasons || run.uncollectedReasons || {};
+            const prevPartials     = existingState?.partialOrders || run.partialOrders || {};
 
             const makeReasonHtml = (orderId, wasUncollected) => {
                 const pr = prevReasons[orderId] || '';
-                const isCustom = pr && !PRESET_REASONS.includes(pr);
-                const selVal   = isCustom ? 'Egyéb' : pr;
-                return `<div class="sd-reason-row" style="display:${wasUncollected?'block':'none'};padding:4px 20px 10px 50px;background:#fff7ed;border-top:1px dashed #fed7aa;">
-                    <select class="sd-reason-select" style="font-size:12px;font-weight:600;color:#92400e;background:#fff;border:1.5px solid #fbbf24;border-radius:8px;padding:4px 8px;cursor:pointer;font-family:inherit;margin-right:8px;">
-                        <option value="">Miért nem lett átadva?</option>
-                        <option value="Sérült csomag" ${selVal==='Sérült csomag'?'selected':''}>Sérült csomag</option>
-                        <option value="Vevő lemondta" ${selVal==='Vevő lemondta'?'selected':''}>Vevő lemondta</option>
-                        <option value="Nem volt otthon" ${selVal==='Nem volt otthon'?'selected':''}>Nem volt otthon</option>
-                        <option value="Nem fogadta el" ${selVal==='Nem fogadta el'?'selected':''}>Nem fogadta el</option>
-                        <option value="Egyéb" ${selVal==='Egyéb'?'selected':''}>Egyéb...</option>
-                    </select>
-                    <input class="sd-reason-other" type="text" placeholder="Megjegyzés..."
-                        value="${isCustom ? pr.replace(/"/g,'&quot;') : ''}"
-                        style="display:${isCustom?'inline-block':'none'};font-size:12px;border:1.5px solid #fbbf24;border-radius:8px;padding:4px 8px;font-family:inherit;width:180px;">
+                const currentResp = existingState?.uncollectedResponsibility?.[orderId] || run.uncollectedResponsibility?.[orderId] || 'vevo';
+                
+                const rMienkActive = currentResp === 'mienk';
+                const rSzallitoActive = currentResp === 'szallito';
+                const rVevoActive = currentResp === 'vevo' || !currentResp;
+
+                return `<div class="sd-reason-row" style="display:${wasUncollected?'block':'none'};padding:6px 20px 10px 50px;background:#fff7ed;border-top:1px dashed #fed7aa;">
+                    <input class="sd-reason-input" type="text" placeholder="Miért nem lett átadva? (pl. Sérült termék, vevő lemondta...)"
+                        value="${pr.replace(/"/g,'&quot;')}"
+                        style="width:100%;box-sizing:border-box;font-size:12px;border:1.5px solid #fbbf24;border-radius:8px;padding:5px 8px;font-family:inherit;margin-bottom:6px;">
+                    
+                    <div class="sd-resp-selector" style="display:flex;align-items:center;gap:6px;" data-order-id="${orderId}">
+                        <span style="font-size:11px;color:#92400e;font-weight:700;margin-right:4px;">Felelős:</span>
+                        <button type="button" class="sd-resp-btn mienk ${rMienkActive ? 'active' : ''}" data-resp="mienk" style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${rMienkActive ? '#fca5a5' : '#e2e8f0'};background:${rMienkActive ? '#fee2e2' : '#fff'};color:${rMienkActive ? '#b91c1c' : '#64748b'};transition:all .1s;">Saját hiba</button>
+                        <button type="button" class="sd-resp-btn szallito ${rSzallitoActive ? 'active' : ''}" data-resp="szallito" style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${rSzallitoActive ? '#fed7aa' : '#e2e8f0'};background:${rSzallitoActive ? '#ffedd5' : '#fff'};color:${rSzallitoActive ? '#c2410c' : '#64748b'};transition:all .1s;">Szállító</button>
+                        <button type="button" class="sd-resp-btn vevo ${rVevoActive ? 'active' : ''}" data-resp="vevo" style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${rVevoActive ? '#cbd5e1' : '#e2e8f0'};background:${rVevoActive ? '#e2e8f0' : '#fff'};color:${rVevoActive ? '#475569' : '#64748b'};transition:all .1s;">Vevő / Egyéb</button>
+                    </div>
                 </div>`;
             };
 
             const codRowsHtml = codOrders.map(o => {
                 const wasUncollected = prevUncollected.has(o.id);
+                const wasBankTransferred = prevBankTransferred.has(o.id);
                 const prevPartial    = prevPartials[o.id];
-                const wasPartial     = !wasUncollected && !!prevPartial;
+                const wasPartial     = !wasUncollected && !wasBankTransferred && !!prevPartial;
+                
+                const currentResp = existingState?.uncollectedResponsibility?.[o.id] || run.uncollectedResponsibility?.[o.id] || 'vevo';
+                const rMienkActive = currentResp === 'mienk';
+                const rSzallitoActive = currentResp === 'szallito';
+                const rVevoActive = currentResp === 'vevo' || !currentResp;
+
                 return `
                 <div class="sd-order-row" style="border-bottom:1px solid #f1f5f9;">
                     <label style="display:flex;align-items:center;gap:12px;padding:11px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
@@ -2049,9 +2246,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span style="font-size:13px;font-weight:700;color:#374151;min-width:95px;">${o.id}</span>
                         <span style="font-size:13px;color:#64748b;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.shippingName || '—'}</span>
                         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                            <span class="sd-full-amount" style="font-size:13px;font-weight:700;color:${wasPartial?'#1d4ed8':'#b91c1c'};">${wasPartial ? (prevPartial.amount||o.codAmount).toLocaleString('hu-HU') : o.codAmount.toLocaleString('hu-HU')} Ft</span>
+                            <span class="sd-full-amount" style="font-size:13px;font-weight:700;color:${wasBankTransferred?'#0284c7':wasPartial?'#1d4ed8':'#b91c1c'};">${wasBankTransferred ? 'Utalva (0 Ft KP)' : wasPartial ? (prevPartial.amount||o.codAmount).toLocaleString('hu-HU') + ' Ft' : o.codAmount.toLocaleString('hu-HU') + ' Ft'}</span>
+                            <button class="sd-bank-toggle" onclick="event.stopPropagation();" data-active="${wasBankTransferred ? 'true' : 'false'}"
+                                style="display:${wasUncollected?'none':'inline-flex'};align-items:center;gap:3px;font-size:10px;font-weight:600;color:${wasBankTransferred?'#0284c7':'#64748b'};background:${wasBankTransferred?'#f0f9ff':'#f8fafc'};border:1px solid ${wasBankTransferred?'#bae6fd':'#e2e8f0'};border-radius:6px;padding:2px 7px;cursor:pointer;font-family:inherit;flex-shrink:0;">
+                                <i class="ph-bold ph-bank" style="font-size:9px;"></i> banki utalás
+                            </button>
                             <button class="sd-partial-toggle" onclick="event.stopPropagation();"
-                                style="display:${wasUncollected?'none':'inline-flex'};align-items:center;gap:3px;font-size:10px;font-weight:600;color:${wasPartial?'#1d4ed8':'#64748b'};background:${wasPartial?'#eff6ff':'#f8fafc'};border:1px solid ${wasPartial?'#93c5fd':'#e2e8f0'};border-radius:6px;padding:2px 7px;cursor:pointer;font-family:inherit;flex-shrink:0;">
+                                style="display:${wasUncollected || wasBankTransferred ?'none':'inline-flex'};align-items:center;gap:3px;font-size:10px;font-weight:600;color:${wasPartial?'#1d4ed8':'#64748b'};background:${wasPartial?'#eff6ff':'#f8fafc'};border:1px solid ${wasPartial?'#93c5fd':'#e2e8f0'};border-radius:6px;padding:2px 7px;cursor:pointer;font-family:inherit;flex-shrink:0;">
                                 <i class="ph-bold ph-split-horizontal" style="font-size:9px;"></i> részleges
                             </button>
                         </div>
@@ -2067,7 +2268,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <input class="sd-partial-comment" type="text" placeholder="Megjegyzés (pl. 1 db tábla sérült)..."
                             value="${wasPartial ? (prevPartial.comment||'').replace(/"/g,'&quot;') : ''}"
-                            style="width:100%;box-sizing:border-box;font-size:12px;border:1.5px solid #93c5fd;border-radius:8px;padding:5px 8px;font-family:inherit;">
+                            style="width:100%;box-sizing:border-box;font-size:12px;border:1.5px solid #93c5fd;border-radius:8px;padding:5px 8px;font-family:inherit;margin-bottom:6px;">
+                        
+                        <div class="sd-resp-selector" style="display:flex;align-items:center;gap:6px;" data-order-id="${o.id}">
+                            <span style="font-size:11px;color:#1d4ed8;font-weight:700;margin-right:4px;">Felelős:</span>
+                            <button type="button" class="sd-resp-btn mienk ${rMienkActive ? 'active' : ''}" data-resp="mienk" style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${rMienkActive ? '#fca5a5' : '#e2e8f0'};background:${rMienkActive ? '#fee2e2' : '#fff'};color:${rMienkActive ? '#b91c1c' : '#64748b'};transition:all .1s;">Saját hiba</button>
+                            <button type="button" class="sd-resp-btn szallito ${rSzallitoActive ? 'active' : ''}" data-resp="szallito" style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${rSzallitoActive ? '#fed7aa' : '#e2e8f0'};background:${rSzallitoActive ? '#ffedd5' : '#fff'};color:${rSzallitoActive ? '#c2410c' : '#64748b'};transition:all .1s;">Szállító</button>
+                            <button type="button" class="sd-resp-btn vevo ${rVevoActive ? 'active' : ''}" data-resp="vevo" style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${rVevoActive ? '#cbd5e1' : '#e2e8f0'};background:${rVevoActive ? '#e2e8f0' : '#fff'};color:${rVevoActive ? '#475569' : '#64748b'};transition:all .1s;">Vevő / Egyéb</button>
+                        </div>
                     </div>
                     ${makeReasonHtml(o.id, wasUncollected)}
                 </div>`;
@@ -2109,17 +2317,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         </button>
                     </div>
                     <div style="padding:10px 20px 8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0;">
-                        <span style="font-size:12px;color:#64748b;font-weight:600;">Pipáld ki az <strong style="color:#0f172a;">átadott</strong> rendeléseket · Utánvéteseknél módosítható az összeg</span>
+                        <span style="font-size:12px;color:#64748b;font-weight:600;">Pipáld ki az <strong style="color:#0f172a;">átadott</strong> rendeléseket · Utánvéteseknél módosítható az elszámolás</span>
                     </div>
                     <div style="overflow-y:auto;flex:1;">${rowsHtml}</div>
                     <div style="padding:14px 20px;border-top:2px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;background:#fff;flex-shrink:0;">
                         <div>
-                            <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Beérkezett utánvét</div>
+                            <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Elvárt készpénz</div>
                             <div id="sd-total" style="font-size:22px;font-weight:800;color:#0f172a;line-height:1.2;">${runCOD.toLocaleString('hu-HU')} Ft</div>
                             <div id="sd-missing" style="font-size:12px;font-weight:700;color:#f97316;margin-top:2px;display:none;"></div>
                         </div>
                         <div style="display:flex;gap:8px;">
-                            <button id="sd-cancel" style="background:none;border:1.5px solid #e2e8f0;color:#64748b;font-size:13px;font-weight:600;padding:9px 18px;border-radius:12px;cursor:pointer;font-family:inherit;">Mégse</button>
+                            <button id="sd-cancel" style="background:none;border:1.5px solid #e2e8f0;color:#64748b;font-size:13px;font-weight:600;padding:9px 18px;border-radius:12px;cursor:pointer;font-family:inherit;">Mégsem</button>
                             <button id="sd-save" style="background:#0f172a;border:none;color:#fff;font-size:13px;font-weight:700;padding:9px 20px;border-radius:12px;cursor:pointer;font-family:inherit;">Rögzítés</button>
                         </div>
                     </div>
@@ -2132,6 +2340,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 overlay.querySelectorAll('.sd-order-row').forEach(row => {
                     const cb = row.querySelector('input[type=checkbox]');
                     if (!cb.checked || cb.getAttribute('data-is-cod') !== 'true') return;
+                    
+                    const bankBtn = row.querySelector('.sd-bank-toggle');
+                    const isBankTransferred = bankBtn && bankBtn.getAttribute('data-active') === 'true';
+                    if (isBankTransferred) return;
+
                     const fullAmount   = parseInt(cb.getAttribute('data-amount'));
                     const partialRow   = row.querySelector('.sd-partial-row');
                     const partialInput = row.querySelector('.sd-partial-amount');
@@ -2142,14 +2355,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
                 overlay.querySelector('#sd-total').textContent = total.toLocaleString('hu-HU') + ' Ft';
-                const missing = runCOD - total;
                 const missingEl = overlay.querySelector('#sd-missing');
-                if (missing > 0) {
-                    missingEl.textContent = `−${missing.toLocaleString('hu-HU')} Ft hiányzik`;
-                    missingEl.style.display = 'block';
-                } else {
-                    missingEl.style.display = 'none';
-                }
+                if (missingEl) missingEl.style.display = 'none';
             };
 
             overlay.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', (e) => {
@@ -2158,31 +2365,109 @@ document.addEventListener('DOMContentLoaded', () => {
                 const reasonRow = row.querySelector('.sd-reason-row');
                 if (e.target.checked) {
                     reasonRow.style.display = 'none';
-                    const sel = row.querySelector('.sd-reason-select');
-                    const oth = row.querySelector('.sd-reason-other');
-                    if (sel) sel.value = '';
-                    if (oth) { oth.style.display = 'none'; oth.value = ''; }
+                    const rInput = row.querySelector('.sd-reason-input');
+                    if (rInput) rInput.value = '';
                     if (isCOD) {
                         const pt = row.querySelector('.sd-partial-toggle');
+                        const bt = row.querySelector('.sd-bank-toggle');
                         if (pt) pt.style.display = 'inline-flex';
+                        if (bt) bt.style.display = 'inline-flex';
                     }
                 } else {
                     if (isCOD) {
                         const pr = row.querySelector('.sd-partial-row');
                         const pt = row.querySelector('.sd-partial-toggle');
+                        const bt = row.querySelector('.sd-bank-toggle');
                         if (pr) { pr.style.display = 'none'; row.querySelector('.sd-partial-amount').value = ''; row.querySelector('.sd-partial-comment').value = ''; }
                         if (pt) pt.style.display = 'none';
+                        if (bt) {
+                            bt.style.display = 'none';
+                            bt.setAttribute('data-active', 'false');
+                            bt.style.background = '#f8fafc';
+                            bt.style.color = '#64748b';
+                            bt.style.borderColor = '#e2e8f0';
+                        }
+                        row.querySelector('.sd-full-amount').style.color = '#b91c1c';
+                        row.querySelector('.sd-full-amount').textContent = parseInt(cb.getAttribute('data-amount')).toLocaleString('hu-HU') + ' Ft';
                     }
                     reasonRow.style.display = 'block';
+                    const rInput = row.querySelector('.sd-reason-input');
+                    if (rInput) rInput.focus();
                 }
                 updateTotal();
             }));
 
-            // Reason select (Egyéb → szabad szöveg)
-            overlay.querySelectorAll('.sd-reason-select').forEach(sel => sel.addEventListener('change', (e) => {
-                const otherInput = e.target.closest('.sd-order-row').querySelector('.sd-reason-other');
-                otherInput.style.display = e.target.value === 'Egyéb' ? 'inline-block' : 'none';
-                if (e.target.value !== 'Egyéb') otherInput.value = '';
+            // Felelősség gombok eseménydelegált kezelése a terítés dialógusban
+            overlay.addEventListener('click', (e) => {
+                const btn = e.target.closest('.sd-resp-btn');
+                if (!btn) return;
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const selector = btn.closest('.sd-resp-selector');
+                const buttons = selector.querySelectorAll('.sd-resp-btn');
+                buttons.forEach(b => {
+                    b.classList.remove('active');
+                    b.style.background = '#fff';
+                    b.style.color = '#64748b';
+                    b.style.borderColor = '#e2e8f0';
+                });
+                
+                btn.classList.add('active');
+                const resp = btn.getAttribute('data-resp');
+                if (resp === 'mienk') {
+                    btn.style.background = '#fee2e2';
+                    btn.style.borderColor = '#fca5a5';
+                    btn.style.color = '#b91c1c';
+                } else if (resp === 'szallito') {
+                    btn.style.background = '#ffedd5';
+                    btn.style.borderColor = '#fed7aa';
+                    btn.style.color = '#c2410c';
+                } else {
+                    btn.style.background = '#e2e8f0';
+                    btn.style.borderColor = '#cbd5e1';
+                    btn.style.color = '#475569';
+                }
+            });
+
+            // Banki utalás toggle
+            overlay.querySelectorAll('.sd-bank-toggle').forEach(btn => btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const row = btn.closest('.sd-order-row');
+                const isBankTransferred = btn.getAttribute('data-active') === 'true';
+                const isChecked = row.querySelector('input[type=checkbox]').checked;
+                if (!isChecked) return;
+                
+                const newActive = !isBankTransferred;
+                btn.setAttribute('data-active', newActive ? 'true' : 'false');
+                
+                btn.style.background = newActive ? '#f0f9ff' : '#f8fafc';
+                btn.style.color = newActive ? '#0284c7' : '#64748b';
+                btn.style.borderColor = newActive ? '#bae6fd' : '#e2e8f0';
+                
+                const pt = row.querySelector('.sd-partial-toggle');
+                const fullAmountEl = row.querySelector('.sd-full-amount');
+                const cb = row.querySelector('input[type=checkbox]');
+                const fullAmount = parseInt(cb.getAttribute('data-amount'));
+                
+                if (newActive) {
+                    row.querySelector('.sd-partial-row').style.display = 'none';
+                    row.querySelector('.sd-partial-amount').value = '';
+                    row.querySelector('.sd-partial-comment').value = '';
+                    if (pt) {
+                        pt.style.display = 'none';
+                        pt.style.background = '#f8fafc';
+                        pt.style.color = '#64748b';
+                        pt.style.borderColor = '#e2e8f0';
+                    }
+                    fullAmountEl.style.color = '#0284c7';
+                    fullAmountEl.textContent = 'Utalva (0 Ft KP)';
+                } else {
+                    if (pt) pt.style.display = 'inline-flex';
+                    fullAmountEl.style.color = '#b91c1c';
+                    fullAmountEl.textContent = fullAmount.toLocaleString('hu-HU') + ' Ft';
+                }
+                updateTotal();
             }));
 
             // Részleges toggle
@@ -2213,7 +2498,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateTotal();
             }));
 
-            // Részleges összeg változásakor frissítsd a totalt és az összeg spanet
+            // Részleges összeg változásakor frissítse a teljes összeget és a végösszeget
             overlay.querySelectorAll('.sd-partial-amount').forEach(input => {
                 input.addEventListener('input', (e) => {
                     const row = input.closest('.sd-order-row');
@@ -2224,7 +2509,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
 
-            // Mégsem (reset partial)
+            // Mégsem részleges
             overlay.querySelectorAll('.sd-partial-reset').forEach(btn => btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const row = btn.closest('.sd-order-row');
@@ -2241,7 +2526,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateTotal();
             }));
 
-            updateTotal(); // init (pre-fill esetén)
+            updateTotal();
 
             const cleanup = () => overlay.remove();
             overlay.querySelector('#sd-close').addEventListener('click', () => { cleanup(); resolve(null); });
@@ -2252,7 +2537,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 let settledAmount = 0;
                 const uncollectedOrderIds = [];
                 const uncollectedReasons  = {};
+                const uncollectedResponsibility = {};
                 const partialOrders       = {};
+                const bankTransferredOrderIds = [];
 
                 overlay.querySelectorAll('.sd-order-row').forEach(row => {
                     const cb      = row.querySelector('input[type=checkbox]');
@@ -2261,30 +2548,55 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (cb.checked) {
                         if (isCOD) {
-                            const fullAmount   = parseInt(cb.getAttribute('data-amount'));
-                            const partialRow   = row.querySelector('.sd-partial-row');
-                            const partialInput = row.querySelector('.sd-partial-amount');
-                            if (partialRow && partialRow.style.display !== 'none' && partialInput.value !== '') {
-                                const partialAmount = Math.min(parseInt(partialInput.value) || 0, fullAmount);
-                                const comment = row.querySelector('.sd-partial-comment').value.trim();
-                                settledAmount += partialAmount;
-                                partialOrders[orderId] = { amount: partialAmount, comment };
+                            const bankBtn = row.querySelector('.sd-bank-toggle');
+                            const isBankTransferred = bankBtn && bankBtn.getAttribute('data-active') === 'true';
+                            if (isBankTransferred) {
+                                bankTransferredOrderIds.push(orderId);
                             } else {
-                                settledAmount += fullAmount;
+                                const fullAmount   = parseInt(cb.getAttribute('data-amount'));
+                                const partialRow   = row.querySelector('.sd-partial-row');
+                                const partialInput = row.querySelector('.sd-partial-amount');
+                                if (partialRow && partialRow.style.display !== 'none' && partialInput.value !== '') {
+                                    const partialAmount = Math.min(parseInt(partialInput.value) || 0, fullAmount);
+                                    const comment = row.querySelector('.sd-partial-comment').value.trim();
+                                    settledAmount += partialAmount;
+                                    partialOrders[orderId] = { amount: partialAmount, comment };
+                                    
+                                    // Részleges megrendelés felelősség rögzítése
+                                    const selector = partialRow.querySelector('.sd-resp-selector');
+                                    if (selector) {
+                                        const activeBtn = selector.querySelector('.sd-resp-btn.active');
+                                        const resp = activeBtn ? activeBtn.getAttribute('data-resp') : 'vevo';
+                                        uncollectedResponsibility[orderId] = resp;
+                                    } else {
+                                        uncollectedResponsibility[orderId] = 'vevo';
+                                    }
+                                } else {
+                                    settledAmount += fullAmount;
+                                }
                             }
                         }
                     } else {
                         uncollectedOrderIds.push(orderId);
-                        const sel   = row.querySelector('.sd-reason-select');
-                        const other = row.querySelector('.sd-reason-other');
-                        if (sel) {
-                            const reason = sel.value === 'Egyéb' ? (other.value.trim() || 'Egyéb') : sel.value;
+                        const reasonInput = row.querySelector('.sd-reason-input');
+                        if (reasonInput) {
+                            const reason = reasonInput.value.trim();
                             if (reason) uncollectedReasons[orderId] = reason;
+                        }
+                        
+                        // Teljesen meghiúsult megrendelés felelősség rögzítése
+                        const selector = row.querySelector('.sd-reason-row .sd-resp-selector');
+                        if (selector) {
+                            const activeBtn = selector.querySelector('.sd-resp-btn.active');
+                            const resp = activeBtn ? activeBtn.getAttribute('data-resp') : 'vevo';
+                            uncollectedResponsibility[orderId] = resp;
+                        } else {
+                            uncollectedResponsibility[orderId] = 'vevo';
                         }
                     }
                 });
                 cleanup();
-                resolve({ settledAmount, uncollectedOrderIds, uncollectedReasons, partialOrders });
+                resolve({ settledAmount, uncollectedOrderIds, uncollectedReasons, partialOrders, bankTransferredOrderIds, uncollectedResponsibility });
             });
         });
     }
@@ -2364,19 +2676,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const uncollected    = run.uncollectedOrderIds || [];
                 const reasons        = run.uncollectedReasons || {};
                 const partialOrders  = run.partialOrders || {};
+                const bankTransferred = run.bankTransferredOrderIds || [];
                 const orderChips = run.orders.map(o => {
                     const isUncollected = uncollected.includes(o.id);
-                    const partialInfo   = o.isCOD && !isUncollected ? partialOrders[o.id] : null;
+                    const isBankTransferred = bankTransferred.includes(o.id);
+                    const partialInfo   = o.isCOD && !isUncollected && !isBankTransferred ? partialOrders[o.id] : null;
                     const reasonText    = isUncollected && reasons[o.id] ? ` · ${reasons[o.id]}` : '';
                     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f1f5f9;${isUncollected ? 'opacity:.55;' : ''}">
-                        <span style="font-size:12px;font-weight:700;color:#374151;min-width:90px;${isUncollected ? 'text-decoration:line-through;' : ''}">${o.id}</span>
+                        <span style="font-size:12px;font-weight:700;color:#374151;min-width:95px;${isUncollected ? 'text-decoration:line-through;' : ''}">${o.id}</span>
                         <span style="font-size:12px;color:#64748b;flex:1;">${o.shippingName || '—'}</span>
                         ${o.isCOD
                             ? isUncollected
                                 ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem érkezett<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
-                                : partialInfo
-                                    ? `<span style="font-size:11px;font-weight:700;color:#1d4ed8;">~${partialInfo.amount.toLocaleString('hu-HU')} Ft<span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft${partialInfo.comment ? ' · ' + partialInfo.comment : ''}</span></span>`
-                                    : `<span style="font-size:11px;font-weight:700;color:#b91c1c;">${o.codAmount.toLocaleString('hu-HU')} Ft</span>`
+                                : isBankTransferred
+                                    ? `<span style="font-size:11px;font-weight:700;color:#3b82f6;">Elutalva (Banki utalás)<span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
+                                    : partialInfo
+                                        ? `<span style="font-size:11px;font-weight:700;color:#1d4ed8;">~${partialInfo.amount.toLocaleString('hu-HU')} Ft<span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft${partialInfo.comment ? ' · ' + partialInfo.comment : ''}</span></span>`
+                                        : `<span style="font-size:11px;font-weight:700;color:#b91c1c;">${o.codAmount.toLocaleString('hu-HU')} Ft</span>`
                             : isUncollected
                                 ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem lett átadva<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
                                 : '<span style="font-size:11px;color:#94a3b8;">átadva</span>'}
@@ -2448,7 +2764,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!run) return;
                 const result = await showSettlementDialog(run, totalCOD);
                 if (result === null) return;
-                if (await HistoryManager.updateSettlementStatus(docId, result.settledAmount, totalCOD, result.uncollectedOrderIds, result.uncollectedReasons, result.partialOrders)) renderAccountingRuns();
+                if (await HistoryManager.updateSettlementStatus(docId, result.settledAmount, totalCOD, result.uncollectedOrderIds, result.uncollectedReasons, result.partialOrders, result.bankTransferredOrderIds, result.uncollectedResponsibility)) renderAccountingRuns();
             });
         });
 
@@ -2483,11 +2799,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const existingState = {
                     uncollectedOrderIds: run.uncollectedOrderIds || [],
                     uncollectedReasons: run.uncollectedReasons || {},
-                    partialOrders: run.partialOrders || {}
+                    partialOrders: run.partialOrders || {},
+                    bankTransferredOrderIds: run.bankTransferredOrderIds || [],
+                    uncollectedResponsibility: run.uncollectedResponsibility || {}
                 };
                 const result = await showSettlementDialog(run, totalCOD, existingState);
                 if (result === null) return;
-                if (await HistoryManager.updateSettlementStatus(docId, result.settledAmount, totalCOD, result.uncollectedOrderIds, result.uncollectedReasons, result.partialOrders)) renderAccountingRuns();
+                if (await HistoryManager.updateSettlementStatus(docId, result.settledAmount, totalCOD, result.uncollectedOrderIds, result.uncollectedReasons, result.partialOrders, result.bankTransferredOrderIds, result.uncollectedResponsibility)) renderAccountingRuns();
             });
         });
 
@@ -2523,8 +2841,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
         statsRunsContainer.innerHTML = '';
 
+        // Render sub-tabs bar at the top of the Statistics container
+        const subtabsBar = document.createElement('div');
+        subtabsBar.className = 'stats-subtabs no-print';
+        subtabsBar.innerHTML = [
+            { id: 'charts', label: 'Diagramok', icon: 'ph-chart-bar' },
+            { id: 'products', label: 'Termékek', icon: 'ph-package' },
+            { id: 'map', label: 'Térkép', icon: 'ph-map-pin' },
+            { id: 'kiesett', label: 'Kiesett rendelések', icon: 'ph-warning' }
+        ].map(t => `
+            <button class="stats-subtab-btn ${activeStatsTab === t.id ? 'active' : ''}" data-tab="${t.id}">
+                <i class="ph-bold ${t.icon}"></i> ${t.label}
+            </button>
+        `).join('');
+        statsRunsContainer.appendChild(subtabsBar);
+
+        subtabsBar.querySelectorAll('.stats-subtab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                activeStatsTab = btn.getAttribute('data-tab');
+                renderStatistics();
+            });
+        });
+
         if (runs.length === 0) {
-            statsRunsContainer.innerHTML = '<p style="color:#94a3b8;font-size:13px;text-align:center;padding:30px;">Nincsenek adatok a kiválasztott időszakban.</p>';
+            const emptyMsg = document.createElement('p');
+            emptyMsg.style.cssText = 'color:#94a3b8;font-size:13px;text-align:center;padding:30px;';
+            emptyMsg.textContent = 'Nincsenek adatok a kiválasztott időszakban.';
+            statsRunsContainer.appendChild(emptyMsg);
             return;
         }
 
@@ -2590,7 +2933,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const courierMap = {};
         runs.forEach((r, rIdx) => {
             const c = r.courier || '—';
-            if (!courierMap[c]) courierMap[c] = { runs: 0, orders: 0, cod: 0, uncollected: 0, recovered: 0, uncollectedDetails: [] };
+            if (!courierMap[c]) courierMap[c] = {
+                runs: 0, orders: 0, cod: 0, uncollected: 0, recovered: 0,
+                uncollectedSzallito: 0, uncollectedMienk: 0, uncollectedVevo: 0,
+                uncollectedDetails: []
+            };
             courierMap[c].runs++;
             r.orders.forEach(o => {
                 courierMap[c].orders++;
@@ -2598,6 +2945,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const runReasons  = r.uncollectedReasons || {};
             const runPartials = r.partialOrders || {};
+            const runResponsibility = r.uncollectedResponsibility || {};
             (r.uncollectedOrderIds || []).forEach(id => {
                 const o = r.orders.find(x => x.id === id);
                 if (!o || !o.isCOD) return;
@@ -2605,6 +2953,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     courierMap[c].recovered += o.codAmount;
                 } else {
                     courierMap[c].uncollected += o.codAmount;
+                    const resp = runResponsibility[id] || 'vevo';
+                    if (resp === 'szallito') courierMap[c].uncollectedSzallito += o.codAmount;
+                    else if (resp === 'mienk') courierMap[c].uncollectedMienk += o.codAmount;
+                    else courierMap[c].uncollectedVevo += o.codAmount;
+
                     courierMap[c].uncollectedDetails.push({
                         id, name: o.shippingName || '—', codAmount: o.codAmount,
                         reason: runReasons[id] || '', date: r.date || '—', isPartial: false
@@ -2617,6 +2970,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const diff = o.codAmount - (info.amount || 0);
                 if (diff <= 0) return;
                 courierMap[c].uncollected += diff;
+                const resp = runResponsibility[id] || 'vevo';
+                if (resp === 'szallito') courierMap[c].uncollectedSzallito += diff;
+                else if (resp === 'mienk') courierMap[c].uncollectedMienk += diff;
+                else courierMap[c].uncollectedVevo += diff;
+
                 courierMap[c].uncollectedDetails.push({
                     id, name: o.shippingName || '—', codAmount: diff,
                     reason: info.comment || '', date: r.date || '—',
@@ -2638,6 +2996,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             : `<span style="font-weight:700;color:#b91c1c;min-width:75px;">${det.codAmount.toLocaleString('hu-HU')} Ft</span>`}
                         <span style="font-size:11px;color:#64748b;background:#f1f5f9;border-radius:6px;padding:2px 7px;">${det.reason || 'ok nélkül'}</span>
                     </div>`).join('');
+
+                let responsibilityBreakdown = '';
+                if (d.uncollected > 0) {
+                    const parts = [];
+                    if (d.uncollectedSzallito > 0) parts.push(`Szállítóé: <strong>${d.uncollectedSzallito.toLocaleString('hu-HU')} Ft</strong>`);
+                    if (d.uncollectedMienk > 0) parts.push(`Saját: <strong>${d.uncollectedMienk.toLocaleString('hu-HU')} Ft</strong>`);
+                    if (d.uncollectedVevo > 0) parts.push(`Vevő/Egyéb: <strong>${d.uncollectedVevo.toLocaleString('hu-HU')} Ft</strong>`);
+                    responsibilityBreakdown = `<span style="font-size:11px;color:#64748b;margin-left:8px;">(${parts.join(' · ')})</span>`;
+                }
+
                 return `
                 <div class="stat-courier-wrapper" style="border-bottom:1px solid #f1f5f9;">
                     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;flex-wrap:wrap;">
@@ -2646,127 +3014,233 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span style="font-size:12px;color:#64748b;min-width:80px;">${d.orders} rendelés</span>
                         <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:110px;">${d.cod.toLocaleString('hu-HU')} Ft COD</span>
                         ${d.uncollected > 0 ? `<span class="courier-kiesett-toggle" style="font-size:11px;font-weight:700;color:#f97316;cursor:pointer;display:inline-flex;align-items:center;gap:3px;user-select:none;">−${d.uncollected.toLocaleString('hu-HU')} Ft kiesett<i class="ph-bold ph-caret-down toggle-chevron" style="font-size:10px;transition:transform .2s;"></i></span>` : ''}
+                        ${responsibilityBreakdown}
                         ${d.recovered  > 0 ? `<span style="font-size:11px;color:#64748b;">↩ ${d.recovered.toLocaleString('hu-HU')} Ft utólag beérkezett</span>` : ''}
                     </div>
                     ${d.uncollected > 0 ? `<div class="courier-kiesett-detail" style="display:none;padding:4px 0 8px;background:#fffbeb;border-top:1px dashed #fed7aa;border-radius:0 0 6px 6px;">${detailHtml}</div>` : ''}
                 </div>`;
             }).join('');
 
-        const courierSection = makeSection('Szállítói összesítő', 'ph-user',
-            `<div style="display:flex;gap:10px;padding-bottom:7px;border-bottom:2px solid #f1f5f9;margin-bottom:2px;">
-                <span style="font-size:10px;font-weight:700;color:#94a3b8;min-width:130px;">SZÁLLÍTÓ</span>
-                <span style="font-size:10px;font-weight:700;color:#94a3b8;min-width:70px;">TERÍTÉS</span>
-                <span style="font-size:10px;font-weight:700;color:#94a3b8;min-width:80px;">RENDELÉS</span>
-                <span style="font-size:10px;font-weight:700;color:#94a3b8;min-width:110px;">COD ÖSSZEG</span>
-                <span style="font-size:10px;font-weight:700;color:#94a3b8;">KIESETT</span>
-            </div>${courierRows}`
-        , true);
-        statsRunsContainer.appendChild(courierSection);
-        courierSection.querySelectorAll('.courier-kiesett-toggle').forEach(toggle => {
-            toggle.addEventListener('click', () => {
-                const wrapper = toggle.closest('.stat-courier-wrapper');
-                const detail = wrapper.querySelector('.courier-kiesett-detail');
-                const chevron = toggle.querySelector('.toggle-chevron');
-                const isOpen = detail.style.display !== 'none';
-                detail.style.display = isOpen ? 'none' : 'block';
-                chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+        // Futárok fül eltávolítva — courierMap adatok megmaradnak a kiesett rendelések fülhöz
+
+        // ── 2. Havi forgalom & Havi utánvét volumen ───────────────────
+        if (activeStatsTab === 'charts') {
+            const monthMap = {};
+            runs.forEach(r => {
+                if (!r.date) return;
+                const m = r.date.substring(0, 7);
+                if (!monthMap[m]) monthMap[m] = { runs: 0, orders: 0 };
+                monthMap[m].runs++;
+                monthMap[m].orders += r.orders.length;
             });
-        });
 
-        // ── 2. Havi forgalom ───────────────────────────────────────────
-        const monthMap = {};
-        runs.forEach(r => {
-            if (!r.date) return;
-            const m = r.date.substring(0, 7);
-            if (!monthMap[m]) monthMap[m] = { runs: 0, orders: 0 };
-            monthMap[m].runs++;
-            monthMap[m].orders += r.orders.length;
-        });
-
-        const maxOrders = Math.max(...Object.values(monthMap).map(m => m.orders), 1);
-        const monthRows = Object.keys(monthMap).sort().map(m => {
-            const d = monthMap[m];
-            const [y, mo] = m.split('-');
-            return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f1f5f9;">
-                <span style="font-size:12px;font-weight:700;color:#374151;min-width:68px;">${y}. ${mo}.</span>
-                <span style="font-size:12px;color:#64748b;min-width:78px;">${d.runs} terítés</span>
-                <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:70px;">${d.orders} rend.</span>
-                ${makeBar(d.orders, maxOrders)}
-            </div>`;
-        }).join('');
-
-        statsRunsContainer.appendChild(makeSection('Havi forgalom', 'ph-chart-bar', monthRows));
-
-        // ── 3. Havi utánvét volumen ────────────────────────────────────
-        const codMonthMap = {};
-        runs.forEach((r, rIdx) => {
-            if (!r.date) return;
-            const m = r.date.substring(0, 7);
-            if (!codMonthMap[m]) codMonthMap[m] = { total: 0, received: 0, uncollected: 0, pending: 0, recovered: 0 };
-            let runCOD = 0;
-            r.orders.forEach(o => { if (o.isCOD) runCOD += o.codAmount; });
-            codMonthMap[m].total += runCOD;
-            if (r.isSettled || r.settledAmount > 0) {
-                const recv = r.settledAmount || 0;
-                const recoveredCOD = getRecoveredCOD(r, rIdx);
-                codMonthMap[m].received    += recv;
-                codMonthMap[m].uncollected += (runCOD - recv) - recoveredCOD;
-                codMonthMap[m].recovered   += recoveredCOD;
-            } else {
-                codMonthMap[m].pending += runCOD;
-            }
-        });
-
-        const maxCOD = Math.max(...Object.values(codMonthMap).map(m => m.total), 1);
-        const codRows = Object.keys(codMonthMap).sort()
-            .filter(m => codMonthMap[m].total > 0)
-            .map(m => {
-                const d = codMonthMap[m];
+            const maxOrders = Math.max(...Object.values(monthMap).map(m => m.orders), 1);
+            const monthRows = Object.keys(monthMap).sort().map(m => {
+                const d = monthMap[m];
                 const [y, mo] = m.split('-');
-                const recvPct   = maxCOD > 0 ? (d.received    / maxCOD * 100) : 0;
-                const uncPct    = maxCOD > 0 ? (d.uncollected / maxCOD * 100) : 0;
-                const pendPct   = maxCOD > 0 ? (d.pending     / maxCOD * 100) : 0;
-                return `<div style="padding:9px 0;border-bottom:1px solid #f1f5f9;">
-                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
-                        <span style="font-size:12px;font-weight:700;color:#374151;min-width:68px;">${y}. ${mo}.</span>
-                        <span style="font-size:13px;font-weight:800;color:#0f172a;">${d.total.toLocaleString('hu-HU')} Ft</span>
-                        ${d.received    > 0 ? `<span style="font-size:11px;font-weight:700;color:#22c55e;">✓ ${d.received.toLocaleString('hu-HU')} Ft</span>` : ''}
-                        ${d.uncollected > 0 ? `<span style="font-size:11px;font-weight:700;color:#f97316;">~ ${d.uncollected.toLocaleString('hu-HU')} Ft kiesett</span>` : ''}
-                        ${d.recovered   > 0 ? `<span style="font-size:11px;color:#64748b;">↩ ${d.recovered.toLocaleString('hu-HU')} Ft utólag beérkezett</span>` : ''}
-                        ${d.pending     > 0 ? `<span style="font-size:11px;color:#94a3b8;">${d.pending.toLocaleString('hu-HU')} Ft függőben</span>` : ''}
-                    </div>
-                    <div style="display:flex;height:7px;border-radius:4px;overflow:hidden;background:#f1f5f9;">
-                        <div style="background:#22c55e;width:${recvPct}%;"></div>
-                        <div style="background:#f97316;width:${uncPct}%;"></div>
-                        <div style="background:#cbd5e1;width:${pendPct}%;"></div>
-                    </div>
+                return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f1f5f9;">
+                    <span style="font-size:12px;font-weight:700;color:#374151;min-width:68px;">${y}. ${mo}.</span>
+                    <span style="font-size:12px;color:#64748b;min-width:78px;">${d.runs} terítés</span>
+                    <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:70px;">${d.orders} rend.</span>
+                    ${makeBar(d.orders, maxOrders)}
                 </div>`;
             }).join('');
 
-        statsRunsContainer.appendChild(makeSection('Havi utánvét volumen', 'ph-money',
-            codRows || '<p style="color:#94a3b8;font-size:13px;">Nincs utánvétes adat</p>'
-        ));
+            statsRunsContainer.appendChild(makeSection('Havi forgalom', 'ph-chart-bar', monthRows));
+
+            const codMonthMap = {};
+            runs.forEach((r, rIdx) => {
+                if (!r.date) return;
+                const m = r.date.substring(0, 7);
+                if (!codMonthMap[m]) codMonthMap[m] = { total: 0, received: 0, uncollected: 0, pending: 0, recovered: 0, bankTransferred: 0 };
+                let runCOD = 0;
+                r.orders.forEach(o => { if (o.isCOD) runCOD += o.codAmount; });
+                codMonthMap[m].total += runCOD;
+
+                const bankTransferredOrderIds = r.bankTransferredOrderIds || [];
+                let bankSum = 0;
+                r.orders.forEach(o => {
+                    if (o.isCOD && bankTransferredOrderIds.includes(o.id)) {
+                        bankSum += o.codAmount;
+                    }
+                });
+                codMonthMap[m].bankTransferred += bankSum;
+
+                if (r.isSettled || r.settledAmount > 0) {
+                    const recv = r.settledAmount || 0;
+                    const recoveredCOD = getRecoveredCOD(r, rIdx);
+                    codMonthMap[m].received    += recv;
+                    codMonthMap[m].uncollected += (runCOD - recv - bankSum) - recoveredCOD;
+                    codMonthMap[m].recovered   += recoveredCOD;
+                } else {
+                    codMonthMap[m].pending += runCOD;
+                }
+            });
+
+            const maxCOD = Math.max(...Object.values(codMonthMap).map(m => m.total), 1);
+            const codRows = Object.keys(codMonthMap).sort()
+                .filter(m => codMonthMap[m].total > 0)
+                .map(m => {
+                    const d = codMonthMap[m];
+                    const [y, mo] = m.split('-');
+                    const recvPct   = maxCOD > 0 ? (d.received    / maxCOD * 100) : 0;
+                    const bankPct   = maxCOD > 0 ? (d.bankTransferred / maxCOD * 100) : 0;
+                    const uncPct    = maxCOD > 0 ? (d.uncollected / maxCOD * 100) : 0;
+                    const pendPct   = maxCOD > 0 ? (d.pending     / maxCOD * 100) : 0;
+                    return `<div style="padding:9px 0;border-bottom:1px solid #f1f5f9;">
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
+                            <span style="font-size:12px;font-weight:700;color:#374151;min-width:68px;">${y}. ${mo}.</span>
+                            <span style="font-size:13px;font-weight:800;color:#0f172a;">${d.total.toLocaleString('hu-HU')} Ft</span>
+                            ${d.received    > 0 ? `<span style="font-size:11px;font-weight:700;color:#22c55e;">✓ ${d.received.toLocaleString('hu-HU')} Ft KP</span>` : ''}
+                            ${d.bankTransferred > 0 ? `<span style="font-size:11px;font-weight:700;color:#3b82f6;">🏦 ${d.bankTransferred.toLocaleString('hu-HU')} Ft utalva</span>` : ''}
+                            ${d.uncollected > 0 ? `<span style="font-size:11px;font-weight:700;color:#f97316;">~ ${d.uncollected.toLocaleString('hu-HU')} Ft kiesett</span>` : ''}
+                            ${d.recovered   > 0 ? `<span style="font-size:11px;color:#64748b;">↩ ${d.recovered.toLocaleString('hu-HU')} Ft utólag</span>` : ''}
+                            ${d.pending     > 0 ? `<span style="font-size:11px;color:#94a3b8;">${d.pending.toLocaleString('hu-HU')} Ft függőben</span>` : ''}
+                        </div>
+                        <div style="display:flex;height:7px;border-radius:4px;overflow:hidden;background:#f1f5f9;">
+                            <div style="background:#22c55e;width:${recvPct}%;"></div>
+                            <div style="background:#3b82f6;width:${bankPct}%;"></div>
+                            <div style="background:#f97316;width:${uncPct}%;"></div>
+                            <div style="background:#cbd5e1;width:${pendPct}%;"></div>
+                        </div>
+                    </div>`;
+                }).join('');
+
+            statsRunsContainer.appendChild(makeSection('Havi utánvét volumen', 'ph-money',
+                codRows || '<p style="color:#94a3b8;font-size:13px;">Nincs utánvétes adat</p>'
+            ));
+
+            // ── 2b. Heti trend (utolsó 12 hét) ────────────────────────
+            const weekMap = {};
+            runs.forEach(r => {
+                if (!r.date) return;
+                const d = new Date(r.date + 'T00:00:00');
+                const dayOfYear = Math.floor((d - new Date(d.getFullYear(), 0, 1)) / 86400000);
+                const weekNum = Math.floor(dayOfYear / 7);
+                const yearWeek = `${d.getFullYear()}-W${String(weekNum + 1).padStart(2, '0')}`;
+                if (!weekMap[yearWeek]) weekMap[yearWeek] = { orders: 0, runs: 0 };
+                weekMap[yearWeek].orders += r.orders.length;
+                weekMap[yearWeek].runs++;
+            });
+            const weekKeys = Object.keys(weekMap).sort().slice(-12);
+            const maxWeekOrders = Math.max(...weekKeys.map(k => weekMap[k].orders), 1);
+            const weekRows = weekKeys.map(k => {
+                const d = weekMap[k];
+                return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f1f5f9;">
+                    <span style="font-size:12px;font-weight:700;color:#374151;min-width:68px;">${k}</span>
+                    <span style="font-size:12px;color:#64748b;min-width:78px;">${d.runs} terítés</span>
+                    <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:70px;">${d.orders} rend.</span>
+                    ${makeBar(d.orders, maxWeekOrders, '#8b5cf6')}
+                </div>`;
+            }).join('');
+            statsRunsContainer.appendChild(makeSection('Heti trend (utolsó 12 hét)', 'ph-trend-up', weekRows || '<p style="color:#94a3b8;font-size:13px;">Nincs adat</p>'));
+
+            // ── 2c. Napi átlag kiszállítás (havi bontás) ───────────────
+            const dailyAvgMap = {};
+            runs.forEach(r => {
+                if (!r.date) return;
+                const m = r.date.substring(0, 7);
+                if (!dailyAvgMap[m]) dailyAvgMap[m] = { totalOrders: 0, days: new Set() };
+                dailyAvgMap[m].totalOrders += r.orders.length;
+                dailyAvgMap[m].days.add(r.date);
+            });
+            const maxDailyAvg = Math.max(...Object.values(dailyAvgMap).map(d => d.totalOrders / d.days.size), 1);
+            const dailyAvgRows = Object.keys(dailyAvgMap).sort().map(m => {
+                const d = dailyAvgMap[m];
+                const avg = (d.totalOrders / d.days.size).toFixed(1);
+                const [y, mo] = m.split('-');
+                return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f1f5f9;">
+                    <span style="font-size:12px;font-weight:700;color:#374151;min-width:68px;">${y}. ${mo}.</span>
+                    <span style="font-size:12px;color:#64748b;min-width:78px;">${d.days.size} munkanap</span>
+                    <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:90px;">${avg} rend./nap</span>
+                    ${makeBar(d.totalOrders / d.days.size, maxDailyAvg, '#06b6d4')}
+                </div>`;
+            }).join('');
+            statsRunsContainer.appendChild(makeSection('Napi átlag kiszállítás', 'ph-calendar-blank', dailyAvgRows || '<p style="color:#94a3b8;font-size:13px;">Nincs adat</p>'));
+
+            // ── 2d. Kiesési arány (havi bontás) ────────────────────────
+            const failRateMap = {};
+            runs.forEach(r => {
+                if (!r.date) return;
+                const m = r.date.substring(0, 7);
+                if (!failRateMap[m]) failRateMap[m] = { total: 0, failed: 0 };
+                failRateMap[m].total += r.orders.length;
+                failRateMap[m].failed += (r.uncollectedOrderIds || []).length;
+                failRateMap[m].failed += Object.keys(r.partialOrders || {}).length;
+            });
+            const failRateRows = Object.keys(failRateMap).sort().map(m => {
+                const d = failRateMap[m];
+                const pct = d.total > 0 ? ((d.failed / d.total) * 100).toFixed(1) : '0.0';
+                const [y, mo] = m.split('-');
+                const pctNum = parseFloat(pct);
+                const barColor = pctNum > 15 ? '#ef4444' : pctNum > 8 ? '#f97316' : '#22c55e';
+                return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f1f5f9;">
+                    <span style="font-size:12px;font-weight:700;color:#374151;min-width:68px;">${y}. ${mo}.</span>
+                    <span style="font-size:12px;color:#64748b;min-width:108px;">${d.failed} / ${d.total} rendelés</span>
+                    <span style="font-size:12px;font-weight:700;color:${barColor};min-width:55px;">${pct}%</span>
+                    ${makeBar(pctNum, 100, barColor)}
+                </div>`;
+            }).join('');
+            statsRunsContainer.appendChild(makeSection('Kiesési arány', 'ph-chart-line-down', failRateRows || '<p style="color:#94a3b8;font-size:13px;">Nincs adat</p>'));
+        }
 
         // ── 4. Top termékek ───────────────────────────────────────────
-        const itemMap = {};
-        runs.forEach(r => r.orders.forEach(o => o.items.forEach(it => {
-            if (!it.name || it.name === '—') return;
-            itemMap[it.name] = (itemMap[it.name] || 0) + (it.qty || 1);
-        })));
+        if (activeStatsTab === 'products') {
+            const itemMap = {};
+            runs.forEach(r => r.orders.forEach(o => o.items.forEach(it => {
+                if (!it.name || it.name === '—') return;
+                itemMap[it.name] = (itemMap[it.name] || 0) + (it.qty || 1);
+            })));
 
-        const topItems = Object.entries(itemMap).sort((a, b) => b[1] - a[1]);
-        const maxQty = topItems.length > 0 ? topItems[0][1] : 1;
-        const itemRows = makeCollapsible(topItems.map(([name, qty], i) => `
-            <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f1f5f9;">
-                <span style="font-size:12px;font-weight:700;color:#94a3b8;min-width:22px;text-align:right;">${i + 1}.</span>
-                <span style="font-size:13px;color:#374151;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>
-                <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:45px;text-align:right;">${qty} db</span>
-                ${makeBar(qty, maxQty, '#6366f1')}
-            </div>`), 'termék');
+            // Normalizáció: hasonló terméknevek összevonása
+            const normalizeProductName = (name) => {
+                return name
+                    .toLowerCase()
+                    .replace(/[\s\-_]+/g, ' ')  // kötőjel/alulvonás -> szóköz
+                    .replace(/\s+/g, ' ')        // többszörös szóköz -> egy
+                    .trim();
+            };
 
-        statsRunsContainer.appendChild(makeSection('Top szállított termékek', 'ph-package',
-            itemRows || '<p style="color:#94a3b8;font-size:13px;">Nincs termékadat</p>'
-        , true));
+            // Összevonás normalizált név szerint
+            const mergedMap = {};       // normName -> { totalQty, bestName, variants }
+            Object.entries(itemMap).forEach(([name, qty]) => {
+                const norm = normalizeProductName(name);
+                if (!mergedMap[norm]) {
+                    mergedMap[norm] = { totalQty: 0, bestName: name, bestQty: 0, variants: [] };
+                }
+                mergedMap[norm].totalQty += qty;
+                mergedMap[norm].variants.push({ name, qty });
+                if (qty > mergedMap[norm].bestQty) {
+                    mergedMap[norm].bestQty = qty;
+                    mergedMap[norm].bestName = name;
+                }
+            });
+
+            const topItems = Object.values(mergedMap)
+                .sort((a, b) => b.totalQty - a.totalQty);
+            const maxQty = topItems.length > 0 ? topItems[0].totalQty : 1;
+
+            const itemRows = topItems.map((item, i) => {
+                const isMerged = item.variants.length > 1;
+                const variantInfo = isMerged
+                    ? `<div style="padding:2px 0 0 32px;"><span style="font-size:10px;color:#94a3b8;font-style:italic;">${item.variants.length} variáns összevonva: ${item.variants.map(v => v.name).join(', ')}</span></div>`
+                    : '';
+                return `
+                <div style="border-bottom:1px solid #f1f5f9;">
+                    <div style="display:flex;align-items:center;gap:10px;padding:7px 0;">
+                        <span style="font-size:12px;font-weight:700;color:#94a3b8;min-width:22px;text-align:right;">${i + 1}.</span>
+                        <span style="font-size:13px;color:#374151;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.bestName}${isMerged ? ' <span style="font-size:10px;font-weight:600;color:#8b5cf6;background:#f5f3ff;border-radius:5px;padding:1px 5px;margin-left:4px;">összevont</span>' : ''}</span>
+                        <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:45px;text-align:right;">${item.totalQty} db</span>
+                        ${makeBar(item.totalQty, maxQty, '#6366f1')}
+                    </div>
+                    ${variantInfo}
+                </div>`;
+            }).join('');
+
+            statsRunsContainer.appendChild(makeSection('Szállított termékek', 'ph-package',
+                itemRows || '<p style="color:#94a3b8;font-size:13px;">Nincs termékadat</p>'
+            , true));
+        }
 
         // ── 5. Területi sűrűség (térkép) ──────────────────────────────
         const HU_ZIP = {
@@ -2849,234 +3323,355 @@ document.addEventListener('DOMContentLoaded', () => {
         // zip → {count, label, coords?}
         // Budapest (1xxx): egybe kezelve egy pontként
         const BUDAPEST_COORDS = [47.4979, 19.0402];
-        const zipMap = {};
-        runs.forEach(r => r.orders.forEach(o => {
-            if (!o.address) return;
-            const m = o.address.match(/^(\d{4})[,\s]+([^,]+)/);
-            if (!m) return;
-            const zip = m[1];
-            const city = m[2].trim();
-            const isBp = zip.startsWith('1') || city.toLowerCase().startsWith('budapest');
-            const key = isBp ? '__budapest__' : zip;
-            const label = isBp ? 'Budapest' : city;
-            const coords = isBp ? BUDAPEST_COORDS : null;
-            if (!zipMap[key]) zipMap[key] = { count: 0, label, zip: key, coords, orderIds: [] };
-            zipMap[key].count++;
-            zipMap[key].orderIds.push(o.id);
-        }));
+        // ── 5. Területi sűrűség (térkép) ──────────────────────────────
+        if (activeStatsTab === 'map') {
+            const zipMap = {};
+            runs.forEach(r => r.orders.forEach(o => {
+                if (!o.address) return;
+                const m = o.address.match(/^(\d{4})[,\s]+([^,]+)/);
+                if (!m) return;
+                const zip = m[1];
+                const city = m[2].trim();
+                const isBp = zip.startsWith('1') || city.toLowerCase().startsWith('budapest');
+                const key = isBp ? '__budapest__' : zip;
+                const label = isBp ? 'Budapest' : city;
+                const coords = isBp ? BUDAPEST_COORDS : null;
+                if (!zipMap[key]) zipMap[key] = { count: 0, label, zip: key, coords, orderIds: [] };
+                zipMap[key].count++;
+                zipMap[key].orderIds.push(o.id);
+            }));
 
-        const sortedLocs = Object.values(zipMap).sort((a, b) => b.count - a.count);
-        const maxLocCount = sortedLocs.length > 0 ? sortedLocs[0].count : 1;
+            const sortedLocs = Object.values(zipMap).sort((a, b) => b.count - a.count);
+            const maxLocCount = sortedLocs.length > 0 ? sortedLocs[0].count : 1;
 
-        const mapSectionEl = document.createElement('div');
-        mapSectionEl.style.cssText = 'border-radius:14px;overflow:hidden;border:1px solid #e2e8f0;grid-column:1/-1;display:flex;flex-direction:column;';
-        mapSectionEl.innerHTML = `
-            <div style="background:#0f172a;color:#fff;padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;">
-                <i class="ph-bold ph-map-pin" style="font-size:14px;color:#94a3b8;"></i>
-                <span style="font-weight:700;font-size:13px;letter-spacing:-.2px;">Területi sűrűség</span>
-                <span id="stats-map-status" style="font-size:11px;color:#64748b;margin-left:auto;"></span>
-            </div>
-            <div style="padding:12px 14px;background:#fff;flex:1;">
-                <div id="stats-map-leaflet" style="height:460px;border-radius:10px;overflow:hidden;margin-bottom:12px;border:1px solid #e2e8f0;"></div>
-                <div id="stats-location-list"></div>
-            </div>`;
-        statsRunsContainer.appendChild(mapSectionEl);
+            const mapSectionEl = document.createElement('div');
+            mapSectionEl.style.cssText = 'border-radius:14px;overflow:hidden;border:1px solid #e2e8f0;grid-column:1/-1;display:flex;flex-direction:column;';
+            mapSectionEl.innerHTML = `
+                <div style="background:#0f172a;color:#fff;padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                    <i class="ph-bold ph-map-pin" style="font-size:14px;color:#94a3b8;"></i>
+                    <span style="font-weight:700;font-size:13px;letter-spacing:-.2px;">Területi sűrűség</span>
+                    <span id="stats-map-status" style="font-size:11px;color:#64748b;margin-left:auto;"></span>
+                </div>
+                <div style="padding:12px 14px;background:#fff;flex:1;">
+                    <div id="stats-map-leaflet" style="height:460px;border-radius:10px;overflow:hidden;margin-bottom:12px;border:1px solid #e2e8f0;"></div>
+                    <div id="stats-location-list"></div>
+                </div>`;
+            statsRunsContainer.appendChild(mapSectionEl);
 
-        // Leaflet init
-        statsLeafletMap = L.map('stats-map-leaflet', { zoomControl: true, scrollWheelZoom: false });
-        statsLeafletMap.fitBounds([[45.7, 16.1], [48.6, 22.9]]);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> © <a href="https://carto.com">CARTO</a>',
-            subdomains: 'abcd', maxZoom: 19
-        }).addTo(statsLeafletMap);
+            // Leaflet init
+            statsLeafletMap = L.map('stats-map-leaflet', { zoomControl: true, scrollWheelZoom: false });
+            statsLeafletMap.fitBounds([[45.7, 16.1], [48.6, 22.9]]);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> © <a href="https://carto.com">CARTO</a>',
+                subdomains: 'abcd', maxZoom: 19
+            }).addTo(statsLeafletMap);
 
-        // Helyszínlista renderelése (szöveges, lenyitható)
-        const locListEl = document.getElementById('stats-location-list');
-        const locRowsArr = sortedLocs.map((loc, i) => `
-            <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f1f5f9;">
-                <span style="font-size:12px;font-weight:700;color:#94a3b8;min-width:22px;text-align:right;">${i + 1}.</span>
-                <span style="font-size:13px;color:#374151;flex:1;">${loc.label}</span>
-                <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:60px;text-align:right;">${loc.count} rend.</span>
-                ${makeBar(loc.count, maxLocCount, '#3b82f6')}
-            </div>`);
-        locListEl.innerHTML = locRowsArr.length > 0
-            ? makeCollapsible(locRowsArr, 'helyszín')
-            : '<p style="color:#94a3b8;font-size:13px;">Nincs cím adat</p>';
+            // Duplikált szállítás és kiesési okok összegyűjtése
+            const orderAppearanceCount = {};  // orderId -> number of runs it appeared in
+            const orderFirstFailReason = {};  // orderId -> reason from first failed attempt
+            runs.forEach(r => {
+                const rUnc = new Set(r.uncollectedOrderIds || []);
+                const rReasons = r.uncollectedReasons || {};
+                r.orders.forEach(o => {
+                    orderAppearanceCount[o.id] = (orderAppearanceCount[o.id] || 0) + 1;
+                    if (rUnc.has(o.id) && !orderFirstFailReason[o.id]) {
+                        orderFirstFailReason[o.id] = rReasons[o.id] || '';
+                    }
+                });
+            });
 
-        // Markerek: kis tömör pontok, méret sqrt-skálán
-        const addMarker = (coords, loc) => {
-            const r = 4 + Math.round(Math.sqrt(loc.count / maxLocCount) * 10);
-            L.circleMarker(coords, {
-                radius: r, fillColor: '#1d4ed8', color: '#fff',
-                weight: 1, opacity: 1, fillOpacity: 0.85
-            }).bindTooltip(() => {
+            const locListEl = document.getElementById('stats-location-list');
+            const locRowsArr = sortedLocs.map((loc, i) => {
                 const ids = (loc.orderIds || []).slice().sort((a, b) =>
                     parseInt(a.replace(/\D/g, '') || '0') - parseInt(b.replace(/\D/g, '') || '0')
                 );
-                const cols  = ids.length <= 5 ? 1 : ids.length <= 14 ? 2 : 3;
-                const maxW  = cols === 1 ? 130 : cols === 2 ? 210 : 300;
-                const idGrid = ids.length > 0
-                    ? `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:3px 12px;margin-top:6px;max-width:${maxW}px;">
-                           ${ids.map(id => `<span style="font-size:11px;font-weight:600;color:#1d4ed8;white-space:nowrap;">${id}</span>`).join('')}
-                       </div>`
-                    : '';
-                return `<div style="padding:2px 0;"><strong style="font-size:13px;">${loc.label}</strong> <span style="font-size:12px;color:#64748b;">· ${loc.count} rendelés</span>${idGrid}</div>`;
-            }, { direction: 'top', offset: [0, -r - 2], opacity: 1 }).addTo(statsLeafletMap);
-        };
+                // Deduplikált ID-k, de jelöljük a többszörösen szállítottakat
+                const uniqueIds = [...new Set(ids)];
+                const idBadges = uniqueIds.map(id => {
+                    const count = orderAppearanceCount[id] || 1;
+                    const isDuplicate = count > 1;
+                    const failReason = orderFirstFailReason[id] || '';
+                    let badge = `<span style="font-size:10px;font-weight:600;color:#1d4ed8;white-space:nowrap;">${id}</span>`;
+                    if (isDuplicate) {
+                        badge = `<span style="font-size:10px;font-weight:600;color:#c2410c;white-space:nowrap;" title="${failReason ? 'Elso kiesés oka: ' + failReason : 'Többszörösen szállítva'}">${id} <span style="font-size:9px;font-weight:700;color:#fff;background:#c2410c;border-radius:4px;padding:0 3px;">${count}x</span>${failReason ? ' <span style=&quot;font-size:9px;color:#94a3b8;&quot;>(' + failReason + ')</span>' : ''}</span>`;
+                    }
+                    return badge;
+                }).join(' ');
 
-        const unknown = [];
-        sortedLocs.forEach(loc => {
-            // Budapest: közvetlen koordináta
-            if (loc.coords) { addMarker(loc.coords, loc); return; }
-            // Lookup tábla
-            const coords = lookupZip(loc.zip);
-            if (coords) {
-                addMarker(coords, loc);
-            } else if (geoCache[loc.zip]) {
-                addMarker(geoCache[loc.zip], loc);
-            } else if (!geoCache[loc.zip + '_miss']) {
-                unknown.push(loc);
-            }
-        });
+                return `
+                <div style="padding:8px 0;border-bottom:1px solid #f1f5f9;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:12px;font-weight:700;color:#94a3b8;min-width:22px;text-align:right;">${i + 1}.</span>
+                        <span style="font-size:13px;font-weight:600;color:#374151;min-width:100px;">${loc.label}</span>
+                        <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:55px;text-align:right;">${loc.count} rend.</span>
+                        ${makeBar(loc.count, maxLocCount, '#3b82f6')}
+                    </div>
+                    <div style="padding:3px 0 0 32px;display:flex;flex-wrap:wrap;gap:4px 8px;">${idBadges}</div>
+                </div>`;
+            });
+            locListEl.innerHTML = locRowsArr.length > 0
+                ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px;margin-top:8px;">${locRowsArr.join('')}</div>`
+                : '<p style="color:#94a3b8;font-size:13px;">Nincs cím adat</p>';
 
-        // Nominatim queue (1 req/sec)
-        if (unknown.length > 0) {
-            const statusEl = document.getElementById('stats-map-status');
-            if (statusEl) statusEl.textContent = `Geocoding: 0/${unknown.length}…`;
-            (async () => {
-                for (let i = 0; i < unknown.length; i++) {
-                    const loc = unknown[i];
-                    try {
-                        const res = await fetch(
-                            `https://nominatim.openstreetmap.org/search?postalcode=${loc.zip}&country=hu&format=json&limit=1`,
-                            { headers: { 'Accept': 'application/json' } }
-                        );
-                        const data = await res.json();
-                        if (data && data[0]) {
-                            const coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-                            geoCache[loc.zip] = coords;
-                            localStorage.setItem('hu_zip_geocache_v1', JSON.stringify(geoCache));
-                            addMarker(coords, loc);
-                        } else {
-                            geoCache[loc.zip + '_miss'] = true;
-                            localStorage.setItem('hu_zip_geocache_v1', JSON.stringify(geoCache));
-                        }
-                    } catch (_) { /* hálózati hiba — kihagyjuk */ }
-                    if (statusEl) statusEl.textContent = i + 1 < unknown.length
-                        ? `Geocoding: ${i + 1}/${unknown.length}…`
+            // Markerek: kis tömör pontok, méret sqrt-skálán
+            const addMarker = (coords, loc) => {
+                const r = 4 + Math.round(Math.sqrt(loc.count / maxLocCount) * 10);
+                L.circleMarker(coords, {
+                    radius: r, fillColor: '#1d4ed8', color: '#fff',
+                    weight: 1, opacity: 1, fillOpacity: 0.85
+                }).bindTooltip(() => {
+                    const ids = (loc.orderIds || []).slice().sort((a, b) =>
+                        parseInt(a.replace(/\D/g, '') || '0') - parseInt(b.replace(/\D/g, '') || '0')
+                    );
+                    const cols  = ids.length <= 5 ? 1 : ids.length <= 14 ? 2 : 3;
+                    const maxW  = cols === 1 ? 130 : cols === 2 ? 210 : 300;
+                    const idGrid = ids.length > 0
+                        ? `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:3px 12px;margin-top:6px;max-width:${maxW}px;">
+                               ${ids.map(id => `<span style="font-size:11px;font-weight:600;color:#1d4ed8;white-space:nowrap;">${id}</span>`).join('')}
+                           </div>`
                         : '';
-                    if (i + 1 < unknown.length) await new Promise(r => setTimeout(r, 1100));
+                    return `<div style="padding:2px 0;"><strong style="font-size:13px;">${loc.label}</strong> <span style="font-size:12px;color:#64748b;">· ${loc.count} rendelés</span>${idGrid}</div>`;
+                }, { direction: 'top', offset: [0, -r - 2], opacity: 1 }).addTo(statsLeafletMap);
+            };
+
+            const unknown = [];
+            sortedLocs.forEach(loc => {
+                // Budapest: közvetlen koordináta
+                if (loc.coords) { addMarker(loc.coords, loc); return; }
+                // Lookup tábla
+                const coords = lookupZip(loc.zip);
+                if (coords) {
+                    addMarker(coords, loc);
+                } else if (geoCache[loc.zip]) {
+                    addMarker(geoCache[loc.zip], loc);
+                } else if (!geoCache[loc.zip + '_miss']) {
+                    unknown.push(loc);
                 }
-            })();
+            });
+
+            // Nominatim queue (1 req/sec)
+            if (unknown.length > 0) {
+                const statusEl = document.getElementById('stats-map-status');
+                if (statusEl) statusEl.textContent = `Geocoding: 0/${unknown.length}…`;
+                (async () => {
+                    for (let i = 0; i < unknown.length; i++) {
+                        const loc = unknown[i];
+                        try {
+                            const res = await fetch(
+                                `https://nominatim.openstreetmap.org/search?postalcode=${loc.zip}&country=hu&format=json&limit=1`,
+                                { headers: { 'Accept': 'application/json' } }
+                            );
+                            const data = await res.json();
+                            if (data && data[0]) {
+                                const coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+                                geoCache[loc.zip] = coords;
+                                localStorage.setItem('hu_zip_geocache_v1', JSON.stringify(geoCache));
+                                addMarker(coords, loc);
+                            } else {
+                                geoCache[loc.zip + '_miss'] = true;
+                                localStorage.setItem('hu_zip_geocache_v1', JSON.stringify(geoCache));
+                            }
+                        } catch (_) { /* hálózati hiba — kihagyjuk */ }
+                        if (statusEl) statusEl.textContent = i + 1 < unknown.length
+                            ? `Geocoding: ${i + 1}/${unknown.length}…`
+                            : '';
+                        if (i + 1 < unknown.length) await new Promise(r => setTimeout(r, 1100));
+                    }
+                })();
+            }
         }
 
         // ── 6+7. Kiesett rendelések (újraszállítás infóval) ───────────
-        // Minden rendelés összes megjelenése: orderId → [{date, courier, isUncollected, isPartial, wasReceived}]
-        const orderRunsMap = new Map();
-        runs.forEach(r => {
-            const rUnc  = new Set(r.uncollectedOrderIds || []);
-            const rPart = r.partialOrders || {};
-            const settled = r.isSettled || (r.settledAmount > 0);
-            r.orders.forEach(o => {
-                if (!orderRunsMap.has(o.id)) orderRunsMap.set(o.id, []);
-                const isUnc  = rUnc.has(o.id);
-                const isPart = !!rPart[o.id];
-                orderRunsMap.get(o.id).push({
-                    date: r.date, courier: r.courier,
-                    isUncollected: isUnc, isPartial: isPart,
-                    wasReceived: !isUnc && !isPart && settled,
-                    wasPartialReceived: isPart && settled,
+        if (activeStatsTab === 'kiesett') {
+            // Minden rendelés összes megjelenése: orderId → [{date, courier, isUncollected, isPartial, wasReceived}]
+            const orderRunsMap = new Map();
+            runs.forEach(r => {
+                const rUnc  = new Set(r.uncollectedOrderIds || []);
+                const rPart = r.partialOrders || {};
+                const settled = r.isSettled || (r.settledAmount > 0);
+                r.orders.forEach(o => {
+                    if (!orderRunsMap.has(o.id)) orderRunsMap.set(o.id, []);
+                    const isUnc  = rUnc.has(o.id);
+                    const isPart = !!rPart[o.id];
+                    orderRunsMap.get(o.id).push({
+                        date: r.date, courier: r.courier,
+                        isUncollected: isUnc, isPartial: isPart,
+                        wasReceived: !isUnc && !isPart && settled,
+                        wasPartialReceived: isPart && settled,
+                    });
                 });
             });
-        });
 
-        const kiesettRows = [];
-        runs.forEach(r => {
-            const runReasons  = r.uncollectedReasons || {};
-            const runPartials = r.partialOrders || {};
-            (r.uncollectedOrderIds || []).forEach(id => {
-                const o = (r.orders || []).find(x => x.id === id);
-                const laterEntries = (orderRunsMap.get(id) || []).filter(e => e.date > (r.date || ''));
-                kiesettRows.push({
-                    id, isPartial: false, isCOD: !!(o && o.isCOD),
-                    name: o ? (o.shippingName || '—') : '—',
-                    date: r.date || '—', courier: r.courier || '—',
-                    codAmount: o && o.isCOD ? (o.codAmount || 0) : 0,
-                    reason: runReasons[id] || '',
-                    laterEntries,
+            const kiesettRows = [];
+            runs.forEach(r => {
+                const runReasons  = r.uncollectedReasons || {};
+                const runPartials = r.partialOrders || {};
+                const runResponsibility = r.uncollectedResponsibility || {};
+                (r.uncollectedOrderIds || []).forEach(id => {
+                    const o = (r.orders || []).find(x => x.id === id);
+                    const laterEntries = (orderRunsMap.get(id) || []).filter(e => e.date > (r.date || ''));
+                    kiesettRows.push({
+                        id, isPartial: false, isCOD: !!(o && o.isCOD),
+                        name: o ? (o.shippingName || '—') : '—',
+                        date: r.date || '—', courier: r.courier || '—',
+                        codAmount: o && o.isCOD ? (o.codAmount || 0) : 0,
+                        reason: runReasons[id] || '',
+                        laterEntries,
+                        docId: r.docId,
+                        responsibility: runResponsibility[id] || 'vevo'
+                    });
+                });
+                Object.entries(runPartials).forEach(([id, info]) => {
+                    const o = (r.orders || []).find(x => x.id === id);
+                    if (!o || !o.isCOD) return;
+                    const diff = o.codAmount - (info.amount || 0);
+                    if (diff <= 0) return;
+                    const laterEntries = (orderRunsMap.get(id) || []).filter(e => e.date > (r.date || ''));
+                    kiesettRows.push({
+                        id, isPartial: true, isCOD: true,
+                        name: o.shippingName || '—',
+                        date: r.date || '—', courier: r.courier || '—',
+                        codAmount: diff, fullAmount: o.codAmount, partialAmount: info.amount,
+                        reason: info.comment || '',
+                        laterEntries,
+                        docId: r.docId,
+                        responsibility: runResponsibility[id] || 'vevo'
+                    });
                 });
             });
-            Object.entries(runPartials).forEach(([id, info]) => {
-                const o = (r.orders || []).find(x => x.id === id);
-                if (!o || !o.isCOD) return;
-                const diff = o.codAmount - (info.amount || 0);
-                if (diff <= 0) return;
-                const laterEntries = (orderRunsMap.get(id) || []).filter(e => e.date > (r.date || ''));
-                kiesettRows.push({
-                    id, isPartial: true, isCOD: true,
-                    name: o.shippingName || '—',
-                    date: r.date || '—', courier: r.courier || '—',
-                    codAmount: diff, fullAmount: o.codAmount, partialAmount: info.amount,
-                    reason: info.comment || '',
-                    laterEntries,
-                });
+            kiesettRows.sort((a, b) => {
+                const aRec = (a.laterEntries || []).some(e => e.wasReceived || e.wasPartialReceived) ? 1 : 0;
+                const bRec = (b.laterEntries || []).some(e => e.wasReceived || e.wasPartialReceived) ? 1 : 0;
+                if (aRec !== bRec) return aRec - bRec;
+                return b.date.localeCompare(a.date);
             });
-        });
-        kiesettRows.sort((a, b) => {
-            const aRec = (a.laterEntries || []).some(e => e.wasReceived || e.wasPartialReceived) ? 1 : 0;
-            const bRec = (b.laterEntries || []).some(e => e.wasReceived || e.wasPartialReceived) ? 1 : 0;
-            if (aRec !== bRec) return aRec - bRec;
-            return b.date.localeCompare(a.date);
-        });
 
-        const renderLaterEntries = (entries) => {
-            if (!entries || entries.length === 0) return '';
-            const redeliveries = entries.filter(e => e.date);
-            if (redeliveries.length === 0) return '';
-            const last = redeliveries[redeliveries.length - 1];
-            const outcome = last.isUncollected
-                ? `<span style="font-size:10px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;padding:1px 6px;">ismét kiesett</span>`
-                : last.wasReceived || last.wasPartialReceived
-                    ? `<span style="font-size:10px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:1px 6px;">átvéve ✓</span>`
-                    : `<span style="font-size:10px;color:#94a3b8;background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;">függőben</span>`;
-            return `<div style="margin-top:4px;padding-left:14px;border-left:2px solid #e2e8f0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                <span style="font-size:11px;color:#94a3b8;">↳</span>
-                <span style="font-size:11px;font-weight:600;color:#64748b;">${redeliveries.length}× újra szállítva</span>
-                <span style="font-size:11px;color:#94a3b8;">·</span>
-                <span style="font-size:11px;color:#64748b;">${last.date} · ${last.courier || '—'}</span>
-                ${outcome}
-            </div>`;
-        };
+            const renderLaterEntries = (entries) => {
+                if (!entries || entries.length === 0) return '';
+                const redeliveries = entries.filter(e => e.date);
+                if (redeliveries.length === 0) return '';
+                const last = redeliveries[redeliveries.length - 1];
+                const outcome = last.isUncollected
+                    ? `<span style="font-size:10px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;padding:1px 6px;">ismét kiesett</span>`
+                    : last.wasReceived || last.wasPartialReceived
+                        ? `<span style="font-size:10px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:1px 6px;">átvéve ✓</span>`
+                        : `<span style="font-size:10px;color:#94a3b8;background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;">függőben</span>`;
+                return `<div style="margin-top:4px;padding-left:14px;border-left:2px solid #e2e8f0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                    <span style="font-size:11px;color:#94a3b8;">↳</span>
+                    <span style="font-size:11px;font-weight:600;color:#64748b;">${redeliveries.length}× újra szállítva</span>
+                    <span style="font-size:11px;color:#94a3b8;">·</span>
+                    <span style="font-size:11px;color:#64748b;">${last.date} · ${last.courier || '—'}</span>
+                    ${outcome}
+                </div>`;
+            };
 
-        const kiesettHtml = makeCollapsible(kiesettRows.map(k => {
-            const isRecovered = k.laterEntries && k.laterEntries.some(e => e.wasReceived || e.wasPartialReceived);
-            const amtColor = isRecovered ? '#94a3b8' : '#b91c1c';
-            return `
-            <div style="padding:8px 0;border-bottom:1px solid #f1f5f9;">
-                <div style="display:flex;align-items:center;gap:8px;min-width:0;">
-                    <span style="font-size:12px;font-weight:700;color:#0f172a;width:70px;flex-shrink:0;">${k.id}</span>
-                    <span style="font-size:12px;color:#64748b;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${k.name}</span>
-                    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
+            const kiesettCards = kiesettRows.map(k => {
+                const isRecovered = k.laterEntries && k.laterEntries.some(e => e.wasReceived || e.wasPartialReceived);
+                const amtColor = isRecovered ? '#94a3b8' : '#b91c1c';
+                
+                const resp = k.responsibility || 'vevo';
+                let pillClass = 'vevo';
+                let pillIcon = '<i class="ph-bold ph-user"></i>';
+                let pillLabel = 'Vevő / Egyéb';
+                if (resp === 'mienk') {
+                    pillClass = 'mienk';
+                    pillIcon = '<i class="ph-bold ph-x-circle"></i>';
+                    pillLabel = 'Saját hiba';
+                } else if (resp === 'szallito') {
+                    pillClass = 'szallito';
+                    pillIcon = '<i class="ph-bold ph-truck"></i>';
+                    pillLabel = 'Szállító hibája';
+                }
+
+                const respPillContainer = `
+                <div class="responsibility-display" style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+                    <span style="font-size:11px;color:#64748b;font-weight:600;margin-right:4px;">Felelős:</span>
+                    <span class="resp-pill ${pillClass}" data-doc-id="${k.docId}" data-order-id="${k.id}" data-resp="${resp}" title="Kattints a felelős módosításához">
+                        ${pillIcon}${pillLabel}
+                    </span>
+                </div>
+                `;
+
+                return `
+                <div class="stat-kiesett-card" style="padding:10px 8px;border-bottom:1px solid #f1f5f9;">
+                    <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">
+                        <span style="font-size:12px;font-weight:700;color:#0f172a;">${k.id}</span>
+                        <span style="font-size:11px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;">${k.name}</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;">
                         <span style="font-size:11px;color:#94a3b8;">${k.date}</span>
                         <span style="font-size:11px;color:#374151;">${k.courier}</span>
                         ${!k.isCOD
                             ? `<span style="font-size:10px;color:#64748b;background:#f1f5f9;border-radius:5px;padding:1px 6px;">Nem utánvétes</span>`
                             : k.isPartial
                                 ? `<span style="font-size:10px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #93c5fd;border-radius:5px;padding:1px 6px;">Részleges</span>
-                                   <span style="font-size:12px;font-weight:700;color:${amtColor};">−${k.codAmount.toLocaleString('hu-HU')} Ft</span>`
+                                   <span style="font-size:11px;font-weight:700;color:${amtColor};">-${k.codAmount.toLocaleString('hu-HU')} Ft</span>`
                                 : k.codAmount > 0
-                                    ? `<span style="font-size:12px;font-weight:700;color:${amtColor};">${k.codAmount.toLocaleString('hu-HU')} Ft</span>`
+                                    ? `<span style="font-size:11px;font-weight:700;color:${amtColor};">${k.codAmount.toLocaleString('hu-HU')} Ft</span>`
                                     : ''}
-                        ${k.reason ? `<span style="font-size:11px;color:#64748b;background:#f1f5f9;border-radius:5px;padding:2px 7px;">${k.reason}</span>` : ''}
+                        ${k.reason ? `<span style="font-size:10px;color:#64748b;background:#f1f5f9;border-radius:5px;padding:2px 7px;">${k.reason}</span>` : ''}
                     </div>
-                </div>
-                ${renderLaterEntries(k.laterEntries)}
-            </div>`;
-        }), 'rendelés');
+                    ${renderLaterEntries(k.laterEntries)}
+                    ${respPillContainer}
+                </div>`;
+            }).join('');
 
-        statsRunsContainer.appendChild(makeSection('Kiesett rendelések', 'ph-warning',
-            kiesettRows.length > 0 ? kiesettHtml : '<p style="color:#94a3b8;font-size:13px;">Nincs kiesett rendelés a kiválasztott időszakban.</p>'
-        , true));
+            const kiesettContentHtml = kiesettRows.length > 0
+                ? `<div class="stats-kiesett-grid">${kiesettCards}</div>`
+                : '<p style="color:#94a3b8;font-size:13px;">Nincs kiesett rendelés a kiválasztott időszakban.</p>';
+
+            statsRunsContainer.appendChild(makeSection('Kiesett rendelések', 'ph-warning', kiesettContentHtml, true));
+
+            // Felelősség pirula kattintáskezelő (ciklikus váltás)
+            statsRunsContainer.querySelectorAll('.resp-pill').forEach(pill => {
+                pill.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const docId = pill.getAttribute('data-doc-id');
+                    const orderId = pill.getAttribute('data-order-id');
+                    const currentResp = pill.getAttribute('data-resp');
+                    
+                    // Ciklikus váltás: vevo -> mienk -> szallito -> vevo
+                    let nextResp = 'vevo';
+                    let nextLabel = 'Vevő / Egyéb';
+                    let nextClass = 'vevo';
+                    let nextIcon = '<i class="ph-bold ph-user"></i>';
+
+                    if (currentResp === 'vevo') {
+                        nextResp = 'mienk';
+                        nextLabel = 'Saját hiba';
+                        nextClass = 'mienk';
+                        nextIcon = '<i class="ph-bold ph-x-circle"></i>';
+                    } else if (currentResp === 'mienk') {
+                        nextResp = 'szallito';
+                        nextLabel = 'Szállító hibája';
+                        nextClass = 'szallito';
+                        nextIcon = '<i class="ph-bold ph-truck"></i>';
+                    }
+
+                    // Vizuális visszajelzés azonnal (optimista frissítés)
+                    pill.className = `resp-pill ${nextClass}`;
+                    pill.setAttribute('data-resp', nextResp);
+                    pill.innerHTML = `${nextIcon}${nextLabel}`;
+
+                    // Mentés a háttérben
+                    const ok = await HistoryManager.updateResponsibilityInFirestore(docId, orderId, nextResp);
+                    if (ok) {
+                        // Újrarajzolás vibrálás nélkül a bento boxok/courier breakdown frissítéséhez
+                        renderStatistics();
+                    } else {
+                        alert("Hiba történt a felelősség rögzítésekor.");
+                        // Visszaállítás hiba esetén
+                        pill.className = `resp-pill ${currentResp}`;
+                        pill.setAttribute('data-resp', currentResp);
+                        let currLabel = 'Vevő / Egyéb';
+                        let currIcon = '<i class="ph-bold ph-user"></i>';
+                        if (currentResp === 'mienk') { currLabel = 'Saját hiba'; currIcon = '<i class="ph-bold ph-x-circle"></i>'; }
+                        else if (currentResp === 'szallito') { currLabel = 'Szállító hibája'; currIcon = '<i class="ph-bold ph-truck"></i>'; }
+                        pill.innerHTML = `${currIcon}${currLabel}`;
+                    }
+                });
+            });
+        }
 
         // Expand/collapse eseménykezelő a lenyitható szekciókhoz
         statsRunsContainer.querySelectorAll('.stats-expand-btn').forEach(btn => {
@@ -3255,6 +3850,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (confirm) {
                         orders = JSON.parse(JSON.stringify(run.orders));
                         currentLoadedRunId = run.id;
+                        originalLoadedRun = JSON.parse(JSON.stringify(run));
                         renderOrders();
                         historyModal.classList.remove('active');
                     }
@@ -3311,6 +3907,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 orders = JSON.parse(JSON.stringify(run.orders));
                 orders.forEach(o => o.internalId = Math.random().toString(36).substr(2, 9));
                 currentLoadedRunId = run.id;
+                originalLoadedRun = JSON.parse(JSON.stringify(run));
 
                 renderOrders();
                 historyModal.classList.remove('active');
@@ -4309,7 +4906,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         },
 
-        generateDeliveryNotesHtml: function(run, double) {
+        generateDeliveryNotesHtml: function(run, double, filterOrderIds = null) {
             const senderData = run.sender === 'ev' 
                 ? {
                     name: "Egyéni Vállalkozó (Példa)",
@@ -4350,7 +4947,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
-            const firstSet = run.orders.map(o => generateSingleNote(o)).join('');
+            let ordersToPrint = run.orders || [];
+            if (filterOrderIds) {
+                ordersToPrint = ordersToPrint.filter(o => filterOrderIds.includes(o.id));
+            }
+
+            const firstSet = ordersToPrint.map(o => generateSingleNote(o)).join('');
             return double ? firstSet + firstSet : firstSet;
         },
 
@@ -4428,4 +5030,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return page + page;
         }
     };
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}

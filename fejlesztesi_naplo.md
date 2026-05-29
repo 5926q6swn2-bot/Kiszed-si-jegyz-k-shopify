@@ -298,8 +298,16 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Detektálás:** `node --input-type=module < js/app.js 2>&1` — azonnali hibajelzés.
 - **Tanulság:** Komplex függvény több lépéses átírásakor **mindig futtatni kell syntax check-et** a befejezés előtt.
 
+### 2026. május 29. - Statisztika Al-oldalak Refaktora & Modul Betöltési Optimalizáció
+- **Statisztika Lap Al-oldalas Rendszere:** A régi bento box elrendezést egy modern Apple segmented control fül-alapú navigációra cseréltük (`Futárok` | `Diagramok` | `Termékek` | `Térkép` | `Kiesett rendelések`). Csak az aktív fül renderelődik, így a térkép és a kiesett rendelések nem futnak feleslegesen a háttérben.
+- **Térkép Optimalizáció:** A Leaflet térkép és a Nominatim API geokódolója most már kizárólag a Térkép fül megnyitásakor inicializálódik, ami megszünteti a méretarány- és rendering hibákat, és javítja a betöltési sebességet.
+- **Modul Betöltési Race Condition Elkerülése (Kritikus hiba):** Javítottunk egy rejtett, de kritikus ES Modul hibát. Ha az `app.js` modulként való betöltése (és cachingje) lassabb volt, vagy épp gyorsabb volt, mint az HTML betöltése, a `DOMContentLoaded` esemény már lefutott, mire a script feliratkozott rá, így a gombok teljesen működésképtelenek maradtak. Mostantól az `app.js` ellenőrzi a `document.readyState`-et, és ha a DOM már kész, azonnal lefut a `initApp()`, teljesen kizárva a gombok működésképtelenségét.
+- **Firebase Duplikált Inicializáció Javítása:** Megszüntettük a Firebase `duplicate-app` hibát, amit az okozott, hogy az `index.html` inline scriptje és az `app.js` által importált `firebase-config.js` is meghívta az `initializeApp()`-et az alapértelmezett beállításokkal. Bevezettük a `getApps().length > 0` ellenőrzést, így a Firebase-t csak egyszer, biztonságosan inicializáljuk.
+- **Mély-Import Cache-busting (Kritikus hiba):** Mivel az `app.js` sima `import ... from './firebase-config.js'` deklarációt használt, a böngésző a cache-elt `firebase-config.js`-t hívta meg a duplicate-app ellenőrzések bevezetése előtt is. Hozzáadtuk a `?v=38` lekérdező paramétert az import útvonalhoz az `app.js`-ben (`from './firebase-config.js?v=38'`), így a böngésző kénytelen a frissített konfigurációs fájlt betölteni.
+- **Cache-busting:** `index.html`-ben `app.js?v=38` → böngésző mindig a legfrissebb kódot tölti be.
+
 #### Cache verzió
-`app.js?v=35`
+`app.js?v=38`
 
 ---
 

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kiszedési Jegyzék Shopify</title>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=39">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <!-- Lokális könyvtárak betöltése -->
     <script src="libs/papaparse.min.js"></script>
@@ -444,7 +444,7 @@
     </div>
     <!-- BEÉPÍTETT BEJELENTKEZÉS A BETÖLTÉSI HIBÁK KIKERÜLÉSÉRE -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
         const firebaseConfig = {
@@ -456,7 +456,7 @@
             appId: "1:420844361677:web:cf45ef50868077ca1c5684"
         };
 
-        const app = initializeApp(firebaseConfig);
+        const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
         document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -492,7 +492,7 @@
             }
         });
     </script>
-    <script type="module" src="js/app.js?v=35"></script>
+    <script type="module" src="js/app.js?v=39"></script>
     <div id="print-area"></div>
 
     <!-- Összevonás Modal -->

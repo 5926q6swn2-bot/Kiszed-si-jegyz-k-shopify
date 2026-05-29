@@ -31,7 +31,7 @@ type: project
 - Order chips: nem-COD is mutatja az átadva/nem lett átadva státuszt
 
 ## Aktuális cache verzió
-`app.js?v=35`
+`app.js?v=38`
 
 ## Nyitott / következő teendők
 - **Tervben (plan fájlban):** Utólag beérkezett utánvét kezelése a statisztikában (`app.js?v=20` → nem lett implementálva, plan fájl megmaradt)

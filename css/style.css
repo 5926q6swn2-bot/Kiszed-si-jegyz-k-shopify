@@ -1210,3 +1210,167 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
         display: none !important;
     }
 }
+
+/* --- RESPONSIBILITY BUTTONS --- */
+.resp-btn {
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    outline: none;
+}
+
+.resp-btn:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+.resp-btn.resp-btn-mienk.active {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #b91c1c;
+}
+.resp-btn.resp-btn-mienk.active:hover {
+    background: #fecaca;
+}
+
+.resp-btn.resp-btn-szallito.active {
+    background: #ffedd5;
+    border-color: #fed7aa;
+    color: #c2410c;
+}
+.resp-btn.resp-btn-szallito.active:hover {
+    background: #ffedd5;
+}
+
+.resp-btn.resp-btn-vevo.active {
+    background: #e2e8f0;
+    border-color: #cbd5e1;
+    color: #475569;
+}
+.resp-btn.resp-btn-vevo.active:hover {
+    background: #cbd5e1;
+}
+
+/* --- INTERACTIVE RESPONSIBILITY PILLS --- */
+.resp-pill {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    user-select: none;
+    border: 1.5px solid transparent;
+    font-family: inherit;
+}
+
+.resp-pill.mienk {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #b91c1c;
+}
+.resp-pill.mienk:hover {
+    background: #fecaca;
+    border-color: #f87171;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(185, 28, 28, 0.12);
+}
+.resp-pill.mienk:active {
+    transform: translateY(0);
+}
+
+.resp-pill.szallito {
+    background: #ffedd5;
+    border-color: #fed7aa;
+    color: #c2410c;
+}
+.resp-pill.szallito:hover {
+    background: #fed7aa;
+    border-color: #fb923c;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(194, 65, 12, 0.12);
+}
+.resp-pill.szallito:active {
+    transform: translateY(0);
+}
+
+.resp-pill.vevo {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #475569;
+}
+.resp-pill.vevo:hover {
+    background: #e2e8f0;
+    border-color: #94a3b8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(71, 85, 105, 0.1);
+}
+.resp-pill.vevo:active {
+    transform: translateY(0);
+}
+
+/* --- STATS SUB-TABS (Segmented Control) --- */
+.stats-subtabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    padding: 4px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    width: fit-content;
+    flex-wrap: wrap;
+    border: 1px solid #e2e8f0;
+}
+
+.stats-subtab-btn {
+    border: none;
+    background: none;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    padding: 6px 14px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    outline: none;
+    user-select: none;
+}
+
+.stats-subtab-btn:hover {
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.4);
+}
+
+.stats-subtab-btn.active {
+    color: #0f172a;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* --- STATS: Kiesett rendelések 2 oszlopos grid --- */
+.stats-kiesett-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 20px;
+}
+
+@media (max-width: 700px) {
+    .stats-kiesett-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
