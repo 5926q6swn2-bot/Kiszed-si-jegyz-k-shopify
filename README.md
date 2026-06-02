@@ -1,5 +1,3 @@
 https://5926q6swn2-bot.github.io/Kiszed-si-jegyz-k-shopify/
 
-szerkeszteni a dolgokat elég nehézkes, mindent újranyomtatni elég macera, utólag ha varriálunk legyen könnyen kezelhető
-A ui legyen sokkal átláthatóbb hogy mindenki számára egyszerűen kezelhető legyen
-Van olyan szituáció mikor elutalja a vásárló és így nem jön vissza utánvét, de attól a pénz nyilván megvan, tehát nem pénztől esünk el, statisztikát ne rontsa mint kiesett utánvét
+elszamolasok fülön nem csak az utanvet a lenyeg hanem az hogy kiszallitasra kerult e a megrendeles mert nem mindegy hogy kiszamlazzak nekunk vagy sem, theat mikor rakeresunk a rendelesre ne xsak az legyen ott h nics utanvet meg ilyesmi hanem lassuk ha hisszajott stbstb
