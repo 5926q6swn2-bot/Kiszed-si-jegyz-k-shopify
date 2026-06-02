@@ -1,0 +1,311 @@
+function needsMarkerLabel(name) {
+    return name.toLowerCase().includes('ajtó') || name.toLowerCase().includes('ajtóhoz');
+}
+
+export const UnifiedPrinter = {
+        area: document.getElementById('print-area'),
+
+        printBundle: async function(run) {
+            this.clear();
+            const pickingHtml = this.generatePickingHtml(run);
+            const summaryHtml = this.generateSummaryHtml(run, true); // 2x summary
+            const correctionHtml = this.generateCorrectionHtml(run);
+            const deliveryHtml = this.generateDeliveryNotesHtml(run, true); // 2x delivery
+
+            this.area.innerHTML = pickingHtml + summaryHtml + correctionHtml + deliveryHtml;
+            this.execute();
+        },
+
+        printSingle: async function(run, type) {
+            this.clear();
+            let html = '';
+            if (type === 'picking') html = this.generatePickingHtml(run);
+            if (type === 'summary') html = this.generateSummaryHtml(run, false) + this.generateCorrectionHtml(run);
+            if (type === 'delivery') html = this.generateDeliveryNotesHtml(run, true);
+
+            this.area.innerHTML = html;
+            this.execute();
+        },
+
+        printCustom: async function(run, types) {
+            this.clear();
+            let html = '';
+            if (types.picking) html += this.generatePickingHtml(run);
+            if (types.summary) html += this.generateSummaryHtml(run, true) + this.generateCorrectionHtml(run);
+            if (types.delivery) html += this.generateDeliveryNotesHtml(run, true);
+            if (!html) return;
+            this.area.innerHTML = html;
+            this.execute();
+        },
+
+        clear: function() {
+            this.area.innerHTML = '';
+        },
+
+        execute: function() {
+            // Rövid várakozás a renderelésre
+            setTimeout(() => {
+                window.print();
+                this.clear();
+            }, 500);
+        },
+
+        generatePickingHtml: function(run) {
+            const cardsHtml = run.orders.map((order, index) => {
+                let codHtml = '';
+                if (order.isBankDeposit) {
+                    codHtml = `<span class="badge ${order.isPaid ? 'badge-paid' : 'badge-warning'}">${order.isPaid ? 'UTALVA' : 'UTALÁST VÁRUNK'}</span>`;
+                } else if (order.isCOD) {
+                    codHtml = `<span class="badge badge-cod">UTÁNVÉT: ${order.codAmount.toLocaleString('hu-HU')} Ft</span>`;
+                } else {
+                    codHtml = `<span class="badge badge-paid">Fizetve</span>`;
+                }
+
+                const itemsHtml = order.items.map(item => {
+                    const isCollapsed = item.isCollapsedProfile || item.name === "Összekészített profilok";
+                    const subItemsHtml = (isCollapsed && item.subItems?.length > 0)
+                        ? `<div style="font-size: 9px; color: #475569; margin-top: 3px; padding-left: 6px; line-height: 1.6;">${item.subItems.map(sub => `<div>• ${sub.qty} db &nbsp;${sub.name}</div>`).join('')}</div>`
+                        : '';
+                    return `
+                    <tr>
+                        <td class="col-check"><div class="col-flex-center"><div class="checkbox-box"></div></div></td>
+                        <td class="col-marker">${needsMarkerLabel(item.name) ? '<div class="col-flex-center"><span class="marker-lbl">címke</span><div class="checkbox-box marker"></div></div>' : ''}</td>
+                        <td class="col-qty">${isCollapsed ? '' : `<strong>${item.qty} db</strong>`}</td>
+                        <td class="col-name">${item.name}${subItemsHtml}</td>
+                    </tr>`;
+                }).join('');
+
+                return `
+                    <div class="order-card ${order.errors?.length > 0 ? 'has-error' : ''}">
+                        <div class="order-header">
+                            <div class="header-left">
+                                <div class="order-index">${index + 1}</div>
+                                <div>
+                                    <div class="order-id">${order.id}</div>
+                                    <div class="order-customer">${order.shippingName}</div>
+                                    <div class="order-address">${order.address}</div>
+                                </div>
+                            </div>
+                            <div class="order-meta">${codHtml}</div>
+                        </div>
+                        <table class="items-table"><tbody>${itemsHtml}</tbody></table>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="print-page" style="padding: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 4px solid #000; padding-bottom: 12px; margin-bottom: 25px;">
+                        <div>
+                            <h1 style="margin: 0; font-size: 32px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase;">Kiszedési Jegyzék</h1>
+                            <div style="font-size: 18px; color: #000; font-weight: 800; margin-top: 5px;">Kiszállítás napja: ${run.date}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; margin-bottom: 4px;">Szállító Partner & Szállító</div>
+                            <div style="background: #000; color: #fff; padding: 6px 15px; border-radius: 8px; font-size: 20px; font-weight: 900; display: inline-block;">
+                                ${run.company} <span style="color: #64748b; font-weight: 400; margin: 0 8px;">|</span> ${run.courier}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="order-list">${cardsHtml}</div>
+                </div>
+            `;
+        },
+
+        generateSummaryHtml: function(run, double) {
+            let aggregatedItems = {};
+            let totalCOD = 0;
+            run.orders.forEach(order => {
+                if (order.isCOD) totalCOD += order.codAmount;
+                order.items.forEach(item => {
+                    const name = item.name;
+                    aggregatedItems[name] = (aggregatedItems[name] || 0) + item.qty;
+                });
+            });
+
+            const itemsHtml = Object.keys(aggregatedItems).sort().map(name => `
+                <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${name}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700;">${aggregatedItems[name]} db</td>
+                </tr>
+            `).join('');
+
+            const page = `
+                <div class="print-page" style="padding: 40px;">
+                    <div style="text-align: center; font-size: 28px; font-weight: 800; margin-bottom: 10px;">ÖSSZESÍTŐ (Átadás-Átvétel)</div>
+                    <div style="text-align: center; margin-bottom: 20px;">${run.date} | ${run.courier}</div>
+                    <div style="background: #000; color: #fff; text-align: center; padding: 15px; font-size: 24px; font-weight: 800; border-radius: 8px; margin-bottom: 30px;">${run.company}</div>
+                    
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 30px; text-align: center;">
+                        <div style="font-size: 14px; color: #64748b; margin-bottom: 5px;">ÖSSZES UTÁNVÉT A KÖRBEN:</div>
+                        <div style="font-size: 32px; font-weight: 800; color: #b91c1c;">${totalCOD.toLocaleString('hu-HU')} Ft</div>
+                    </div>
+
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead><tr style="background: #f1f5f9;"><th style="text-align: left; padding: 10px;">Megnevezés</th><th style="text-align: right; padding: 10px;">Mennyiség</th></tr></thead>
+                        <tbody>${itemsHtml}</tbody>
+                    </table>
+
+                    <div style="margin-top: 100px; display: flex; justify-content: space-between;">
+                        <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átadó (Raktár)</div>
+                        <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átvette (Szállító)</div>
+                    </div>
+                </div>
+            `;
+            return double ? page + page : page;
+        },
+
+        generateCorrectionHtml: function(run) {
+            const rows = run.orders.map(o => `
+                <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 700;">${o.id}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${o.shippingName}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right;">${o.isCOD ? o.codAmount.toLocaleString('hu-HU') + ' Ft' : 'Fizetve'}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;"></td>
+                </tr>
+            `).join('');
+
+            return `
+                <div class="print-page" style="padding: 40px;">
+                    <div style="text-align: center; font-size: 26px; font-weight: 800; margin-bottom: 10px;">KORREKCIÓS ÉS ELSZÁMOLÓ LAP</div>
+                    <div style="text-align: center; margin-bottom: 30px;">${run.date} | ${run.courier} | ${run.company}</div>
+                    
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead><tr style="background: #f1f5f9;"><th style="text-align: left; padding: 8px;">ID</th><th style="text-align: left; padding: 8px;">Vevő</th><th style="text-align: right; padding: 8px;">Utánvét</th><th style="text-align: center; padding: 8px;">Sikertelen</th><th style="text-align: left; padding: 8px;">Megjegyzés</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+
+                    <div style="margin-top: 50px; width: 350px; margin-left: auto;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Várható utánvét:</span><strong>${(run.orders.reduce((sum, o) => sum + (o.isCOD ? o.codAmount : 0), 0)).toLocaleString('hu-HU')} Ft</strong></div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Meghiúsult:</span><span>.................... Ft</span></div>
+                        <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; border-top: 2px solid #000; padding-top: 10px;"><span>Befizetve:</span><span>.................... Ft</span></div>
+                    </div>
+                </div>
+            `;
+        },
+
+        generateDeliveryNotesHtml: function(run, double, filterOrderIds = null) {
+            const senderData = run.sender === 'ev' 
+                ? {
+                    name: "Egyéni Vállalkozó (Példa)",
+                    address: "1234 Példaváros, Minta utca 1.",
+                    bank: "00000000-00000000",
+                    phone: "+36 30 000 0000",
+                    email: "pelda@email.com"
+                }
+                : {
+                    name: "Capsula Houses Kft.",
+                    address: "Széles utca 70., 2040, Budaörs, Magyarország",
+                    bank: "11735005-26088969",
+                    phone: "+36 70 590 8157",
+                    email: "info@panelburkolat.com"
+                };
+
+            const generateSingleNote = (order) => `
+                <div class="print-page" style="padding: 60px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;">
+                        <div style="font-size: 24px; font-weight: 800;">SZÁLLÍTÓLEVÉL</div>
+                        <div style="font-size: 28px; font-weight: 900; border: 3px solid #000; padding: 10px 20px;">${order.id}</div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 40px;">
+                        <div style="width: 45%;"><strong>Eladó:</strong><br>${senderData.name}<br>${senderData.address}<br>${senderData.bank}</div>
+                        <div style="width: 45%;"><strong>Vevő:</strong><br>${order.shippingName}<br>${order.fullAddress || order.address}<br>${order.shippingPhone || ''}</div>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">
+                        <thead><tr style="border-bottom: 2px solid #000;"><th style="text-align: left; padding: 10px;">Tétel</th><th style="text-align: right; padding: 10px;">Mennyiség</th></tr></thead>
+                        <tbody>${order.items.map(it => `<tr><td style="padding: 10px; border-bottom: 1px solid #eee;">${it.name}</td><td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">${it.qty} db</td></tr>`).join('')}</tbody>
+                    </table>
+                    <div style="background: #f8fafc; padding: 20px; text-align: right; font-size: 18px; font-weight: 800;">
+                        Fizetendő (Utánvét): ${order.isCOD ? order.codAmount.toLocaleString('hu-HU') + ' Ft' : '0 Ft (FIZETVE)'}
+                    </div>
+                    <div style="margin-top: 100px; display: flex; justify-content: space-between;">
+                        <div style="width: 200px; border-top: 1px solid #000; text-align: center; padding-top: 10px;">Átadó</div>
+                        <div style="width: 200px; border-top: 1px solid #000; text-align: center; padding-top: 10px;">Átvevő</div>
+                    </div>
+                </div>
+            `;
+
+            let ordersToPrint = run.orders || [];
+            if (filterOrderIds) {
+                ordersToPrint = ordersToPrint.filter(o => filterOrderIds.includes(o.id));
+            }
+
+            const firstSet = ordersToPrint.map(o => generateSingleNote(o)).join('');
+            return double ? firstSet + firstSet : firstSet;
+        },
+
+        generateQuickDeliveryNoteHtml: function(data) {
+            const senderData = data.sender === 'ev'
+                ? {
+                    name: "Egyéni Vállalkozó (Példa)",
+                    address: "1234 Példaváros, Minta utca 1.",
+                    bank: "00000000-00000000",
+                    phone: "+36 30 000 0000",
+                    email: "pelda@email.com"
+                }
+                : {
+                    name: "Capsula Houses Kft.",
+                    address: "Széles utca 70., 2040, Budaörs, Magyarország",
+                    bank: "11735005-26088969",
+                    phone: "+36 70 590 8157",
+                    email: "info@panelburkolat.com"
+                };
+
+            const itemRows = data.items.length > 0
+                ? data.items.map(it => `<tr><td style="padding:10px;border-bottom:1px solid #eee;">${it.name}</td><td style="padding:10px;border-bottom:1px solid #eee;text-align:right;">${it.qty} db</td></tr>`).join('')
+                : `<tr><td colspan="2" style="padding:10px;color:#94a3b8;font-style:italic;">—</td></tr>`;
+
+            const recipientBlock = [
+                data.recipient,
+                data.recipientCompany,
+                data.address,
+                data.phone
+            ].filter(Boolean).join('<br>') || '<span style="color:#94a3b8;font-style:italic;">—</span>';
+
+            const carrierBlock = [
+                data.company,
+                data.companyDetails
+            ].filter(Boolean).join('<br>') || '<span style="color:#94a3b8;font-style:italic;">—</span>';
+
+            const page = `
+                <div class="print-page" style="padding:60px;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;">
+                        <div style="font-size:24px;font-weight:800;">SZÁLLÍTÓLEVÉL</div>
+                        <div style="font-size:13px;color:#64748b;text-align:right;">Kelt: ${new Date().toLocaleDateString('hu-HU')}</div>
+                    </div>
+
+                    <div style="display:flex;justify-content:space-between;margin-bottom:30px;gap:20px;">
+                        <div style="flex:1;padding:16px;border:1px solid #e2e8f0;border-radius:10px;">
+                            <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Feladó</div>
+                            <strong>${senderData.name}</strong><br>
+                            ${senderData.address}<br>
+                            <span style="color:#64748b;font-size:13px;">${senderData.phone} · ${senderData.email}</span>
+                        </div>
+                        <div style="flex:1;padding:16px;border:1px solid #e2e8f0;border-radius:10px;">
+                            <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Szállító Cég</div>
+                            ${carrierBlock}
+                            <div style="margin-top:20px;font-size:12px;color:#94a3b8;">Rendszám: ……………………</div>
+                        </div>
+                    </div>
+
+                    <div style="padding:16px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:30px;">
+                        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Átvevő</div>
+                        ${recipientBlock}
+                    </div>
+
+                    <table style="width:100%;border-collapse:collapse;margin-bottom:30px;">
+                        <thead><tr style="border-bottom:2px solid #000;"><th style="text-align:left;padding:10px;">Tétel</th><th style="text-align:right;padding:10px;">Mennyiség</th></tr></thead>
+                        <tbody>${itemRows}</tbody>
+                    </table>
+
+                    <div style="display:flex;justify-content:space-between;margin-top:80px;">
+                        <div style="width:220px;text-align:center;border-top:1px solid #000;padding-top:10px;">Átadó (Raktár)</div>
+                        <div style="width:220px;text-align:center;border-top:1px solid #000;padding-top:10px;">Átvevő (Szállító)</div>
+                    </div>
+                </div>
+            `;
+
+            return page + page;
+        }
+    };

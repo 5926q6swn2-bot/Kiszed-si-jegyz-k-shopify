@@ -317,8 +317,11 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Termékek listája:** A Név alatt egy lenyitható sáv is bekerült, ami mutatja, milyen termékek (és mennyiségük) tartoznak a rendeléshez.
 - **Átnevezések & Dizájn:** A "részleges" gomb neve "Részlegesen fizetett" lett. A lenyíló panelek (kiesett és részleges) háttere és kerete dominánsabbá vált a könnyebb elkülönítés érdekében. A kézzel gépelős szöveges mezők nagyobbak és hangsúlyosabbak lettek.
 
+### 2026. június 2. - Részleges nyomtatás dialógus fejlesztése
+- **Okok kijelzése:** A "Részleges nyomtatás" figyelmeztető ablakban mostantól nem csak az jelenik meg, hogy mely rendelések módosultak, hanem az is, hogy pontosan **miért** (pl. `utánvét összeg`, `termék/mennyiség`, `cím`, `telefon`). Így sokkal átláthatóbb, miért dobja fel az adott rendelést újra nyomtatásra.
+
 #### Cache verzió
-`app.js?v=41`
+`app.js?v=42`
 
 ---
 

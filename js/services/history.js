@@ -1,0 +1,398 @@
+import { db, auth, collection, query, orderBy, getDocs, addDoc, getDoc, setDoc, deleteDoc, updateDoc, doc, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from '../firebase-config.js?v=42';
+
+export const HistoryManager = {
+        COLLECTION_NAME: 'szedolista_history',
+        TRASH_COLLECTION_NAME: 'szedolista_trash',
+        
+        getAllRuns: async function() {
+            try {
+                const q = query(collection(db, this.COLLECTION_NAME), orderBy('timestamp', 'desc'));
+                const querySnapshot = await getDocs(q);
+                const runs = [];
+                querySnapshot.forEach((docSnap) => {
+                    runs.push({
+                        ...docSnap.data(),
+                        docId: docSnap.id
+                    });
+                });
+                return runs;
+            } catch (e) {
+                console.error("Hiba a Firebase lekérdezésnél: ", e);
+                return [];
+            }
+        },
+        
+        saveRun: async function(date, pickupDate, courier, company, sender, ordersList) {
+            const newRun = {
+                id: 'run_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                date: date,
+                originalDate: date,
+                pickupDate: pickupDate || date,
+                courier: courier,
+                company: company,
+                sender: sender || 'capsula',
+                timestamp: Date.now(),
+                isPrinted: true,
+                orders: ordersList,
+                userId: auth.currentUser ? auth.currentUser.uid : null
+            };
+            try {
+                const docRef = await addDoc(collection(db, this.COLLECTION_NAME), newRun);
+                newRun.docId = docRef.id;
+                return newRun;
+            } catch (e) {
+                console.error("Hiba a mentésnél: ", e);
+                return null;
+            }
+        },
+        
+        searchOrders: async function(qStr) {
+            const runs = await this.getAllRuns();
+            const q = qStr.toLowerCase().trim();
+            if(!q) return [];
+            
+            let matches = [];
+            runs.forEach(run => {
+                run.orders.forEach(order => {
+                    const itemsMatch = order.items.some(it => it.name.toLowerCase().includes(q));
+                    const nameMatch = order.shippingName.toLowerCase().includes(q);
+                    const idMatch = order.id.toLowerCase().includes(q);
+                    const addrMatch = order.address && order.address.toLowerCase().includes(q);
+                    const phoneMatch = order.shippingPhone && order.shippingPhone.includes(q);
+
+                    if(idMatch || nameMatch || addrMatch || phoneMatch || itemsMatch) {
+                        matches.push({
+                            runId: run.id,
+                            runDate: run.date,
+                            runCourier: run.courier,
+                            runCompany: run.company || '-',
+                            ...order
+                        });
+                    }
+                });
+            });
+            return matches;
+        },
+        
+        getRunById: async function(runId) {
+            const runs = await this.getAllRuns();
+            return runs.find(r => r.id === runId) || null;
+        },
+        
+        deleteRun: async function(runId) {
+            const runs = await this.getAllRuns();
+            const runToMove = runs.find(r => r.id === runId);
+            if (runToMove && runToMove.docId) {
+                try {
+                    const trashData = {
+                        ...runToMove,
+                        deletedAt: Date.now()
+                    };
+                    delete trashData.docId; // Ne vigyük át a régi doksi azonosítót
+                    
+                    // 1. Áthelyezés a szemetesbe
+                    await addDoc(collection(db, this.TRASH_COLLECTION_NAME), trashData);
+                    
+                    // 2. Törlés az eredeti helyről
+                    await deleteDoc(doc(db, this.COLLECTION_NAME, runToMove.docId));
+                    return true;
+                } catch(e) {
+                    console.error("Hiba a szemetesbe mozgatásnál: ", e);
+                    return false;
+                }
+            }
+            return false;
+        },
+
+        getTrashRuns: async function() {
+            try {
+                const q = query(collection(db, this.TRASH_COLLECTION_NAME), orderBy('deletedAt', 'desc'));
+                const querySnapshot = await getDocs(q);
+                const runs = [];
+                querySnapshot.forEach((docSnap) => {
+                    runs.push({
+                        ...docSnap.data(),
+                        docId: docSnap.id
+                    });
+                });
+                return runs;
+            } catch (e) {
+                console.error("Hiba a szemetes lekérdezésénél: ", e);
+                return [];
+            }
+        },
+
+        restoreRun: async function(docId) {
+            try {
+                const docRef = doc(db, this.TRASH_COLLECTION_NAME, docId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const runData = docSnap.data();
+                    const restoredData = { ...runData };
+                    delete restoredData.deletedAt;
+                    
+                    // 1. Vissza az eredeti gyűjteménybe
+                    await addDoc(collection(db, this.COLLECTION_NAME), restoredData);
+                    
+                    // 2. Törlés a szemetesből
+                    await deleteDoc(docRef);
+                    return true;
+                }
+            } catch (e) {
+                console.error("Hiba a visszaállításnál: ", e);
+            }
+            return false;
+        },
+
+        permanentDeleteRun: async function(docId) {
+            try {
+                await deleteDoc(doc(db, this.TRASH_COLLECTION_NAME, docId));
+                return true;
+            } catch (e) {
+                console.error("Hiba a végleges törlésnél: ", e);
+                return false;
+            }
+        },
+
+        autoCleanupTrash: async function() {
+            const ninetyDaysAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
+            try {
+                const q = query(collection(db, this.TRASH_COLLECTION_NAME), where('deletedAt', '<', ninetyDaysAgo));
+                const querySnapshot = await getDocs(q);
+                const deletePromises = [];
+                querySnapshot.forEach(docSnap => {
+                    deletePromises.push(deleteDoc(docSnap.ref));
+                });
+                await Promise.all(deletePromises);
+                if (deletePromises.length > 0) {
+                    console.log(`${deletePromises.length} régi elem törölve a szemetesből.`);
+                }
+            } catch (e) {
+                console.error("Hiba az automata takarításnál: ", e);
+            }
+        },
+
+        updateSettlementStatus: async function(docId, settledAmount, totalCOD, uncollectedOrderIds = [], uncollectedReasons = {}, partialOrders = {}, bankTransferredOrderIds = [], uncollectedResponsibility = {}) {
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                const docSnap = await getDoc(docRef);
+                let isSettled = false;
+                if (docSnap.exists()) {
+                    const runData = docSnap.data();
+                    const ordersList = runData.orders || [];
+                    
+                    let bankTransferredSum = 0;
+                    let uncollectedSum = 0;
+                    let partialDiffs = 0;
+                    
+                    ordersList.forEach(o => {
+                        if (o.isCOD) {
+                            if (bankTransferredOrderIds.includes(o.id)) {
+                                bankTransferredSum += o.codAmount;
+                            } else if (uncollectedOrderIds.includes(o.id)) {
+                                uncollectedSum += o.codAmount;
+                            } else if (partialOrders[o.id]) {
+                                partialDiffs += (o.codAmount - (partialOrders[o.id].amount || 0));
+                            }
+                        }
+                    });
+                    
+                    const expectedAmount = totalCOD - bankTransferredSum - uncollectedSum - partialDiffs;
+                    isSettled = settledAmount >= expectedAmount;
+                } else {
+                    isSettled = settledAmount >= totalCOD;
+                }
+
+                await updateDoc(docRef, {
+                    isSettled: isSettled,
+                    settledAmount: settledAmount,
+                    uncollectedOrderIds: uncollectedOrderIds,
+                    uncollectedReasons: uncollectedReasons,
+                    partialOrders: partialOrders,
+                    bankTransferredOrderIds: bankTransferredOrderIds,
+                    uncollectedResponsibility: uncollectedResponsibility,
+                    settledAt: Date.now()
+                });
+                return true;
+            } catch (e) {
+                console.error("Hiba az elszámolás állapot frissítésénél: ", e);
+                return false;
+            }
+        },
+
+        updateResponsibilityInFirestore: async function(docId, orderId, responsibility) {
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                await updateDoc(docRef, {
+                    [`uncollectedResponsibility.${orderId}`]: responsibility
+                });
+                return true;
+            } catch (e) {
+                console.error("Hiba a felelősség frissítésénél: ", e);
+                return false;
+            }
+        },
+
+        markAsBankTransferred: async function(docId, orderId) {
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                const docSnap = await getDoc(docRef);
+                if (!docSnap.exists()) return false;
+                const runData = docSnap.data();
+                
+                let uncollected = runData.uncollectedOrderIds || [];
+                let bankTransferred = runData.bankTransferredOrderIds || [];
+                
+                uncollected = uncollected.filter(id => id !== orderId);
+                if (!bankTransferred.includes(orderId)) {
+                    bankTransferred.push(orderId);
+                }
+                
+                await updateDoc(docRef, {
+                    uncollectedOrderIds: uncollected,
+                    bankTransferredOrderIds: bankTransferred,
+                    [`uncollectedReasons.${orderId}`]: deleteField(),
+                    [`uncollectedResponsibility.${orderId}`]: deleteField()
+                });
+                return true;
+            } catch (e) {
+                console.error("Hiba a banki utalás rögzítésénél: ", e);
+                return false;
+            }
+        },
+
+        revertToPending: async function(docId) {
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                await updateDoc(docRef, {
+                    isSettled: false,
+                    settledAmount: null,
+                    settledAt: null,
+                    uncollectedOrderIds: deleteField(),
+                    uncollectedReasons: deleteField(),
+                    partialOrders: deleteField(),
+                    bankTransferredOrderIds: deleteField(),
+                    uncollectedResponsibility: deleteField()
+                });
+                return true;
+            } catch (e) {
+                console.error("Hiba a visszaállításnál: ", e);
+                return false;
+            }
+        },
+
+        mergeRuns: async function(selectedRunIds, newDate, newCourier, newCompany) {
+            try {
+                const runs = await this.getAllRuns();
+                const selectedRuns = runs.filter(r => selectedRunIds.includes(r.id));
+                if (selectedRuns.length < 2) return null;
+
+                const allOrders = selectedRuns.flatMap(r => r.orders);
+                const mergedId = 'run_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                const mergedData = {
+                    id: mergedId,
+                    date: newDate,
+                    originalDate: newDate,
+                    pickupDate: newDate,
+                    courier: newCourier,
+                    company: newCompany,
+                    orders: allOrders,
+                    timestamp: Date.now(),
+                    isPrinted: false,
+                    isMerged: true,
+                    mergedFromIds: selectedRuns.map(r => r.id),
+                    mergedFromDocIds: selectedRuns.map(r => r.docId),
+                    mergedAt: Date.now(),
+                };
+                await addDoc(collection(db, this.COLLECTION_NAME), mergedData);
+                for (const run of selectedRuns) {
+                    const docRef = doc(db, this.COLLECTION_NAME, run.docId);
+                    await updateDoc(docRef, { isMergedInto: mergedId, mergedAt: Date.now() });
+                }
+                return mergedData;
+            } catch (e) {
+                console.error("Hiba az összevonásnál:", e);
+                return null;
+            }
+        },
+
+        revertMerge: async function(mergedRunDocId) {
+            try {
+                const runs = await this.getAllRuns();
+                const mergedRun = runs.find(r => r.docId === mergedRunDocId);
+                if (!mergedRun || !mergedRun.mergedFromDocIds) return false;
+                for (const origDocId of mergedRun.mergedFromDocIds) {
+                    const docRef = doc(db, this.COLLECTION_NAME, origDocId);
+                    await updateDoc(docRef, { isMergedInto: deleteField(), mergedAt: deleteField() });
+                }
+                await deleteDoc(doc(db, this.COLLECTION_NAME, mergedRunDocId));
+                return true;
+            } catch (e) {
+                console.error("Hiba a visszavonásnál:", e);
+                return false;
+            }
+        },
+
+        saveQuickDeliveryRun: async function(data) {
+            const shortId = Math.random().toString(36).substr(2, 5);
+            const today = new Date().toISOString().split('T')[0];
+            const newRun = {
+                id: 'qdrun_' + Date.now() + '_' + shortId,
+                date: today,
+                pickupDate: today,
+                courier: data.company || '—',
+                company: data.company || '',
+                sender: data.sender || 'capsula',
+                timestamp: Date.now(),
+                isPrinted: true,
+                isQuickDelivery: true,
+                quickDeliveryData: data,
+                orders: [{
+                    id: '#GYORS-' + shortId.toUpperCase(),
+                    shippingName: data.recipient || '—',
+                    address: data.address || '',
+                    fullAddress: data.address || '',
+                    shippingPhone: data.phone || '',
+                    isCOD: false,
+                    codAmount: 0,
+                    items: data.items.length > 0 ? data.items : [{ name: '—', qty: 1 }]
+                }],
+                userId: auth.currentUser ? auth.currentUser.uid : null
+            };
+            try {
+                const docRef = await addDoc(collection(db, this.COLLECTION_NAME), newRun);
+                newRun.docId = docRef.id;
+                return newRun;
+            } catch (e) {
+                console.error("Hiba a gyors szállítólevél mentésnél: ", e);
+                return null;
+            }
+        },
+
+        updateRun: async function(runId, date, pickupDate, courier, company, sender, ordersList) {
+            const runs = await this.getAllRuns();
+            const runToUpdate = runs.find(r => r.id === runId);
+            if (runToUpdate && runToUpdate.docId) {
+                try {
+                    const docRef = doc(db, this.COLLECTION_NAME, runToUpdate.docId);
+                    await updateDoc(docRef, {
+                        date: date,
+                        pickupDate: pickupDate || date,
+                        courier: courier,
+                        company: company,
+                        sender: sender || 'capsula',
+                        orders: ordersList,
+                        timestamp: Date.now(),
+                        isModified: true,
+                        modifiedAt: Date.now(),
+                        modifyCount: increment(1)
+                    });
+                    return true;
+                } catch(e) {
+                    console.error("Hiba a frissítésnél: ", e);
+                    return null;
+                }
+            }
+            return null;
+        }
+    };
