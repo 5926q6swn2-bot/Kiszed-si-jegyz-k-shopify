@@ -306,8 +306,19 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Mély-Import Cache-busting (Kritikus hiba):** Mivel az `app.js` sima `import ... from './firebase-config.js'` deklarációt használt, a böngésző a cache-elt `firebase-config.js`-t hívta meg a duplicate-app ellenőrzések bevezetése előtt is. Hozzáadtuk a `?v=38` lekérdező paramétert az import útvonalhoz az `app.js`-ben (`from './firebase-config.js?v=38'`), így a böngésző kénytelen a frissített konfigurációs fájlt betölteni.
 - **Cache-busting:** `index.html`-ben `app.js?v=38` → böngésző mindig a legfrissebb kódot tölti be.
 
+### 2026. június 2. - "Utólag elutalva" funkció a Kiesett rendelésekhez
+- **Új gomb a statisztikákban:** A Statisztika / Kiesett rendelések listájában minden olyan utánvétes rendelés mellett, ami még nincs utólag átvéve, megjelent egy kék "🏦 Utólag elutalva" gomb.
+- **Folyamat egyszerűsítése:** Ha a vásárló utólag elutalja az utánvét összegét, erre a gombra kattintva a rendelés kikerül a "Kiesett" státuszból, és átkerül a "Banki utalás" státuszba. Ezzel a havi elszámolásban csökken a kiesett összeg, és nő az utalt (nem készpénzes) bevétel.
+- **Háttérművelet (`HistoryManager.markAsBankTransferred`):** A Firestore-ban a megrendelés átkerül az `uncollectedOrderIds` tömbből a `bankTransferredOrderIds` tömbbe, a kapcsolódó okok (reason, responsibility) pedig törlődnek.
+
+### 2026. június 2. - Terítés rögzítése (Elszámolás) Ablak Újratervezése
+- **Szélesebb, szellősebb nézet:** Az ablak 520px helyett 850px széles lett, így a nevek és összegek kényelmesen kiférnek.
+- **CSS Grid struktúra:** Az elemek egy rácsban oszlopokba rendeződtek (Állapot, ID, Név, Összeg, Műveletek), ezáltal a felület sokkal strukturáltabb és áttekinthetőbb.
+- **Termékek listája:** A Név alatt egy lenyitható sáv is bekerült, ami mutatja, milyen termékek (és mennyiségük) tartoznak a rendeléshez.
+- **Átnevezések & Dizájn:** A "részleges" gomb neve "Részlegesen fizetett" lett. A lenyíló panelek (kiesett és részleges) háttere és kerete dominánsabbá vált a könnyebb elkülönítés érdekében. A kézzel gépelős szöveges mezők nagyobbak és hangsúlyosabbak lettek.
+
 #### Cache verzió
-`app.js?v=38`
+`app.js?v=41`
 
 ---
 

@@ -1,4 +1,4 @@
-import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, query, orderBy, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from './firebase-config.js?v=39';
+import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, query, orderBy, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from './firebase-config.js?v=40';
 
 function initApp() {
     console.log("KOPJ Rendszer: app.js elindult");
@@ -472,6 +472,34 @@ function initApp() {
                 return true;
             } catch (e) {
                 console.error("Hiba a felelősség frissítésénél: ", e);
+                return false;
+            }
+        },
+
+        markAsBankTransferred: async function(docId, orderId) {
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                const docSnap = await getDoc(docRef);
+                if (!docSnap.exists()) return false;
+                const runData = docSnap.data();
+                
+                let uncollected = runData.uncollectedOrderIds || [];
+                let bankTransferred = runData.bankTransferredOrderIds || [];
+                
+                uncollected = uncollected.filter(id => id !== orderId);
+                if (!bankTransferred.includes(orderId)) {
+                    bankTransferred.push(orderId);
+                }
+                
+                await updateDoc(docRef, {
+                    uncollectedOrderIds: uncollected,
+                    bankTransferredOrderIds: bankTransferred,
+                    [`uncollectedReasons.${orderId}`]: deleteField(),
+                    [`uncollectedResponsibility.${orderId}`]: deleteField()
+                });
+                return true;
+            } catch (e) {
+                console.error("Hiba a banki utalás rögzítésénél: ", e);
                 return false;
             }
         },
@@ -2213,16 +2241,17 @@ function initApp() {
                 const rSzallitoActive = currentResp === 'szallito';
                 const rVevoActive = currentResp === 'vevo' || !currentResp;
 
-                return `<div class="sd-reason-row" style="display:${wasUncollected?'block':'none'};padding:6px 20px 10px 50px;background:#fff7ed;border-top:1px dashed #fed7aa;">
-                    <input class="sd-reason-input" type="text" placeholder="Miért nem lett átadva? (pl. Sérült termék, vevő lemondta...)"
+                return `<div class="sd-reason-row" style="display:${wasUncollected?'block':'none'};padding:12px 20px 16px 116px;background:#fff7ed;border-top:1px dashed #fed7aa;">
+                    <div style="font-size:12px;font-weight:700;color:#c2410c;margin-bottom:8px;">Megrendelés nem lett átadva. Kérlek add meg az okot:</div>
+                    <input class="sd-reason-input" type="text" placeholder="Miért nem lett átadva? (Kötelező kitölteni, pl. Sérült termék, vevő lemondta...)"
                         value="${pr.replace(/"/g,'&quot;')}"
-                        style="width:100%;box-sizing:border-box;font-size:12px;border:1.5px solid #fbbf24;border-radius:8px;padding:5px 8px;font-family:inherit;margin-bottom:6px;">
+                        style="width:100%;box-sizing:border-box;font-size:13px;border:2px solid #fbbf24;border-radius:8px;padding:8px 12px;font-family:inherit;margin-bottom:12px;outline:none;background:#fff;">
                     
-                    <div class="sd-resp-selector" style="display:flex;align-items:center;gap:6px;" data-order-id="${orderId}">
-                        <span style="font-size:11px;color:#92400e;font-weight:700;margin-right:4px;">Felelős:</span>
-                        <button type="button" class="sd-resp-btn mienk ${rMienkActive ? 'active' : ''}" data-resp="mienk" style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${rMienkActive ? '#fca5a5' : '#e2e8f0'};background:${rMienkActive ? '#fee2e2' : '#fff'};color:${rMienkActive ? '#b91c1c' : '#64748b'};transition:all .1s;">Saját hiba</button>
-                        <button type="button" class="sd-resp-btn szallito ${rSzallitoActive ? 'active' : ''}" data-resp="szallito" style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${rSzallitoActive ? '#fed7aa' : '#e2e8f0'};background:${rSzallitoActive ? '#ffedd5' : '#fff'};color:${rSzallitoActive ? '#c2410c' : '#64748b'};transition:all .1s;">Szállító</button>
-                        <button type="button" class="sd-resp-btn vevo ${rVevoActive ? 'active' : ''}" data-resp="vevo" style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${rVevoActive ? '#cbd5e1' : '#e2e8f0'};background:${rVevoActive ? '#e2e8f0' : '#fff'};color:${rVevoActive ? '#475569' : '#64748b'};transition:all .1s;">Vevő / Egyéb</button>
+                    <div class="sd-resp-selector" style="display:flex;align-items:center;gap:8px;" data-order-id="${orderId}">
+                        <span style="font-size:12px;color:#92400e;font-weight:700;margin-right:6px;">Kinek a hibájából hiúsult meg?</span>
+                        <button type="button" class="sd-resp-btn mienk ${rMienkActive ? 'active' : ''}" data-resp="mienk" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rMienkActive ? '#fca5a5' : '#e2e8f0'};background:${rMienkActive ? '#fee2e2' : '#fff'};color:${rMienkActive ? '#b91c1c' : '#64748b'};transition:all .15s;">Saját hiba</button>
+                        <button type="button" class="sd-resp-btn szallito ${rSzallitoActive ? 'active' : ''}" data-resp="szallito" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rSzallitoActive ? '#fed7aa' : '#e2e8f0'};background:${rSzallitoActive ? '#ffedd5' : '#fff'};color:${rSzallitoActive ? '#c2410c' : '#64748b'};transition:all .15s;">Szállító</button>
+                        <button type="button" class="sd-resp-btn vevo ${rVevoActive ? 'active' : ''}" data-resp="vevo" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rVevoActive ? '#cbd5e1' : '#e2e8f0'};background:${rVevoActive ? '#e2e8f0' : '#fff'};color:${rVevoActive ? '#475569' : '#64748b'};transition:all .15s;">Vevő / Egyéb</button>
                     </div>
                 </div>`;
             };
@@ -2238,43 +2267,55 @@ function initApp() {
                 const rSzallitoActive = currentResp === 'szallito';
                 const rVevoActive = currentResp === 'vevo' || !currentResp;
 
+                const itemsList = (o.items || []).map(it => `<span style="display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;margin:2px 4px 2px 0;"><b>${it.qty}×</b> ${it.name}</span>`).join('');
+                
                 return `
                 <div class="sd-order-row" style="border-bottom:1px solid #f1f5f9;">
-                    <label style="display:flex;align-items:center;gap:12px;padding:11px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-                        <input type="checkbox" data-order-id="${o.id}" data-amount="${o.codAmount}" data-is-cod="true" ${wasUncollected ? '' : 'checked'}
-                            style="width:18px;height:18px;cursor:pointer;accent-color:#22c55e;flex-shrink:0;">
-                        <span style="font-size:13px;font-weight:700;color:#374151;min-width:95px;">${o.id}</span>
-                        <span style="font-size:13px;color:#64748b;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.shippingName || '—'}</span>
-                        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                            <span class="sd-full-amount" style="font-size:13px;font-weight:700;color:${wasBankTransferred?'#0284c7':wasPartial?'#1d4ed8':'#b91c1c'};">${wasBankTransferred ? 'Utalva (0 Ft KP)' : wasPartial ? (prevPartial.amount||o.codAmount).toLocaleString('hu-HU') + ' Ft' : o.codAmount.toLocaleString('hu-HU') + ' Ft'}</span>
-                            <button class="sd-bank-toggle" onclick="event.stopPropagation();" data-active="${wasBankTransferred ? 'true' : 'false'}"
-                                style="display:${wasUncollected?'none':'inline-flex'};align-items:center;gap:3px;font-size:10px;font-weight:600;color:${wasBankTransferred?'#0284c7':'#64748b'};background:${wasBankTransferred?'#f0f9ff':'#f8fafc'};border:1px solid ${wasBankTransferred?'#bae6fd':'#e2e8f0'};border-radius:6px;padding:2px 7px;cursor:pointer;font-family:inherit;flex-shrink:0;">
-                                <i class="ph-bold ph-bank" style="font-size:9px;"></i> banki utalás
+                    <label style="display:grid;grid-template-columns: 24px 80px minmax(0, 2fr) minmax(0, 1fr) minmax(240px, auto);align-items:start;gap:12px;padding:14px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                        <div style="display:flex;align-items:center;padding-top:2px;">
+                            <input type="checkbox" data-order-id="${o.id}" data-amount="${o.codAmount}" data-is-cod="true" ${wasUncollected ? '' : 'checked'}
+                                style="width:20px;height:20px;cursor:pointer;accent-color:#22c55e;">
+                        </div>
+                        <span style="font-size:14px;font-weight:700;color:#374151;padding-top:2px;">${o.id}</span>
+                        <div style="display:flex;flex-direction:column;gap:4px;overflow:hidden;padding-top:2px;">
+                            <div style="font-size:14px;color:#0f172a;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.shippingName || '—'}</div>
+                            ${itemsList ? `<div style="font-size:11px;color:#64748b;display:inline-flex;align-items:center;gap:4px;cursor:pointer;user-select:none;width:fit-content;padding:2px 6px;border-radius:6px;transition:background .15s;" class="sd-items-toggle" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='transparent'" onclick="event.preventDefault();event.stopPropagation();this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('i').style.transform=this.nextElementSibling.style.display==='none'?'rotate(0deg)':'rotate(180deg)'">
+                                <i class="ph-bold ph-caret-down" style="transition:transform .2s;"></i> ${o.items.length} termék mutatása
+                            </div>
+                            <div class="sd-items-list" style="display:none;font-size:11px;color:#475569;margin-top:2px;" onclick="event.preventDefault();event.stopPropagation();">${itemsList}</div>` : ''}
+                        </div>
+                        <div style="display:flex;align-items:center;padding-top:2px;">
+                            <span class="sd-full-amount" style="font-size:15px;font-weight:800;color:${wasBankTransferred?'#0284c7':wasPartial?'#1d4ed8':'#b91c1c'};">${wasBankTransferred ? 'Utalva (0 Ft KP)' : wasPartial ? (prevPartial.amount||o.codAmount).toLocaleString('hu-HU') + ' Ft' : o.codAmount.toLocaleString('hu-HU') + ' Ft'}</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;padding-top:2px;">
+                            <button class="sd-bank-toggle" onclick="event.preventDefault();event.stopPropagation();" data-active="${wasBankTransferred ? 'true' : 'false'}"
+                                style="display:${wasUncollected?'none':'inline-flex'};align-items:center;gap:4px;font-size:11px;font-weight:600;color:${wasBankTransferred?'#0284c7':'#64748b'};background:${wasBankTransferred?'#f0f9ff':'#f8fafc'};border:1px solid ${wasBankTransferred?'#bae6fd':'#e2e8f0'};border-radius:6px;padding:6px 10px;cursor:pointer;font-family:inherit;transition:all .15s;">
+                                <i class="ph-bold ph-bank" style="font-size:12px;"></i> Banki utalás
                             </button>
-                            <button class="sd-partial-toggle" onclick="event.stopPropagation();"
-                                style="display:${wasUncollected || wasBankTransferred ?'none':'inline-flex'};align-items:center;gap:3px;font-size:10px;font-weight:600;color:${wasPartial?'#1d4ed8':'#64748b'};background:${wasPartial?'#eff6ff':'#f8fafc'};border:1px solid ${wasPartial?'#93c5fd':'#e2e8f0'};border-radius:6px;padding:2px 7px;cursor:pointer;font-family:inherit;flex-shrink:0;">
-                                <i class="ph-bold ph-split-horizontal" style="font-size:9px;"></i> részleges
+                            <button class="sd-partial-toggle" onclick="event.preventDefault();event.stopPropagation();"
+                                style="display:${wasUncollected || wasBankTransferred ?'none':'inline-flex'};align-items:center;gap:4px;font-size:11px;font-weight:600;color:${wasPartial?'#1d4ed8':'#64748b'};background:${wasPartial?'#eff6ff':'#f8fafc'};border:1px solid ${wasPartial?'#93c5fd':'#e2e8f0'};border-radius:6px;padding:6px 10px;cursor:pointer;font-family:inherit;transition:all .15s;">
+                                <i class="ph-bold ph-split-horizontal" style="font-size:12px;"></i> Részlegesen fizetett
                             </button>
                         </div>
                     </label>
-                    <div class="sd-partial-row" style="display:${wasPartial?'block':'none'};padding:6px 20px 10px 50px;background:#eff6ff;border-top:1px dashed #93c5fd;">
-                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-                            <span style="font-size:12px;color:#1d4ed8;font-weight:600;">Tényleges összeg:</span>
+                    <div class="sd-partial-row" style="display:${wasPartial?'block':'none'};padding:12px 20px 16px 116px;background:#eff6ff;border-top:1px dashed #93c5fd;">
+                        <div style="font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:8px;">Részleges fizetés történt. Kérlek add meg a részleteket:</div>
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
                             <input class="sd-partial-amount" type="number" min="0" max="${o.codAmount}"
                                 value="${wasPartial ? (prevPartial.amount||'') : ''}" placeholder="${o.codAmount}"
-                                style="width:90px;font-size:12px;font-weight:700;color:#1e40af;border:1.5px solid #93c5fd;border-radius:8px;padding:4px 8px;font-family:inherit;">
-                            <span style="font-size:12px;color:#64748b;">Ft <span style="color:#94a3b8;">(teljes: ${o.codAmount.toLocaleString('hu-HU')} Ft)</span></span>
-                            <button class="sd-partial-reset" onclick="event.stopPropagation();" style="margin-left:auto;font-size:11px;color:#64748b;background:none;border:1px solid #e2e8f0;border-radius:6px;padding:2px 8px;cursor:pointer;font-family:inherit;">Mégsem</button>
+                                style="width:120px;font-size:14px;font-weight:700;color:#1e40af;border:2px solid #93c5fd;border-radius:8px;padding:6px 10px;font-family:inherit;outline:none;">
+                            <span style="font-size:13px;color:#64748b;font-weight:600;">Ft átvett összeg <span style="color:#94a3b8;font-weight:normal;">(teljes elvárt: ${o.codAmount.toLocaleString('hu-HU')} Ft)</span></span>
+                            <button class="sd-partial-reset" onclick="event.stopPropagation();" style="margin-left:auto;font-size:12px;font-weight:600;color:#64748b;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;cursor:pointer;font-family:inherit;transition:all .15s;">Mégsem</button>
                         </div>
-                        <input class="sd-partial-comment" type="text" placeholder="Megjegyzés (pl. 1 db tábla sérült)..."
+                        <input class="sd-partial-comment" type="text" placeholder="Miért volt részleges? (pl. 1 db tábla sérült)..."
                             value="${wasPartial ? (prevPartial.comment||'').replace(/"/g,'&quot;') : ''}"
-                            style="width:100%;box-sizing:border-box;font-size:12px;border:1.5px solid #93c5fd;border-radius:8px;padding:5px 8px;font-family:inherit;margin-bottom:6px;">
+                            style="width:100%;box-sizing:border-box;font-size:13px;border:2px solid #93c5fd;border-radius:8px;padding:8px 12px;font-family:inherit;margin-bottom:12px;outline:none;">
                         
-                        <div class="sd-resp-selector" style="display:flex;align-items:center;gap:6px;" data-order-id="${o.id}">
-                            <span style="font-size:11px;color:#1d4ed8;font-weight:700;margin-right:4px;">Felelős:</span>
-                            <button type="button" class="sd-resp-btn mienk ${rMienkActive ? 'active' : ''}" data-resp="mienk" style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${rMienkActive ? '#fca5a5' : '#e2e8f0'};background:${rMienkActive ? '#fee2e2' : '#fff'};color:${rMienkActive ? '#b91c1c' : '#64748b'};transition:all .1s;">Saját hiba</button>
-                            <button type="button" class="sd-resp-btn szallito ${rSzallitoActive ? 'active' : ''}" data-resp="szallito" style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${rSzallitoActive ? '#fed7aa' : '#e2e8f0'};background:${rSzallitoActive ? '#ffedd5' : '#fff'};color:${rSzallitoActive ? '#c2410c' : '#64748b'};transition:all .1s;">Szállító</button>
-                            <button type="button" class="sd-resp-btn vevo ${rVevoActive ? 'active' : ''}" data-resp="vevo" style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${rVevoActive ? '#cbd5e1' : '#e2e8f0'};background:${rVevoActive ? '#e2e8f0' : '#fff'};color:${rVevoActive ? '#475569' : '#64748b'};transition:all .1s;">Vevő / Egyéb</button>
+                        <div class="sd-resp-selector" style="display:flex;align-items:center;gap:8px;" data-order-id="${o.id}">
+                            <span style="font-size:12px;color:#1d4ed8;font-weight:700;margin-right:6px;">Kinek a hibájából?</span>
+                            <button type="button" class="sd-resp-btn mienk ${rMienkActive ? 'active' : ''}" data-resp="mienk" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rMienkActive ? '#fca5a5' : '#e2e8f0'};background:${rMienkActive ? '#fee2e2' : '#fff'};color:${rMienkActive ? '#b91c1c' : '#64748b'};transition:all .1s;">Saját hiba</button>
+                            <button type="button" class="sd-resp-btn szallito ${rSzallitoActive ? 'active' : ''}" data-resp="szallito" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rSzallitoActive ? '#fed7aa' : '#e2e8f0'};background:${rSzallitoActive ? '#ffedd5' : '#fff'};color:${rSzallitoActive ? '#c2410c' : '#64748b'};transition:all .1s;">Szállító</button>
+                            <button type="button" class="sd-resp-btn vevo ${rVevoActive ? 'active' : ''}" data-resp="vevo" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rVevoActive ? '#cbd5e1' : '#e2e8f0'};background:${rVevoActive ? '#e2e8f0' : '#fff'};color:${rVevoActive ? '#475569' : '#64748b'};transition:all .1s;">Vevő / Egyéb</button>
                         </div>
                     </div>
                     ${makeReasonHtml(o.id, wasUncollected)}
@@ -2283,14 +2324,26 @@ function initApp() {
 
             const nonCodRowsHtml = nonCodOrders.map(o => {
                 const wasUncollected = prevUncollected.has(o.id);
+                const itemsList = (o.items || []).map(it => `<span style="display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;margin:2px 4px 2px 0;"><b>${it.qty}×</b> ${it.name}</span>`).join('');
                 return `
                 <div class="sd-order-row" style="border-bottom:1px solid #f1f5f9;">
-                    <label style="display:flex;align-items:center;gap:12px;padding:11px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-                        <input type="checkbox" data-order-id="${o.id}" data-is-cod="false" ${wasUncollected ? '' : 'checked'}
-                            style="width:18px;height:18px;cursor:pointer;accent-color:#22c55e;flex-shrink:0;">
-                        <span style="font-size:13px;font-weight:700;color:#374151;min-width:95px;">${o.id}</span>
-                        <span style="font-size:13px;color:#64748b;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.shippingName || '—'}</span>
-                        <span style="font-size:11px;color:#64748b;background:#f1f5f9;border-radius:6px;padding:2px 8px;flex-shrink:0;">Nem utánvétes</span>
+                    <label style="display:grid;grid-template-columns: 24px 80px minmax(0, 2fr) minmax(0, 1fr) minmax(240px, auto);align-items:start;gap:12px;padding:14px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                        <div style="display:flex;align-items:center;padding-top:2px;">
+                            <input type="checkbox" data-order-id="${o.id}" data-is-cod="false" ${wasUncollected ? '' : 'checked'}
+                                style="width:20px;height:20px;cursor:pointer;accent-color:#22c55e;">
+                        </div>
+                        <span style="font-size:14px;font-weight:700;color:#374151;padding-top:2px;">${o.id}</span>
+                        <div style="display:flex;flex-direction:column;gap:4px;overflow:hidden;padding-top:2px;">
+                            <div style="font-size:14px;color:#0f172a;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.shippingName || '—'}</div>
+                            ${itemsList ? `<div style="font-size:11px;color:#64748b;display:inline-flex;align-items:center;gap:4px;cursor:pointer;user-select:none;width:fit-content;padding:2px 6px;border-radius:6px;transition:background .15s;" class="sd-items-toggle" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='transparent'" onclick="event.preventDefault();event.stopPropagation();this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('i').style.transform=this.nextElementSibling.style.display==='none'?'rotate(0deg)':'rotate(180deg)'">
+                                <i class="ph-bold ph-caret-down" style="transition:transform .2s;"></i> ${o.items.length} termék mutatása
+                            </div>
+                            <div class="sd-items-list" style="display:none;font-size:11px;color:#475569;margin-top:2px;" onclick="event.preventDefault();event.stopPropagation();">${itemsList}</div>` : ''}
+                        </div>
+                        <div style="display:flex;align-items:center;padding-top:2px;">
+                            <span style="font-size:13px;font-weight:700;color:#64748b;background:#f1f5f9;border-radius:6px;padding:4px 10px;">Nem utánvétes</span>
+                        </div>
+                        <div></div>
                     </label>
                     ${makeReasonHtml(o.id, wasUncollected)}
                 </div>`;
@@ -2306,7 +2359,7 @@ function initApp() {
             overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
 
             overlay.innerHTML = `
-                <div style="background:#fff;border-radius:20px;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,0.35);overflow:hidden;">
+                <div style="background:#fff;border-radius:20px;width:100%;max-width:850px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,0.35);overflow:hidden;">
                     <div style="background:#0f172a;color:#fff;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
                         <div>
                             <div style="font-weight:700;font-size:15px;letter-spacing:-.2px;">Terítés rögzítése</div>
@@ -3583,12 +3636,17 @@ function initApp() {
                     pillLabel = 'Szállító hibája';
                 }
 
-                const respPillContainer = `
-                <div class="responsibility-display" style="display:flex;align-items:center;gap:6px;margin-top:6px;">
-                    <span style="font-size:11px;color:#64748b;font-weight:600;margin-right:4px;">Felelős:</span>
-                    <span class="resp-pill ${pillClass}" data-doc-id="${k.docId}" data-order-id="${k.id}" data-resp="${resp}" title="Kattints a felelős módosításához">
-                        ${pillIcon}${pillLabel}
-                    </span>
+                const actionContainer = `
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+                    <div class="responsibility-display" style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:11px;color:#64748b;font-weight:600;margin-right:4px;">Felelős:</span>
+                        <span class="resp-pill ${pillClass}" data-doc-id="${k.docId}" data-order-id="${k.id}" data-resp="${resp}" title="Kattints a felelős módosításához">
+                            ${pillIcon}${pillLabel}
+                        </span>
+                    </div>
+                    ${!isRecovered && k.isCOD && !k.isPartial ? `<button class="btn-mark-bank" data-doc-id="${k.docId}" data-order-id="${k.id}" style="display:flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#0284c7;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:3px 8px;cursor:pointer;transition:all .15s;" title="Áthelyezés utalt státuszba (nem lesz kiesett)">
+                        <i class="ph-bold ph-bank" style="font-size:10px;"></i>Utólag elutalva
+                    </button>` : ''}
                 </div>
                 `;
 
@@ -3612,7 +3670,7 @@ function initApp() {
                         ${k.reason ? `<span style="font-size:10px;color:#64748b;background:#f1f5f9;border-radius:5px;padding:2px 7px;">${k.reason}</span>` : ''}
                     </div>
                     ${renderLaterEntries(k.laterEntries)}
-                    ${respPillContainer}
+                    ${actionContainer}
                 </div>`;
             }).join('');
 
@@ -3621,6 +3679,22 @@ function initApp() {
                 : '<p style="color:#94a3b8;font-size:13px;">Nincs kiesett rendelés a kiválasztott időszakban.</p>';
 
             statsRunsContainer.appendChild(makeSection('Kiesett rendelések', 'ph-warning', kiesettContentHtml, true));
+
+            // "Utólag elutalva" gomb kattintáskezelő
+            statsRunsContainer.querySelectorAll('.btn-mark-bank').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const docId = btn.getAttribute('data-doc-id');
+                    const orderId = btn.getAttribute('data-order-id');
+                    const ok = await CustomDialog.confirm(`Biztosan utólag elutalva állapotra állítod a ${orderId} rendelést? Ez kiveszi a kiesettek közül.`, 'Utólag elutalva', 'info');
+                    if (ok) {
+                        const success = await HistoryManager.markAsBankTransferred(docId, orderId);
+                        if (success) {
+                            renderStatsView(); // Újratölti a statisztikát
+                        }
+                    }
+                });
+            });
 
             // Felelősség pirula kattintáskezelő (ciklikus váltás)
             statsRunsContainer.querySelectorAll('.resp-pill').forEach(pill => {
