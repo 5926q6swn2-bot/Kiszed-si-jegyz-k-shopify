@@ -1,9 +1,4 @@
-import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, query, orderBy, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from './firebase-config.js?v=42';
-
-import { CustomDialog } from './utils/dialog.js?v=43';
-import { HistoryManager } from './services/history.js?v=43';
-import { ShopifyParser } from './services/shopify.js?v=43';
-import { UnifiedPrinter } from './services/printer.js?v=43';
+import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, query, orderBy, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from './firebase-config.js?v=40';
 
 function initApp() {
     console.log("KOPJ Rendszer: app.js elindult");
@@ -43,7 +38,112 @@ function initApp() {
     }
 
 
-    // --- EGYEDI DIALOG RENDSZER ---
+    // --- EGYEDI DIALOG RENDSZER ---
+    const CustomDialog = {
+        overlay: document.getElementById('custom-dialog-overlay'),
+        icon: document.getElementById('cd-icon'),
+        title: document.getElementById('cd-title'),
+        msg: document.getElementById('cd-msg'),
+        input: document.getElementById('cd-input'),
+        btnCancel: document.getElementById('cd-btn-cancel'),
+        btnConfirm: document.getElementById('cd-btn-confirm'),
+
+        show: function(options) {
+            return new Promise((resolve) => {
+                this.title.textContent = options.title || 'Figyelem';
+                this.msg.innerHTML = options.message || '';
+                
+                const type = options.type || 'info';
+                this.icon.className = `cd-icon ${type}`;
+                if(type === 'warning') this.icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+                else if(type === 'error') this.icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+                else this.icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+
+                if (options.isPrompt) {
+                    this.input.style.display = 'block';
+                    this.input.value = options.defaultValue || '';
+                    this.input.focus();
+                } else {
+                    this.input.style.display = 'none';
+                    this.input.value = '';
+                }
+
+                if (options.isConfirm || options.isPrompt) {
+                    this.btnCancel.style.display = 'block';
+                    this.btnConfirm.className = `cd-btn ${options.confirmDanger ? 'cd-btn-danger' : 'cd-btn-primary'}`;
+                } else {
+                    this.btnCancel.style.display = 'none';
+                    this.btnConfirm.className = 'cd-btn cd-btn-primary';
+                }
+                
+                this.btnConfirm.textContent = options.confirmText || 'Rendben';
+
+                const cleanup = () => {
+                    this.overlay.classList.remove('active');
+                    this.btnConfirm.removeEventListener('click', onConfirm);
+                    this.btnCancel.removeEventListener('click', onCancel);
+                };
+
+                const onConfirm = () => {
+                    cleanup();
+                    resolve(options.isPrompt ? this.input.value : true);
+                };
+
+                const onCancel = () => {
+                    cleanup();
+                    resolve(options.isPrompt ? null : false);
+                };
+
+                this.btnConfirm.addEventListener('click', onConfirm);
+                this.btnCancel.addEventListener('click', onCancel);
+                
+                this.overlay.classList.add('active');
+            });
+        },
+        alert: function(message, title = 'Figyelem', type = 'info') {
+            return this.show({ message, title, type, isConfirm: false });
+        },
+        confirm: function(message, title = 'Megerősítés', type = 'warning', confirmDanger = true) {
+            return this.show({ message, title, type, isConfirm: true, confirmDanger });
+        },
+        prompt: function(message, defaultValue = '', title = 'Adatmegadás') {
+            return this.show({ message, title, type: 'info', isPrompt: true, defaultValue });
+        },
+        choice: function(message, btn1Text, btn2Text, title = 'Választás', type = 'info') {
+            return new Promise((resolve) => {
+                this.title.textContent = title;
+                this.msg.innerHTML = message;
+                
+                this.icon.className = `cd-icon ${type}`;
+                if(type === 'warning') this.icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+                else this.icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+
+                this.input.style.display = 'none';
+                
+                this.btnCancel.style.display = 'block';
+                this.btnCancel.textContent = btn2Text;
+                
+                this.btnConfirm.className = 'cd-btn cd-btn-primary';
+                this.btnConfirm.textContent = btn1Text;
+
+                const cleanup = () => {
+                    this.overlay.classList.remove('active');
+                    this.btnConfirm.removeEventListener('click', onBtn1);
+                    this.btnCancel.removeEventListener('click', onBtn2);
+                    this.btnCancel.textContent = 'Mégsem';
+                    this.btnConfirm.textContent = 'Rendben';
+                };
+
+                const onBtn1 = () => { cleanup(); resolve(1); };
+                const onBtn2 = () => { cleanup(); resolve(2); };
+
+                this.btnConfirm.addEventListener('click', onBtn1);
+                this.btnCancel.addEventListener('click', onBtn2);
+                
+                this.overlay.classList.add('active');
+            });
+        }
+    };
 
     // DOM Elemek
     const fileInput = document.getElementById('file-input');
@@ -142,7 +242,404 @@ function initApp() {
     let activeStatsTab = 'charts';
     const geoCache = JSON.parse(localStorage.getItem('hu_zip_geocache_v1') || '{}');
 
-    // --- HistoryManager (Előzmények kezelése Firestore-al) ---
+    // --- HistoryManager (Előzmények kezelése Firestore-al) ---
+    const HistoryManager = {
+        COLLECTION_NAME: 'szedolista_history',
+        TRASH_COLLECTION_NAME: 'szedolista_trash',
+        
+        getAllRuns: async function() {
+            try {
+                const q = query(collection(db, this.COLLECTION_NAME), orderBy('timestamp', 'desc'));
+                const querySnapshot = await getDocs(q);
+                const runs = [];
+                querySnapshot.forEach((docSnap) => {
+                    runs.push({
+                        ...docSnap.data(),
+                        docId: docSnap.id
+                    });
+                });
+                return runs;
+            } catch (e) {
+                console.error("Hiba a Firebase lekérdezésnél: ", e);
+                return [];
+            }
+        },
+        
+        saveRun: async function(date, pickupDate, courier, company, sender, ordersList) {
+            const newRun = {
+                id: 'run_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                date: date,
+                originalDate: date,
+                pickupDate: pickupDate || date,
+                courier: courier,
+                company: company,
+                sender: sender || 'capsula',
+                timestamp: Date.now(),
+                isPrinted: true,
+                orders: ordersList,
+                userId: auth.currentUser ? auth.currentUser.uid : null
+            };
+            try {
+                const docRef = await addDoc(collection(db, this.COLLECTION_NAME), newRun);
+                newRun.docId = docRef.id;
+                return newRun;
+            } catch (e) {
+                console.error("Hiba a mentésnél: ", e);
+                return null;
+            }
+        },
+        
+        searchOrders: async function(qStr) {
+            const runs = await this.getAllRuns();
+            const q = qStr.toLowerCase().trim();
+            if(!q) return [];
+            
+            let matches = [];
+            runs.forEach(run => {
+                run.orders.forEach(order => {
+                    const itemsMatch = order.items.some(it => it.name.toLowerCase().includes(q));
+                    const nameMatch = order.shippingName.toLowerCase().includes(q);
+                    const idMatch = order.id.toLowerCase().includes(q);
+                    const addrMatch = order.address && order.address.toLowerCase().includes(q);
+                    const phoneMatch = order.shippingPhone && order.shippingPhone.includes(q);
+
+                    if(idMatch || nameMatch || addrMatch || phoneMatch || itemsMatch) {
+                        matches.push({
+                            runId: run.id,
+                            runDate: run.date,
+                            runCourier: run.courier,
+                            runCompany: run.company || '-',
+                            ...order
+                        });
+                    }
+                });
+            });
+            return matches;
+        },
+        
+        getRunById: async function(runId) {
+            const runs = await this.getAllRuns();
+            return runs.find(r => r.id === runId) || null;
+        },
+        
+        deleteRun: async function(runId) {
+            const runs = await this.getAllRuns();
+            const runToMove = runs.find(r => r.id === runId);
+            if (runToMove && runToMove.docId) {
+                try {
+                    const trashData = {
+                        ...runToMove,
+                        deletedAt: Date.now()
+                    };
+                    delete trashData.docId; // Ne vigyük át a régi doksi azonosítót
+                    
+                    // 1. Áthelyezés a szemetesbe
+                    await addDoc(collection(db, this.TRASH_COLLECTION_NAME), trashData);
+                    
+                    // 2. Törlés az eredeti helyről
+                    await deleteDoc(doc(db, this.COLLECTION_NAME, runToMove.docId));
+                    return true;
+                } catch(e) {
+                    console.error("Hiba a szemetesbe mozgatásnál: ", e);
+                    return false;
+                }
+            }
+            return false;
+        },
+
+        getTrashRuns: async function() {
+            try {
+                const q = query(collection(db, this.TRASH_COLLECTION_NAME), orderBy('deletedAt', 'desc'));
+                const querySnapshot = await getDocs(q);
+                const runs = [];
+                querySnapshot.forEach((docSnap) => {
+                    runs.push({
+                        ...docSnap.data(),
+                        docId: docSnap.id
+                    });
+                });
+                return runs;
+            } catch (e) {
+                console.error("Hiba a szemetes lekérdezésénél: ", e);
+                return [];
+            }
+        },
+
+        restoreRun: async function(docId) {
+            try {
+                const docRef = doc(db, this.TRASH_COLLECTION_NAME, docId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const runData = docSnap.data();
+                    const restoredData = { ...runData };
+                    delete restoredData.deletedAt;
+                    
+                    // 1. Vissza az eredeti gyűjteménybe
+                    await addDoc(collection(db, this.COLLECTION_NAME), restoredData);
+                    
+                    // 2. Törlés a szemetesből
+                    await deleteDoc(docRef);
+                    return true;
+                }
+            } catch (e) {
+                console.error("Hiba a visszaállításnál: ", e);
+            }
+            return false;
+        },
+
+        permanentDeleteRun: async function(docId) {
+            try {
+                await deleteDoc(doc(db, this.TRASH_COLLECTION_NAME, docId));
+                return true;
+            } catch (e) {
+                console.error("Hiba a végleges törlésnél: ", e);
+                return false;
+            }
+        },
+
+        autoCleanupTrash: async function() {
+            const ninetyDaysAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
+            try {
+                const q = query(collection(db, this.TRASH_COLLECTION_NAME), where('deletedAt', '<', ninetyDaysAgo));
+                const querySnapshot = await getDocs(q);
+                const deletePromises = [];
+                querySnapshot.forEach(docSnap => {
+                    deletePromises.push(deleteDoc(docSnap.ref));
+                });
+                await Promise.all(deletePromises);
+                if (deletePromises.length > 0) {
+                    console.log(`${deletePromises.length} régi elem törölve a szemetesből.`);
+                }
+            } catch (e) {
+                console.error("Hiba az automata takarításnál: ", e);
+            }
+        },
+
+        updateSettlementStatus: async function(docId, settledAmount, totalCOD, uncollectedOrderIds = [], uncollectedReasons = {}, partialOrders = {}, bankTransferredOrderIds = [], uncollectedResponsibility = {}) {
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                const docSnap = await getDoc(docRef);
+                let isSettled = false;
+                if (docSnap.exists()) {
+                    const runData = docSnap.data();
+                    const ordersList = runData.orders || [];
+                    
+                    let bankTransferredSum = 0;
+                    let uncollectedSum = 0;
+                    let partialDiffs = 0;
+                    
+                    ordersList.forEach(o => {
+                        if (o.isCOD) {
+                            if (bankTransferredOrderIds.some(id => String(id) === String(o.id))) {
+                                bankTransferredSum += o.codAmount;
+                            } else if (uncollectedOrderIds.some(id => String(id) === String(o.id))) {
+                                uncollectedSum += o.codAmount;
+                            } else if (partialOrders[o.id] || partialOrders[String(o.id)]) {
+                                const partialVal = partialOrders[o.id] || partialOrders[String(o.id)];
+                                partialDiffs += (o.codAmount - (partialVal.amount || 0));
+                            }
+                        }
+                    });
+                    
+                    const expectedAmount = totalCOD - bankTransferredSum - uncollectedSum - partialDiffs;
+                    isSettled = settledAmount >= expectedAmount;
+                } else {
+                    isSettled = settledAmount >= totalCOD;
+                }
+
+                await updateDoc(docRef, {
+                    isSettled: isSettled,
+                    settledAmount: settledAmount,
+                    uncollectedOrderIds: uncollectedOrderIds,
+                    uncollectedReasons: uncollectedReasons,
+                    partialOrders: partialOrders,
+                    bankTransferredOrderIds: bankTransferredOrderIds,
+                    uncollectedResponsibility: uncollectedResponsibility,
+                    settledAt: Date.now()
+                });
+                return true;
+            } catch (e) {
+                console.error("Hiba az elszámolás állapot frissítésénél: ", e);
+                return false;
+            }
+        },
+
+        updateResponsibilityInFirestore: async function(docId, orderId, responsibility) {
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                await updateDoc(docRef, {
+                    [`uncollectedResponsibility.${orderId}`]: responsibility
+                });
+                return true;
+            } catch (e) {
+                console.error("Hiba a felelősség frissítésénél: ", e);
+                return false;
+            }
+        },
+
+        markAsBankTransferred: async function(docId, orderId) {
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                const docSnap = await getDoc(docRef);
+                if (!docSnap.exists()) return false;
+                const runData = docSnap.data();
+                
+                let uncollected = runData.uncollectedOrderIds || [];
+                let bankTransferred = runData.bankTransferredOrderIds || [];
+                
+                uncollected = uncollected.filter(id => id !== orderId);
+                if (!bankTransferred.includes(orderId)) {
+                    bankTransferred.push(orderId);
+                }
+                
+                await updateDoc(docRef, {
+                    uncollectedOrderIds: uncollected,
+                    bankTransferredOrderIds: bankTransferred,
+                    [`uncollectedReasons.${orderId}`]: deleteField(),
+                    [`uncollectedResponsibility.${orderId}`]: deleteField()
+                });
+                return true;
+            } catch (e) {
+                console.error("Hiba a banki utalás rögzítésénél: ", e);
+                return false;
+            }
+        },
+
+        revertToPending: async function(docId) {
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                await updateDoc(docRef, {
+                    isSettled: false,
+                    settledAmount: null,
+                    settledAt: null,
+                    uncollectedOrderIds: deleteField(),
+                    uncollectedReasons: deleteField(),
+                    partialOrders: deleteField(),
+                    bankTransferredOrderIds: deleteField(),
+                    uncollectedResponsibility: deleteField()
+                });
+                return true;
+            } catch (e) {
+                console.error("Hiba a visszaállításnál: ", e);
+                return false;
+            }
+        },
+
+        mergeRuns: async function(selectedRunIds, newDate, newCourier, newCompany) {
+            try {
+                const runs = await this.getAllRuns();
+                const selectedRuns = runs.filter(r => selectedRunIds.includes(r.id));
+                if (selectedRuns.length < 2) return null;
+
+                const allOrders = selectedRuns.flatMap(r => r.orders);
+                const mergedId = 'run_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                const mergedData = {
+                    id: mergedId,
+                    date: newDate,
+                    originalDate: newDate,
+                    pickupDate: newDate,
+                    courier: newCourier,
+                    company: newCompany,
+                    orders: allOrders,
+                    timestamp: Date.now(),
+                    isPrinted: false,
+                    isMerged: true,
+                    mergedFromIds: selectedRuns.map(r => r.id),
+                    mergedFromDocIds: selectedRuns.map(r => r.docId),
+                    mergedAt: Date.now(),
+                };
+                await addDoc(collection(db, this.COLLECTION_NAME), mergedData);
+                for (const run of selectedRuns) {
+                    const docRef = doc(db, this.COLLECTION_NAME, run.docId);
+                    await updateDoc(docRef, { isMergedInto: mergedId, mergedAt: Date.now() });
+                }
+                return mergedData;
+            } catch (e) {
+                console.error("Hiba az összevonásnál:", e);
+                return null;
+            }
+        },
+
+        revertMerge: async function(mergedRunDocId) {
+            try {
+                const runs = await this.getAllRuns();
+                const mergedRun = runs.find(r => r.docId === mergedRunDocId);
+                if (!mergedRun || !mergedRun.mergedFromDocIds) return false;
+                for (const origDocId of mergedRun.mergedFromDocIds) {
+                    const docRef = doc(db, this.COLLECTION_NAME, origDocId);
+                    await updateDoc(docRef, { isMergedInto: deleteField(), mergedAt: deleteField() });
+                }
+                await deleteDoc(doc(db, this.COLLECTION_NAME, mergedRunDocId));
+                return true;
+            } catch (e) {
+                console.error("Hiba a visszavonásnál:", e);
+                return false;
+            }
+        },
+
+        saveQuickDeliveryRun: async function(data) {
+            const shortId = Math.random().toString(36).substr(2, 5);
+            const today = new Date().toISOString().split('T')[0];
+            const newRun = {
+                id: 'qdrun_' + Date.now() + '_' + shortId,
+                date: today,
+                pickupDate: today,
+                courier: data.company || '—',
+                company: data.company || '',
+                sender: data.sender || 'capsula',
+                timestamp: Date.now(),
+                isPrinted: true,
+                isQuickDelivery: true,
+                quickDeliveryData: data,
+                orders: [{
+                    id: '#GYORS-' + shortId.toUpperCase(),
+                    shippingName: data.recipient || '—',
+                    address: data.address || '',
+                    fullAddress: data.address || '',
+                    shippingPhone: data.phone || '',
+                    isCOD: false,
+                    codAmount: 0,
+                    items: data.items.length > 0 ? data.items : [{ name: '—', qty: 1 }]
+                }],
+                userId: auth.currentUser ? auth.currentUser.uid : null
+            };
+            try {
+                const docRef = await addDoc(collection(db, this.COLLECTION_NAME), newRun);
+                newRun.docId = docRef.id;
+                return newRun;
+            } catch (e) {
+                console.error("Hiba a gyors szállítólevél mentésnél: ", e);
+                return null;
+            }
+        },
+
+        updateRun: async function(runId, date, pickupDate, courier, company, sender, ordersList) {
+            const runs = await this.getAllRuns();
+            const runToUpdate = runs.find(r => r.id === runId);
+            if (runToUpdate && runToUpdate.docId) {
+                try {
+                    const docRef = doc(db, this.COLLECTION_NAME, runToUpdate.docId);
+                    await updateDoc(docRef, {
+                        date: date,
+                        pickupDate: pickupDate || date,
+                        courier: courier,
+                        company: company,
+                        sender: sender || 'capsula',
+                        orders: ordersList,
+                        timestamp: Date.now(),
+                        isModified: true,
+                        modifiedAt: Date.now(),
+                        modifyCount: increment(1)
+                    });
+                    return true;
+                } catch(e) {
+                    console.error("Hiba a frissítésnél: ", e);
+                    return null;
+                }
+            }
+            return null;
+        }
+    };
 
     // Kezdeti üres állapot renderelése
     renderOrders();
@@ -266,25 +763,281 @@ function initApp() {
             header: true,
             skipEmptyLines: true,
             complete: function(results) {
-                
-        const { newOrders, skippedOrderIds } = ShopifyParser.parse(results.data, orders);
-        orders.push(...newOrders);
-        if (skippedOrderIds.size > 0) {
-            CustomDialog.alert(`${skippedOrderIds.size} db ismétlődő rendelést automatikusan kihagytunk a betöltésből.`, 'Duplikáció szűrve', 'info');
-        }
-        renderOrders();
-        const now = new Date();
-        printDateDisplay.textContent = `Készült: ${now.toLocaleDateString('hu-HU')} ${now.toLocaleTimeString('hu-HU')}`;
-
+                processShopifyData(results.data);
             }
         });
         
         fileInput.value = '';
     }
 
-    // Név Formázó (280x122 -> 280 cm, stb.)
+    // Név Formázó (280x122 -> 280 cm, stb.)
+    function formatItemName(name) {
+        if (!name) return '';
+        
+        // Ha profil, kivesszük a méreteket, mert nincsenek összekészítve
+        if (isProfile(name)) {
+            let cleanName = name.replace(/\b\d+(\.\d+)?\s*(cm|m|mm)\b/gi, '')
+                                .replace(/\b\d+\s*x\s*\d+\b/gi, '')
+                                .replace(/\(\s*\)/g, '')
+                                .trim();
+            // Esetleges extra szóközök takarítása
+            return cleanName.replace(/\s{2,}/g, ' ');
+        }
 
-    // --- Üzleti Logika ---
+        // Egyéb panelek esetén méret rövidítés (elnyeli a már meglévő cm szócskát is, hogy ne legyen cmcm)
+        let formatted = name.replace(/280\s*x\s*122\s*(cm)?/gi, '280 cm');
+        formatted = formatted.replace(/244\s*x\s*122\s*(cm)?/gi, '244 cm');
+        
+        return formatted;
+    }
+
+    // --- Üzleti Logika ---
+    function processShopifyData(rows) {
+        const orderMap = new Map();
+        const skippedOrderIds = new Set();
+
+        rows.forEach(row => {
+            const orderNum = row['Name'];
+            if (!orderNum) return;
+            
+            // Duplikáció szűrés (ha már a meglévő orders tömbben benne van, kihagyjuk)
+            if (orders.some(o => o.id === orderNum)) {
+                skippedOrderIds.add(orderNum);
+                return;
+            }
+
+            const rawItemName = row['Lineitem name'] || '';
+            const itemName = formatItemName(rawItemName);
+            const itemQty = parseInt(row['Lineitem quantity']) || 0;
+            const itemPriceStr = row['Lineitem price'] || "0";
+            const itemPrice = parseFloat(itemPriceStr) || 0;
+            
+            if (!orderMap.has(orderNum)) {
+                let shippingAddress = [
+                    row['Shipping Zip'], 
+                    row['Shipping City']
+                ].filter(Boolean);
+
+                let fullShippingAddress = [
+                    row['Shipping Zip'],
+                    row['Shipping City'],
+                    row['Shipping Address1'],
+                    row['Shipping Address2']
+                ].filter(Boolean);
+                
+                const shippingPhone = row['Shipping Phone'] || '';
+                const billingPhone = row['Billing Phone'] || shippingPhone;
+
+                // Hibák gyűjtése
+                let errors = [];
+
+                // 0. Fulfilled ellenőrzés
+                const fulfillmentStatus = (row['Fulfillment Status'] || '').toLowerCase();
+                if (fulfillmentStatus === 'fulfilled') {
+                    errors.push({
+                        id: Math.random().toString(36).substr(2, 9),
+                        title: "Már teljesítve!",
+                        desc: "Ez egy fulfilled rendelés, biztos újra ki akarod küldeni?"
+                    });
+                }
+
+                // 1. Számla ki ellenőrzés
+                const tags = row['Tags'] || '';
+                const shippingName = row['Shipping Name'] || 'Ismeretlen';
+                const billingName = row['Billing Name'] || shippingName;
+                if (!tags.toLowerCase().includes('számla ki')) {
+                    errors.push({
+                        id: Math.random().toString(36).substr(2, 9),
+                        title: "Hiányzó Számla",
+                        desc: `Nincs "számla ki" tag, számla legyen kiállítva! Számlázási név: ${billingName}`
+                    });
+                }
+
+                // 1b. Removed tétel ellenőrzés
+                if (tags.toLowerCase().includes('removed')) {
+                    errors.push({
+                        id: Math.random().toString(36).substr(2, 9),
+                        title: "Törölt tétel!",
+                        desc: "Törölt tétel van a megrendelésben, kérlek ellenőrizd le a Shopifyban!"
+                    });
+                }
+
+                // 2. Utalás ellenőrzés (Bank Deposit & not paid)
+                const financialStatus = (row['Financial Status'] || '').toLowerCase();
+                const paymentMethod = (row['Payment Method'] || '').toLowerCase();
+                const totalAmount = parseFloat(row['Total']) || 0;
+                let isBankDeposit = paymentMethod.includes('bank deposit');
+                let isPaid = (financialStatus === 'paid');
+                
+                if (isBankDeposit && !isPaid) {
+                    const formattedTotal = new Intl.NumberFormat('hu-HU').format(totalAmount);
+                    errors.push({
+                        id: Math.random().toString(36).substr(2, 9),
+                        title: "Függő Utalás",
+                        desc: `Utalást várunk: ${formattedTotal} Ft , Számlázási név: ${billingName} , Szállítási név: ${shippingName}`
+                    });
+                }
+
+                // 3. Utánvét Logika (Csak ha NEM bank deposit)
+                const outstandingBalance = parseFloat(row['Outstanding Balance']) || 0;
+                const shippingCost = parseFloat(row['Shipping']) || 0;
+                const notes = (row['Notes'] || '').toLowerCase();
+                const createdAtStr = row['Created at'] || '';
+                let isCOD = false;
+                let codAmount = 0;
+
+                let noteCodAmount = null;
+                const matchBefore = notes.match(/(\d[\d\s\.]*?)\s*(?:ft|huf)?\s*(?:ut[aá]nv[eé]t|\buv)/i);
+                const matchAfter = notes.match(/(?:ut[aá]nv[eé]t|\buv).*?(\d[\d\s\.]*)/i);
+                const matchFt = notes.match(/(\d(?:[\d .]*\d)?)\s*ft/i);
+
+                if (matchBefore) {
+                    noteCodAmount = parseInt(matchBefore[1].replace(/[\s\.]/g, ''));
+                } else if (matchAfter) {
+                    noteCodAmount = parseInt(matchAfter[1].replace(/[\s\.]/g, ''));
+                } else if (matchFt) {
+                    noteCodAmount = parseInt(matchFt[1].replace(/[\s\.]/g, ''));
+                }
+
+                if (!isBankDeposit) {
+                    if (outstandingBalance > 0) {
+                        isCOD = true;
+                        codAmount = outstandingBalance;
+                        
+                        // LAPPANGÓ UTÁNVÉT FIGYELMEZTETÉS
+                        if (!/ut[aá]nv[eé]t|\buv/i.test(notes) && noteCodAmount === null) {
+                            errors.push({
+                                id: Math.random().toString(36).substr(2, 9),
+                                title: "Lappangó Utánvét!",
+                                desc: `Shopify szerint van utánvét, de a Notes üres. Kérdéses összeg: ${outstandingBalance} Ft`
+                            });
+                        } else if (noteCodAmount !== null) {
+                            
+                            // Speciális 250k szabály
+                            const shippingGross = Math.round(shippingCost * 1.27);
+                            let expectedAmount = outstandingBalance;
+                            
+                            // 10 Ft kerekítési tolerancia a sima egyenlegre vagy a szállítás nélküli egyenlegre
+                            if (Math.abs(outstandingBalance - noteCodAmount) <= 10 ||
+                                (outstandingBalance > 250000 && Math.abs((outstandingBalance - shippingGross) - noteCodAmount) <= 10)) {
+                                codAmount = noteCodAmount; // Helyes! Nincs hiba.
+                            } else {
+                                // Shopify CSV bug: order edit után az Outstanding Balance nem frissül helyesen.
+                                // Két eset: ÁFA exkluzív (hozzáadva) vagy inkluzív (már benne van az árban)
+                                const subtotal = parseFloat(row['Subtotal']) || 0;
+                                const tax1Name = row['Tax 1 Name'] || '';
+                                const vatMatch = tax1Name.match(/(\d+(?:\.\d+)?)\s*%/);
+                                const vatRate = vatMatch ? parseFloat(vatMatch[1]) / 100 : 0.27;
+                                const calculatedExclusive = Math.round((subtotal + shippingCost) * (1 + vatRate));
+                                const calculatedInclusive = Math.round(subtotal + shippingCost);
+                                const matchesCalc = Math.abs(calculatedExclusive - noteCodAmount) <= 10 || Math.abs(calculatedInclusive - noteCodAmount) <= 10;
+                                if (matchesCalc && Math.abs(outstandingBalance - noteCodAmount) > 10) {
+                                    codAmount = noteCodAmount; // CSV bug, notes helyes, nincs hiba
+                                } else {
+                                    errors.push({
+                                        id: Math.random().toString(36).substr(2, 9),
+                                        title: "Utánvét Eltérés",
+                                        desc: `Utánvét a shopifyban: ${outstandingBalance} Ft, a Notes-ban ${noteCodAmount} Ft kérlek ellenőrizd!`
+                                    });
+                                }
+                            }
+                        }
+                    } else if (noteCodAmount !== null && noteCodAmount > 0) {
+                        isCOD = true;
+                        codAmount = noteCodAmount;
+                        errors.push({
+                            id: Math.random().toString(36).substr(2, 9),
+                            title: "Fizetési Anomália",
+                            desc: `A shopify szerint nincs utánvét, de a Notes-ban szerepel egy összeg: ${noteCodAmount} Ft`
+                        });
+                    }
+                }
+
+                orderMap.set(orderNum, {
+                    id: orderNum,
+                    internalId: Math.random().toString(36).substr(2, 9), 
+                    shippingName: shippingName,
+                    billingName: billingName,
+                    address: shippingAddress.join(', '),
+                    fullAddress: fullShippingAddress.join(', '),
+                    shippingPhone: shippingPhone,
+                    billingPhone: billingPhone,
+                    tags: tags,
+                    isBankDeposit: isBankDeposit,
+                    isPaid: isPaid,
+                    isCOD: isCOD,
+                    codAmount: codAmount,
+                    orderDate: createdAtStr,
+                    isPlannedDelay: false,
+                    isFulfilled: fulfillmentStatus === 'fulfilled',
+                    errors: errors,
+                    items: []
+                });
+            }
+
+            const lineFulfillmentStatus = (row['Lineitem fulfillment status'] || '').toLowerCase();
+            if (itemQty > 0 && itemName) {
+                const order = orderMap.get(orderNum);
+                // Ha a rendelés "fulfilled" de a tétel "pending" → el lett távolítva a rendelésből, kihagyjuk
+                if (!(order.isFulfilled && lineFulfillmentStatus === 'pending')) {
+                    const existingItem = order.items.find(i => i.name === itemName);
+                    if (existingItem) {
+                        existingItem.qty += itemQty;
+                    } else {
+                        order.items.push({
+                            name: itemName,
+                            qty: itemQty,
+                            price: itemPrice
+                        });
+                    }
+                }
+            }
+        });
+
+        // Hozzáadás a meglévőkhöz
+        const newOrders = Array.from(orderMap.values());
+        
+        newOrders.forEach(order => {
+            if (order.tags.toLowerCase().includes('prof.ök.')) {
+                const profiles = order.items.filter(item => isProfile(item.name));
+                if (profiles.length > 0) {
+                    order.items = order.items.filter(item => !isProfile(item.name));
+                    let totalPrice = profiles.reduce((sum, item) => sum + (item.price * item.qty), 0);
+                    order.items.push({
+                        name: "Összekészített profilok",
+                        qty: 1,
+                        price: totalPrice,
+                        isCollapsedProfile: true,
+                        subItems: profiles
+                    });
+                }
+            }
+            
+            order.items.sort((a, b) => {
+                const typeA = getItemTypeWeight(a.name);
+                const typeB = getItemTypeWeight(b.name);
+                return typeA - typeB;
+            });
+            
+            orders.push(order);
+        });
+
+        if (skippedOrderIds.size > 0) {
+            CustomDialog.alert(`${skippedOrderIds.size} db ismétlődő rendelést automatikusan kihagytunk a betöltésből.`, 'Duplikáció szűrve');
+        }
+
+        renderOrders();
+        
+        const now = new Date();
+        printDateDisplay.textContent = `Készült: ${now.toLocaleDateString('hu-HU')} ${now.toLocaleTimeString('hu-HU')}`;
+    }
+    
+    function getItemTypeWeight(name) {
+        const lowerName = name.toLowerCase();
+        if (/(panel|pvc|spc|akusztikus|pb-|lj-|ps-)/.test(lowerName)) return 1;
+        if (/(ragasztó)/.test(lowerName)) return 2;
+        return 3;
+    }
 
     // Segédfüggvény munkanapok számolásához
     function getBusinessDaysCount(startDate, endDate) {
@@ -303,7 +1056,11 @@ function initApp() {
             }
         }
         return count;
-    }
+    }
+
+    function isProfile(name) {
+        return /profil/i.test(name) && name !== "Összekészített profilok";
+    }
 
     function needsMarkerLabel(name, isCollapsedProfile) {
         if (isCollapsedProfile) return false;
@@ -802,12 +1559,7 @@ function initApp() {
                 const phoneChanged = orig.phone !== o.phone;
                 
                 if (itemsChanged || codChanged || addrChanged || phoneChanged) {
-                    const reasons = [];
-                    if (itemsChanged) reasons.push('termék/mennyiség');
-                    if (codChanged) reasons.push('utánvét összeg');
-                    if (addrChanged) reasons.push('cím');
-                    if (phoneChanged) reasons.push('telefon');
-                    modified.push({ order: o, origOrder: orig, reasons: reasons });
+                    modified.push({ order: o, origOrder: orig });
                 }
             }
         });
@@ -863,7 +1615,7 @@ function initApp() {
                     }
                     if (changes.modified.length > 0) {
                         msg += `<div style="margin-bottom:8px;"><strong style="color:#1d4ed8;">Módosított (${changes.modified.length} db):</strong><br>`;
-                        msg += `<span style="font-size:11px;color:#64748b;line-height:1.4;display:inline-block;">${changes.modified.map(m => `<b>${m.order.id}</b> <i style="color:#94a3b8;">(${m.reasons.join(', ')})</i>`).join('<br>')}</span></div>`;
+                        msg += `<span style="font-size:11px;color:#64748b;">${changes.modified.map(m => m.order.id).join(', ')}</span></div>`;
                     }
                     if (changes.deleted.length > 0) {
                         msg += `<div style="margin-bottom:8px;"><strong style="color:#dc2626;">Törölt (${changes.deleted.length} db):</strong><br>`;
@@ -1231,7 +1983,7 @@ function initApp() {
                     const phoneMatch = order.shippingPhone?.includes(q);
                     const itemsMatch = order.items?.some(it => it.name.toLowerCase().includes(q));
                     if (idMatch || nameMatch || addrMatch || phoneMatch || itemsMatch) {
-                        matches.push({ runId: run.id, runDate: run.date, runCourier: run.courier, runCompany: run.company, ...order });
+                        matches.push({ runId: run.id, runDate: run.date, runCourier: run.courier, runCompany: run.company, runData: run, ...order });
                     }
                 });
             });
@@ -3120,12 +3872,64 @@ function initApp() {
             
             const itemsSummary = m.items.map(it => `${it.qty}× ${it.name}`).join(', ');
             
+            let accountingBadgeHtml = '';
+            if (m.isCOD) {
+                let badgeText = 'Függőben lévő elszámolás';
+                let badgeColor = '#f59e0b';
+                let badgeBg = '#fef3c7';
+
+                let dynamicIsSettled = m.runData && m.runData.isSettled;
+                if (m.runData && !dynamicIsSettled && typeof m.runData.settledAmount !== 'undefined') {
+                    let bankTransferredSum = 0;
+                    let uncollectedSum = 0;
+                    let partialDiffs = 0;
+                    (m.runData.orders || []).forEach(o => {
+                        if (o.isCOD) {
+                            if (m.runData.bankTransferredOrderIds && m.runData.bankTransferredOrderIds.some(id => String(id) === String(o.id))) {
+                                bankTransferredSum += o.codAmount;
+                            } else if (m.runData.uncollectedOrderIds && m.runData.uncollectedOrderIds.some(id => String(id) === String(o.id))) {
+                                uncollectedSum += o.codAmount;
+                            } else if (m.runData.partialOrders && (m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)])) {
+                                const partialVal = m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)];
+                                partialDiffs += (o.codAmount - (partialVal.amount || 0));
+                            }
+                        }
+                    });
+                    const expectedAmount = (m.runData.totalCOD || 0) - bankTransferredSum - uncollectedSum - partialDiffs;
+                    dynamicIsSettled = m.runData.settledAmount >= expectedAmount;
+                }
+
+                if (m.runData && m.runData.bankTransferredOrderIds && m.runData.bankTransferredOrderIds.some(id => String(id) === String(m.id))) {
+                    badgeText = 'Utólag elutalva';
+                    badgeColor = '#3b82f6';
+                    badgeBg = '#dbeafe';
+                } else if (m.runData && m.runData.uncollectedOrderIds && m.runData.uncollectedOrderIds.some(id => String(id) === String(m.id))) {
+                    badgeText = 'Nincs beszedve';
+                    badgeColor = '#ef4444';
+                    badgeBg = '#fee2e2';
+                } else if (m.runData && m.runData.partialOrders && (m.runData.partialOrders[m.id] || m.runData.partialOrders[String(m.id)])) {
+                    badgeText = 'Részlegesen beszedve';
+                    badgeColor = '#f97316';
+                    badgeBg = '#ffedd5';
+                } else if (dynamicIsSettled) {
+                    badgeText = 'Készpénzben elszámolva';
+                    badgeColor = '#10b981';
+                    badgeBg = '#d1fae5';
+                }
+
+                accountingBadgeHtml = `<span style="font-size: 11px; background: ${badgeBg}; color: ${badgeColor}; padding: 2px 8px; border-radius: 4px; font-weight: 700; margin-left: 5px; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ph-currency-circle-dollar" style="font-size: 13px;"></i> ${badgeText}</span>`;
+            } else {
+                accountingBadgeHtml = `<span style="font-size: 11px; background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 4px; font-weight: 700; margin-left: 5px; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ph-prohibit" style="font-size: 13px;"></i> Nincs utánvét</span>`;
+            }
+            
             el.innerHTML = `
                 <div class="s-section-info" style="flex: 1;">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 6px;">
                         <span style="font-weight: 900; color: #3b82f6; font-size: 15px;">${m.id}</span>
                         <span style="font-size: 10px; background: #0f172a; color: white; padding: 2px 8px; border-radius: 4px; font-weight: 700;">${m.runCompany}</span>
                         <span style="font-size: 11px; background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 4px; font-weight: 600; display: flex; align-items: center; gap: 5px;"><i class="ph-bold ph-calendar" style="font-size: 13px;"></i> ${m.runDate}</span>
+                        <span style="font-size: 11px; background: #e0f2fe; color: #0284c7; padding: 2px 8px; border-radius: 4px; font-weight: 700; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ph-truck" style="font-size: 13px;"></i> ${m.runCourier}</span>
+                        ${accountingBadgeHtml}
                     </div>
                     <div style="font-size: 17px; font-weight: 800; color: #1e293b; margin-bottom: 2px;">${m.shippingName}</div>
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
@@ -4045,7 +4849,314 @@ function initApp() {
         updatePrintButtonState();
     });
 
-    // --- UNIFIED PRINTER (Egyablakos Nyomtatási Rendszer) ---
+    // --- UNIFIED PRINTER (Egyablakos Nyomtatási Rendszer) ---
+    const UnifiedPrinter = {
+        area: document.getElementById('print-area'),
+
+        printBundle: async function(run) {
+            this.clear();
+            const pickingHtml = this.generatePickingHtml(run);
+            const summaryHtml = this.generateSummaryHtml(run, true); // 2x summary
+            const correctionHtml = this.generateCorrectionHtml(run);
+            const deliveryHtml = this.generateDeliveryNotesHtml(run, true); // 2x delivery
+
+            this.area.innerHTML = pickingHtml + summaryHtml + correctionHtml + deliveryHtml;
+            this.execute();
+        },
+
+        printSingle: async function(run, type) {
+            this.clear();
+            let html = '';
+            if (type === 'picking') html = this.generatePickingHtml(run);
+            if (type === 'summary') html = this.generateSummaryHtml(run, false) + this.generateCorrectionHtml(run);
+            if (type === 'delivery') html = this.generateDeliveryNotesHtml(run, true);
+
+            this.area.innerHTML = html;
+            this.execute();
+        },
+
+        printCustom: async function(run, types) {
+            this.clear();
+            let html = '';
+            if (types.picking) html += this.generatePickingHtml(run);
+            if (types.summary) html += this.generateSummaryHtml(run, true) + this.generateCorrectionHtml(run);
+            if (types.delivery) html += this.generateDeliveryNotesHtml(run, true);
+            if (!html) return;
+            this.area.innerHTML = html;
+            this.execute();
+        },
+
+        clear: function() {
+            this.area.innerHTML = '';
+        },
+
+        execute: function() {
+            // Rövid várakozás a renderelésre
+            setTimeout(() => {
+                window.print();
+                this.clear();
+            }, 500);
+        },
+
+        generatePickingHtml: function(run) {
+            const cardsHtml = run.orders.map((order, index) => {
+                let codHtml = '';
+                if (order.isBankDeposit) {
+                    codHtml = `<span class="badge ${order.isPaid ? 'badge-paid' : 'badge-warning'}">${order.isPaid ? 'UTALVA' : 'UTALÁST VÁRUNK'}</span>`;
+                } else if (order.isCOD) {
+                    codHtml = `<span class="badge badge-cod">UTÁNVÉT: ${order.codAmount.toLocaleString('hu-HU')} Ft</span>`;
+                } else {
+                    codHtml = `<span class="badge badge-paid">Fizetve</span>`;
+                }
+
+                const itemsHtml = order.items.map(item => {
+                    const isCollapsed = item.isCollapsedProfile || item.name === "Összekészített profilok";
+                    const subItemsHtml = (isCollapsed && item.subItems?.length > 0)
+                        ? `<div style="font-size: 9px; color: #475569; margin-top: 3px; padding-left: 6px; line-height: 1.6;">${item.subItems.map(sub => `<div>• ${sub.qty} db &nbsp;${sub.name}</div>`).join('')}</div>`
+                        : '';
+                    return `
+                    <tr>
+                        <td class="col-check"><div class="col-flex-center"><div class="checkbox-box"></div></div></td>
+                        <td class="col-marker">${needsMarkerLabel(item.name) ? '<div class="col-flex-center"><span class="marker-lbl">címke</span><div class="checkbox-box marker"></div></div>' : ''}</td>
+                        <td class="col-qty">${isCollapsed ? '' : `<strong>${item.qty} db</strong>`}</td>
+                        <td class="col-name">${item.name}${subItemsHtml}</td>
+                    </tr>`;
+                }).join('');
+
+                return `
+                    <div class="order-card ${order.errors?.length > 0 ? 'has-error' : ''}">
+                        <div class="order-header">
+                            <div class="header-left">
+                                <div class="order-index">${index + 1}</div>
+                                <div>
+                                    <div class="order-id">${order.id}</div>
+                                    <div class="order-customer">${order.shippingName}</div>
+                                    <div class="order-address">${order.address}</div>
+                                </div>
+                            </div>
+                            <div class="order-meta">${codHtml}</div>
+                        </div>
+                        <table class="items-table"><tbody>${itemsHtml}</tbody></table>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="print-page" style="padding: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 4px solid #000; padding-bottom: 12px; margin-bottom: 25px;">
+                        <div>
+                            <h1 style="margin: 0; font-size: 32px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase;">Kiszedési Jegyzék</h1>
+                            <div style="font-size: 18px; color: #000; font-weight: 800; margin-top: 5px;">Kiszállítás napja: ${run.date}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; margin-bottom: 4px;">Szállító Partner & Szállító</div>
+                            <div style="background: #000; color: #fff; padding: 6px 15px; border-radius: 8px; font-size: 20px; font-weight: 900; display: inline-block;">
+                                ${run.company} <span style="color: #64748b; font-weight: 400; margin: 0 8px;">|</span> ${run.courier}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="order-list">${cardsHtml}</div>
+                </div>
+            `;
+        },
+
+        generateSummaryHtml: function(run, double) {
+            let aggregatedItems = {};
+            let totalCOD = 0;
+            run.orders.forEach(order => {
+                if (order.isCOD) totalCOD += order.codAmount;
+                order.items.forEach(item => {
+                    const name = item.name;
+                    aggregatedItems[name] = (aggregatedItems[name] || 0) + item.qty;
+                });
+            });
+
+            const itemsHtml = Object.keys(aggregatedItems).sort().map(name => `
+                <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${name}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700;">${aggregatedItems[name]} db</td>
+                </tr>
+            `).join('');
+
+            const page = `
+                <div class="print-page" style="padding: 40px;">
+                    <div style="text-align: center; font-size: 28px; font-weight: 800; margin-bottom: 10px;">ÖSSZESÍTŐ (Átadás-Átvétel)</div>
+                    <div style="text-align: center; margin-bottom: 20px;">${run.date} | ${run.courier}</div>
+                    <div style="background: #000; color: #fff; text-align: center; padding: 15px; font-size: 24px; font-weight: 800; border-radius: 8px; margin-bottom: 30px;">${run.company}</div>
+                    
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 30px; text-align: center;">
+                        <div style="font-size: 14px; color: #64748b; margin-bottom: 5px;">ÖSSZES UTÁNVÉT A KÖRBEN:</div>
+                        <div style="font-size: 32px; font-weight: 800; color: #b91c1c;">${totalCOD.toLocaleString('hu-HU')} Ft</div>
+                    </div>
+
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead><tr style="background: #f1f5f9;"><th style="text-align: left; padding: 10px;">Megnevezés</th><th style="text-align: right; padding: 10px;">Mennyiség</th></tr></thead>
+                        <tbody>${itemsHtml}</tbody>
+                    </table>
+
+                    <div style="margin-top: 100px; display: flex; justify-content: space-between;">
+                        <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átadó (Raktár)</div>
+                        <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átvette (Szállító)</div>
+                    </div>
+                </div>
+            `;
+            return double ? page + page : page;
+        },
+
+        generateCorrectionHtml: function(run) {
+            const rows = run.orders.map(o => `
+                <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 700;">${o.id}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${o.shippingName}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right;">${o.isCOD ? o.codAmount.toLocaleString('hu-HU') + ' Ft' : 'Fizetve'}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;"></td>
+                </tr>
+            `).join('');
+
+            return `
+                <div class="print-page" style="padding: 40px;">
+                    <div style="text-align: center; font-size: 26px; font-weight: 800; margin-bottom: 10px;">KORREKCIÓS ÉS ELSZÁMOLÓ LAP</div>
+                    <div style="text-align: center; margin-bottom: 30px;">${run.date} | ${run.courier} | ${run.company}</div>
+                    
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead><tr style="background: #f1f5f9;"><th style="text-align: left; padding: 8px;">ID</th><th style="text-align: left; padding: 8px;">Vevő</th><th style="text-align: right; padding: 8px;">Utánvét</th><th style="text-align: center; padding: 8px;">Sikertelen</th><th style="text-align: left; padding: 8px;">Megjegyzés</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+
+                    <div style="margin-top: 50px; width: 350px; margin-left: auto;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Várható utánvét:</span><strong>${(run.orders.reduce((sum, o) => sum + (o.isCOD ? o.codAmount : 0), 0)).toLocaleString('hu-HU')} Ft</strong></div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Meghiúsult:</span><span>.................... Ft</span></div>
+                        <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; border-top: 2px solid #000; padding-top: 10px;"><span>Befizetve:</span><span>.................... Ft</span></div>
+                    </div>
+                </div>
+            `;
+        },
+
+        generateDeliveryNotesHtml: function(run, double, filterOrderIds = null) {
+            const senderData = run.sender === 'ev' 
+                ? {
+                    name: "Egyéni Vállalkozó (Példa)",
+                    address: "1234 Példaváros, Minta utca 1.",
+                    bank: "00000000-00000000",
+                    phone: "+36 30 000 0000",
+                    email: "pelda@email.com"
+                }
+                : {
+                    name: "Capsula Houses Kft.",
+                    address: "Széles utca 70., 2040, Budaörs, Magyarország",
+                    bank: "11735005-26088969",
+                    phone: "+36 70 590 8157",
+                    email: "info@panelburkolat.com"
+                };
+
+            const generateSingleNote = (order) => `
+                <div class="print-page" style="padding: 60px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;">
+                        <div style="font-size: 24px; font-weight: 800;">SZÁLLÍTÓLEVÉL</div>
+                        <div style="font-size: 28px; font-weight: 900; border: 3px solid #000; padding: 10px 20px;">${order.id}</div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 40px;">
+                        <div style="width: 45%;"><strong>Eladó:</strong><br>${senderData.name}<br>${senderData.address}<br>${senderData.bank}</div>
+                        <div style="width: 45%;"><strong>Vevő:</strong><br>${order.shippingName}<br>${order.fullAddress || order.address}<br>${order.shippingPhone || ''}</div>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">
+                        <thead><tr style="border-bottom: 2px solid #000;"><th style="text-align: left; padding: 10px;">Tétel</th><th style="text-align: right; padding: 10px;">Mennyiség</th></tr></thead>
+                        <tbody>${order.items.map(it => `<tr><td style="padding: 10px; border-bottom: 1px solid #eee;">${it.name}</td><td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">${it.qty} db</td></tr>`).join('')}</tbody>
+                    </table>
+                    <div style="background: #f8fafc; padding: 20px; text-align: right; font-size: 18px; font-weight: 800;">
+                        Fizetendő (Utánvét): ${order.isCOD ? order.codAmount.toLocaleString('hu-HU') + ' Ft' : '0 Ft (FIZETVE)'}
+                    </div>
+                    <div style="margin-top: 100px; display: flex; justify-content: space-between;">
+                        <div style="width: 200px; border-top: 1px solid #000; text-align: center; padding-top: 10px;">Átadó</div>
+                        <div style="width: 200px; border-top: 1px solid #000; text-align: center; padding-top: 10px;">Átvevő</div>
+                    </div>
+                </div>
+            `;
+
+            let ordersToPrint = run.orders || [];
+            if (filterOrderIds) {
+                ordersToPrint = ordersToPrint.filter(o => filterOrderIds.includes(o.id));
+            }
+
+            const firstSet = ordersToPrint.map(o => generateSingleNote(o)).join('');
+            return double ? firstSet + firstSet : firstSet;
+        },
+
+        generateQuickDeliveryNoteHtml: function(data) {
+            const senderData = data.sender === 'ev'
+                ? {
+                    name: "Egyéni Vállalkozó (Példa)",
+                    address: "1234 Példaváros, Minta utca 1.",
+                    bank: "00000000-00000000",
+                    phone: "+36 30 000 0000",
+                    email: "pelda@email.com"
+                }
+                : {
+                    name: "Capsula Houses Kft.",
+                    address: "Széles utca 70., 2040, Budaörs, Magyarország",
+                    bank: "11735005-26088969",
+                    phone: "+36 70 590 8157",
+                    email: "info@panelburkolat.com"
+                };
+
+            const itemRows = data.items.length > 0
+                ? data.items.map(it => `<tr><td style="padding:10px;border-bottom:1px solid #eee;">${it.name}</td><td style="padding:10px;border-bottom:1px solid #eee;text-align:right;">${it.qty} db</td></tr>`).join('')
+                : `<tr><td colspan="2" style="padding:10px;color:#94a3b8;font-style:italic;">—</td></tr>`;
+
+            const recipientBlock = [
+                data.recipient,
+                data.recipientCompany,
+                data.address,
+                data.phone
+            ].filter(Boolean).join('<br>') || '<span style="color:#94a3b8;font-style:italic;">—</span>';
+
+            const carrierBlock = [
+                data.company,
+                data.companyDetails
+            ].filter(Boolean).join('<br>') || '<span style="color:#94a3b8;font-style:italic;">—</span>';
+
+            const page = `
+                <div class="print-page" style="padding:60px;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;">
+                        <div style="font-size:24px;font-weight:800;">SZÁLLÍTÓLEVÉL</div>
+                        <div style="font-size:13px;color:#64748b;text-align:right;">Kelt: ${new Date().toLocaleDateString('hu-HU')}</div>
+                    </div>
+
+                    <div style="display:flex;justify-content:space-between;margin-bottom:30px;gap:20px;">
+                        <div style="flex:1;padding:16px;border:1px solid #e2e8f0;border-radius:10px;">
+                            <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Feladó</div>
+                            <strong>${senderData.name}</strong><br>
+                            ${senderData.address}<br>
+                            <span style="color:#64748b;font-size:13px;">${senderData.phone} · ${senderData.email}</span>
+                        </div>
+                        <div style="flex:1;padding:16px;border:1px solid #e2e8f0;border-radius:10px;">
+                            <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Szállító Cég</div>
+                            ${carrierBlock}
+                            <div style="margin-top:20px;font-size:12px;color:#94a3b8;">Rendszám: ……………………</div>
+                        </div>
+                    </div>
+
+                    <div style="padding:16px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:30px;">
+                        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Átvevő</div>
+                        ${recipientBlock}
+                    </div>
+
+                    <table style="width:100%;border-collapse:collapse;margin-bottom:30px;">
+                        <thead><tr style="border-bottom:2px solid #000;"><th style="text-align:left;padding:10px;">Tétel</th><th style="text-align:right;padding:10px;">Mennyiség</th></tr></thead>
+                        <tbody>${itemRows}</tbody>
+                    </table>
+
+                    <div style="display:flex;justify-content:space-between;margin-top:80px;">
+                        <div style="width:220px;text-align:center;border-top:1px solid #000;padding-top:10px;">Átadó (Raktár)</div>
+                        <div style="width:220px;text-align:center;border-top:1px solid #000;padding-top:10px;">Átvevő (Szállító)</div>
+                    </div>
+                </div>
+            `;
+
+            return page + page;
+        }
+    };
 }
 
 if (document.readyState === 'loading') {

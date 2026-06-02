@@ -325,6 +325,13 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+
+### 2026. június 2. - Kereső bővítése és Elszámolás Bugfix
+- **Kereső bővítése:** A globális kereső (Előzmények fülön) mostantól a találatok fejlécében megjeleníti a futár nevét (egy világoskék címkén) és az elszámolás státuszát (pl. Készpénzben elszámolva, Utólag elutalva, Függőben lévő elszámolás).
+- **Elszámolás típuseltérés Bugfix:** Javítva egy rejtett hiba, ami miatt a rendszer a kiesett rendeléseket tartalmazó köröket hibásan 'Függőben lévő'-ként mentette az adatbázisba (szöveg vs szám azonosító típuseltérés miatt). Az updateSettlementStatus algoritmus szigorú konverziókat kapott.
+- **Kereső dinamikus státusz kalkuláció:** Mivel a régi hibás adatbázis-bejegyzések miatt a kereső továbbra is fals státuszt mutatna, a kereső mostantól dinamikusan élőben újraszámolja (a javított algoritmussal) a kör elszámolási státuszát, ha az az adatbázis szerint még függőben lenne.
+- **Architektúra Szabályok:** ARCHITECTURE.md és egy belső knowledge bázis bejegyzés létrehozva a monolitikus pp.js védelmére: új funkciók csak modulárisan, külön fájlban készíthetőek.
+
 ## Következő Lépések (TODO)
 - [x] **Előzmények szűrés újraírása:** Megoldva.
 - [x] **Drag & Drop fluiditás:** Megoldva.
@@ -333,3 +340,5 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - [x] **Sorrend mód gomb:** Megoldva.
 - [x] **Előzmények kompakt layout + preview + összevonás:** Megoldva.
 - [x] **Gyors Szállítólevél, Előzmények UI redesign, Elszámolások, Statisztika térkép:** Megoldva (2026-05-14).
+- [ ] **Egyszerűsített Elszámolás:** Az elszámolás folyamatának logikáját és UI-ját jelentősen egyszerűsíteni kell.
+- [ ] **Architektúra Refaktorálás:** A kódbázis rendbetétele az pp.js szétdarabolásával (vagy funkciók ésszerű kiszervezésével), elkerülve a spagetti kódot, szigorúan betartva az eseménykezelők biztonságát.
