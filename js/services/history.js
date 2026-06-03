@@ -10,8 +10,10 @@ export const HistoryManager = {
                 const querySnapshot = await getDocs(q);
                 const runs = [];
                 querySnapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    if (data.isQuickDelivery) return;
                     runs.push({
-                        ...docSnap.data(),
+                        ...data,
                         docId: docSnap.id
                     });
                 });
@@ -330,42 +332,6 @@ export const HistoryManager = {
             } catch (e) {
                 console.error("Hiba a visszavonásnál:", e);
                 return false;
-            }
-        },
-
-        saveQuickDeliveryRun: async function(data) {
-            const shortId = Math.random().toString(36).substr(2, 5);
-            const today = new Date().toISOString().split('T')[0];
-            const newRun = {
-                id: 'qdrun_' + Date.now() + '_' + shortId,
-                date: today,
-                pickupDate: today,
-                courier: data.company || '—',
-                company: data.company || '',
-                sender: data.sender || 'capsula',
-                timestamp: Date.now(),
-                isPrinted: true,
-                isQuickDelivery: true,
-                quickDeliveryData: data,
-                orders: [{
-                    id: '#GYORS-' + shortId.toUpperCase(),
-                    shippingName: data.recipient || '—',
-                    address: data.address || '',
-                    fullAddress: data.address || '',
-                    shippingPhone: data.phone || '',
-                    isCOD: false,
-                    codAmount: 0,
-                    items: data.items.length > 0 ? data.items : [{ name: '—', qty: 1 }]
-                }],
-                userId: auth.currentUser ? auth.currentUser.uid : null
-            };
-            try {
-                const docRef = await addDoc(collection(db, this.COLLECTION_NAME), newRun);
-                newRun.docId = docRef.id;
-                return newRun;
-            } catch (e) {
-                console.error("Hiba a gyors szállítólevél mentésnél: ", e);
-                return null;
             }
         },
 

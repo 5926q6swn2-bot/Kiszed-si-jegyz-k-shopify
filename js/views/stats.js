@@ -20,7 +20,6 @@ export
         const endD   = statsDateEnd.value   ? new Date(statsDateEnd.value   + 'T23:59:59') : null;
 
         const runs = allRuns.filter(r => {
-            if (r.isQuickDelivery) return false;
             if (!r.date) return true;
             const d = new Date(r.date + 'T00:00:00');
             if (startD && d < startD) return false;

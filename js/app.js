@@ -158,11 +158,9 @@ function initApp() {
     const btnPrint = document.getElementById('btn-print');
     const btnHistory = document.getElementById('btn-history');
     const btnSortMode = document.getElementById('btn-sort-mode');
-    const btnQuickDelivery = document.getElementById('btn-quick-delivery');
 
     // Modal Elemek
     const manualModal = document.getElementById('manual-modal');
-    const quickDeliveryModal = document.getElementById('quick-delivery-modal');
     const printSettingsModal = document.getElementById('print-settings-modal');
     const historyModal = document.getElementById('history-modal');
     const btnCloseModals = document.querySelectorAll('.close-modal');
@@ -192,18 +190,15 @@ function initApp() {
     const historyRunsView = document.getElementById('history-runs-view');
     const tabBtnHistory = document.getElementById('tab-btn-history');
     const tabBtnOrders = document.getElementById('tab-btn-orders');
-    const tabBtnQuick = document.getElementById('tab-btn-quick');
     const tabBtnAccounting = document.getElementById('tab-btn-accounting');
     const tabBtnStats = document.getElementById('tab-btn-stats');
     const tabContentHistory = document.getElementById('tab-content-history');
     const tabContentOrders = document.getElementById('tab-content-orders');
-    const tabContentQuick = document.getElementById('tab-content-quick');
     const tabContentAccounting = document.getElementById('tab-content-accounting');
     const tabContentStats = document.getElementById('tab-content-stats');
     const trashView = document.getElementById('trash-view');
     const modalTabsBar = document.querySelector('#history-modal .modal-tabs');
     const modalSearchBar = document.querySelector('#history-modal .modal-body > .form-group');
-    const quickRunsContainer = document.getElementById('quick-runs-container');
     const accountingRunsContainer = document.getElementById('accounting-runs-container');
     const trashRunsContainer = document.getElementById('trash-runs-container');
     const statsRunsContainer = document.getElementById('stats-runs-container');
@@ -658,78 +653,6 @@ function initApp() {
         });
     }
 
-    // --- Gyors Szállítólevél ---
-    const qdItemsContainer = document.getElementById('qd-items-container');
-    const btnQdAddItem = document.getElementById('btn-qd-add-item');
-    const btnConfirmQuickDelivery = document.getElementById('btn-confirm-quick-delivery');
-
-    function addQdItemRow(container) {
-        const row = document.createElement('div');
-        row.className = 'm-item-row';
-        row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;';
-        row.innerHTML = `
-            <input type="number" class="m-item-qty" placeholder="Db" min="1" value="1" style="width:60px;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;">
-            <input type="text" class="m-item-name" placeholder="Termék megnevezése" style="flex:1;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;">
-            <button type="button" class="btn-remove-item" style="background:none;border:none;font-size:18px;color:#94a3b8;cursor:pointer;padding:4px 8px;">×</button>
-        `;
-        row.querySelector('.btn-remove-item').addEventListener('click', () => row.remove());
-        container.appendChild(row);
-    }
-
-    if (btnQuickDelivery) {
-        btnQuickDelivery.addEventListener('click', () => {
-            // Reset form
-            document.getElementById('qd-sender').value = 'capsula';
-            document.getElementById('qd-company').value = '';
-            document.getElementById('qd-company-details').value = '';
-            document.getElementById('qd-recipient').value = '';
-            document.getElementById('qd-recipient-company').value = '';
-            document.getElementById('qd-address').value = '';
-            document.getElementById('qd-phone').value = '';
-            qdItemsContainer.innerHTML = '';
-            addQdItemRow(qdItemsContainer);
-            quickDeliveryModal.classList.add('active');
-        });
-    }
-
-    if (btnQdAddItem) {
-        btnQdAddItem.addEventListener('click', () => addQdItemRow(qdItemsContainer));
-    }
-
-    document.querySelectorAll('.close-quick-delivery').forEach(btn => {
-        btn.addEventListener('click', () => quickDeliveryModal.classList.remove('active'));
-    });
-
-    if (btnConfirmQuickDelivery) {
-        btnConfirmQuickDelivery.addEventListener('click', () => {
-            const sender = document.getElementById('qd-sender').value;
-            const company = document.getElementById('qd-company').value;
-            const companyDetails = document.getElementById('qd-company-details').value.trim();
-            const recipient = document.getElementById('qd-recipient').value.trim();
-            const recipientCompany = document.getElementById('qd-recipient-company').value.trim();
-            const address = document.getElementById('qd-address').value.trim();
-            const phone = document.getElementById('qd-phone').value.trim();
-
-            const items = [];
-            qdItemsContainer.querySelectorAll('.m-item-row').forEach(row => {
-                const qty = parseInt(row.querySelector('.m-item-qty').value) || 1;
-                const name = row.querySelector('.m-item-name').value.trim();
-                if (name) items.push({ qty, name });
-            });
-
-            const qdData = {
-                sender, company, companyDetails,
-                recipient, recipientCompany, address, phone,
-                items
-            };
-
-            UnifiedPrinter.area.innerHTML = UnifiedPrinter.generateQuickDeliveryNoteHtml(qdData);
-            UnifiedPrinter.execute();
-            quickDeliveryModal.classList.remove('active');
-
-            HistoryManager.saveQuickDeliveryRun(qdData).catch(e => console.error('Gyors SzL mentési hiba:', e));
-        });
-    }
 
     // --- Reset ---
     btnReset.addEventListener('click', async () => {
@@ -1722,7 +1645,6 @@ function initApp() {
 
     tabBtnHistory.addEventListener('click', () => switchHistoryTab('history'));
     tabBtnOrders.addEventListener('click', () => switchHistoryTab('orders'));
-    tabBtnQuick.addEventListener('click', () => switchHistoryTab('quick'));
     tabBtnAccounting.addEventListener('click', () => switchHistoryTab('accounting'));
     tabBtnStats.addEventListener('click', () => switchHistoryTab('stats'));
 
@@ -1819,7 +1741,7 @@ function initApp() {
     });
 
     function showTrashView() {
-        [tabContentHistory, tabContentOrders, tabContentQuick, tabContentAccounting, tabContentStats].forEach(c => { c.style.display = 'none'; });
+        [tabContentHistory, tabContentOrders, tabContentAccounting, tabContentStats].forEach(c => { c.style.display = 'none'; });
         if (modalTabsBar) modalTabsBar.style.display = 'none';
         if (modalSearchBar) modalSearchBar.style.display = 'none';
         trashView.style.display = 'flex';
@@ -1836,13 +1758,13 @@ function initApp() {
 
     async function switchHistoryTab(tab) {
         // Reset all tabs
-        [tabBtnHistory, tabBtnOrders, tabBtnQuick, tabBtnAccounting, tabBtnStats].forEach(btn => {
+        [tabBtnHistory, tabBtnOrders, tabBtnAccounting, tabBtnStats].forEach(btn => {
             btn.classList.remove('active');
             btn.style.borderBottomColor = 'transparent';
             btn.style.color = '#64748b';
             btn.style.fontWeight = '500';
         });
-        [tabContentHistory, tabContentOrders, tabContentQuick, tabContentAccounting, tabContentStats].forEach(content => {
+        [tabContentHistory, tabContentOrders, tabContentAccounting, tabContentStats].forEach(content => {
             content.style.display = 'none';
         });
 
@@ -1860,13 +1782,6 @@ function initApp() {
             tabBtnOrders.style.fontWeight = '600';
             tabContentOrders.style.display = 'block';
             renderOrdersTab();
-        } else if (tab === 'quick') {
-            tabBtnQuick.classList.add('active');
-            tabBtnQuick.style.borderBottomColor = '#3b82f6';
-            tabBtnQuick.style.color = '#3b82f6';
-            tabBtnQuick.style.fontWeight = '600';
-            tabContentQuick.style.display = 'block';
-            renderQuickDeliveryRuns();
         } else if (tab === 'accounting') {
             tabBtnAccounting.classList.add('active');
             tabBtnAccounting.style.borderBottomColor = 'var(--primary-color)';
@@ -2012,8 +1927,8 @@ function initApp() {
             return;
         }
         
-        // Összevont eredetiek és gyors szállítólevelek elrejtése
-        const visibleRuns = filteredRuns.filter(r => !r.isMergedInto && !r.isQuickDelivery);
+        // Összevont eredetiek elrejtése
+        const visibleRuns = filteredRuns.filter(r => !r.isMergedInto);
 
         visibleRuns.forEach(run => {
             const el = document.createElement('div');
@@ -2030,95 +1945,56 @@ function initApp() {
                 ? `<button class="hac-btn-action hac-btn-revert btn-revert-merge" data-doc-id="${run.docId}" title="Összevonás visszavonása"><i class="ph-bold ph-arrow-counter-clockwise" style="font-size:11px;"></i>Visszavon</button>`
                 : '';
 
-            if (run.isQuickDelivery) {
-                const qd = run.quickDeliveryData || {};
-                const qdPreview = [
-                    qd.recipient ? `<span class="hac-order-chip"><span class="hac-chip-id"><i class="ph-bold ph-user" style="font-size:9px;"></i></span><span class="hac-chip-name">${qd.recipient}</span></span>` : '',
-                    qd.recipientCompany ? `<span class="hac-order-chip"><span class="hac-chip-name">${qd.recipientCompany}</span></span>` : '',
-                    qd.address ? `<span class="hac-order-chip"><span class="hac-chip-id"><i class="ph-bold ph-map-pin" style="font-size:9px;"></i></span><span class="hac-chip-name">${qd.address}</span></span>` : '',
-                    ...(qd.items || []).map(it => `<span class="hac-order-chip"><span class="hac-chip-id">${it.qty}×</span><span class="hac-chip-name">${it.name}</span></span>`)
-                ].filter(Boolean).join('');
-                el.innerHTML = `
-                    <div class="hac-row">
-                        <div class="hac-info">
-                            <span class="hac-badge" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;display:inline-flex;align-items:center;gap:4px;"><i class="ph-bold ph-lightning" style="font-size:10px;"></i>Gyors SzL</span>
-                            <span class="hac-date">${run.date}</span>
-                            ${run.company ? `<span class="hac-company">${run.company}</span>` : ''}
-                            <span class="hac-sep">·</span>
-                            <span class="hac-courier">${qd.recipient || '—'}</span>
-                            <span class="hac-sep">·</span>
-                            <span class="hac-timestamp">${dateStr}</span>
-                        </div>
-                        <div class="hac-prints">
-                            <button class="hac-print-btn hac-print-primary btn-reprint-quick" data-id="${run.id}" title="Újra nyomtatás (3 pld.)">
-                                <i class="ph-bold ph-printer"></i>Nyomtatás
-                            </button>
-                        </div>
-                        <div class="hac-actions">
-                            <button class="hac-btn-del btn-delete-run" data-id="${run.id}" title="Törlés">
-                                <i class="ph-bold ph-trash"></i>
-                            </button>
-                            <button class="hac-btn-preview btn-toggle-preview" title="Részletek">
-                                <i class="ph-bold ph-caret-down"></i>
-                            </button>
-                        </div>
+            const previewChips = run.orders.map(o =>
+                `<span class="hac-order-chip" title="${o.address || ''}" style="gap:5px;display:inline-flex;align-items:center;">
+                    <span class="hac-chip-id">${o.id}</span>
+                    <span class="hac-chip-name">${o.shippingName || ''}</span>
+                    <i class="ph-bold ph-printer btn-print-chip-delivery no-print" data-run-id="${run.id}" data-order-id="${o.id}" style="cursor:pointer;color:#64748b;font-size:11px;padding:2px;transition:color .15s;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#64748b'"></i>
+                </span>`
+            ).join('');
+            el.innerHTML = `
+                <div class="hac-row">
+                    <label class="hac-checkbox-wrap" title="Kijelölés összevonáshoz">
+                        <input type="checkbox" class="run-select-cb" data-id="${run.id}" ${selectedForMerge.has(run.id) ? 'checked' : ''}>
+                    </label>
+                    <div class="hac-info">
+                        <span class="hac-company">${run.company || '-'}</span>
+                        <span class="hac-date">${run.date}</span>
+                        ${mergedBadge}${modifiedBadge}
+                        <span class="hac-sep">·</span>
+                        <i class="ph-bold ph-user" style="font-size:10px;color:#374151;"></i><span class="hac-courier">${run.courier}</span>
+                        <span class="hac-sep">·</span>
+                        <span class="hac-timestamp">${run.orders.length} r · ${dateStr}</span>
                     </div>
-                    <div class="hac-preview">
-                        <div class="hac-preview-inner">${qdPreview || '<span style="color:#94a3b8;font-style:italic;font-size:12px;">Nincs részlet</span>'}</div>
+                    <div class="hac-prints">
+                        <button class="hac-print-btn btn-print-picking" data-id="${run.id}" title="Szedőlista">
+                            <i class="ph-bold ph-clipboard-text"></i>
+                        </button>
+                        <button class="hac-print-btn btn-print-delivery" data-id="${run.id}" title="Szállítólevelek">
+                            <i class="ph-bold ph-truck"></i>
+                        </button>
+                        <button class="hac-print-btn btn-print-summary" data-id="${run.id}" title="Összesítő">
+                            <i class="ph-bold ph-file-text"></i>
+                        </button>
+                        <button class="hac-print-btn hac-print-primary btn-print-bundle" data-id="${run.id}" title="Teljes csomag nyomtatása">
+                            <i class="ph-bold ph-printer"></i>Teljes
+                        </button>
                     </div>
-                `;
-            } else {
-                const previewChips = run.orders.map(o =>
-                    `<span class="hac-order-chip" title="${o.address || ''}" style="gap:5px;display:inline-flex;align-items:center;">
-                        <span class="hac-chip-id">${o.id}</span>
-                        <span class="hac-chip-name">${o.shippingName || ''}</span>
-                        <i class="ph-bold ph-printer btn-print-chip-delivery no-print" data-run-id="${run.id}" data-order-id="${o.id}" style="cursor:pointer;color:#64748b;font-size:11px;padding:2px;transition:color .15s;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#64748b'"></i>
-                    </span>`
-                ).join('');
-                el.innerHTML = `
-                    <div class="hac-row">
-                        <label class="hac-checkbox-wrap" title="Kijelölés összevonáshoz">
-                            <input type="checkbox" class="run-select-cb" data-id="${run.id}" ${selectedForMerge.has(run.id) ? 'checked' : ''}>
-                        </label>
-                        <div class="hac-info">
-                            <span class="hac-company">${run.company || '-'}</span>
-                            <span class="hac-date">${run.date}</span>
-                            ${mergedBadge}${modifiedBadge}
-                            <span class="hac-sep">·</span>
-                            <i class="ph-bold ph-user" style="font-size:10px;color:#374151;"></i><span class="hac-courier">${run.courier}</span>
-                            <span class="hac-sep">·</span>
-                            <span class="hac-timestamp">${run.orders.length} r · ${dateStr}</span>
-                        </div>
-                        <div class="hac-prints">
-                            <button class="hac-print-btn btn-print-picking" data-id="${run.id}" title="Szedőlista">
-                                <i class="ph-bold ph-clipboard-text"></i>
-                            </button>
-                            <button class="hac-print-btn btn-print-delivery" data-id="${run.id}" title="Szállítólevelek">
-                                <i class="ph-bold ph-truck"></i>
-                            </button>
-                            <button class="hac-print-btn btn-print-summary" data-id="${run.id}" title="Összesítő">
-                                <i class="ph-bold ph-file-text"></i>
-                            </button>
-                            <button class="hac-print-btn hac-print-primary btn-print-bundle" data-id="${run.id}" title="Teljes csomag nyomtatása">
-                                <i class="ph-bold ph-printer"></i>Teljes
-                            </button>
-                        </div>
-                        <div class="hac-actions">
-                            ${revertBtn}
-                            <button class="hac-btn-load btn-load-run" data-id="${run.id}">Betöltés</button>
-                            <button class="hac-btn-del btn-delete-run" data-id="${run.id}" title="Törlés">
-                                <i class="ph-bold ph-trash"></i>
-                            </button>
-                            <button class="hac-btn-preview btn-toggle-preview" title="Rendelések előnézete">
-                                <i class="ph-bold ph-caret-down"></i>
-                            </button>
-                        </div>
+                    <div class="hac-actions">
+                        ${revertBtn}
+                        <button class="hac-btn-load btn-load-run" data-id="${run.id}">Betöltés</button>
+                        <button class="hac-btn-del btn-delete-run" data-id="${run.id}" title="Törlés">
+                            <i class="ph-bold ph-trash"></i>
+                        </button>
+                        <button class="hac-btn-preview btn-toggle-preview" title="Rendelések előnézete">
+                            <i class="ph-bold ph-caret-down"></i>
+                        </button>
                     </div>
-                    <div class="hac-preview">
-                        <div class="hac-preview-inner">${previewChips}</div>
-                    </div>
-                `;
-            }
+                </div>
+                <div class="hac-preview">
+                    <div class="hac-preview-inner">${previewChips}</div>
+                </div>
+            `;
             historyRunsContainer.appendChild(el);
         });
 
@@ -2156,7 +2032,6 @@ function initApp() {
 
         let matches = [];
         filteredRuns.forEach(run => {
-            if (run.isQuickDelivery) return;
             run.orders.forEach(order => {
                 const name = order.shippingName ? String(order.shippingName).toLowerCase() : '';
                 const id = order.id ? String(order.id).toLowerCase() : '';
@@ -2350,82 +2225,7 @@ function initApp() {
         });
     }
 
-    async function renderQuickDeliveryRuns() {
-        const allRuns = await HistoryManager.getAllRuns();
-        const runs = allRuns.filter(r => r.isQuickDelivery);
-        quickRunsContainer.innerHTML = '';
 
-        if (runs.length === 0) {
-            quickRunsContainer.innerHTML = '<p style="color:#94a3b8;font-size:13px;text-align:center;margin-top:30px;">Nincsenek mentett gyors szállítólevelek.</p>';
-            return;
-        }
-
-        runs.forEach(run => {
-            const el = document.createElement('div');
-            el.className = 'history-apple-card';
-            const dateStr = new Date(run.timestamp).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-            const qd = run.quickDeliveryData || {};
-            const qdPreview = [
-                qd.recipient ? `<span class="hac-order-chip"><span class="hac-chip-id"><i class="ph-bold ph-user" style="font-size:9px;"></i></span><span class="hac-chip-name">${qd.recipient}</span></span>` : '',
-                qd.recipientCompany ? `<span class="hac-order-chip"><span class="hac-chip-name">${qd.recipientCompany}</span></span>` : '',
-                qd.address ? `<span class="hac-order-chip"><span class="hac-chip-id"><i class="ph-bold ph-map-pin" style="font-size:9px;"></i></span><span class="hac-chip-name">${qd.address}</span></span>` : '',
-                qd.phone ? `<span class="hac-order-chip"><span class="hac-chip-id"><i class="ph-bold ph-phone" style="font-size:9px;"></i></span><span class="hac-chip-name">${qd.phone}</span></span>` : '',
-                ...(qd.items || []).map(it => `<span class="hac-order-chip"><span class="hac-chip-id">${it.qty}×</span><span class="hac-chip-name">${it.name}</span></span>`)
-            ].filter(Boolean).join('');
-
-            el.innerHTML = `
-                <div class="hac-row">
-                    <div class="hac-info">
-                        <span class="hac-date">${run.date}</span>
-                        ${run.company ? `<span class="hac-company">${run.company}</span>` : ''}
-                        <span class="hac-sep">·</span>
-                        <span class="hac-courier">${qd.recipient || '—'}</span>
-                        <span class="hac-sep">·</span>
-                        <span class="hac-timestamp">${dateStr}</span>
-                    </div>
-                    <div class="hac-prints">
-                        <button class="hac-print-btn hac-print-primary btn-reprint-quick" data-id="${run.id}" title="Újra nyomtatás (2 pld.)">
-                            <i class="ph-bold ph-printer"></i>Nyomtatás
-                        </button>
-                    </div>
-                    <div class="hac-actions">
-                        <button class="hac-btn-del btn-delete-quick" data-id="${run.id}" title="Törlés">
-                            <i class="ph-bold ph-trash"></i>
-                        </button>
-                        <button class="hac-btn-preview btn-toggle-preview" title="Részletek">
-                            <i class="ph-bold ph-caret-down"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="hac-preview">
-                    <div class="hac-preview-inner">${qdPreview || '<span style="color:#94a3b8;font-style:italic;font-size:12px;">Nincs részlet</span>'}</div>
-                </div>
-            `;
-            quickRunsContainer.appendChild(el);
-        });
-
-        quickRunsContainer.querySelectorAll('.btn-reprint-quick').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const runId = e.target.closest('button').getAttribute('data-id');
-                const run = await HistoryManager.getRunById(runId);
-                if (run && run.quickDeliveryData) {
-                    UnifiedPrinter.area.innerHTML = UnifiedPrinter.generateQuickDeliveryNoteHtml(run.quickDeliveryData);
-                    UnifiedPrinter.execute();
-                }
-            });
-        });
-
-        quickRunsContainer.querySelectorAll('.btn-delete-quick').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const runId = e.target.closest('button').getAttribute('data-id');
-                const ok = await CustomDialog.confirm('Biztosan törlöd ezt a gyors szállítólevelet?', 'Törlés', 'warning', true);
-                if (ok) {
-                    await HistoryManager.deleteRun(runId);
-                    renderQuickDeliveryRuns();
-                }
-            });
-        });
-    }
 
     function showSettlementDialog(run, runCOD, existingState = null) {
         return new Promise((resolve) => {
