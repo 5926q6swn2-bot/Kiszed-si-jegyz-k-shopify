@@ -9,7 +9,7 @@ export function initHistoryView(context) {
     export async function renderHistoryRuns() {
     const { 
         historyRunsContainer, ordersRunsContainer, accountingRunsContainer, trashRunsContainer, hsResultsContainer,
-        selectedForMerge, accountingFilterPending, trashCompanyFilter, trashDateStart, trashDateEnd,
+        accountingFilterPending, trashCompanyFilter, trashDateStart, trashDateEnd,
         isFiltered, attachHistoryEvents, openPdfView, handleHistorySearch, generateDeliveryNotesHtml,
         historySearchInput
     } = ctx;
@@ -42,21 +42,14 @@ export function initHistoryView(context) {
         }
         
         // Összevont eredetiek elrejtése
-        const visibleRuns = filteredRuns.filter(r => !r.isMergedInto);
+        const visibleRuns = filteredRuns;
 
         visibleRuns.forEach(run => {
             const el = document.createElement('div');
             el.className = 'history-apple-card';
-            if (selectedForMerge.has(run.id)) el.classList.add('merge-selected');
             const dateStr = new Date(run.timestamp).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             const modifiedBadge = run.isModified
                 ? `<span class="hac-badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;display:inline-flex;align-items:center;gap:4px;"><i class="ph-bold ph-pencil-simple" style="font-size:10px;"></i>Módosítva${run.modifyCount > 1 ? ` (${run.modifyCount}×)` : ''}</span>`
-                : '';
-            const mergedBadge = run.isMerged
-                ? `<span class="hac-badge hac-badge-merged"><i class="ph-bold ph-git-merge" style="font-size:9px;"></i>Összevont (${run.mergedFromIds?.length || 0} kör)</span>`
-                : '';
-            const revertBtn = run.isMerged
-                ? `<button class="hac-btn-action hac-btn-revert btn-revert-merge" data-doc-id="${run.docId}" title="Összevonás visszavonása"><i class="ph-bold ph-arrow-counter-clockwise" style="font-size:11px;"></i>Visszavon</button>`
                 : '';
 
             const previewChips = run.orders.map(o =>
@@ -68,13 +61,10 @@ export function initHistoryView(context) {
             ).join('');
             el.innerHTML = `
                 <div class="hac-row">
-                    <label class="hac-checkbox-wrap" title="Kijelölés összevonáshoz">
-                        <input type="checkbox" class="run-select-cb" data-id="${run.id}" ${selectedForMerge.has(run.id) ? 'checked' : ''}>
-                    </label>
                     <div class="hac-info">
                         <span class="hac-company">${run.company || '-'}</span>
                         <span class="hac-date">${run.date}</span>
-                        ${mergedBadge}${modifiedBadge}
+                        ${modifiedBadge}
                         <span class="hac-sep">·</span>
                         <i class="ph-bold ph-user" style="font-size:10px;color:#374151;"></i><span class="hac-courier">${run.courier}</span>
                         <span class="hac-sep">·</span>
@@ -95,7 +85,6 @@ export function initHistoryView(context) {
                         </button>
                     </div>
                     <div class="hac-actions">
-                        ${revertBtn}
                         <button class="hac-btn-load btn-load-run" data-id="${run.id}">Betöltés</button>
                         <button class="hac-btn-del btn-delete-run" data-id="${run.id}" title="Törlés">
                             <i class="ph-bold ph-trash"></i>
@@ -142,7 +131,7 @@ export function initHistoryView(context) {
     export async function renderOrdersTab() {
     const { 
         historyRunsContainer, ordersRunsContainer, accountingRunsContainer, trashRunsContainer, hsResultsContainer,
-        selectedForMerge, accountingFilterPending, trashCompanyFilter, trashDateStart, trashDateEnd,
+        accountingFilterPending, trashCompanyFilter, trashDateStart, trashDateEnd,
         isFiltered, attachHistoryEvents, openPdfView, handleHistorySearch, generateDeliveryNotesHtml,
         historySearchInput
     } = ctx;
@@ -780,7 +769,7 @@ export function initHistoryView(context) {
     export async function renderAccountingRuns() {
     const { 
         historyRunsContainer, ordersRunsContainer, accountingRunsContainer, trashRunsContainer, hsResultsContainer,
-        selectedForMerge, accountingFilterPending, trashCompanyFilter, trashDateStart, trashDateEnd,
+        accountingFilterPending, trashCompanyFilter, trashDateStart, trashDateEnd,
         isFiltered, attachHistoryEvents, openPdfView, handleHistorySearch, generateDeliveryNotesHtml,
         historySearchInput
     } = ctx;
@@ -1007,7 +996,7 @@ export function initHistoryView(context) {
     export async function renderTrashRuns() {
     const { 
         historyRunsContainer, ordersRunsContainer, accountingRunsContainer, trashRunsContainer, hsResultsContainer,
-        selectedForMerge, accountingFilterPending, trashCompanyFilter, trashDateStart, trashDateEnd,
+        accountingFilterPending, trashCompanyFilter, trashDateStart, trashDateEnd,
         isFiltered, attachHistoryEvents, openPdfView, handleHistorySearch, generateDeliveryNotesHtml,
         historySearchInput
     } = ctx;
@@ -1075,7 +1064,7 @@ export function initHistoryView(context) {
     export function renderSearchResults(matches) {
     const { 
         historyRunsContainer, ordersRunsContainer, accountingRunsContainer, trashRunsContainer, hsResultsContainer,
-        selectedForMerge, accountingFilterPending, trashCompanyFilter, trashDateStart, trashDateEnd,
+        accountingFilterPending, trashCompanyFilter, trashDateStart, trashDateEnd,
         isFiltered, attachHistoryEvents, openPdfView, handleHistorySearch, generateDeliveryNotesHtml,
         historySearchInput
     } = ctx;

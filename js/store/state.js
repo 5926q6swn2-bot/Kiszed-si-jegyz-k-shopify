@@ -8,8 +8,6 @@ const state = {
     currentLoadedRunId: null,
     originalLoadedRun: null,
     editingOrderInternalId: null,
-    mergeSelectionMode: false,
-    selectedForMerge: new Set(),
     statsLeafletMap: null,
     activeStatsTab: 'charts',
     geoCache: JSON.parse(localStorage.getItem('hu_zip_geocache_v1') || '{}')
@@ -23,8 +21,6 @@ export const Store = {
     get currentLoadedRunId() { return state.currentLoadedRunId; },
     get originalLoadedRun() { return state.originalLoadedRun; },
     get editingOrderInternalId() { return state.editingOrderInternalId; },
-    get mergeSelectionMode() { return state.mergeSelectionMode; },
-    get selectedForMerge() { return state.selectedForMerge; },
     get statsLeafletMap() { return state.statsLeafletMap; },
     get activeStatsTab() { return state.activeStatsTab; },
     get geoCache() { return state.geoCache; },
@@ -60,22 +56,6 @@ export const Store = {
 
     setEditingOrderInternalId(id) {
         state.editingOrderInternalId = id;
-    },
-
-    setMergeSelectionMode(isModeActive) {
-        state.mergeSelectionMode = isModeActive;
-    },
-
-    clearSelectedForMerge() {
-        state.selectedForMerge.clear();
-    },
-
-    addToSelectedForMerge(id) {
-        state.selectedForMerge.add(id);
-    },
-
-    removeFromSelectedForMerge(id) {
-        state.selectedForMerge.delete(id);
     },
 
     setStatsLeafletMap(mapInstance) {

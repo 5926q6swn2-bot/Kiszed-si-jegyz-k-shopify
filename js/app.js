@@ -4,7 +4,9 @@ import { HistoryManager } from './services/history.js';
 import { UnifiedPrinter } from './services/printer.js';
 import { ShopifyParser } from './services/shopify.js';
 import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js';
+import { Store } from './store/state.js';
 import { OrdersView } from './views/ordersView.js';
+import { initManualOrderController } from './controllers/manualOrderController.js';
 import { renderStatistics } from './views/stats.js';
 
 import { generatePdfHtml, openPdfView, generateDeliveryNotesHtml } from './utils/printTemplates.js';
@@ -68,10 +70,6 @@ function initApp() {
     const printSettingsModal = document.getElementById('print-settings-modal');
     const historyModal = document.getElementById('history-modal');
     const btnCloseModals = document.querySelectorAll('.close-modal');
-    const btnAddItemRow = document.getElementById('btn-add-item-row');
-    const mItemsContainer = document.getElementById('m-items-container');
-    const btnSaveManual = document.getElementById('btn-save-manual');
-    const editOverlay = document.getElementById('edit-overlay');
     
     // Biztonsági ellenőrzés
     if (!loginForm) console.warn("HIÁNYZIK: login-form");
@@ -116,32 +114,20 @@ function initApp() {
     const trashDateEnd = document.getElementById('trash-date-end');
     const psNewCompanyGroup = document.getElementById('ps-new-company-group');
     const psNewCompanyInput = document.getElementById('ps-new-company');
-    const btnToggleMergeMode = document.getElementById('btn-toggle-merge-mode');
-    const mergeActionBar = document.getElementById('merge-action-bar');
-    const mergeSelectionLabel = document.getElementById('merge-selection-label');
-    const btnDoMerge = document.getElementById('btn-do-merge');
-    const btnCancelMergeMode = document.getElementById('btn-cancel-merge-mode');
-    const mergeModal = document.getElementById('merge-modal');
-    const mergeDate = document.getElementById('merge-date');
-    const mergeCompany = document.getElementById('merge-company');
-    const mergeCourier = document.getElementById('merge-courier');
-    const btnMergeSubmit = document.getElementById('btn-merge-submit');
-    const btnMergeCancel = document.getElementById('btn-merge-cancel');
-    const closeMergeModal = document.getElementById('close-merge-modal');
-    const mergeModalSubtitle = document.getElementById('merge-modal-subtitle');
 
     // Állapot
-    let orders = [];
     let sortableInstance = null;
     let sortModeActive = false;
     let currentLoadedRunId = null;
     let originalLoadedRun = null;
-    let editingOrderInternalId = null;
-    let mergeSelectionMode = false;
-    const selectedForMerge = new Set();
     let statsLeafletMap = null;
     let activeStatsTab = 'charts';
     const geoCache = JSON.parse(localStorage.getItem('hu_zip_geocache_v1') || '{}');
+
+    const manualController = initManualOrderController({
+        renderOrders,
+        updatePrintButtonState
+    });
 
     // --- HistoryManager ---
     // A HistoryManager modulárisan van beimportálva a fájl tetején.
@@ -153,7 +139,7 @@ function initApp() {
     // --- Rendezési mód toggle ---
     if (btnSortMode) {
         btnSortMode.addEventListener('click', () => {
-            if (orders.length === 0) return;
+            if (Store.orders.length === 0) return;
             sortModeActive = !sortModeActive;
             orderList.classList.toggle('sort-mode-active', sortModeActive);
             btnSortMode.classList.toggle('sort-mode-btn-active', sortModeActive);
@@ -164,10 +150,10 @@ function initApp() {
 
     // --- Reset ---
     btnReset.addEventListener('click', async () => {
-        if(orders.length === 0) return;
+        if(Store.orders.length === 0) return;
         const isConfirmed = await CustomDialog.confirm('Biztosan törlöd az összes eddigi rendelést a listából?', 'Lista Törlése', 'warning', true);
         if(isConfirmed) {
-            orders = [];
+            Store.setOrders([]);
             currentLoadedRunId = null;
             originalLoadedRun = null;
             sortModeActive = false;
@@ -205,10 +191,10 @@ function initApp() {
 
     // --- Üzleti Logika ---
     function processShopifyData(rows) {
-        const result = ShopifyParser.parse(rows, orders);
+        const result = ShopifyParser.parse(rows, Store.orders);
         
         result.newOrders.forEach(order => {
-            orders.push(order);
+            Store.addOrder(order);
         });
 
         if (result.skippedOrderIds.size > 0) {
@@ -252,7 +238,7 @@ function initApp() {
     // --- UI Renderelés ---
     function renderOrders() {
         OrdersView.render({
-            orders, orderList, emptyState, btnPrint,
+            orders: Store.orders, orderList, emptyState, btnPrint,
             needsMarkerLabel, getBusinessDaysCount,
             attachCardEvents, updatePrintButtonState, updateIndexes, initSortable,
             sortModeActive
@@ -294,8 +280,8 @@ function initApp() {
                 orderList.classList.remove('dragging-active');
                 document.body.style.userSelect = '';
                 document.body.style.webkitUserSelect = '';
-                const movedItem = orders.splice(evt.oldIndex, 1)[0];
-                orders.splice(evt.newIndex, 0, movedItem);
+                const movedItem = Store.orders.splice(evt.oldIndex, 1)[0];
+                Store.orders.splice(evt.newIndex, 0, movedItem);
                 updateIndexes();
             }
         });
@@ -337,7 +323,7 @@ function initApp() {
                 e.stopPropagation();
                 const card = e.target.closest('.order-card');
                 const internalId = card.getAttribute('data-internal-id');
-                const order = orders.find(o => o.internalId === internalId);
+                const order = Store.orders.find(o => o.internalId === internalId);
                 
                 if (order) {
                     const tempRun = {
@@ -357,7 +343,7 @@ function initApp() {
                 const orderInternalId = e.target.getAttribute('data-order-internal-id');
                 const errId = e.target.getAttribute('data-err-id');
                 
-                const order = orders.find(o => o.internalId === orderInternalId);
+                const order = Store.orders.find(o => o.internalId === orderInternalId);
                 if (order) {
                     const errObj = order.errors.find(err => err.id === errId);
                     
@@ -410,7 +396,7 @@ function initApp() {
             btn.addEventListener('click', async (e) => {
                 const card = e.target.closest('.order-card');
                 const internalId = card.getAttribute('data-internal-id');
-                const order = orders.find(o => o.internalId === internalId);
+                const order = Store.orders.find(o => o.internalId === internalId);
                 
                 const isConfirmed = await CustomDialog.confirm(`Biztosan törlöd a(z) <strong>${order.id}</strong> számú rendelést?`, 'Rendelés Törlése', 'warning', true);
                 
@@ -420,12 +406,12 @@ function initApp() {
                     card.classList.add('shatter-out');
                     
                     setTimeout(() => {
-                        orders = orders.filter(o => o.internalId !== internalId);
+                        Store.setOrders(Store.orders.filter(o => o.internalId !== internalId));
                         card.remove();
                         updateIndexes();
                         updatePrintButtonState();
                         
-                        if(orders.length === 0) {
+                        if(Store.orders.length === 0) {
                             emptyState.style.display = 'flex';
                         }
                     }, 500);
@@ -437,47 +423,17 @@ function initApp() {
             btn.addEventListener('click', (e) => {
                 const card = e.target.closest('.order-card');
                 const internalId = card.getAttribute('data-internal-id');
-                const order = orders.find(o => o.internalId === internalId);
+                const order = Store.orders.find(o => o.internalId === internalId);
                 
-                if(order) {
-                    editingOrderInternalId = internalId;
-                    document.getElementById('manual-modal-title').textContent = 'Megrendelés Szerkesztése';
-                    document.getElementById('manual-modal-desc').textContent = 'Adatok módosítása';
-                    document.getElementById('btn-save-manual').textContent = 'Mentés';
-                    
-                    document.getElementById('m-order-num').value = order.id;
-                    document.getElementById('m-customer').value = order.shippingName;
-                    document.getElementById('m-address').value = order.address;
-                    document.getElementById('m-phone').value = order.shippingPhone;
-                    document.getElementById('m-balance').value = order.isCOD ? order.codAmount : 0;
-                    
-                    mItemsContainer.innerHTML = '';
-                    order.items.forEach(item => {
-                        const row = document.createElement('div');
-                        row.className = 'm-item-row';
-                        row.innerHTML = `
-                            <input type="number" class="m-item-qty" placeholder="Db" min="1" value="${item.qty}" required>
-                            <input type="text" class="m-item-name" placeholder="Termék megnevezése" value="${item.name}" required>
-                            <button type="button" class="btn-remove-item">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                            </button>
-                        `;
-                        mItemsContainer.appendChild(row);
-                        row.querySelector('.btn-remove-item').addEventListener('click', function() {
-                            row.remove();
-                        });
-                    });
-                    
-                    manualModal.classList.add('active');
-                }
+                if(order) manualController.editOrder(order);
             });
         });
     }
 
     function updatePrintButtonState() {
-        const hasAnyErrors = orders.some(o => o.errors.length > 0);
+        const hasAnyErrors = Store.orders.some(o => o.errors.length > 0);
         
-        if (hasAnyErrors || orders.length === 0) {
+        if (hasAnyErrors || Store.orders.length === 0) {
             btnPrint.disabled = true;
             if (hasAnyErrors) {
                 btnPrint.setAttribute('title', 'Kérlek előbb nyugtázd a hibákat!');
@@ -645,7 +601,7 @@ function initApp() {
         const printSummary = document.getElementById('ps-chk-summary')?.checked ?? true;
         const printDelivery = document.getElementById('ps-chk-delivery')?.checked ?? true;
         const printNone = document.getElementById('ps-chk-none')?.checked ?? false;
-        const cleanOrders = JSON.parse(JSON.stringify(orders)); // Deep copy
+        const cleanOrders = JSON.parse(JSON.stringify(Store.orders)); // Deep copy
         printSettingsModal.classList.remove('active');
 
         if (currentLoadedRunId) {
@@ -779,86 +735,6 @@ function initApp() {
     document.getElementById('btn-open-trash').addEventListener('click', showTrashView);
     document.getElementById('btn-close-trash').addEventListener('click', hideTrashView);
 
-    function updateMergeBar() {
-        const count = selectedForMerge.size;
-        mergeSelectionLabel.textContent = `${count} kör kijelölve`;
-        btnDoMerge.disabled = count < 2;
-        btnDoMerge.style.opacity = count < 2 ? '0.4' : '1';
-        btnDoMerge.style.cursor = count < 2 ? 'not-allowed' : 'pointer';
-    }
-
-    function enterMergeMode() {
-        mergeSelectionMode = true;
-        selectedForMerge.clear();
-        historyRunsContainer.classList.add('merge-mode-active');
-        mergeActionBar.style.display = 'block';
-        btnToggleMergeMode.style.background = '#eef2ff';
-        btnToggleMergeMode.style.color = '#6366f1';
-        btnToggleMergeMode.style.borderColor = '#a5b4fc';
-        updateMergeBar();
-    }
-
-    function exitMergeMode() {
-        mergeSelectionMode = false;
-        selectedForMerge.clear();
-        historyRunsContainer.classList.remove('merge-mode-active');
-        mergeActionBar.style.display = 'none';
-        btnToggleMergeMode.style.background = '';
-        btnToggleMergeMode.style.color = '';
-        btnToggleMergeMode.style.borderColor = '';
-        renderHistoryRuns();
-    }
-
-    btnToggleMergeMode.addEventListener('click', () => {
-        if (mergeSelectionMode) exitMergeMode();
-        else enterMergeMode();
-    });
-
-    btnCancelMergeMode.addEventListener('click', () => exitMergeMode());
-
-    btnDoMerge.addEventListener('click', () => {
-        if (selectedForMerge.size < 2) return;
-        // Pre-fill modal
-        mergeDate.value = new Date().toISOString().split('T')[0];
-        const allRuns = Array.from(historyRunsContainer.querySelectorAll('.run-select-cb:checked'));
-        const firstCard = allRuns[0]?.closest('.history-apple-card');
-        const companyText = firstCard?.querySelector('.hac-company')?.textContent?.trim() || '';
-        const courierText = firstCard?.querySelector('.hac-courier')?.textContent?.trim() || '';
-        if (mergeCompany.querySelector(`option[value="${companyText}"]`)) mergeCompany.value = companyText;
-        mergeCourier.value = courierText;
-        const totalOrders = Array.from(selectedForMerge).reduce((sum, id) => {
-            const cb = historyRunsContainer.querySelector(`.run-select-cb[data-id="${id}"]`);
-            const ts = cb?.closest('.history-apple-card')?.querySelector('.hac-timestamp')?.textContent || '';
-            const m = ts.match(/^(\d+) r/);
-            return sum + (m ? parseInt(m[1]) : 0);
-        }, 0);
-        mergeModalSubtitle.textContent = `${selectedForMerge.size} kör · ${totalOrders} rendelés összesen`;
-        mergeModal.classList.add('active');
-    });
-
-    [btnMergeCancel, closeMergeModal].forEach(b => b.addEventListener('click', () => mergeModal.classList.remove('active')));
-
-    btnMergeSubmit.addEventListener('click', async () => {
-        const newDate = mergeDate.value;
-        const newCompany = mergeCompany.value;
-        const newCourier = mergeCourier.value.trim();
-        if (!newDate || !newCompany || !newCourier) {
-            await CustomDialog.alert('Kérlek töltsd ki az összes mezőt.', 'Hiányos adatok', 'warning');
-            return;
-        }
-        btnMergeSubmit.disabled = true;
-        btnMergeSubmit.textContent = 'Összevonás...';
-        const result = await HistoryManager.mergeRuns(Array.from(selectedForMerge), newDate, newCourier, newCompany);
-        btnMergeSubmit.disabled = false;
-        btnMergeSubmit.innerHTML = '<i class="ph-bold ph-git-merge"></i>Összevonás végrehajtása';
-        mergeModal.classList.remove('active');
-        if (result) {
-            exitMergeMode();
-            CustomDialog.alert(`Összevonás kész. Az új kör ${result.orders.length} rendelést tartalmaz.`, 'Sikeres összevonás', 'info');
-        } else {
-            CustomDialog.alert('Hiba történt az összevonás során.', 'Hiba', 'warning');
-        }
-    });
 
     statsDateStart.addEventListener('change', () => renderStatistics());
     statsDateEnd.addEventListener('change', () => renderStatistics());
@@ -1034,20 +910,20 @@ function initApp() {
                 const run = await HistoryManager.getRunById(runId);
                 if(!run) return;
                 
-                if(orders.length > 0) {
+                if(Store.orders.length > 0) {
                     const confirm = await CustomDialog.confirm('Ha betöltöd ezt a kört, a jelenlegi listád felülíródik. Folytatod?', 'Visszatöltés', 'warning', false);
                     if(!confirm) return;
                 }
                 
                 // Deep copy restoring orders
-                orders = JSON.parse(JSON.stringify(run.orders));
-                orders.forEach(o => o.internalId = Math.random().toString(36).substr(2, 9));
+                Store.setOrders(JSON.parse(JSON.stringify(run.orders)));
+                Store.orders.forEach(o => o.internalId = Math.random().toString(36).substr(2, 9));
                 currentLoadedRunId = run.id;
                 originalLoadedRun = JSON.parse(JSON.stringify(run));
 
                 renderOrders();
                 historyModal.classList.remove('active');
-                CustomDialog.alert(`Kör betöltve: ${run.date} - ${run.courier} (${orders.length} rendelés)`, 'Sikeres betöltés', 'info');
+                CustomDialog.alert(`Kör betöltve: ${run.date} - ${run.courier} (${Store.orders.length} rendelés)`, 'Sikeres betöltés', 'info');
             });
         });
 
@@ -1114,141 +990,9 @@ function initApp() {
             });
         });
 
-        document.querySelectorAll('.run-select-cb').forEach(cb => {
-            cb.addEventListener('change', () => {
-                const runId = cb.dataset.id;
-                if (cb.checked) {
-                    selectedForMerge.add(runId);
-                    cb.closest('.history-apple-card').classList.add('merge-selected');
-                } else {
-                    selectedForMerge.delete(runId);
-                    cb.closest('.history-apple-card').classList.remove('merge-selected');
-                }
-                updateMergeBar();
-            });
-        });
 
-        document.querySelectorAll('.btn-revert-merge').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const docId = btn.dataset.docId;
-                const ok = await CustomDialog.confirm('Visszavonod az összevonást? Az eredeti körök visszakerülnek a listába, az összevont kör törlődik.', 'Összevonás visszavonása', 'warning', true);
-                if (!ok) return;
-                const success = await HistoryManager.revertMerge(docId);
-                if (success) {
-                    await renderHistoryRuns();
-                    CustomDialog.alert('Az összevonás sikeresen visszavonva.', 'Visszavonva', 'info');
-                }
-            });
-        });
     }
 
-    // --- Manuális Rendelés Modal ---
-    btnAddManual.addEventListener('click', () => {
-        editingOrderInternalId = null;
-        document.getElementById('manual-modal-title').textContent = 'Manuális Rendelés';
-        document.getElementById('manual-modal-desc').textContent = 'Kézi felvitel a listához';
-        document.getElementById('btn-save-manual').textContent = 'Hozzáadás';
-        document.getElementById('manual-order-form').reset();
-        mItemsContainer.innerHTML = `
-            <div class="m-item-row">
-                <input type="number" class="m-item-qty" placeholder="Db" min="1" value="1" required>
-                <input type="text" class="m-item-name" placeholder="Termék megnevezése" required>
-                <button type="button" class="btn-remove-item" style="visibility: hidden;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                </button>
-            </div>
-        `;
-        manualModal.classList.add('active');
-    });
-
-    btnAddItemRow.addEventListener('click', () => {
-        const row = document.createElement('div');
-        row.className = 'm-item-row';
-        row.innerHTML = `
-            <input type="number" class="m-item-qty" placeholder="Db" min="1" value="1" required>
-            <input type="text" class="m-item-name" placeholder="Termék megnevezése" required>
-            <button type="button" class="btn-remove-item">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-            </button>
-        `;
-        mItemsContainer.appendChild(row);
-        
-        row.querySelector('.btn-remove-item').addEventListener('click', function() {
-            row.remove();
-        });
-    });
-
-    btnSaveManual.addEventListener('click', () => {
-        const orderNum = document.getElementById('m-order-num').value.trim();
-        const customerName = document.getElementById('m-customer').value.trim();
-        const address = document.getElementById('m-address').value.trim();
-        const phone = document.getElementById('m-phone').value.trim();
-        const balanceRaw = parseFloat(document.getElementById('m-balance').value) || 0;
-
-        if (!orderNum || !customerName) {
-            alert('A rendelésszám és a vevő neve kötelező!');
-            return;
-        }
-
-        const items = [];
-        document.querySelectorAll('#m-items-container .m-item-row').forEach(row => {
-            const qty = parseInt(row.querySelector('.m-item-qty').value) || 0;
-            const name = row.querySelector('.m-item-name').value.trim();
-            if (qty > 0 && name) items.push({ name, qty });
-        });
-
-        if (items.length === 0) {
-            alert('Legalább egy tételt meg kell adni!');
-            return;
-        }
-
-        const isCOD = balanceRaw > 0;
-
-        if (editingOrderInternalId) {
-            const order = orders.find(o => o.internalId === editingOrderInternalId);
-            if (order) {
-                order.id = orderNum;
-                order.shippingName = customerName;
-                order.billingName = customerName;
-                order.address = address;
-                order.fullAddress = address;
-                order.shippingPhone = phone;
-                order.billingPhone = phone;
-                order.isCOD = isCOD;
-                order.codAmount = isCOD ? balanceRaw : 0;
-                order.isBankDeposit = false;
-                order.isPaid = !isCOD;
-                order.items = items;
-                order.isManuallyEdited = true;
-            }
-        } else {
-            orders.push({
-                id: orderNum,
-                internalId: Math.random().toString(36).substr(2, 9),
-                shippingName: customerName,
-                billingName: customerName,
-                address: address,
-                fullAddress: address,
-                shippingPhone: phone,
-                billingPhone: phone,
-                tags: '',
-                isBankDeposit: false,
-                isPaid: !isCOD,
-                isCOD: isCOD,
-                codAmount: isCOD ? balanceRaw : 0,
-                orderDate: '',
-                isPlannedDelay: false,
-                isManuallyEdited: true,
-                errors: [],
-                items: items
-            });
-        }
-
-        manualModal.classList.remove('active');
-        editingOrderInternalId = null;
-        renderOrders();
-        updatePrintButtonState();
-    });
 
     // --- UNIFIED PRINTER ---
     // A UnifiedPrinter modulárisan van beimportálva a fájl tetején.
@@ -1259,7 +1003,6 @@ function initApp() {
         accountingRunsContainer,
         trashRunsContainer,
         hsResultsContainer,
-        selectedForMerge,
         accountingFilterPending,
         trashCompanyFilter,
         trashDateStart,

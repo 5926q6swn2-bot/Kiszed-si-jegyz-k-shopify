@@ -415,7 +415,7 @@ export async function renderStatistics() {
                 <div style="border-bottom:1px solid #f1f5f9;">
                     <div style="display:flex;align-items:center;gap:10px;padding:7px 0;">
                         <span style="font-size:12px;font-weight:700;color:#94a3b8;min-width:22px;text-align:right;">${i + 1}.</span>
-                        <span style="font-size:13px;color:#374151;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.bestName}${isMerged ? ' <span style="font-size:10px;font-weight:600;color:#8b5cf6;background:#f5f3ff;border-radius:5px;padding:1px 5px;margin-left:4px;">összevont</span>' : ''}</span>
+                        <span style="font-size:13px;color:#374151;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.bestName}</span>
                         <span style="font-size:12px;font-weight:700;color:#0f172a;min-width:45px;text-align:right;">${item.totalQty} db</span>
                         ${makeBar(item.totalQty, maxQty, '#6366f1')}
                     </div>

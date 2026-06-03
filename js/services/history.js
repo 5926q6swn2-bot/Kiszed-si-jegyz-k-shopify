@@ -283,57 +283,9 @@ export const HistoryManager = {
             }
         },
 
-        mergeRuns: async function(selectedRunIds, newDate, newCourier, newCompany) {
-            try {
-                const runs = await this.getAllRuns();
-                const selectedRuns = runs.filter(r => selectedRunIds.includes(r.id));
-                if (selectedRuns.length < 2) return null;
 
-                const allOrders = selectedRuns.flatMap(r => r.orders);
-                const mergedId = 'run_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-                const mergedData = {
-                    id: mergedId,
-                    date: newDate,
-                    originalDate: newDate,
-                    pickupDate: newDate,
-                    courier: newCourier,
-                    company: newCompany,
-                    orders: allOrders,
-                    timestamp: Date.now(),
-                    isPrinted: false,
-                    isMerged: true,
-                    mergedFromIds: selectedRuns.map(r => r.id),
-                    mergedFromDocIds: selectedRuns.map(r => r.docId),
-                    mergedAt: Date.now(),
-                };
-                await addDoc(collection(db, this.COLLECTION_NAME), mergedData);
-                for (const run of selectedRuns) {
-                    const docRef = doc(db, this.COLLECTION_NAME, run.docId);
-                    await updateDoc(docRef, { isMergedInto: mergedId, mergedAt: Date.now() });
-                }
-                return mergedData;
-            } catch (e) {
-                console.error("Hiba az összevonásnál:", e);
-                return null;
-            }
-        },
 
-        revertMerge: async function(mergedRunDocId) {
-            try {
-                const runs = await this.getAllRuns();
-                const mergedRun = runs.find(r => r.docId === mergedRunDocId);
-                if (!mergedRun || !mergedRun.mergedFromDocIds) return false;
-                for (const origDocId of mergedRun.mergedFromDocIds) {
-                    const docRef = doc(db, this.COLLECTION_NAME, origDocId);
-                    await updateDoc(docRef, { isMergedInto: deleteField(), mergedAt: deleteField() });
-                }
-                await deleteDoc(doc(db, this.COLLECTION_NAME, mergedRunDocId));
-                return true;
-            } catch (e) {
-                console.error("Hiba a visszavonásnál:", e);
-                return false;
-            }
-        },
+
 
         updateRun: async function(runId, date, pickupDate, courier, company, sender, ordersList) {
             const runs = await this.getAllRuns();
