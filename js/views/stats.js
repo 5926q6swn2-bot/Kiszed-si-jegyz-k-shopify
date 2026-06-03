@@ -9,9 +9,7 @@ const statsDateEnd = document.getElementById('stats-date-end');
 const statsRunsContainer = document.getElementById('stats-runs-container');
 const geoCache = JSON.parse(localStorage.getItem('hu_zip_geocache_v1') || '{}');
 
-export 
-
-    async function renderStatistics() {
+export async function renderStatistics() {
         if (statsLeafletMap) { statsLeafletMap.remove(); statsLeafletMap = null; }
         const allRuns = await HistoryManager.getAllRuns();
         statsRunsContainer.innerHTML = '<p style="color:#94a3b8;font-size:13px;text-align:center;padding:30px;">Betöltés...</p>';
