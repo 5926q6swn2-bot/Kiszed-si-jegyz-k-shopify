@@ -191,10 +191,12 @@ function initApp() {
     const hsResultsContainer = document.getElementById('hs-results-container');
     const historyRunsView = document.getElementById('history-runs-view');
     const tabBtnHistory = document.getElementById('tab-btn-history');
+    const tabBtnOrders = document.getElementById('tab-btn-orders');
     const tabBtnQuick = document.getElementById('tab-btn-quick');
     const tabBtnAccounting = document.getElementById('tab-btn-accounting');
     const tabBtnStats = document.getElementById('tab-btn-stats');
     const tabContentHistory = document.getElementById('tab-content-history');
+    const tabContentOrders = document.getElementById('tab-content-orders');
     const tabContentQuick = document.getElementById('tab-content-quick');
     const tabContentAccounting = document.getElementById('tab-content-accounting');
     const tabContentStats = document.getElementById('tab-content-stats');
@@ -1719,6 +1721,7 @@ function initApp() {
     }
 
     tabBtnHistory.addEventListener('click', () => switchHistoryTab('history'));
+    tabBtnOrders.addEventListener('click', () => switchHistoryTab('orders'));
     tabBtnQuick.addEventListener('click', () => switchHistoryTab('quick'));
     tabBtnAccounting.addEventListener('click', () => switchHistoryTab('accounting'));
     tabBtnStats.addEventListener('click', () => switchHistoryTab('stats'));
@@ -1816,7 +1819,7 @@ function initApp() {
     });
 
     function showTrashView() {
-        [tabContentHistory, tabContentQuick, tabContentAccounting, tabContentStats].forEach(c => { c.style.display = 'none'; });
+        [tabContentHistory, tabContentOrders, tabContentQuick, tabContentAccounting, tabContentStats].forEach(c => { c.style.display = 'none'; });
         if (modalTabsBar) modalTabsBar.style.display = 'none';
         if (modalSearchBar) modalSearchBar.style.display = 'none';
         trashView.style.display = 'flex';
@@ -1833,13 +1836,13 @@ function initApp() {
 
     async function switchHistoryTab(tab) {
         // Reset all tabs
-        [tabBtnHistory, tabBtnQuick, tabBtnAccounting, tabBtnStats].forEach(btn => {
+        [tabBtnHistory, tabBtnOrders, tabBtnQuick, tabBtnAccounting, tabBtnStats].forEach(btn => {
             btn.classList.remove('active');
             btn.style.borderBottomColor = 'transparent';
             btn.style.color = '#64748b';
             btn.style.fontWeight = '500';
         });
-        [tabContentHistory, tabContentQuick, tabContentAccounting, tabContentStats].forEach(content => {
+        [tabContentHistory, tabContentOrders, tabContentQuick, tabContentAccounting, tabContentStats].forEach(content => {
             content.style.display = 'none';
         });
 
@@ -1849,7 +1852,14 @@ function initApp() {
             tabBtnHistory.style.color = 'var(--primary-color)';
             tabBtnHistory.style.fontWeight = '600';
             tabContentHistory.style.display = 'block';
-            handleHistorySearch();
+            renderHistoryRuns();
+        } else if (tab === 'orders') {
+            tabBtnOrders.classList.add('active');
+            tabBtnOrders.style.borderBottomColor = 'var(--primary-color)';
+            tabBtnOrders.style.color = 'var(--primary-color)';
+            tabBtnOrders.style.fontWeight = '600';
+            tabContentOrders.style.display = 'block';
+            renderOrdersTab();
         } else if (tab === 'quick') {
             tabBtnQuick.classList.add('active');
             tabBtnQuick.style.borderBottomColor = '#3b82f6';
@@ -1878,12 +1888,9 @@ function initApp() {
 
     const onDateChange = () => {
         if (tabContentHistory.style.display !== 'none') {
-            // Ha van aktív szöveges keresés, azt is frissítjük az új szűrőkkel
-            if (historySearchInput.value.trim().length >= 2) {
-                handleHistorySearch();
-            } else {
-                renderHistoryRuns();
-            }
+            renderHistoryRuns();
+        } else if (tabContentOrders.style.display !== 'none') {
+            renderOrdersTab();
         } else if (tabContentAccounting.style.display !== 'none') {
             renderAccountingRuns();
         } else {
@@ -1920,8 +1927,10 @@ function initApp() {
     // Cég szűrő: frissíti a gombot + újraindítja a keresést ha van aktív szöveg
     historyCompanyFilter.addEventListener('change', () => {
         updateFilterButtonState();
-        if (historySearchInput.value.trim().length >= 2) {
-            handleHistorySearch();
+        if (tabContentHistory.style.display !== 'none') {
+            renderHistoryRuns();
+        } else if (tabContentOrders.style.display !== 'none') {
+            renderOrdersTab();
         }
     });
     trashCompanyFilter.addEventListener('change', () => renderTrashRuns());
@@ -1967,35 +1976,10 @@ function initApp() {
     }
 
     async function handleHistorySearch() {
-        const q = historySearchInput.value.trim().toLowerCase();
-
-        if (q.length >= 2) {
-            // Szöveges keresés: dátum + cég szűrő is érvényes egyszerre (isFiltered-en át)
-            const allRuns = await HistoryManager.getAllRuns();
-            const filteredRuns = allRuns.filter(r => isFiltered(r));
-
-            const matches = [];
-            filteredRuns.forEach(run => {
-                run.orders.forEach(order => {
-                    const nameMatch  = order.shippingName?.toLowerCase().includes(q);
-                    const idMatch    = order.id?.toLowerCase().includes(q);
-                    const addrMatch  = order.address?.toLowerCase().includes(q);
-                    const phoneMatch = order.shippingPhone?.includes(q);
-                    const itemsMatch = order.items?.some(it => it.name.toLowerCase().includes(q));
-                    if (idMatch || nameMatch || addrMatch || phoneMatch || itemsMatch) {
-                        matches.push({ runId: run.id, runDate: run.date, runCourier: run.courier, runCompany: run.company, runData: run, ...order });
-                    }
-                });
-            });
-
-            historySearchResults.style.display = 'block';
-            historyRunsView.style.display = 'none';
-            renderSearchResults(matches);
-        } else {
-            // Böngésző mód: csak kártyák, dátum + cég szűrővel
-            historySearchResults.style.display = 'none';
-            historyRunsView.style.display = 'block';
+        if (tabContentHistory.style.display !== 'none') {
             await renderHistoryRuns();
+        } else if (tabContentOrders.style.display !== 'none') {
+            await renderOrdersTab();
         }
     }
 
@@ -2004,7 +1988,24 @@ function initApp() {
         historyRunsContainer.innerHTML = '';
         
         // Szűrés a dátum/cég szerint
-        const filteredRuns = runs.filter(r => isFiltered(r));
+        let filteredRuns = runs.filter(r => isFiltered(r));
+        
+        const q = historySearchInput.value.trim().toLowerCase();
+        if (q.length >= 2) {
+            filteredRuns = filteredRuns.filter(run => {
+                const courierMatch = run.courier ? String(run.courier).toLowerCase().includes(q) : false;
+                const companyMatch = run.company ? String(run.company).toLowerCase().includes(q) : false;
+                const orderMatch = run.orders.some(o => {
+                    const name = o.shippingName ? String(o.shippingName).toLowerCase() : '';
+                    const id = o.id ? String(o.id).toLowerCase() : '';
+                    const addr = o.address ? String(o.address).toLowerCase() : '';
+                    const phone = o.shippingPhone ? String(o.shippingPhone) : '';
+                    const items = o.items?.some(it => it.name && String(it.name).toLowerCase().includes(q)) || false;
+                    return id.includes(q) || name.includes(q) || addr.includes(q) || phone.includes(q) || items;
+                });
+                return courierMatch || companyMatch || orderMatch;
+            });
+        }
 
         if(filteredRuns.length === 0) {
             historyRunsContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 13px; text-align: center; margin-top: 20px;">Nincsenek a feltételnek megfelelő mentett körök.</p>';
@@ -2146,6 +2147,207 @@ function initApp() {
         });
 
         attachHistoryEvents();
+    }
+
+    async function renderOrdersTab() {
+        const q = historySearchInput.value.trim().toLowerCase();
+        const allRuns = await HistoryManager.getAllRuns();
+        const filteredRuns = allRuns.filter(r => isFiltered(r));
+
+        let matches = [];
+        filteredRuns.forEach(run => {
+            if (run.isQuickDelivery) return;
+            run.orders.forEach(order => {
+                const name = order.shippingName ? String(order.shippingName).toLowerCase() : '';
+                const id = order.id ? String(order.id).toLowerCase() : '';
+                const addr = order.address ? String(order.address).toLowerCase() : '';
+                const phone = order.shippingPhone ? String(order.shippingPhone) : '';
+                
+                const nameMatch = name.includes(q);
+                const idMatch = id.includes(q);
+                const addrMatch = addr.includes(q);
+                const phoneMatch = phone.includes(q);
+                const itemsMatch = order.items?.some(it => it.name && String(it.name).toLowerCase().includes(q)) || false;
+                
+                if (!q || idMatch || nameMatch || addrMatch || phoneMatch || itemsMatch) {
+                    matches.push({
+                        runId: run.id,
+                        runDate: run.date,
+                        runCourier: run.courier,
+                        runCompany: run.company,
+                        runData: run,
+                        ...order
+                    });
+                }
+            });
+        });
+
+        if (!q && matches.length > 200) {
+            matches = matches.slice(0, 200);
+        }
+
+        const container = document.getElementById('orders-tab-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        if (matches.length === 0) {
+            container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">Nincs találat.</p>';
+            return;
+        }
+
+        matches.forEach(m => {
+            const el = document.createElement('div');
+            el.className = 'history-run-card search-result-card';
+            el.style.display = 'flex';
+            el.style.alignItems = 'center';
+            el.style.justifyContent = 'space-between';
+            el.style.padding = '12px 18px';
+            el.style.gap = '16px';
+            el.style.marginBottom = '8px';
+            el.style.background = '#fff';
+            el.style.borderRadius = '14px';
+            el.style.boxShadow = '0 2px 10px rgba(0,0,0,0.02)';
+            el.style.borderLeft = '4px solid #3b82f6';
+
+            const itemsSummary = m.items.map(it => `${it.qty}× ${it.name}`).join(', ');
+
+            let accountingBadgeHtml = '';
+            const uncollected = m.runData?.uncollectedOrderIds || [];
+            const isUncollected = uncollected.some(id => String(id) === String(m.id));
+
+            if (m.isCOD) {
+                let badgeText = 'Függőben';
+                let badgeColor = '#f59e0b';
+                let badgeBg = '#fef3c7';
+
+                let dynamicIsSettled = m.runData && m.runData.isSettled;
+                if (m.runData && !dynamicIsSettled && typeof m.runData.settledAmount !== 'undefined') {
+                    let bankTransferredSum = 0;
+                    let uncollectedSum = 0;
+                    let partialDiffs = 0;
+                    (m.runData.orders || []).forEach(o => {
+                        if (o.isCOD) {
+                            if (m.runData.bankTransferredOrderIds && m.runData.bankTransferredOrderIds.some(id => String(id) === String(o.id))) {
+                                bankTransferredSum += o.codAmount;
+                            } else if (m.runData.uncollectedOrderIds && m.runData.uncollectedOrderIds.some(id => String(id) === String(o.id))) {
+                                uncollectedSum += o.codAmount;
+                            } else if (m.runData.partialOrders && (m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)])) {
+                                const partialVal = m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)];
+                                partialDiffs += (o.codAmount - (partialVal.amount || 0));
+                            }
+                        }
+                    });
+                    const expectedAmount = (m.runData.totalCOD || 0) - bankTransferredSum - uncollectedSum - partialDiffs;
+                    dynamicIsSettled = m.runData.settledAmount >= expectedAmount;
+                }
+
+                if (m.runData && m.runData.bankTransferredOrderIds && m.runData.bankTransferredOrderIds.some(id => String(id) === String(m.id))) {
+                    badgeText = 'Elutalva';
+                    badgeColor = '#3b82f6';
+                    badgeBg = '#dbeafe';
+                } else if (isUncollected) {
+                    badgeText = 'Nincs beszedve';
+                    badgeColor = '#ef4444';
+                    badgeBg = '#fee2e2';
+                } else if (m.runData && m.runData.partialOrders && (m.runData.partialOrders[m.id] || m.runData.partialOrders[String(m.id)])) {
+                    badgeText = 'Részleges';
+                    badgeColor = '#f97316';
+                    badgeBg = '#ffedd5';
+                } else if (dynamicIsSettled) {
+                    badgeText = 'Elszámolva';
+                    badgeColor = '#10b981';
+                    badgeBg = '#d1fae5';
+                }
+
+                accountingBadgeHtml = `<span style="font-size: 10px; background: ${badgeBg}; color: ${badgeColor}; padding: 1px 6px; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px;"><i class="ph-bold ph-currency-circle-dollar" style="font-size: 11px;"></i> ${badgeText}</span>`;
+            } else {
+                if (isUncollected) {
+                    accountingBadgeHtml = `<span style="font-size: 10px; background: #fee2e2; color: #ef4444; padding: 1px 6px; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px;"><i class="ph-bold ph-x-circle" style="font-size: 11px;"></i> Nem átadva</span>`;
+                } else {
+                    accountingBadgeHtml = `<span style="font-size: 10px; background: #f1f5f9; color: #64748b; padding: 1px 6px; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px;"><i class="ph-bold ph-prohibit" style="font-size: 11px;"></i> Nincs UV</span>`;
+                }
+            }
+
+            let failureInfoHtml = '';
+            if (isUncollected && m.runData) {
+                const reasons = m.runData.uncollectedReasons || {};
+                const responsibilities = m.runData.uncollectedResponsibility || {};
+                const rawId = String(m.id);
+                const reasonText = reasons[rawId] || reasons[rawId.replace('#', '')] || 'Nincs megadva indok';
+                const resp = responsibilities[rawId] || responsibilities[rawId.replace('#', '')] || 'vevo';
+
+                let respText = 'Vevő';
+                if (resp === 'mienk') respText = 'Cégünk';
+                else if (resp === 'szallito') respText = 'Szállító';
+
+                failureInfoHtml = `
+                    <div style="margin-top: 5px; font-size: 11px; background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; padding: 6px 10px; border-radius: 8px; display: flex; align-items: center; gap: 6px;">
+                        <i class="ph-bold ph-warning" style="font-size: 14px; flex-shrink: 0;"></i>
+                        <div>
+                            <strong>Vissza:</strong> ${reasonText}
+                            <span style="background: #ffedd5; color: #ea580c; font-size: 9px; padding: 1px 4px; border-radius: 4px; font-weight: 700; margin-left: 4px; border: 1px solid #fed7aa;">
+                                Felelős: ${respText}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            el.innerHTML = `
+                <div class="s-section-info" style="flex: 1;">
+                    <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-bottom: 4px;">
+                        <span style="font-weight: 900; color: #3b82f6; font-size: 13px;">${m.id}</span>
+                        <span style="font-size: 9px; background: #0f172a; color: white; padding: 1px 6px; border-radius: 4px; font-weight: 700;">${m.runCompany}</span>
+                        <span class="btn-settle-search-run" data-run-id="${m.runId}" style="font-size: 10px; background: #f1f5f9; color: #475569; padding: 1px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'"><i class="ph-bold ph-calendar" style="font-size: 11px;"></i> ${m.runDate}</span>
+                        <span class="btn-settle-search-run" data-run-id="${m.runId}" style="font-size: 10px; background: #e0f2fe; color: #0284c7; padding: 1px 6px; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#bae6fd'" onmouseout="this.style.background='#e0f2fe'"><i class="ph-bold ph-truck" style="font-size: 11px;"></i> ${m.runCourier}</span>
+                        ${accountingBadgeHtml}
+                    </div>
+                    <div style="font-size: 14px; font-weight: 800; color: #1e293b; margin-bottom: 2px;">${m.shippingName}</div>
+                    <div style="font-size: 11px; color: #64748b; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                        <i class="ph-bold ph-map-pin" style="color: #94a3b8; font-size: 13px;"></i>
+                        ${m.address || '-'}
+                    </div>
+                    <div style="font-size: 10px; color: #475569; background: #f8fafc; padding: 6px 10px; border-radius: 8px; border: 1px solid #e2e8f0; line-height: 1.3;">
+                        <strong>Tételek:</strong> ${itemsSummary}
+                    </div>
+                    ${failureInfoHtml}
+                </div>
+
+                <div class="s-section-actions" style="display: flex; flex-direction: column; gap: 8px; min-width: 130px; border-left: 1px solid #f1f5f9; padding-left: 16px; justify-content: center;">
+                    <button class="btn btn-primary btn-settle-search-run" data-run-id="${m.runId}" style="padding: 8px 12px; font-size: 11px; font-weight: 700; border-radius: 8px; background: #3b82f6; color: white; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        <i class="ph-bold ph-currency-circle-dollar" style="font-size: 13px;"></i>
+                        Elszámolás
+                    </button>
+                </div>
+            `;
+            container.appendChild(el);
+        });
+
+        container.querySelectorAll('.btn-settle-search-run').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const runId = e.target.closest('.btn-settle-search-run').getAttribute('data-run-id');
+                const run = await HistoryManager.getRunById(runId);
+                if (!run) return;
+
+                let runCOD = 0;
+                run.orders.forEach(o => { if(o.isCOD) runCOD += o.codAmount; });
+
+                const existingState = {
+                    uncollectedOrderIds: run.uncollectedOrderIds || [],
+                    uncollectedReasons: run.uncollectedReasons || {},
+                    partialOrders: run.partialOrders || {},
+                    bankTransferredOrderIds: run.bankTransferredOrderIds || [],
+                    uncollectedResponsibility: run.uncollectedResponsibility || {}
+                };
+
+                const result = await showSettlementDialog(run, runCOD, existingState);
+                if (result === null) return;
+
+                if (await HistoryManager.updateSettlementStatus(run.docId, result.settledAmount, runCOD, result.uncollectedOrderIds, result.uncollectedReasons, result.partialOrders, result.bankTransferredOrderIds, result.uncollectedResponsibility)) {
+                    renderOrdersTab();
+                }
+            });
+        });
     }
 
     async function renderQuickDeliveryRuns() {
@@ -3873,6 +4075,9 @@ function initApp() {
             const itemsSummary = m.items.map(it => `${it.qty}× ${it.name}`).join(', ');
             
             let accountingBadgeHtml = '';
+            const uncollected = m.runData?.uncollectedOrderIds || [];
+            const isUncollected = uncollected.some(id => String(id) === String(m.id));
+            
             if (m.isCOD) {
                 let badgeText = 'Függőben lévő elszámolás';
                 let badgeColor = '#f59e0b';
@@ -3903,7 +4108,7 @@ function initApp() {
                     badgeText = 'Utólag elutalva';
                     badgeColor = '#3b82f6';
                     badgeBg = '#dbeafe';
-                } else if (m.runData && m.runData.uncollectedOrderIds && m.runData.uncollectedOrderIds.some(id => String(id) === String(m.id))) {
+                } else if (isUncollected) {
                     badgeText = 'Nincs beszedve';
                     badgeColor = '#ef4444';
                     badgeBg = '#fee2e2';
@@ -3919,7 +4124,36 @@ function initApp() {
 
                 accountingBadgeHtml = `<span style="font-size: 11px; background: ${badgeBg}; color: ${badgeColor}; padding: 2px 8px; border-radius: 4px; font-weight: 700; margin-left: 5px; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ph-currency-circle-dollar" style="font-size: 13px;"></i> ${badgeText}</span>`;
             } else {
-                accountingBadgeHtml = `<span style="font-size: 11px; background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 4px; font-weight: 700; margin-left: 5px; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ph-prohibit" style="font-size: 13px;"></i> Nincs utánvét</span>`;
+                if (isUncollected) {
+                    accountingBadgeHtml = `<span style="font-size: 11px; background: #fee2e2; color: #ef4444; padding: 2px 8px; border-radius: 4px; font-weight: 700; margin-left: 5px; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ph-x-circle" style="font-size: 13px;"></i> Nem lett átadva</span>`;
+                } else {
+                    accountingBadgeHtml = `<span style="font-size: 11px; background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 4px; font-weight: 700; margin-left: 5px; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ph-prohibit" style="font-size: 13px;"></i> Nincs utánvét</span>`;
+                }
+            }
+            
+            let failureInfoHtml = '';
+            if (isUncollected && m.runData) {
+                const reasons = m.runData.uncollectedReasons || {};
+                const responsibilities = m.runData.uncollectedResponsibility || {};
+                const rawId = String(m.id);
+                const reasonText = reasons[rawId] || reasons[rawId.replace('#', '')] || 'Nincs megadva indok';
+                const resp = responsibilities[rawId] || responsibilities[rawId.replace('#', '')] || 'vevo';
+                
+                let respText = 'Vevő';
+                if (resp === 'mienk') respText = 'Cégünk';
+                else if (resp === 'szallito') respText = 'Szállító';
+                
+                failureInfoHtml = `
+                    <div style="margin-top: 8px; font-size: 12px; background: #fff7ed; color: #c2410c; border: 1.5px solid #fed7aa; padding: 10px 14px; border-radius: 10px; display: flex; align-items: center; gap: 8px;">
+                        <i class="ph-bold ph-warning" style="font-size: 16px; flex-shrink: 0;"></i>
+                        <div>
+                            <strong>Visszaérkezett / Nem kereste:</strong> ${reasonText}
+                            <span style="background: #ffedd5; color: #ea580c; font-size: 10px; padding: 2px 6px; border-radius: 6px; font-weight: 700; margin-left: 6px; border: 1px solid #fed7aa;">
+                                Felelős: ${respText}
+                            </span>
+                        </div>
+                    </div>
+                `;
             }
             
             el.innerHTML = `
@@ -3940,80 +4174,43 @@ function initApp() {
                         <i class="ph-bold ph-package" style="margin-right: 5px; color: #64748b; font-size: 14px;"></i>
                         <strong>Tételek:</strong> ${itemsSummary}
                     </div>
+                    ${failureInfoHtml}
                 </div>
 
-                <div class="s-section-actions" style="display: flex; flex-direction: column; gap: 10px; min-width: 320px; border-left: 1px solid #f1f5f9; padding-left: 24px;">
-                    <button class="btn btn-primary btn-load-run" data-id="${m.runId}" style="padding: 12px; font-size: 13px; font-weight: 700; border-radius: 12px; background: #3b82f6;">Kör betöltése</button>
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
-                        <button class="btn btn-secondary btn-sm btn-print-picking" data-id="${m.runId}" style="padding: 10px; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; border: 1.5px solid #e2e8f0;">
-                            <i class="ph-bold ph-clipboard-text"></i>
-                            Szedő
-                        </button>
-                        <button class="btn btn-secondary btn-sm btn-print-delivery" data-id="${m.runId}" style="padding: 10px; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; border: 1.5px solid #e2e8f0;">
-                            <i class="ph-bold ph-truck"></i>
-                            Szállítók
-                        </button>
-                        <button class="btn btn-secondary btn-sm btn-print-summary" data-id="${m.runId}" style="padding: 10px; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; border: 1.5px solid #e2e8f0;">
-                            <i class="ph-bold ph-file-text"></i>
-                            Összesítő
-                        </button>
-                        <button class="btn btn-secondary btn-sm btn-print-bundle" data-id="${m.runId}" style="padding: 10px; font-size: 11px; font-weight: 800; background: #0a0a0a; color: #fff; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px;">
-                            <i class="ph-bold ph-printer"></i>
-                            CSOMAG
-                        </button>
-                    </div>
+                <div class="s-section-actions" style="display: flex; flex-direction: column; gap: 10px; min-width: 220px; border-left: 1px solid #f1f5f9; padding-left: 24px; justify-content: center;">
+                    <button class="btn btn-primary btn-settle-search-run" data-run-id="${m.runId}" style="padding: 12px; font-size: 13px; font-weight: 700; border-radius: 12px; background: #3b82f6; color: white; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i class="ph-bold ph-currency-circle-dollar" style="font-size: 16px;"></i>
+                        Elszámolás megnyitása
+                    </button>
                 </div>
             `;
             hsResultsContainer.appendChild(el);
         });
 
-        // Eseménykezelők a keresési találatokhoz
-        hsResultsContainer.querySelectorAll('.btn-load-run').forEach(btn => {
+        // Eseménykezelő az elszámolás megnyitásához
+        hsResultsContainer.querySelectorAll('.btn-settle-search-run').forEach(btn => {
             btn.addEventListener('click', async (e) => {
-                const runId = e.target.getAttribute('data-id');
+                const runId = e.target.closest('button').getAttribute('data-run-id');
                 const run = await HistoryManager.getRunById(runId);
-                if (run) {
-                    const confirm = await CustomDialog.confirm(`Biztosan betöltöd ezt a kört? (${run.date} - ${run.courier})<br>A jelenlegi (nem mentett) adataid elvesznek!`, 'Kör betöltése', 'warning');
-                    if (confirm) {
-                        orders = JSON.parse(JSON.stringify(run.orders));
-                        currentLoadedRunId = run.id;
-                        originalLoadedRun = JSON.parse(JSON.stringify(run));
-                        renderOrders();
-                        historyModal.classList.remove('active');
-                    }
+                if (!run) return;
+                
+                let runCOD = 0;
+                run.orders.forEach(o => { if(o.isCOD) runCOD += o.codAmount; });
+                
+                const existingState = {
+                    uncollectedOrderIds: run.uncollectedOrderIds || [],
+                    uncollectedReasons: run.uncollectedReasons || {},
+                    partialOrders: run.partialOrders || {},
+                    bankTransferredOrderIds: run.bankTransferredOrderIds || [],
+                    uncollectedResponsibility: run.uncollectedResponsibility || {}
+                };
+                
+                const result = await showSettlementDialog(run, runCOD, existingState);
+                if (result === null) return;
+                
+                if (await HistoryManager.updateSettlementStatus(run.docId, result.settledAmount, runCOD, result.uncollectedOrderIds, result.uncollectedReasons, result.partialOrders, result.bankTransferredOrderIds, result.uncollectedResponsibility)) {
+                    handleHistorySearch();
                 }
-            });
-        });
-
-        hsResultsContainer.querySelectorAll('.btn-print-picking').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const runId = e.target.getAttribute('data-id');
-                const run = await HistoryManager.getRunById(runId);
-                if (run) await UnifiedPrinter.printSingle(run, 'picking');
-            });
-        });
-
-        hsResultsContainer.querySelectorAll('.btn-print-delivery').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const runId = e.target.getAttribute('data-id');
-                const run = await HistoryManager.getRunById(runId);
-                if (run) await UnifiedPrinter.printSingle(run, 'delivery');
-            });
-        });
-
-        hsResultsContainer.querySelectorAll('.btn-print-summary').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const runId = e.target.getAttribute('data-id');
-                const run = await HistoryManager.getRunById(runId);
-                if (run) await UnifiedPrinter.printSingle(run, 'summary');
-            });
-        });
-
-        hsResultsContainer.querySelectorAll('.btn-print-bundle').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const runId = e.target.getAttribute('data-id');
-                const run = await HistoryManager.getRunById(runId);
-                if (run) await UnifiedPrinter.printBundle(run);
             });
         });
     }

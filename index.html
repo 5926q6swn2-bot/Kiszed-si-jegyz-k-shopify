@@ -252,6 +252,7 @@
             </div>
             <div class="modal-tabs" style="display: flex; border-bottom: 1px solid #e2e8f0; margin-bottom: 15px;">
                 <button id="tab-btn-history" class="tab-btn active" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid var(--primary-color); font-weight: 600; color: var(--primary-color); cursor: pointer;">Szedések</button>
+                <button id="tab-btn-orders" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Rendelések</button>
                 <button id="tab-btn-quick" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;"><i class="ph-bold ph-lightning" style="font-size: 13px;"></i>Gyors SzL</button>
                 <button id="tab-btn-accounting" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Elszámolások</button>
                 <button id="tab-btn-stats" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Statisztika</button>
@@ -320,19 +321,25 @@
                     <div id="history-runs-container" style="display: flex; flex-direction: column; gap: 10px;">
                         <!-- JS generálja ide a köröket -->
                     </div>
-                </div>
-                <!-- Összevonás action bar -->
-                <div id="merge-action-bar" style="display:none;position:sticky;bottom:0;background:rgba(255,255,255,0.97);backdrop-filter:blur(8px);border-top:1px solid #e2e8f0;padding:10px 0;margin-top:10px;border-radius:0 0 12px 12px;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-                        <span id="merge-selection-label" style="font-size:13px;font-weight:600;color:#374151;">0 kör kijelölve</span>
-                        <div style="display:flex;gap:8px;">
-                            <button id="btn-do-merge" disabled style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;font-size:13px;font-weight:700;border:none;border-radius:9px;background:#6366f1;color:#fff;cursor:pointer;font-family:inherit;opacity:0.4;">
-                                <i class="ph-bold ph-git-merge"></i>Összevon
-                            </button>
-                            <button id="btn-cancel-merge-mode" style="padding:8px 14px;font-size:13px;font-weight:600;border:1.5px solid #e2e8f0;border-radius:9px;background:#f8fafc;color:#64748b;cursor:pointer;font-family:inherit;">Mégse</button>
-                        </div>
+                    <div id="merge-action-bar" style="display:none;position:sticky;bottom:0;background:rgba(255,255,255,0.97);backdrop-filter:blur(8px);border-top:1px solid #e2e8f0;padding:10px 0;margin-top:10px;border-radius:0 0 12px 12px;">
+                     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                         <span id="merge-selection-label" style="font-size:13px;font-weight:600;color:#374151;">0 kör kijelölve</span>
+                         <div style="display:flex;gap:8px;">
+                             <button id="btn-do-merge" disabled style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;font-size:13px;font-weight:700;border:none;border-radius:9px;background:#6366f1;color:#fff;cursor:pointer;font-family:inherit;opacity:0.4;">
+                                 <i class="ph-bold ph-git-merge"></i>Összevon
+                             </button>
+                             <button id="btn-cancel-merge-mode" style="padding:8px 14px;font-size:13px;font-weight:600;border:1.5px solid #e2e8f0;border-radius:9px;background:#f8fafc;color:#64748b;cursor:pointer;font-family:inherit;">Mégse</button>
+                         </div>
+                     </div>
                     </div>
                 </div>
+                </div> <!-- /#tab-content-history -->
+
+                <!-- Tab: Rendelések -->
+                <div id="tab-content-orders" style="display: none; flex: 1;">
+                    <div id="orders-tab-container" style="display: flex; flex-direction: column; gap: 8px;">
+                        <!-- JS generálja -->
+                    </div>
                 </div>
 
                 <!-- Tab 2: Gyors SzL -->
@@ -492,7 +499,7 @@
             }
         });
     </script>
-    <script type="module" src="js/app.js?v=105"></script>
+    <script type="module" src="js/app.js?v=109"></script>
     <div id="print-area"></div>
 
     <!-- Összevonás Modal -->
