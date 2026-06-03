@@ -1,17 +1,35 @@
-# Kiszedési Jegyzék - Architektúra és Fejlesztési Szabályok
+# Kiszedési Jegyzék Shopify - Architektúra Útmutató
 
-## 1. Alapelv: Moduláris Felépítés
-A jövőbeli fejlesztések során a monolitikus `app.js` fájlt (amely jelenleg több ezer soros és stabilan működik) **NEM módosítjuk tömegesen**, és **NEM adunk hozzá új funkciókat**. 
+> [!IMPORTANT]
+> **Kötelező Olvasmány Fejlesztés Előtt!**
+> Ez a projekt egy szigorúan moduláris architektúrát követ a tiszta és fenntartható kód érdekében. Tilos funkciókat a fő `app.js` fájlba "beégetni" (monolitikus fejlesztés).
 
-## 2. Új funkciók hozzáadása
-Minden új funkciót, nézetet vagy szolgáltatást egy **teljesen új, különálló fájlban** kell létrehozni. 
-- A felületi logikákat (nézeteket) a `js/views/` mappába.
-- Az adatbázis és külső szolgáltatás logikákat a `js/services/` mappába.
-- A segédfüggvényeket a `js/utils/` mappába.
+## Core Architektúra Alapelvek
 
-## 3. Integráció az app.js-be
-Az új fájlokban megírt logikát ES Modules szabvány szerint exportálni kell (`export function...`), majd az `app.js` legtetején beimportálni (`import { ... } from './views/uj-funkcio.js';`), és csak a legszükségesebb meghívásokat elhelyezni az `app.js` inicializáló részében.
+A rendszer négy fő rétegre oszlik, amelyeket a jövőbeli fejlesztéseknél automatikusan alkalmazni kell:
 
-## 4. Tiltott műveletek
-- Tilos az `app.js` meglévő, működő funkcióinak tömeges kivágása és áthelyezése automatizált szkriptekkel, mert az eseménykezelők (event listeners) elvesztéséhez vezethet.
-- Ha egy régi funkciót mégis refaktorálni kell, azt kizárólag manuálisan, sorról sorra ellenőrizve szabad megtenni.
+### 1. Állapotkezelés (State Layer) - `js/store/state.js`
+- **Szerepe:** Az alkalmazás egyetlen "igazságforrása" (Single Source of Truth). Minden globális változót, tömböt, állapotot itt kell tárolni.
+- **Szabály:** Nem lehetnek globális `let` vagy `var` deklarációk az `app.js`-ben vagy más modulokban. Mindenki a `Store.getState()` és a megfelelő setter metódusokon keresztül férhet hozzá az adatokhoz.
+
+### 2. Szolgáltatások (Service Layer) - `js/services/`
+- **Szerepe:** Független, állapot nélküli (stateless) logikai blokkok, amelyek bemenetet kapnak és kimenetet adnak.
+- **Példák:** `shopify.js` (CSV átalakítása JS objektumokká), `printer.js` (HTML string generálása nyomtatáshoz), `history.js` (Firebase adatbázis hívások).
+- **Szabály:** Nem manipulálhatják közvetlenül a DOM-ot (nem hivatkozhatnak `document.getElementById`-re), és nem módosíthatják a `Store`-t közvetlenül.
+
+### 3. Nézetek (View Layer) - `js/views/`
+- **Szerepe:** Az adatok (State) vizuális megjelenítése a képernyőn (HTML generálás, DOM manipuláció).
+- **Példák:** `ordersView.js` (Rendeléskártyák legenerálása és beszúrása az `#order-list` elembe).
+- **Szabály:** A View csak "rajzol". Nem hoz üzleti döntéseket, nem formáz adatokat (erre a Services való).
+
+### 4. Irányító (Controller Layer) - `js/app.js`
+- **Szerepe:** A fő belépési pont. Ő fogja össze a fenti három réteget.
+- **Szabály:** Kizárólag eseménykezelőket (`addEventListener`) tartalmaz, és delegálja a feladatokat.
+- **Példa:** Megnyomják a "Feltöltés" gombot -> `app.js` beküldi a fájlt a `ShopifyParser`-be (Service) -> a kapott adatokat odaadja a `Store`-nak (State) -> végül meghívja a `renderOrders()` függvényt (View).
+
+## Hogyan implementálj egy új funkciót?
+
+1. Kérdezd meg magadtól: Milyen **adatok** kellenek ehhez? (Készítsd el a state-et a `store/state.js`-ben).
+2. Kérdezd meg magadtól: Mi a **logika**? (Készíts egy tiszta funkciót a `services/` alá).
+3. Kérdezd meg magadtól: Hogyan **néz ki**? (Készíts egy rajzoló funkciót a `views/` alá).
+4. **Köss össze** mindent az `app.js` egyetlen eseménykezelőjében!

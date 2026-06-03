@@ -108,6 +108,10 @@ Every project MUST have a `fejlesztesi_naplo.md` file. This is your "short-term 
 - **Check Before Listen:** Always wrap event listeners in existence checks (e.g., `if (button) { button.addEventListener... }`). This prevents the script from crashing if a UI element is missing from a specific page.
 - **No Naked Variables:** Never use or check a variable (especially DOM elements) without declaring it (`const`/`let`) at the top of the scope.
 
+📦 **Moduláris Architektúra & Duplikáció Kerülése (NEW):**
+- Szigorúan TILOS backend vagy UI service logikát (pl. Firebase hívások, Parser-ek, Printer rendszerek, egyedi Dialógusok) "inline" beégetni a fő `app.js`-be. 
+- Mindent, ami elkülöníthető felelősségi kör, a `js/services/` vagy `js/utils/` mappában lévő dedikált fájlokból kell ES module `import`-al meghívni a monolitikus fájlméret (6000+ sor) elkerülése érdekében.
+
 🔍 **Console-First Debugging:**
 - If the UI is unresponsive (buttons don't click, modals don't open), **the very first step** is to check the Browser Console (`F12`).
 - Identify the exact error (ReferenceError, SyntaxError, 404) and line number before attempting to fix the code.

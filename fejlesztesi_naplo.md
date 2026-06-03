@@ -7,11 +7,13 @@ Ez a dokumentum a projekt teljes leírását, technikai specifikációit és a f
 
 ## 🏗️ Projekt Specifikáció & Design Guidelines
 
+**[KÖTELEZŐ OLVASMÁNY]** Kérlek olvasd el az `ARCHITECTURE.md` fájlt a projekt gyökerében, mielőtt bármilyen fejlesztésbe kezdesz. Ez tartalmazza az MVC/Moduláris architektúra szabályait, amiket szigorúan követni kell!
+
 Az ágensnek minden módosításkor tartania kell magát az alábbi stack-hez és stílushoz:
 
 - **Frontend**: Vanilla HTML5, CSS3.
 - **Dizájn Irányzat**: Modern, Apple-stílusú **Glassmorphism** (áttetsző rétegek, blur effekt, lekerekített sarkok, tiszta tipográfia).
-- **Logika**: Vanilla JavaScript (Szigorúan **ES Modules** architektúra, `app.js`).
+- **Logika**: Vanilla JavaScript (Szigorúan **ES Modules** architektúra, lásd `ARCHITECTURE.md`).
 - **Adatbázis & Backend**: Google Firebase (Cloud Firestore & Authentication).
 - **Alapszabály**: Minden Firebase/Firestore hívást aszinkron módon, `await` kulcsszóval kell kezelni (különösen a `HistoryManager` objektumban).
 

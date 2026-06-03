@@ -11,7 +11,7 @@ export const ShopifyParser = {
         if (!name) return '';
         
         // Ha profil, kivesszük a méreteket, mert nincsenek összekészítve
-        if (isProfile(name)) {
+        if (ShopifyParser.isProfile(name)) {
             let cleanName = name.replace(/\b\d+(\.\d+)?\s*(cm|m|mm)\b/gi, '')
                                 .replace(/\b\d+\s*x\s*\d+\b/gi, '')
                                 .replace(/\(\s*\)/g, '')
@@ -52,7 +52,7 @@ export const ShopifyParser = {
             }
 
             const rawItemName = row['Lineitem name'] || '';
-            const itemName = formatItemName(rawItemName);
+            const itemName = ShopifyParser.formatItemName(rawItemName);
             const itemQty = parseInt(row['Lineitem quantity']) || 0;
             const itemPriceStr = row['Lineitem price'] || "0";
             const itemPrice = parseFloat(itemPriceStr) || 0;
@@ -245,9 +245,9 @@ export const ShopifyParser = {
         
         newOrders.forEach(order => {
             if (order.tags.toLowerCase().includes('prof.ök.')) {
-                const profiles = order.items.filter(item => isProfile(item.name));
+                const profiles = order.items.filter(item => ShopifyParser.isProfile(item.name));
                 if (profiles.length > 0) {
-                    order.items = order.items.filter(item => !isProfile(item.name));
+                    order.items = order.items.filter(item => !ShopifyParser.isProfile(item.name));
                     let totalPrice = profiles.reduce((sum, item) => sum + (item.price * item.qty), 0);
                     order.items.push({
                         name: "Összekészített profilok",
@@ -260,14 +260,17 @@ export const ShopifyParser = {
             }
             
             order.items.sort((a, b) => {
-                const typeA = getItemTypeWeight(a.name);
-                const typeB = getItemTypeWeight(b.name);
+                const typeA = ShopifyParser.getItemTypeWeight(a.name);
+                const typeB = ShopifyParser.getItemTypeWeight(b.name);
                 return typeA - typeB;
             });
             
-            
+            finalNewOrders.push(order);
         });
 
-        
+        return {
+            newOrders: finalNewOrders,
+            skippedOrderIds: skippedOrderIds
+        };
     }
 };
