@@ -2861,9 +2861,9 @@ function initApp() {
         let runs = await HistoryManager.getAllRuns();
         const onlyPending = accountingFilterPending.checked;
 
-        // Szűrés: csak COD-os fuvarok; részleges is eltűnik ha filter ON
+        // Szűrés: a dátum/cég szűrők alapján
         runs = runs.filter(r => isFiltered(r));
-        runs = runs.filter(r => r.orders.some(o => o.isCOD));
+        // Eltávolítva: runs = runs.filter(r => r.orders.some(o => o.isCOD)); -> Mutassa a nem utánvétes köröket is
         if (onlyPending) {
             runs = runs.filter(r => !r.isSettled && !(r.settledAmount > 0));
         }
