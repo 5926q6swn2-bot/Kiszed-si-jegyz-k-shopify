@@ -29,13 +29,17 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 🔄 Session Handover (Aktuális Állapot)
 
-- **Utolsó aktív modell**: Claude Sonnet 4.6
-- **Státusz**: A rendszer stabil. Rendezési mód (sort mode) elkészült, DnD vizuálok teljesen átdolgozva. 6 db Shopify CSV-specifikus bugjavítás és a cache-busting is aktív (`app.js?v=4`).
+- **Utolsó aktív modell**: Gemini 3.1 Pro
+- **Státusz**: A rendszer stabil. Kijavítva az editOrder TypeError a manualController-ben (`app.js?v=112`).
 - **Folytatás**: Nincs aktív TODO. Következő session igény szerint.
 
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. június 4. - Kisebb hibajavítás
+- **manualController Edit Bug:** Kijavítva a `TypeError: manualController.editOrder is not a function` hiba. Az `app.js` mostantól a helyes `openEditModal` függvényt hívja a rendelések szerkesztésekor.
+- **Cache verzió frissítve:** `app.js?v=112`
 
 ### Legutóbbi frissítés: 2026. május 6. (Rendszer javítások és szépítések)
 - **Utánvét Felismerés Javítás:** A Shopify Notes mezőből az "uv" kulcsszó felismerése regex-re állítva, hogy az `uv:12000`, `uv12000`, `12000 uv` formátumok mind megfelelően feldolgozódjanak. A lappangó utánvét ellenőrzés is robusztusabb lett.

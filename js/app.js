@@ -1,4 +1,4 @@
-﻿import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, query, orderBy, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from './firebase-config.js?v=40';
+import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, query, orderBy, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from './firebase-config.js?v=40';
 import { CustomDialog } from './utils/dialog.js';
 import { HistoryManager } from './services/history.js';
 import { UnifiedPrinter } from './services/printer.js';
@@ -425,7 +425,7 @@ function initApp() {
                 const internalId = card.getAttribute('data-internal-id');
                 const order = Store.orders.find(o => o.internalId === internalId);
                 
-                if(order) manualController.editOrder(order);
+                if(order) manualController.openEditModal(order);
             });
         });
     }

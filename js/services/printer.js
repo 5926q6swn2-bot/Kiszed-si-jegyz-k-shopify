@@ -11,7 +11,7 @@ export const UnifiedPrinter = {
         printBundle: async function(run) {
             this.clear();
             const pickingHtml = this.generatePickingHtml(run);
-            const summaryHtml = this.generateSummaryHtml(run, true); // 2x summary
+            const summaryHtml = this.generateSummaryHtml(run, false); // 1x summary
             const correctionHtml = this.generateCorrectionHtml(run);
             const deliveryHtml = this.generateDeliveryNotesHtml(run, true); // 2x delivery
 
@@ -34,7 +34,7 @@ export const UnifiedPrinter = {
             this.clear();
             let html = '';
             if (types.picking) html += this.generatePickingHtml(run);
-            if (types.summary) html += this.generateSummaryHtml(run, true) + this.generateCorrectionHtml(run);
+            if (types.summary) html += this.generateSummaryHtml(run, false) + this.generateCorrectionHtml(run);
             if (types.delivery) html += this.generateDeliveryNotesHtml(run, true);
             if (!html) return;
             this.area.innerHTML = html;
@@ -151,7 +151,7 @@ export const UnifiedPrinter = {
 
                     <div style="margin-top: 100px; display: flex; justify-content: space-between;">
                         <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átadó (Raktár)</div>
-                        <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átvette (Szállító)</div>
+                        <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átvevő (Szállító)</div>
                     </div>
                 </div>
             `;
@@ -183,6 +183,11 @@ export const UnifiedPrinter = {
                         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Várható utánvét:</span><strong>${(run.orders.reduce((sum, o) => sum + (o.isCOD ? o.codAmount : 0), 0)).toLocaleString('hu-HU')} Ft</strong></div>
                         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Meghiúsult:</span><span>.................... Ft</span></div>
                         <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; border-top: 2px solid #000; padding-top: 10px;"><span>Befizetve:</span><span>.................... Ft</span></div>
+                    </div>
+
+                    <div style="margin-top: 80px; display: flex; justify-content: space-between;">
+                        <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átadó (Szállító)</div>
+                        <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átvevő (Raktár)</div>
                     </div>
                 </div>
             `;
