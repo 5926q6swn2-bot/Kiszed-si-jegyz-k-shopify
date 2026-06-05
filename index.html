@@ -322,9 +322,14 @@
 
                 <!-- Tab 3: Elszámolások -->
                 <div id="tab-content-accounting" style="display: none; flex: 1;">
-                    <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px; background: #f1f5f9; padding: 10px; border-radius: 8px;">
-                        <input type="checkbox" id="accounting-filter-pending" checked style="width: 18px; height: 18px; cursor: pointer;">
-                        <label for="accounting-filter-pending" style="margin: 0; font-size: 13px; font-weight: 600; cursor: pointer; color: #475569;">Csak a kiegyenlítésre váró fuvarok mutatása</label>
+                    <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px; background: #f1f5f9; padding: 10px; border-radius: 8px; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="accounting-filter-pending" checked style="width: 18px; height: 18px; cursor: pointer;">
+                            <label for="accounting-filter-pending" style="margin: 0; font-size: 13px; font-weight: 600; cursor: pointer; color: #475569;">Csak a kiegyenlítésre váró fuvarok mutatása</label>
+                        </div>
+                        <button type="button" id="btn-export-accounting-csv" title="Szűrt elszámolások exportálása CSV-be" style="padding: 8px 14px; border-radius: 8px; border: 1.5px solid #10b981; background: #10b981; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit; transition: all .15s;">
+                            <i class="ph-bold ph-download-simple" style="font-size: 14px;"></i>Export CSV
+                        </button>
                     </div>
                     <div id="accounting-runs-container" style="display: flex; flex-direction: column; gap: 10px;">
                         <!-- JS generálja ide az elszámolásokat -->
@@ -470,7 +475,7 @@
             }
         });
     </script>
-    <script type="module" src="js/app.js?v=115"></script>
+    <script type="module" src="js/app.js?v=116"></script>
     <div id="print-area"></div>
 
 </body>

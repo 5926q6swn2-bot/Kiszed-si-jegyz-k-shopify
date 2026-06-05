@@ -29,13 +29,19 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 🔄 Session Handover (Aktuális Állapot)
 
-- **Utolsó aktív modell**: Gemini 3.1 Pro
-- **Státusz**: A rendszer stabil. Kijavítva az editOrder TypeError a manualController-ben (`app.js?v=112`).
+- **Utolsó aktív modell**: Gemini 3.5 Flash
+- **Státusz**: A rendszer stabil. Elkészült az elszámolások CSV exportja és az utánvétes rendelési számok megjelenítése badge-ként (`app.js?v=116`).
 - **Folytatás**: Nincs aktív TODO. Következő session igény szerint.
 
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. június 5. - Szállítócég elszámolás export & UI badge-ek
+- **Elszámolás CSV export:** Bevezettük az `#btn-export-accounting-csv` gombot az Elszámolások tab filter sávjába, amivel a szűrt terítések/elszámolások részletesen kimenthetők Excel-kompatibilis CSV formátumban. Az export tartalmazza a rendelés státuszát, a futár által begyűjtött összeget és a szállító kintlévőségét/tartozását.
+- **Utánvétes badge-ek a kártyákon:** Az elszámolás kártyákon azonnal, lenyitás nélkül megjelennek az utánvétes rendelések számai kis színes státusz badge-ek formájában (szürke = függő, kék = utalva, sárga = részleges, zöld = elszámolva, piros = kiesett).
+- **Exporter Service:** Létrejött a `js/services/exporter.js` moduláris szolgáltatás.
+- **Cache verzió frissítve:** `app.js?v=116`
 
 ### 2026. június 4. - Kisebb hibajavítás
 - **manualController Edit Bug:** Kijavítva a `TypeError: manualController.editOrder is not a function` hiba. Az `app.js` mostantól a helyes `openEditModal` függvényt hívja a rendelések szerkesztésekor.

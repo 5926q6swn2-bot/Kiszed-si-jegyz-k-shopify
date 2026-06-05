@@ -848,6 +848,43 @@ export function initHistoryView(context) {
                 const reasons        = run.uncollectedReasons || {};
                 const partialOrders  = run.partialOrders || {};
                 const bankTransferred = run.bankTransferredOrderIds || [];
+
+                const codBadges = run.orders.filter(o => o.isCOD).map(o => {
+                    const isUncollected = uncollected.includes(o.id);
+                    const isBankTransferred = bankTransferred.includes(o.id);
+                    const isPartial = !isUncollected && !isBankTransferred && !!partialOrders[o.id];
+                    let badgeBg = '#f1f5f9';
+                    let badgeColor = '#475569';
+                    let statusLabel = 'Függő';
+                    if (isUncollected) {
+                        badgeBg = '#fee2e2';
+                        badgeColor = '#ef4444';
+                        statusLabel = 'Kiesett';
+                    } else if (isBankTransferred) {
+                        badgeBg = '#dbeafe';
+                        badgeColor = '#3b82f6';
+                        statusLabel = 'Utalva';
+                    } else if (isPartial) {
+                        badgeBg = '#ffedd5';
+                        badgeColor = '#f97316';
+                        statusLabel = 'Részleges';
+                    } else if (run.isSettled) {
+                        badgeBg = '#d1fae5';
+                        badgeColor = '#10b981';
+                        statusLabel = 'Elszámolva';
+                    }
+                    return `<span class="acc-order-badge" style="font-size:10px; font-weight:700; background:${badgeBg}; color:${badgeColor}; border:1px solid ${badgeColor}33; padding:2px 6px; border-radius:6px; display:inline-flex; align-items:center; gap:3px;" title="${o.shippingName || ''} · ${statusLabel}">
+                        ${o.id}
+                    </span>`;
+                }).join(' ');
+
+                const codBadgeContainer = codBadges 
+                    ? `<div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:4px; align-items:center;">
+                        <span style="font-size:10px; font-weight:600; color:#64748b; margin-right:4px;">Utánvétek:</span>
+                        ${codBadges}
+                       </div>` 
+                    : '';
+
                 const orderChips = run.orders.map(o => {
                     const isUncollected = uncollected.includes(o.id);
                     const isBankTransferred = bankTransferred.includes(o.id);
@@ -890,6 +927,7 @@ export function initHistoryView(context) {
                                 <span style="color:#94a3b8;">${run.orders.length} rendelés</span>
                                 ${runCOD > 0 ? `<span style="color:#d1d5db;">·</span><strong style="color:#b91c1c;">${runCOD.toLocaleString('hu-HU')} Ft</strong>` : ''}
                             </div>
+                            ${codBadgeContainer}
                         </div>
                         <div style="display:flex;align-items:center;gap:6px;">
                             <button class="hac-btn-action hac-btn-ghost btn-print-summary" data-id="${run.id}" style="font-size:12px;">

@@ -8,6 +8,7 @@ import { Store } from './store/state.js';
 import { OrdersView } from './views/ordersView.js';
 import { initManualOrderController } from './controllers/manualOrderController.js';
 import { renderStatistics } from './views/stats.js';
+import { ExporterService } from './services/exporter.js';
 
 import { generatePdfHtml, openPdfView, generateDeliveryNotesHtml } from './utils/printTemplates.js';
 function initApp() {
@@ -840,6 +841,20 @@ function initApp() {
             historyDateEnd.value = '';
             historyCompanyFilter.value = '';
             onDateChange();
+        });
+    }
+
+    const btnExportAccountingCsv = document.getElementById('btn-export-accounting-csv');
+    if (btnExportAccountingCsv) {
+        btnExportAccountingCsv.addEventListener('click', async () => {
+            const allRuns = await HistoryManager.getAllRuns();
+            let filteredRuns = allRuns.filter(r => isFiltered(r));
+            
+            if (accountingFilterPending && accountingFilterPending.checked) {
+                filteredRuns = filteredRuns.filter(r => !r.isSettled && !(r.settledAmount > 0));
+            }
+            
+            ExporterService.exportAccountingToCsv(filteredRuns);
         });
     }
 
