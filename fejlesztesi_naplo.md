@@ -29,13 +29,21 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 🔄 Session Handover (Aktuális Állapot)
 
-- **Utolsó aktív modell**: Gemini 3.5 Flash
-- **Státusz**: A rendszer stabil. Elkészült az elszámolások CSV exportja és az utánvétes rendelési számok megjelenítése badge-ként (`app.js?v=116`).
-- **Folytatás**: Nincs aktív TODO. Következő session igény szerint.
+- **Utolsó aktív modell**: Gemini 3.5 Flash (Antigravity)
+- **Státusz**: A rendszer stabil. Elkészült a PannonXP Címkekonvertáló tab többszörös feladó profilkezeléssel és görgethető beállítások panellel (`app.js?v=118`).
+- **Folytatás**: Nincs aktív TODO, igény szerint.
 
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. június 11. - PannonXP Címkekonvertáló modul integráció
+- **Címkekonvertáló fül:** Új főoldali navigációs fül ("PannonXP Címkék") a fejlécben, amivel a szedőlista és a címke-előkészítő között lehet váltani.
+- **PannonXP exportáló szolgáltatás:** Létrejött a `js/services/pannonxp.js` szolgáltatás az 54 oszlopos pontosvesszős CSV és a `szl_csomagok` JSON generáláshoz.
+- **Interaktív Csomagbeállító és Feladó Profilok:** Létrejött a `js/views/pannonxpView.js` nézet a rendelések csomagszámának és súlyának exportálás előtti szerkesztéséhez. Bevezettünk többszörös menthető/törölhető feladó profilokat (`Capsula Houses Kft.`, `Minta cég Kft.`) profilválasztóval.
+- **Dizájn optimalizáció:** A feladó kártya maximális magasságot és görgetősávot kapott, így nem lóg ki alul a kisebb képernyőkről sem.
+- **Karakterkódolás:** A letöltött CSV UTF-8 BOM kódolással rendelkezik, így a magyar ékezetes karakterek közvetlenül megnyithatók és szerkeszthetők Excelben.
+- **Cache verzió frissítve:** `app.js?v=118`
 
 ### 2026. június 5. - Szállítócég elszámolás export & UI badge-ek
 - **Elszámolás CSV export:** Bevezettük az `#btn-export-accounting-csv` gombot az Elszámolások tab filter sávjába, amivel a szűrt terítések/elszámolások részletesen kimenthetők Excel-kompatibilis CSV formátumban. Az export tartalmazza a rendelés státuszát, a futár által begyűjtött összeget és a szállító kintlévőségét/tartozását.

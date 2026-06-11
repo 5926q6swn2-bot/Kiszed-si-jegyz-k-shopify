@@ -3,6 +3,8 @@ import { CustomDialog } from './utils/dialog.js';
 import { HistoryManager } from './services/history.js';
 import { UnifiedPrinter } from './services/printer.js';
 import { ShopifyParser } from './services/shopify.js';
+import { PannonXPService } from './services/pannonxp.js';
+import { PannonXPView } from './views/pannonxpView.js';
 import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js';
 import { Store } from './store/state.js';
 import { OrdersView } from './views/ordersView.js';
@@ -125,6 +127,16 @@ function initApp() {
     let activeStatsTab = 'charts';
     const geoCache = JSON.parse(localStorage.getItem('hu_zip_geocache_v1') || '{}');
 
+    // PannonXP Állapot és Elemek
+    let activeMainTab = 'picking'; // 'picking' | 'pannonxp'
+    let pxpOrders = [];
+    const tabMainPicking = document.getElementById('tab-main-picking');
+    const tabMainPannonXP = document.getElementById('tab-main-pannonxp');
+    const pannonXPContainer = document.getElementById('pannonxp-container');
+    const mainContent = document.querySelector('.main-content');
+    const dynamicIsland = document.getElementById('dynamic-island');
+    const historyIsland = document.getElementById('history-island');
+
     const manualController = initManualOrderController({
         renderOrders,
         updatePrintButtonState
@@ -135,6 +147,83 @@ function initApp() {
 
     // Kezdeti üres állapot renderelése
     renderOrders();
+
+    // --- MAIN TAB TOGGLE (Picking vs PannonXP) ---
+    if (tabMainPicking && tabMainPannonXP) {
+        tabMainPicking.addEventListener('click', () => {
+            activeMainTab = 'picking';
+            tabMainPicking.classList.add('active');
+            tabMainPicking.style.background = '#fff';
+            tabMainPicking.style.color = '#0f172a';
+            tabMainPicking.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+            tabMainPicking.style.fontWeight = '600';
+            
+            tabMainPannonXP.classList.remove('active');
+            tabMainPannonXP.style.background = 'transparent';
+            tabMainPannonXP.style.color = '#64748b';
+            tabMainPannonXP.style.boxShadow = 'none';
+            tabMainPannonXP.style.fontWeight = '500';
+            
+            if (pannonXPContainer) pannonXPContainer.style.display = 'none';
+            if (mainContent) mainContent.style.display = 'block';
+            if (dynamicIsland) dynamicIsland.style.display = 'flex';
+            if (historyIsland) historyIsland.style.display = 'block';
+            
+            // Ha nincsenek rendelések a szedőlistában, mutassuk az üres állapotot
+            if (Store.orders.length === 0) {
+                if (emptyState) emptyState.style.display = 'flex';
+            } else {
+                if (emptyState) emptyState.style.display = 'none';
+            }
+        });
+        
+        tabMainPannonXP.addEventListener('click', () => {
+            activeMainTab = 'pannonxp';
+            tabMainPannonXP.classList.add('active');
+            tabMainPannonXP.style.background = '#fff';
+            tabMainPannonXP.style.color = '#0f172a';
+            tabMainPannonXP.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+            tabMainPannonXP.style.fontWeight = '600';
+            
+            tabMainPicking.classList.remove('active');
+            tabMainPicking.style.background = 'transparent';
+            tabMainPicking.style.color = '#64748b';
+            tabMainPicking.style.boxShadow = 'none';
+            tabMainPicking.style.fontWeight = '500';
+            
+            if (mainContent) mainContent.style.display = 'none';
+            if (emptyState) emptyState.style.display = 'none';
+            if (dynamicIsland) dynamicIsland.style.display = 'none';
+            if (historyIsland) historyIsland.style.display = 'none';
+            if (pannonXPContainer) {
+                pannonXPContainer.style.display = 'block';
+                PannonXPView.render(pannonXPContainer, pxpOrders, handlePxpExport);
+            }
+        });
+    }
+
+    function handlePxpExport() {
+        const senderSettings = PannonXPService.getActiveProfile();
+        const selectedOrders = pxpOrders.filter(o => o.pxp_selected);
+        if (selectedOrders.length === 0) {
+            CustomDialog.alert('Nincs kijelölt rendelés az exportáláshoz!', 'Figyelmeztetés', 'warning');
+            return;
+        }
+        const csvContent = PannonXPService.convertToCSV(selectedOrders, senderSettings);
+        
+        // Letöltés UTF-8-ban, BOM-mal Excel támogatáshoz
+        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        
+        const now = new Date();
+        const dateStr = now.toISOString().split('T')[0];
+        link.setAttribute('download', `pannonxp_import_${dateStr}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
 
 
     // --- Rendezési mód toggle ---
@@ -192,6 +281,40 @@ function initApp() {
 
     // --- Üzleti Logika ---
     function processShopifyData(rows) {
+        if (activeMainTab === 'pannonxp') {
+            const result = ShopifyParser.parse(rows, pxpOrders);
+            result.newOrders.forEach(order => {
+                const matchingRow = rows.find(r => r['Name'] === order.id);
+                if (matchingRow) {
+                    order.zip = matchingRow['Shipping Zip'] || '';
+                    order.city = matchingRow['Shipping City'] || '';
+                    order.address1 = matchingRow['Shipping Address1'] || '';
+                    order.address2 = matchingRow['Shipping Address2'] || '';
+                    order.countryCode = matchingRow['Shipping Country'] || 'HU';
+                    order.shippingCompany = matchingRow['Shipping Company'] || '';
+                }
+                pxpOrders.push(order);
+            });
+            
+            if (result.skippedOrderIds.size > 0) {
+                CustomDialog.alert(`${result.skippedOrderIds.size} db ismétlődő rendelést automatikusan kihagytunk.`, 'Duplikáció szűrve');
+            }
+            
+            PannonXPView.renderOrders(pxpOrders);
+            
+            const tbody = document.getElementById('pxp-table-body');
+            if (tbody) {
+                if (pxpOrders.length === 0) {
+                    tbody.style.cursor = 'pointer';
+                    tbody.onclick = () => fileInput.click();
+                } else {
+                    tbody.onclick = null;
+                    tbody.style.cursor = '';
+                }
+            }
+            return;
+        }
+
         const result = ShopifyParser.parse(rows, Store.orders);
         
         result.newOrders.forEach(order => {

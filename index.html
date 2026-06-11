@@ -52,6 +52,11 @@
             <div class="logo">KOPJ</div>
             <h1>Szedőlista <span class="version" style="font-size: 12px; font-weight: normal; color: var(--text-muted);">v3.0 (Felhő)</span></h1>
             
+            <div class="header-tabs no-print" style="margin-left: 20px; display: flex; gap: 6px; background: #e2e8f0; padding: 4px; border-radius: 10px; border: 1px solid #cbd5e1;">
+                <button id="tab-main-picking" class="header-tab-btn active" style="padding: 6px 12px; border-radius: 7px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; background: #fff; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">Szedőlista</button>
+                <button id="tab-main-pannonxp" class="header-tab-btn" style="padding: 6px 12px; border-radius: 7px; border: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; background: transparent; color: #64748b;">PannonXP Címkék</button>
+            </div>
+            
             <div style="margin-left: auto; display: flex; gap: 10px; align-items: center;">
                 <span id="user-email-display" style="font-size: 13px; color: #64748b; font-weight: 500;"></span>
                 <button id="btn-logout" class="btn btn-secondary" style="padding: 8px 12px; font-size: 13px;" title="Kijelentkezés">
@@ -93,6 +98,9 @@
                 </div>
             </div>
         </main>
+        
+        <!-- PannonXP Címkekonvertáló Konténer -->
+        <div id="pannonxp-container" class="no-print" style="display: none; width: 100%;"></div>
     </div>
 
     <!-- DYNAMIC ISLAND (Lebegő Alsó Panel) -->
@@ -475,7 +483,7 @@
             }
         });
     </script>
-    <script type="module" src="js/app.js?v=116"></script>
+    <script type="module" src="js/app.js?v=118"></script>
     <div id="print-area"></div>
 
 </body>
