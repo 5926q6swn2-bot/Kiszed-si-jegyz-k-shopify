@@ -97,6 +97,65 @@ export const PannonXPService = {
         return JSON.stringify(pkg);
     },
 
+    calculateWeightAndPackages(items) {
+        let acousticQty = 0;
+        let profilesQty = 0;
+        let otherPanelsQty = 0;
+        
+        items.forEach(item => {
+            const name = item.name.toLowerCase();
+            if (item.isCollapsedProfile && item.subItems) {
+                item.subItems.forEach(sub => {
+                    profilesQty += sub.qty;
+                });
+                return;
+            }
+            
+            if (/akusztikus/i.test(name)) {
+                acousticQty += item.qty;
+            } else if (/profil/i.test(name)) {
+                profilesQty += item.qty;
+            } else if (/ragasztó|ragaszto/i.test(name)) {
+                // Ragasztó: 0 kg
+            } else if (/(panel|pvc|spc|pb-|lj-|ps-)/i.test(name)) {
+                otherPanelsQty += item.qty;
+            }
+        });
+        
+        let acousticWeight = 0;
+        let acousticPkgs = 0;
+        
+        if (acousticQty > 0) {
+            if (acousticQty <= 5) {
+                acousticPkgs = 1;
+                const lookup = { 1: 7, 2: 13, 3: 19, 4: 26, 5: 32 };
+                acousticWeight = lookup[acousticQty] || 0;
+            } else {
+                acousticPkgs = Math.ceil(acousticQty / 5);
+                const base = Math.floor(acousticQty / acousticPkgs);
+                const remainder = acousticQty % acousticPkgs;
+                const lookup = { 1: 7, 2: 13, 3: 19, 4: 26, 5: 32 };
+                
+                for (let i = 0; i < acousticPkgs; i++) {
+                    const qtyInPkg = i < remainder ? base + 1 : base;
+                    acousticWeight += lookup[qtyInPkg] || 0;
+                }
+            }
+        }
+        
+        const profilesWeight = profilesQty * 1.0; 
+        const otherPanelsWeight = otherPanelsQty * 1.5;
+        
+        const totalWeight = acousticWeight + profilesWeight + otherPanelsWeight;
+        const hasOtherItems = (profilesQty > 0 || otherPanelsQty > 0);
+        const totalPkgs = acousticPkgs + (hasOtherItems ? 1 : 0);
+        
+        return {
+            packages: Math.max(1, totalPkgs),
+            weight: Math.max(0.5, totalWeight)
+        };
+    },
+
     // Rendelések átalakítása CSV-vé
     convertToCSV(orders, senderSettings) {
         const csvRows = [];

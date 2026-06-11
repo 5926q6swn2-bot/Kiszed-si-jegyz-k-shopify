@@ -30,7 +30,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ## 🔄 Session Handover (Aktuális Állapot)
 
 - **Utolsó aktív modell**: Gemini 3.5 Flash (Antigravity)
-- **Státusz**: A rendszer stabil. Elkészült a PannonXP Címkekonvertáló tab többszörös feladó profilkezeléssel és görgethető beállítások panellel (`app.js?v=118`).
+- **Státusz**: A rendszer stabil. Elkészült a PannonXP Címkekonvertáló tab többszörös feladó profilkezeléssel, görgethető beállítások panellel, valamint intelligens súly- és csomagszám-kalkulációval (`app.js?v=119`).
 - **Folytatás**: Nincs aktív TODO, igény szerint.
 
 ---
@@ -42,8 +42,13 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **PannonXP exportáló szolgáltatás:** Létrejött a `js/services/pannonxp.js` szolgáltatás az 54 oszlopos pontosvesszős CSV és a `szl_csomagok` JSON generáláshoz.
 - **Interaktív Csomagbeállító és Feladó Profilok:** Létrejött a `js/views/pannonxpView.js` nézet a rendelések csomagszámának és súlyának exportálás előtti szerkesztéséhez. Bevezettünk többszörös menthető/törölhető feladó profilokat (`Capsula Houses Kft.`, `Minta cég Kft.`) profilválasztóval.
 - **Dizájn optimalizáció:** A feladó kártya maximális magasságot és görgetősávot kapott, így nem lóg ki alul a kisebb képernyőkről sem.
+- **Dinamikus súly- és csomagkalkuláció:** A CSV importálásakor automatikusan kiszámoljuk a csomagsúlyt és a csomagszámot:
+  - Akusztikus panelek: 1 panel = 7kg, 2 panel = 13kg, 3 panel = 19kg, 4 panel = 26kg, 5 panel = 32kg.
+  - Csomagbontás: 5 db feletti akusztikus panelnél több csomagra bontja egyenletesen elosztva (pl. 6 panel = 3-3 két csomagban, 9 panel = 5-4 két csomagban).
+  - Ragasztók: 0kg.
+  - Profilok: 1kg/db.
 - **Karakterkódolás:** A letöltött CSV UTF-8 BOM kódolással rendelkezik, így a magyar ékezetes karakterek közvetlenül megnyithatók és szerkeszthetők Excelben.
-- **Cache verzió frissítve:** `app.js?v=118`
+- **Cache verzió frissítve:** `app.js?v=119`
 
 ### 2026. június 5. - Szállítócég elszámolás export & UI badge-ek
 - **Elszámolás CSV export:** Bevezettük az `#btn-export-accounting-csv` gombot az Elszámolások tab filter sávjába, amivel a szűrt terítések/elszámolások részletesen kimenthetők Excel-kompatibilis CSV formátumban. Az export tartalmazza a rendelés státuszát, a futár által begyűjtött összeget és a szállító kintlévőségét/tartozását.

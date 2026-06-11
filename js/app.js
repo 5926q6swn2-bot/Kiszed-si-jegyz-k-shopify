@@ -293,6 +293,11 @@ function initApp() {
                     order.countryCode = matchingRow['Shipping Country'] || 'HU';
                     order.shippingCompany = matchingRow['Shipping Company'] || '';
                 }
+                
+                const calc = PannonXPService.calculateWeightAndPackages(order.items);
+                order.pxp_csomagszam = calc.packages;
+                order.pxp_suly = calc.weight;
+                
                 pxpOrders.push(order);
             });
             
