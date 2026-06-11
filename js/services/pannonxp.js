@@ -71,10 +71,160 @@ export const PannonXPService = {
         return profiles.find(p => p.id === activeId) || profiles[0];
     },
 
+    getPackagingRules() {
+        const stored = localStorage.getItem('pxp_packaging_rules');
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                if (parsed && parsed.categories) {
+                    return parsed;
+                }
+                return this.migrateOldRulesToCategories(parsed);
+            } catch (e) {
+                console.error("Hiba a csomagolási szabályok betöltésekor:", e);
+            }
+        }
+        return {
+            categories: this.getDefaultCategories()
+        };
+    },
+
+    getDefaultCategories() {
+        return [
+            {
+                id: 'cat_acoustic',
+                name: 'Akusztikus Panelek',
+                keywords: 'akusztikus, akupanel',
+                maxLength: 278,
+                maxQty: 5,
+                type: 'cards',
+                rules: {
+                    1: { weight: 6.5, width: 10, height: 10 },
+                    2: { weight: 13, width: 12, height: 15 },
+                    3: { weight: 19.5, width: 15, height: 15 },
+                    4: { weight: 26, width: 20, height: 15 },
+                    5: { weight: 32.5, width: 25, height: 20 }
+                }
+            },
+            {
+                id: 'cat_spcwood',
+                name: 'SPC Wood Padlók',
+                keywords: 'wood + spc',
+                maxLength: 122,
+                maxQty: 8,
+                type: 'cards',
+                rules: {
+                    1: { weight: 18, width: 20, height: 5 },
+                    2: { weight: 36, width: 20, height: 10 },
+                    3: { weight: 54, width: 20, height: 15 },
+                    4: { weight: 72, width: 20, height: 20 },
+                    5: { weight: 90, width: 20, height: 25 },
+                    6: { weight: 108, width: 20, height: 30 },
+                    7: { weight: 126, width: 20, height: 35 },
+                    8: { weight: 144, width: 20, height: 40 }
+                }
+            },
+            {
+                id: 'cat_spcstone',
+                name: 'SPC Stone Padlók',
+                keywords: 'stone + spc',
+                maxLength: 122,
+                maxQty: 8,
+                type: 'cards',
+                rules: {
+                    1: { weight: 18, width: 20, height: 5 },
+                    2: { weight: 36, width: 20, height: 10 },
+                    3: { weight: 54, width: 20, height: 15 },
+                    4: { weight: 72, width: 20, height: 20 },
+                    5: { weight: 90, width: 20, height: 25 },
+                    6: { weight: 108, width: 20, height: 30 },
+                    7: { weight: 126, width: 20, height: 35 },
+                    8: { weight: 144, width: 20, height: 40 }
+                }
+            },
+            {
+                id: 'cat_profile',
+                name: 'Profilok',
+                keywords: 'profil',
+                maxLength: 278,
+                maxQty: 50,
+                type: 'weight',
+                itemWeight: 1.0,
+                boxWeight: 1.0,
+                width: 5,
+                height: 5
+            },
+            {
+                id: 'cat_adhesive',
+                name: 'Ragasztók & Segédanyagok',
+                keywords: 't-rex, trex, hpr, ragasztó, ragaszto',
+                type: 'adhesive',
+                itemWeight: 0.5,
+                boxWeight: 0.0,
+                maxQty: 12,
+                maxLength: 30,
+                width: 20,
+                height: 10
+            }
+        ];
+    },
+
+    migrateOldRulesToCategories(oldRules) {
+        const categories = this.getDefaultCategories();
+        if (oldRules) {
+            const acoustic = categories.find(c => c.id === 'cat_acoustic');
+            if (acoustic) {
+                if (oldRules.acousticKeywords) acoustic.keywords = oldRules.acousticKeywords.replace(/\|/g, ', ');
+                if (oldRules.acousticMaxLength) acoustic.maxLength = oldRules.acousticMaxLength;
+                if (oldRules.acousticMaxQty) acoustic.maxQty = oldRules.acousticMaxQty;
+                if (oldRules.acousticRules) acoustic.rules = oldRules.acousticRules;
+            }
+            const spcWood = categories.find(c => c.id === 'cat_spcwood');
+            if (spcWood) {
+                if (oldRules.spcWoodKeywords) spcWood.keywords = oldRules.spcWoodKeywords.replace(/\|/g, ', ').replace(/\.\*/g, ' + ');
+                if (oldRules.spcWoodMaxLength) spcWood.maxLength = oldRules.spcWoodMaxLength;
+                if (oldRules.spcWoodMaxQty) spcWood.maxQty = oldRules.spcWoodMaxQty;
+                if (oldRules.spcWoodRules) spcWood.rules = oldRules.spcWoodRules;
+            }
+            const spcStone = categories.find(c => c.id === 'cat_spcstone');
+            if (spcStone) {
+                if (oldRules.spcStoneKeywords) spcStone.keywords = oldRules.spcStoneKeywords.replace(/\|/g, ', ').replace(/\.\*/g, ' + ');
+                if (oldRules.spcStoneMaxLength) spcStone.maxLength = oldRules.spcStoneMaxLength;
+                if (oldRules.spcStoneMaxQty) spcStone.maxQty = oldRules.spcStoneMaxQty;
+                if (oldRules.spcStoneRules) spcStone.rules = oldRules.spcStoneRules;
+            }
+            const profile = categories.find(c => c.id === 'cat_profile');
+            if (profile) {
+                if (oldRules.profileKeywords) profile.keywords = oldRules.profileKeywords.replace(/\|/g, ', ');
+                if (oldRules.profileWeight) profile.itemWeight = oldRules.profileWeight;
+                if (oldRules.profileBoxWeight) profile.boxWeight = oldRules.profileBoxWeight;
+                if (oldRules.profileLength) profile.maxLength = oldRules.profileLength;
+                if (oldRules.profileWidth) profile.width = oldRules.profileWidth;
+                if (oldRules.profileHeight) profile.height = oldRules.profileHeight;
+                if (oldRules.profileMaxQty) profile.maxQty = oldRules.profileMaxQty;
+            }
+            const adhesive = categories.find(c => c.id === 'cat_adhesive');
+            if (adhesive) {
+                if (oldRules.adhesiveKeywords) adhesive.keywords = oldRules.adhesiveKeywords.replace(/\|/g, ', ');
+                if (oldRules.adhesiveWeight) adhesive.itemWeight = oldRules.adhesiveWeight;
+                if (oldRules.adhesiveBoxWeight) adhesive.boxWeight = oldRules.adhesiveBoxWeight;
+                if (oldRules.adhesiveMaxQty) adhesive.maxQty = oldRules.adhesiveMaxQty;
+                if (oldRules.adhesiveLength) adhesive.maxLength = oldRules.adhesiveLength;
+                if (oldRules.adhesiveWidth) adhesive.width = oldRules.adhesiveWidth;
+                if (oldRules.adhesiveHeight) adhesive.height = oldRules.adhesiveHeight;
+            }
+        }
+        return { categories };
+    },
+
+    savePackagingRules(rules) {
+        localStorage.setItem('pxp_packaging_rules', JSON.stringify(rules));
+    },
+
     // A PannonXP CSV oszlopainak listája (pontosan 54 oszlop)
     COLUMNS: [
         'uc_ugyfelkod', 'uc_nev', 'uc_tel', 'uc_email', 'uc_ceg_nev', 'uc_ceg_cim_iranyito', 'uc_ceg_cim_telepules', 'uc_ceg_cim_orszag', 'uc_ceg_cim_kozterulet', 'uc_ceg_cim_megjegyzes', 'uc_ceg_adoszam', 'uc_ceg_bankszamlaszam',
-        'ucc_ugyfelkod', 'ucc_nev', 'ucc_tel', 'ucc_email', 'ucc_ceg_nev', 'ucc_ceg_cim_iranyito', 'ucc_ceg_cim_telepules', 'ucc_ceg_cim_orszag', 'ucc_ceg_cim_kozterulet', 'ucc_ceg_cim_megjegyzes', 'ucc_ceg_adoszam',
+        'ucc_ugyfelkod', 'ucc_nev', 'ucc_tel', 'ucc_email', 'ucc_ceg_nev', 'ucc_ceg_cim_iranyito', 'ucc_ceg_cim_telepules', 'uc_ceg_cim_orszag', 'uc_ceg_cim_kozterulet', 'uc_ceg_cim_megjegyzes', 'uc_ceg_adoszam',
         'szl_12h', 'szl_okmany', 'szl_okmanyok', 'szl_sms', 'szl_visszaru', 'szl_csomagszam', 'szl_csomag_suly', 'szl_csomagok', 'szl_raklapos', 'szl_tartalom', 'szl_biztositas', 'szl_aruertek', 'szl_utanvet', 'szl_ekaer_szam', 'szl_ekaer_email', 'szl_koltseghely', 'szl_referenciaszam', 'szl_koltsegviselo', 'szl_adoszam', 'szl_maganszemely',
         'ucch_ugyfelkod', 'ucch_nev', 'ucch_tel', 'ucch_email', 'ucch_ceg_nev', 'ucch_ceg_cim_iranyito', 'ucch_ceg_cim_telepules', 'ucch_ceg_cim_orszag', 'ucch_ceg_cim_kozterulet', 'ucch_ceg_cim_megjegyzes', 'ucch_ceg_adoszam'
     ],
@@ -97,62 +247,200 @@ export const PannonXPService = {
         return JSON.stringify(pkg);
     },
 
+    generateCsomagokJsonFromDetail(packages) {
+        const pkg = {};
+        packages.forEach((p, idx) => {
+            pkg[(idx + 1).toString()] = {
+                db: 1,
+                suly: parseFloat(p.suly).toFixed(2),
+                hosszusag: parseInt(p.hosszusag) || 30,
+                szelesseg: parseInt(p.szelesseg) || 20,
+                magassag: parseInt(p.magassag) || 10,
+                tipus: p.tipus || "doboz"
+            };
+        });
+        return JSON.stringify(pkg);
+    },
+
     calculateWeightAndPackages(items) {
-        let acousticQty = 0;
-        let profilesQty = 0;
-        let otherPanelsQty = 0;
+        const rules = this.getPackagingRules();
+        const categories = rules.categories || [];
+        
+        // Helper to convert user-friendly keywords to regex
+        const parseKeywordsToRegex = (input) => {
+            if (!input) return /$^/;
+            const alternatives = input.split(',').map(alt => alt.trim()).filter(Boolean);
+            if (alternatives.length === 0) return /$^/;
+            
+            const pattern = alternatives.map(alt => {
+                const parts = alt.split('+').map(part => part.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')).filter(Boolean);
+                if (parts.length === 1) {
+                    return parts[0];
+                } else {
+                    return parts.map(p => `(?=.*${p})`).join('') + '.*';
+                }
+            }).join('|');
+            
+            return new RegExp(pattern, 'i');
+        };
+        
+        // Map category regexes
+        const categoriesWithRegex = categories.map(cat => ({
+            ...cat,
+            regex: parseKeywordsToRegex(cat.keywords)
+        }));
+        
+        // Count quantities for each category
+        const qtyMap = {};
+        categories.forEach(cat => {
+            qtyMap[cat.id] = 0;
+        });
+        let otherQty = 0;
+        let adhesiveWeight = 0;
         
         items.forEach(item => {
             const name = item.name.toLowerCase();
+            
+            const processItem = (itemName, itemQty) => {
+                const matchedCat = categoriesWithRegex.find(cat => cat.regex.test(itemName));
+                if (matchedCat) {
+                    qtyMap[matchedCat.id] += itemQty;
+                    if (matchedCat.type === 'adhesive') {
+                        adhesiveWeight += itemQty * (matchedCat.itemWeight || 0.5);
+                    }
+                } else {
+                    otherQty += itemQty;
+                }
+            };
+            
             if (item.isCollapsedProfile && item.subItems) {
                 item.subItems.forEach(sub => {
-                    profilesQty += sub.qty;
+                    processItem(sub.name.toLowerCase(), sub.qty);
                 });
                 return;
             }
             
-            if (/akusztikus/i.test(name)) {
-                acousticQty += item.qty;
-            } else if (/profil/i.test(name)) {
-                profilesQty += item.qty;
-            } else if (/ragasztó|ragaszto/i.test(name)) {
-                // Ragasztó: 0 kg
-            } else if (/(panel|pvc|spc|pb-|lj-|ps-)/i.test(name)) {
-                otherPanelsQty += item.qty;
+            processItem(name, item.qty);
+        });
+        
+        const packagesDetail = [];
+        
+        // Generate packages for each category (except adhesives which are handled conditionally)
+        categories.forEach(cat => {
+            if (cat.type === 'adhesive') return;
+            const qty = qtyMap[cat.id] || 0;
+            if (qty === 0) return;
+            
+            if (cat.type === 'cards') {
+                const maxPerPkg = cat.maxQty || 5;
+                const pkgs = Math.ceil(qty / maxPerPkg);
+                const base = Math.floor(qty / pkgs);
+                const remainder = qty % pkgs;
+                
+                for (let i = 0; i < pkgs; i++) {
+                    const qtyInPkg = i < remainder ? base + 1 : base;
+                    const catRules = cat.rules || {};
+                    const rule = catRules[qtyInPkg] || catRules[cat.maxQty] || { weight: qtyInPkg * 10, width: 20, height: 10 };
+                    
+                    packagesDetail.push({
+                        suly: rule.weight,
+                        hosszusag: cat.maxLength || 278,
+                        szelesseg: rule.width,
+                        magassag: rule.height,
+                        tipus: "doboz",
+                        description: `${qtyInPkg} db ${cat.name}`
+                    });
+                }
+            } else if (cat.type === 'weight') {
+                const maxPerPkg = cat.maxQty || 50;
+                const pkgs = Math.ceil(qty / maxPerPkg);
+                const base = Math.floor(qty / pkgs);
+                const remainder = qty % pkgs;
+                
+                for (let i = 0; i < pkgs; i++) {
+                    const qtyInPkg = i < remainder ? base + 1 : base;
+                    const weight = (cat.boxWeight || 0) + (qtyInPkg * (cat.itemWeight || 1.0));
+                    packagesDetail.push({
+                        suly: weight,
+                        hosszusag: cat.maxLength || 278,
+                        szelesseg: cat.width || 5,
+                        magassag: cat.height || 5,
+                        tipus: "doboz",
+                        description: `${qtyInPkg} db ${cat.name} (+doboz)`
+                    });
+                }
             }
         });
         
-        let acousticWeight = 0;
-        let acousticPkgs = 0;
+        // RAGASZTÓ LOGIKA
+        // Ha van akupanel a rendelésben (qtyMap['cat_acoustic'] > 0), a ragasztó súlyát rárakjuk az akupanel csomagokra
+        const hasAcoustic = (qtyMap['cat_acoustic'] || 0) > 0;
+        const acousticPkgs = packagesDetail.filter(p => p.description && p.description.includes('Akusztikus Panelek'));
         
-        if (acousticQty > 0) {
-            if (acousticQty <= 5) {
-                acousticPkgs = 1;
-                const lookup = { 1: 7, 2: 13, 3: 19, 4: 26, 5: 32 };
-                acousticWeight = lookup[acousticQty] || 0;
-            } else {
-                acousticPkgs = Math.ceil(acousticQty / 5);
-                const base = Math.floor(acousticQty / acousticPkgs);
-                const remainder = acousticQty % acousticPkgs;
-                const lookup = { 1: 7, 2: 13, 3: 19, 4: 26, 5: 32 };
-                
-                for (let i = 0; i < acousticPkgs; i++) {
-                    const qtyInPkg = i < remainder ? base + 1 : base;
-                    acousticWeight += lookup[qtyInPkg] || 0;
-                }
+        if (hasAcoustic && acousticPkgs.length > 0) {
+            if (adhesiveWeight > 0) {
+                acousticPkgs.forEach(p => {
+                    p.description += ' (+ragasztó)';
+                });
             }
+        } else {
+            // Ha nincs akupanel, a ragasztók saját dobozt kapnak a beállított maxQty, boxWeight és itemWeight szerint
+            categories.forEach(cat => {
+                if (cat.type !== 'adhesive') return;
+                const qty = qtyMap[cat.id] || 0;
+                if (qty === 0) return;
+                
+                const maxPerPkg = cat.maxQty || 12;
+                const pkgs = Math.ceil(qty / maxPerPkg);
+                const base = Math.floor(qty / pkgs);
+                const remainder = qty % pkgs;
+                
+                for (let i = 0; i < pkgs; i++) {
+                    const qtyInPkg = i < remainder ? base + 1 : base;
+                    const weight = (cat.boxWeight || 0) + (qtyInPkg * (cat.itemWeight || 0.5));
+                    packagesDetail.push({
+                        suly: parseFloat(weight.toFixed(2)),
+                        hosszusag: cat.maxLength || 30,
+                        szelesseg: cat.width || 20,
+                        magassag: cat.height || 10,
+                        tipus: "doboz",
+                        description: `${qtyInPkg} db ${cat.name}`
+                    });
+                }
+            });
         }
         
-        const profilesWeight = profilesQty * 1.0; 
-        const otherPanelsWeight = otherPanelsQty * 1.5;
+        // Egyéb unmatched termékek külön doboza
+        if (otherQty > 0) {
+            packagesDetail.push({
+                suly: Math.max(0.5, otherQty * 1.5),
+                hosszusag: 30,
+                szelesseg: 20,
+                magassag: 10,
+                tipus: "doboz",
+                description: "Egyéb termékek"
+            });
+        }
         
-        const totalWeight = acousticWeight + profilesWeight + otherPanelsWeight;
-        const hasOtherItems = (profilesQty > 0 || otherPanelsQty > 0);
-        const totalPkgs = acousticPkgs + (hasOtherItems ? 1 : 0);
+        // Biztonsági mentőöv, ha teljesen üres a lista
+        if (packagesDetail.length === 0) {
+            packagesDetail.push({
+                suly: 1.0,
+                hosszusag: 30,
+                szelesseg: 20,
+                magassag: 10,
+                tipus: "doboz",
+                description: "Csomag"
+            });
+        }
+        
+        const totalWeight = packagesDetail.reduce((sum, p) => sum + p.suly, 0);
         
         return {
-            packages: Math.max(1, totalPkgs),
-            weight: Math.max(0.5, totalWeight)
+            packages: packagesDetail.length,
+            weight: parseFloat(totalWeight.toFixed(2)),
+            packagesDetail: packagesDetail,
+            hasUnmatched: otherQty > 0
         };
     },
 
@@ -232,7 +520,12 @@ export const PannonXPService = {
             const suly = parseFloat(order.pxp_suly) || 0.5;
             rowData.push(csomagszam.toString());
             rowData.push(suly.toString());
-            rowData.push(this.generateCsomagokJson(csomagszam, suly));
+            
+            if (order.pxp_packages && order.pxp_packages.length === csomagszam) {
+                rowData.push(this.generateCsomagokJsonFromDetail(order.pxp_packages));
+            } else {
+                rowData.push(this.generateCsomagokJson(csomagszam, suly));
+            }
             
             rowData.push('0'); // szl_raklapos
             rowData.push(senderSettings.szl_tartalom || 'Webáruházi termék');

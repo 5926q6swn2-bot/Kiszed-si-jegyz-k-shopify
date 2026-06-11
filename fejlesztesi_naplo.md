@@ -27,15 +27,19 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
-## 🔄 Session Handover (Aktuális Állapot)
-
-- **Utolsó aktív modell**: Gemini 3.5 Flash (Antigravity)
-- **Státusz**: A rendszer stabil. Elkészült a PannonXP Címkekonvertáló tab többszörös feladó profilkezeléssel, görgethető beállítások panellel, valamint intelligens súly- és csomagszám-kalkulációval (`app.js?v=119`).
-- **Folytatás**: Nincs aktív TODO, igény szerint.
+- **Utolsó aktív modell**: Gemini 3.5 Flash (Low)
+- **Státusz**: A rendszer stabil. Elkészült a PannonXP Címkekonvertáló egyedi csomagolási szabályainak és részletes csomagszerkesztőjének integrációja (`app.js?v=120`).
+- **Folytatás**: Igény szerint folytatható egyéb fejlesztésekkel vagy a korábban jegelt Shopify API Sandbox projekttel.
 
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. június 11. (2. session) - PannonXP Csomagolási Szabályok és Részletes Csomagszerkesztő
+- **Dinamikus Csomagolási Szabályok**: Új konfigurációs panel a bal oldali sávban az akusztikus panelek egyedi méreteinek és súlyainak beállítására, mely a localStorage-ban tárolódik. Mentéskor azonnal frissíti a betöltött rendelések csomagjait.
+- **Részletes Szerkesztő Modal**: A táblázatban a csomagszám mellett megjelent egy csomag ikon, amellyel egyénileg is beállítható a megrendelés minden egyes dobozának súlya, hossza, szélessége és magassága.
+- **Szinkronizáció**: Ha a csomagszám vagy a súly közvetlenül a táblázatban változik, a rendszer egyenletesen elosztja a súlyokat és újragenerálja a csomagok listáját a háttérben.
+- **Cache verzió frissítve**: `app.js?v=120`
 
 ### 2026. június 11. - PannonXP Címkekonvertáló modul integráció
 - **Címkekonvertáló fül:** Új főoldali navigációs fül ("PannonXP Címkék") a fejlécben, amivel a szedőlista és a címke-előkészítő között lehet váltani.
@@ -558,3 +562,11 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Régi gyors szállítólevelek elrejtése/szűrése:** A Firestore-ból betöltött korábbi adatok közül a lekérdezéskor (`getAllRuns`) automatikusan kiszűrjük és figyelmen kívül hagyjuk a `isQuickDelivery: true` tulajdonságú bejegyzéseket, így azok nem jelennek meg sehol az előzményekben vagy elszámolásoknál.
 - **Cache-busting:** `index.html`-ben `app.js?v=111`.
 
+### 2026. június 11. - PannonXP Ragasztó Csomagolás Egyszerűsítés, Dobozsúly és Hibaellenőrzés
+- **Ragasztó csomagolás egyszerűsítése:** Ha a rendelésben van akusztikus panel (akupanel), a ragasztó súlya nem adódik hozzá a csomaghoz (teljesen ingyen bekerül az akupanel mellé, nem képez külön csomagot), csupán a csomag leírásához kerül hozzá a ` (+ragasztó)` megjegyzés. Amennyiben nincs akupanel a rendelésben, a ragasztó saját csomagot kap a beállított maximális darabszám és méretek szerint.
+- **Doboz súly támogatása ragasztónál:** A beállítások menüben a "Ragasztók & Segédanyagok" kategóriához is bevezettük a "Doboz súlya (kg)" mezőt. Ha a ragasztó külön csomagot kap (mert nincs akupanel a rendelésben), a csomag súlyának kiszámításakor a doboz saját súlya is hozzáadódik a termékek összsúlyához.
+- **Ismeretlen termékek detektálása és piros jelzése:** Bevezettünk egy hibaellenőrzést a csomagolás-kalkulációba (`hasUnmatched`). Ha egy terméket nem sikerült besorolni egyik kategóriába sem (nem egyezett a kulcsszavakra), a rendelés sora halvány piros hátteret kap, és megjelenik a `⚠️ Ismeretlen termék!` figyelmeztetés.
+- **Szigorú exportálási védelem:** Ha a kijelölt (exportálandó) megrendelések között bármelyik piros/hibás (hiányzó irányítószám vagy ismeretlen termék miatt), a "PannonXP CSV Exportálása" gomb letiltódik, így nem generálható hibás CSV fájl.
+- **Validáció enyhítése (Telefonszám és Email):** A felhasználó kérésére a telefonszám hiányát kivettük a kritikus hibák közül. Ha egy rendelésnél nincs telefonszám megadva, az többé nem színezi pirosra a sort, és nem gátolja az exportálást sem.
+- **SPC Padlócsoportosítás jegelése:** A korábbi bonyolult SPC padló és egyéb kategória-összevonási csoportosításokat a felhasználó kérésére lejegeltük és eltávolítottuk a kódból.
+- **Cache-busting:** `index.html`-ben `app.js?v=132`.

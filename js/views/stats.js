@@ -866,7 +866,7 @@ export async function renderStatistics() {
                         // Újrarajzolás vibrálás nélkül a bento boxok/courier breakdown frissítéséhez
                         renderStatistics();
                     } else {
-                        alert("Hiba történt a felelősség rögzítésekor.");
+                        await CustomDialog.alert("Hiba történt a felelősség rögzítésekor.", "Hiba", "error");
                         // Visszaállítás hiba esetén
                         pill.className = `resp-pill ${currentResp}`;
                         pill.setAttribute('data-resp', currentResp);

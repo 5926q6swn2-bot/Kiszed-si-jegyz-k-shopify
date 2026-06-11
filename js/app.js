@@ -16,6 +16,13 @@ import { generatePdfHtml, openPdfView, generateDeliveryNotesHtml } from './utils
 function initApp() {
     console.log("KOPJ Rendszer: app.js elindult");
 
+    // --- AKADÁLYOZZA MEG A GÖRGŐZÉST SZÁM INPUTOKNÁL ---
+    document.addEventListener('wheel', function(e) {
+        if (e.target.tagName === 'INPUT' && e.target.type === 'number') {
+            e.target.blur();
+        }
+    });
+
     // --- GLOBÁLIS HIBAJELZŐ ---
     window.onerror = function(msg, url, lineNo, columnNo, error) {
         alert("KRITIKUS HIBA:\n" + msg + "\nSor: " + lineNo + "\nFile: " + url);
@@ -297,6 +304,8 @@ function initApp() {
                 const calc = PannonXPService.calculateWeightAndPackages(order.items);
                 order.pxp_csomagszam = calc.packages;
                 order.pxp_suly = calc.weight;
+                order.pxp_packages = calc.packagesDetail;
+                order.pxp_has_unmatched = calc.hasUnmatched;
                 
                 pxpOrders.push(order);
             });
@@ -982,7 +991,7 @@ function initApp() {
                 filteredRuns = filteredRuns.filter(r => !r.isSettled && !(r.settledAmount > 0));
             }
             
-            ExporterService.exportAccountingToCsv(filteredRuns);
+            await ExporterService.exportAccountingToCsv(filteredRuns);
         });
     }
 

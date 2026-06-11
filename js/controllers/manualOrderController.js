@@ -1,4 +1,5 @@
 import { Store } from '../store/state.js';
+import { CustomDialog } from '../utils/dialog.js';
 
 export function initManualOrderController({ renderOrders, updatePrintButtonState }) {
     const btnAddManual = document.getElementById('btn-add-manual');
@@ -42,7 +43,7 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
         });
     });
 
-    btnSaveManual.addEventListener('click', () => {
+    btnSaveManual.addEventListener('click', async () => {
         const orderNum = document.getElementById('m-order-num').value.trim();
         const customerName = document.getElementById('m-customer').value.trim();
         const address = document.getElementById('m-address').value.trim();
@@ -50,7 +51,7 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
         const balanceRaw = parseFloat(document.getElementById('m-balance').value) || 0;
 
         if (!orderNum || !customerName) {
-            alert('A rendelésszám és a vevő neve kötelező!');
+            await CustomDialog.alert('A rendelésszám és a vevő neve kötelező!', 'Hiányzó mezők', 'warning');
             return;
         }
 
@@ -62,7 +63,7 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
         });
 
         if (items.length === 0) {
-            alert('Legalább egy tételt meg kell adni!');
+            await CustomDialog.alert('Legalább egy tételt meg kell adni!', 'Hiányzó tételek', 'warning');
             return;
         }
 

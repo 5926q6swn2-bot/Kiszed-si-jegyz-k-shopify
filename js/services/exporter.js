@@ -1,10 +1,11 @@
 // js/services/exporter.js
 // Exportáló szolgáltatás a terítések és elszámolások CSV-be mentéséhez
+import { CustomDialog } from '../utils/dialog.js';
 
 export const ExporterService = {
-    exportAccountingToCsv: function(runs) {
+    exportAccountingToCsv: async function(runs) {
         if (!runs || runs.length === 0) {
-            alert("Nincs exportálható adat a megadott szűrési feltételekkel!");
+            await CustomDialog.alert("Nincs exportálható adat a megadott szűrési feltételekkel!", "Nincs adat", "warning");
             return;
         }
 

@@ -12,280 +12,86 @@ export const PannonXPView = {
         
         const profiles = PannonXPService.getSenderProfiles();
         const activeId = PannonXPService.getActiveProfileId();
-        const sender = PannonXPService.getActiveProfile();
         
         container.innerHTML = `
             <div class="pxp-view-container" style="display: flex; flex-direction: column; gap: 20px; width: 100%; padding: 20px; box-sizing: border-box;">
                 
-                <!-- Kétoszlopos elrendezés: Bal oldal a Beállítások, Jobb oldal a Rendelések táblázat -->
-                <div class="pxp-layout-grid" style="display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start;">
+                <!-- Egyoszlopos letisztult elrendezés: Rendelések táblázat és vezérlők -->
+                <div class="pxp-card orders-card" style="background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.5); padding: 20px; box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04); min-height: 400px; display: flex; flex-direction: column;">
                     
-                    <!-- BAL OLDAL: Feladó adatok (Glassmorphism kártya görgethetően) -->
-                    <div class="pxp-card sender-config-card" style="background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.5); padding: 18px; box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04); max-height: calc(100vh - 120px); overflow-y: auto; display: flex; flex-direction: column; gap: 14px;">
+                    <!-- Felső sáv: Profilválasztó, Beállítások fogaskerék és Export gomb -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap;">
+                        <div>
+                            <h3 style="margin: 0; font-size: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                                <i class="ph-bold ph-package" style="color: var(--primary-color);"></i>
+                                Címzettek és Csomagok
+                            </h3>
+                            <p style="margin: 3px 0 0 0; font-size: 12px; color: var(--text-muted);" id="pxp-order-count">Nincs betöltött rendelés</p>
+                        </div>
                         
-                        <h3 style="margin: 0; font-size: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-                            <i class="ph-bold ph-gear" style="color: var(--primary-color);"></i>
-                            Feladó Beállítások
-                        </h3>
-                        
-                        <!-- Profil Választó és Műveletek -->
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 10px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 6px; display: block;">Aktív Feladó Profil</label>
-                            <div style="display: flex; gap: 6px; align-items: center;">
-                                <select id="pxp-profile-select" style="flex: 1; padding: 8px 10px; font-size: 13px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; font-family: inherit; font-weight: 600; color: #0f172a;">
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <!-- Egyszerűsített feladó profil választó -->
+                            <div style="display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.9); padding: 4px 10px; border-radius: 10px; border: 1px solid #cbd5e1;">
+                                <span style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase;">Feladó:</span>
+                                <select id="pxp-profile-select" style="border: none; background: transparent; font-size: 13px; font-family: inherit; font-weight: 600; color: #0f172a; cursor: pointer; outline: none;">
                                     ${profiles.map(p => `<option value="${p.id}" ${p.id === activeId ? 'selected' : ''}>${p.profileName}</option>`).join('')}
                                 </select>
-                                <button type="button" id="pxp-btn-new-profile" title="Új profil létrehozása" style="padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #eff6ff; color: #1e40af; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s;">
-                                    <i class="ph-bold ph-plus" style="font-size: 16px;"></i>
-                                </button>
-                                <button type="button" id="pxp-btn-delete-profile" title="Profil törlése" style="padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fee2e2; color: #b91c1c; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s;">
-                                    <i class="ph-bold ph-trash" style="font-size: 16px;"></i>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div style="height: 1px; background: #e2e8f0; width: 100%;"></div>
-
-                        <form id="pxp-sender-form" style="display: flex; flex-direction: column; gap: 10px;">
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">PXP Ügyfélkód</label>
-                                <input type="text" id="pxp-s-code" value="${sender.uc_ugyfelkod || ''}" required style="padding: 8px 12px; font-size: 13px;">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Feladó Cégneve</label>
-                                <input type="text" id="pxp-s-company" value="${sender.uc_ceg_nev || ''}" required style="padding: 8px 12px; font-size: 13px;">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Kapcsolattartó neve</label>
-                                <input type="text" id="pxp-s-name" value="${sender.uc_nev || ''}" required style="padding: 8px 12px; font-size: 13px;">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Telefonszám</label>
-                                <input type="text" id="pxp-s-phone" value="${sender.uc_tel || ''}" required style="padding: 8px 12px; font-size: 13px;">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">E-mail cím</label>
-                                <input type="email" id="pxp-s-email" value="${sender.uc_email || ''}" required style="padding: 8px 12px; font-size: 13px;">
                             </div>
                             
-                            <div style="display: grid; grid-template-columns: 85px 1fr; gap: 8px;">
-                                <div class="form-group" style="margin-bottom: 0;">
-                                    <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Irsz.</label>
-                                    <input type="text" id="pxp-s-zip" value="${sender.uc_ceg_cim_iranyito || ''}" required style="padding: 8px 12px; font-size: 13px; text-align: center;">
-                                </div>
-                                <div class="form-group" style="margin-bottom: 0;">
-                                    <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Település</label>
-                                    <input type="text" id="pxp-s-city" value="${sender.uc_ceg_cim_telepules || ''}" required style="padding: 8px 12px; font-size: 13px;">
-                                </div>
-                            </div>
-                            
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Közterület, házszám</label>
-                                <input type="text" id="pxp-s-street" value="${sender.uc_ceg_cim_kozterulet || ''}" required style="padding: 8px 12px; font-size: 13px;">
-                            </div>
-                            
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Adószám</label>
-                                <input type="text" id="pxp-s-tax" value="${sender.uc_ceg_adoszam || ''}" required style="padding: 8px 12px; font-size: 13px;">
-                            </div>
-                            
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Bankszámlaszám</label>
-                                <input type="text" id="pxp-s-bank" value="${sender.uc_ceg_bankszamlaszam || ''}" required style="padding: 8px 12px; font-size: 13px;">
-                            </div>
-                            
-                            <div class="form-group" style="margin-bottom: 8px;">
-                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Csomag tartalma</label>
-                                <input type="text" id="pxp-s-content" value="${sender.szl_tartalom || ''}" required style="padding: 8px 12px; font-size: 13px;">
-                            </div>
-                            
-                            <button type="submit" class="btn btn-secondary" style="justify-content: center; padding: 10px; font-size: 13px;">
-                                Profil Mentése
+                            <!-- Beállítások fogaskerék gomb -->
+                            <button type="button" id="pxp-btn-settings" title="Rendszerbeállítások" style="padding: 10px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #475569; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s;">
+                                <i class="ph-bold ph-gear" style="font-size: 18px;"></i>
                             </button>
-                        </form>
+                            
+                            <button id="pxp-btn-export" class="btn btn-primary" style="padding: 10px 16px; font-weight: 600; font-size: 13px;" disabled>
+                                <i class="ph-bold ph-download-simple"></i>
+                                PannonXP CSV Exportálása
+                            </button>
+                        </div>
                     </div>
                     
-                    <!-- JOBB OLDAL: Rendelések listája -->
-                    <div class="pxp-card orders-card" style="background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.5); padding: 20px; box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04); min-height: 400px; display: flex; flex-direction: column;">
-                        
-                        <!-- Fejléc keresővel és letöltés gombbal -->
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 15px; flex-wrap: wrap;">
-                            <div>
-                                <h3 style="margin: 0; font-size: 16px; color: var(--text-primary);">Címzettek és Csomagok</h3>
-                                <p style="margin: 3px 0 0 0; font-size: 12px; color: var(--text-muted);" id="pxp-order-count">Nincs betöltött rendelés</p>
-                            </div>
-                            
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <button id="pxp-btn-export" class="btn btn-primary" style="padding: 10px 16px; font-weight: 600; font-size: 13px;" disabled>
-                                    <i class="ph-bold ph-download-simple"></i>
-                                    PannonXP CSV Exportálása
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Táblázat konténer -->
-                        <div style="flex: 1; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;">
-                            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
-                                <thead>
-                                    <tr style="background: #f8fafc; border-bottom: 1.5px solid #e2e8f0; color: #475569; font-weight: 600;">
-                                        <th style="padding: 12px 10px; width: 40px; text-align: center;">
-                                            <input type="checkbox" id="pxp-select-all" checked style="cursor: pointer; width: 16px; height: 16px;">
-                                        </th>
-                                        <th style="padding: 12px 10px; width: 80px;">Rendelés</th>
-                                        <th style="padding: 12px 10px; width: 150px;">Címzett Név</th>
-                                        <th style="padding: 12px 10px;">Szállítási Cím</th>
-                                        <th style="padding: 12px 10px; width: 110px;">Telefonszám</th>
-                                        <th style="padding: 12px 10px; width: 100px; text-align: right;">Utánvét</th>
-                                        <th style="padding: 12px 10px; width: 70px; text-align: center;">Csomag</th>
-                                        <th style="padding: 12px 10px; width: 85px; text-align: center;">Súly (kg)</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="pxp-table-body">
-                                    <tr>
-                                        <td colspan="8" style="padding: 40px; text-align: center; color: var(--text-muted);">
-                                            Húzd ide vagy tallózd be a Shopify CSV-t az importáláshoz!
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        
+                    <!-- Táblázat konténer -->
+                    <div style="flex: 1; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+                            <thead>
+                                <tr style="background: #f8fafc; border-bottom: 1.5px solid #e2e8f0; color: #475569; font-weight: 600;">
+                                    <th style="padding: 12px 10px; width: 40px; text-align: center;">
+                                        <input type="checkbox" id="pxp-select-all" checked style="cursor: pointer; width: 16px; height: 16px;">
+                                    </th>
+                                    <th style="padding: 12px 10px; width: 80px;">Rendelés</th>
+                                    <th style="padding: 12px 10px; width: 150px;">Címzett Név</th>
+                                    <th style="padding: 12px 10px;">Szállítási Cím</th>
+                                    <th style="padding: 12px 10px; width: 110px;">Telefonszám</th>
+                                    <th style="padding: 12px 10px; width: 100px; text-align: right;">Utánvét</th>
+                                    <th style="padding: 12px 10px; width: 85px; text-align: center;">Csomag</th>
+                                    <th style="padding: 12px 10px; width: 85px; text-align: center;">Súly (kg)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pxp-table-body">
+                                <tr>
+                                    <td colspan="8" style="padding: 40px; text-align: center; color: var(--text-muted);">
+                                        Húzd ide vagy tallózd be a Shopify CSV-t az importáláshoz!
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                     
                 </div>
             </div>
         `;
         
-        // Eseménykezelők a profil váltáshoz
+        // Profil váltás eseménykezelő
         const profileSelect = document.getElementById('pxp-profile-select');
         profileSelect.addEventListener('change', (e) => {
             PannonXPService.setActiveProfileId(e.target.value);
             this.render(container, orders, onExport);
         });
         
-        // Új profil gomb
-        const newProfileBtn = document.getElementById('pxp-btn-new-profile');
-        newProfileBtn.addEventListener('click', async () => {
-            const overlay = document.getElementById('custom-dialog-overlay');
-            if (overlay) {
-                document.getElementById('cd-icon').className = 'cd-icon info';
-                document.getElementById('cd-icon').innerHTML = '<i class="ph-bold ph-plus-circle" style="font-size:32px;color:#3b82f6;"></i>';
-                document.getElementById('cd-title').textContent = 'Új feladó profil';
-                document.getElementById('cd-msg').textContent = 'Add meg az új feladó profil nevét:';
-                
-                const input = document.getElementById('cd-input');
-                input.style.display = 'block';
-                input.value = '';
-                input.placeholder = 'Pl.: Capsula Houses Új';
-                
-                document.getElementById('cd-btn-cancel').style.display = 'block';
-                
-                const confirmBtn = document.getElementById('cd-btn-confirm');
-                confirmBtn.onclick = () => {
-                    const name = input.value.trim();
-                    if (name) {
-                        const allProfiles = PannonXPService.getSenderProfiles();
-                        const currentActive = PannonXPService.getActiveProfile();
-                        const newId = 'profile_' + Date.now();
-                        
-                        const newProfile = { ...currentActive, id: newId, profileName: name };
-                        allProfiles.push(newProfile);
-                        PannonXPService.saveSenderProfiles(allProfiles);
-                        PannonXPService.setActiveProfileId(newId);
-                        
-                        overlay.classList.remove('active');
-                        this.render(container, orders, onExport);
-                    }
-                };
-                
-                document.getElementById('cd-btn-cancel').onclick = () => {
-                    overlay.classList.remove('active');
-                };
-                
-                overlay.classList.add('active');
-                input.focus();
-            } else {
-                const name = prompt('Add meg az új feladó profil nevét:');
-                if (name) {
-                    const allProfiles = PannonXPService.getSenderProfiles();
-                    const currentActive = PannonXPService.getActiveProfile();
-                    const newId = 'profile_' + Date.now();
-                    const newProfile = { ...currentActive, id: newId, profileName: name };
-                    allProfiles.push(newProfile);
-                    PannonXPService.saveSenderProfiles(allProfiles);
-                    PannonXPService.setActiveProfileId(newId);
-                    this.render(container, orders, onExport);
-                }
-            }
-        });
-        
-        // Profil törlés gomb
-        const deleteProfileBtn = document.getElementById('pxp-btn-delete-profile');
-        deleteProfileBtn.addEventListener('click', async () => {
-            const currentProfiles = PannonXPService.getSenderProfiles();
-            if (currentProfiles.length <= 1) {
-                CustomDialog.alert('Az utolsó feladó profilt nem lehet törölni!', 'Hiba', 'error');
-                return;
-            }
-            
-            const activeProfile = PannonXPService.getActiveProfile();
-            const confirmed = await CustomDialog.confirm(`Biztosan törlöd a(z) <strong>${activeProfile.profileName}</strong> feladó profilt?`, 'Profil törlése', 'warning', true);
-            if (confirmed) {
-                const updated = currentProfiles.filter(p => p.id !== activeProfile.id);
-                PannonXPService.saveSenderProfiles(updated);
-                PannonXPService.setActiveProfileId(updated[0].id);
-                this.render(container, orders, onExport);
-            }
-        });
-        
-        // Eseménykezelő a profil mentéshez
-        const senderForm = document.getElementById('pxp-sender-form');
-        senderForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const activeProfile = PannonXPService.getActiveProfile();
-            
-            const updatedProfile = {
-                id: activeProfile.id,
-                profileName: activeProfile.profileName,
-                uc_ugyfelkod: document.getElementById('pxp-s-code').value.trim(),
-                uc_ceg_nev: document.getElementById('pxp-s-company').value.trim(),
-                uc_nev: document.getElementById('pxp-s-name').value.trim(),
-                uc_tel: document.getElementById('pxp-s-phone').value.trim(),
-                uc_email: document.getElementById('pxp-s-email').value.trim(),
-                uc_ceg_cim_iranyito: document.getElementById('pxp-s-zip').value.trim(),
-                uc_ceg_cim_telepules: document.getElementById('pxp-s-city').value.trim(),
-                uc_ceg_cim_orszag: '36',
-                uc_ceg_cim_kozterulet: document.getElementById('pxp-s-street').value.trim(),
-                uc_ceg_adoszam: document.getElementById('pxp-s-tax').value.trim(),
-                uc_ceg_bankszamlaszam: document.getElementById('pxp-s-bank').value.trim(),
-                szl_tartalom: document.getElementById('pxp-s-content').value.trim()
-            };
-            
-            const allProfiles = PannonXPService.getSenderProfiles();
-            const index = allProfiles.findIndex(p => p.id === activeProfile.id);
-            if (index !== -1) {
-                allProfiles[index] = updatedProfile;
-            } else {
-                allProfiles.push(updatedProfile);
-            }
-            
-            PannonXPService.saveSenderProfiles(allProfiles);
-            
-            const overlay = document.getElementById('custom-dialog-overlay');
-            if (overlay) {
-                document.getElementById('cd-icon').className = 'cd-icon success';
-                document.getElementById('cd-icon').innerHTML = '<i class="ph-bold ph-check-circle" style="font-size:32px;color:#10b981;"></i>';
-                document.getElementById('cd-title').textContent = 'Mentve!';
-                document.getElementById('cd-msg').textContent = `A(z) "${activeProfile.profileName}" feladó profil sikeresen frissítve lett.`;
-                document.getElementById('cd-input').style.display = 'none';
-                document.getElementById('cd-btn-cancel').style.display = 'none';
-                
-                const confirmBtn = document.getElementById('cd-btn-confirm');
-                confirmBtn.onclick = () => overlay.classList.remove('active');
-                overlay.classList.add('active');
-            } else {
-                alert('Profil elmentve!');
-            }
+        // Beállítások gomb eseménykezelő
+        const settingsBtn = document.getElementById('pxp-btn-settings');
+        settingsBtn.addEventListener('click', () => {
+            this.showSettingsModal(container, orders, onExport);
         });
         
         // Exportálás indítása
@@ -326,14 +132,30 @@ export const PannonXPView = {
         }
         
         tbody.onclick = null;
+        tbody.onclick = null;
         tbody.style.cursor = '';
         countText.textContent = `${orders.length} db megrendelés betöltve`;
-        exportBtn.disabled = false;
+        
+        const updateExportState = () => {
+            const selectedOrders = orders.filter(o => o.pxp_selected);
+            const hasErrors = selectedOrders.some(o => {
+                const hasZip = !!o.zip;
+                return !hasZip || !!o.pxp_has_unmatched;
+            });
+            exportBtn.disabled = selectedOrders.length === 0 || hasErrors;
+            if (hasErrors) {
+                exportBtn.style.opacity = '0.6';
+                exportBtn.title = 'Nem exportálható hibás (piros) rendelésekkel!';
+            } else {
+                exportBtn.style.opacity = '';
+                exportBtn.title = '';
+            }
+        };
         
         tbody.innerHTML = orders.map((order, index) => {
-            const hasPhone = !!order.shippingPhone;
             const hasZip = !!order.zip;
-            const hasError = !hasPhone || !hasZip;
+            const hasUnmatched = !!order.pxp_has_unmatched;
+            const hasError = !hasZip || hasUnmatched;
             
             if (order.pxp_csomagszam === undefined) order.pxp_csomagszam = 1;
             if (order.pxp_suly === undefined) order.pxp_suly = 0.5;
@@ -342,25 +164,30 @@ export const PannonXPView = {
             const codFormatted = order.isCOD ? new Intl.NumberFormat('hu-HU').format(Math.round(order.codAmount)) + ' Ft' : '-';
             
             return `
-                <tr style="border-bottom: 1px solid #e2e8f0; ${hasError ? 'background: #fffbeb;' : ''}">
+                <tr style="border-bottom: 1px solid #e2e8f0; ${hasError ? 'background: #fef2f2;' : ''}">
                     <td style="padding: 10px; text-align: center;">
                         <input type="checkbox" class="pxp-order-select" data-index="${index}" ${order.pxp_selected ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
                     </td>
                     <td style="padding: 10px; font-weight: 600; color: #0f172a;">${order.id}</td>
                     <td style="padding: 10px; font-weight: 500;">
                         ${order.shippingName}
-                        ${!hasPhone ? '<span style="display:block;font-size:10px;color:#b45309;font-weight:bold;">⚠️ Hiányzó telefon!</span>' : ''}
+                        ${hasUnmatched ? '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;">⚠️ Ismeretlen termék!</span>' : ''}
                     </td>
                     <td style="padding: 10px; color: #334155;">
                         ${order.fullAddress || order.address}
-                        ${!hasZip ? '<span style="display:block;font-size:10px;color:#b45309;font-weight:bold;">⚠️ Hiányzó irányítószám!</span>' : ''}
+                        ${!hasZip ? '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;">⚠️ Hiányzó irányítószám!</span>' : ''}
                     </td>
                     <td style="padding: 10px;">${order.shippingPhone || '-'}</td>
                     <td style="padding: 10px; text-align: right; font-weight: bold; color: ${order.isCOD ? '#0f172a' : '#94a3b8'};">
                         ${codFormatted}
                     </td>
                     <td style="padding: 10px; text-align: center;">
-                        <input type="number" class="pxp-input-csomagszam" data-index="${index}" min="1" max="99" value="${order.pxp_csomagszam}" style="width: 50px; padding: 4px; text-align: center; border: 1px solid #cbd5e1; border-radius: 6px;">
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <input type="number" class="pxp-input-csomagszam" data-index="${index}" min="1" max="99" value="${order.pxp_csomagszam}" style="width: 45px; padding: 4px; text-align: center; border: 1px solid #cbd5e1; border-radius: 6px;">
+                            <button class="pxp-btn-edit-details btn-sm" data-index="${index}" title="Csomagok részletei" style="background: none; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #475569; transition: all 0.15s;">
+                                <i class="ph-bold ph-package" style="font-size: 14px;"></i>
+                            </button>
+                        </div>
                     </td>
                     <td style="padding: 10px; text-align: center;">
                         <input type="number" class="pxp-input-suly" data-index="${index}" min="0.01" step="0.01" value="${order.pxp_suly}" style="width: 65px; padding: 4px; text-align: center; border: 1px solid #cbd5e1; border-radius: 6px;">
@@ -369,12 +196,15 @@ export const PannonXPView = {
             `;
         }).join('');
         
+        updateExportState();
+        
         // Eseménykezelők a soronkénti értékek változtatásához
         const selects = tbody.querySelectorAll('.pxp-order-select');
         selects.forEach(cb => {
             cb.addEventListener('change', (e) => {
                 const idx = parseInt(e.target.dataset.index);
                 orders[idx].pxp_selected = e.target.checked;
+                updateExportState();
             });
         });
         
@@ -384,6 +214,7 @@ export const PannonXPView = {
                 const checked = e.target.checked;
                 orders.forEach(o => o.pxp_selected = checked);
                 tbody.querySelectorAll('.pxp-order-select').forEach(cb => cb.checked = checked);
+                updateExportState();
             });
         }
         
@@ -393,8 +224,34 @@ export const PannonXPView = {
                 const idx = parseInt(e.target.dataset.index);
                 let val = parseInt(e.target.value);
                 if (isNaN(val) || val < 1) val = 1;
-                orders[idx].pxp_csomagszam = val;
+                
+                const order = orders[idx];
+                order.pxp_csomagszam = val;
                 e.target.value = val;
+                
+                // Adjust pxp_packages to match the new csomagszam
+                if (!order.pxp_packages) {
+                    order.pxp_packages = PannonXPService.calculateWeightAndPackages(order.items).packagesDetail || [];
+                }
+                
+                const diff = val - order.pxp_packages.length;
+                if (diff > 0) {
+                    const sulyPerPkg = order.pxp_suly / val;
+                    order.pxp_packages.forEach(p => p.suly = sulyPerPkg);
+                    for (let i = 0; i < diff; i++) {
+                        order.pxp_packages.push({
+                            suly: sulyPerPkg,
+                            hosszusag: 30,
+                            szelesseg: 20,
+                            magassag: 10,
+                            tipus: "doboz"
+                        });
+                    }
+                } else if (diff < 0) {
+                    order.pxp_packages = order.pxp_packages.slice(0, val);
+                    const sulyPerPkg = order.pxp_suly / val;
+                    order.pxp_packages.forEach(p => p.suly = sulyPerPkg);
+                }
             });
         });
         
@@ -404,9 +261,749 @@ export const PannonXPView = {
                 const idx = parseInt(e.target.dataset.index);
                 let val = parseFloat(e.target.value);
                 if (isNaN(val) || val <= 0) val = 0.5;
-                orders[idx].pxp_suly = val;
+                
+                const order = orders[idx];
+                order.pxp_suly = val;
                 e.target.value = val;
+                
+                if (!order.pxp_packages) {
+                    order.pxp_packages = PannonXPService.calculateWeightAndPackages(order.items).packagesDetail || [];
+                }
+                
+                const count = order.pxp_packages.length;
+                const sulyPerPkg = val / count;
+                order.pxp_packages.forEach(p => p.suly = sulyPerPkg);
             });
+        });
+        
+        const editDetailsBtns = tbody.querySelectorAll('.pxp-btn-edit-details');
+        editDetailsBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(btn.dataset.index);
+                this.showDetailedPackagesModal(orders[idx], () => {
+                    this.renderOrders(orders);
+                });
+            });
+        });
+    },
+    
+    showDetailedPackagesModal(order, onSave) {
+        const overlay = document.createElement('div');
+        overlay.className = 'custom-dialog-overlay active no-print';
+        overlay.style.zIndex = '10000';
+        
+        if (!order.pxp_packages) {
+            order.pxp_packages = PannonXPService.calculateWeightAndPackages(order.items).packagesDetail || [];
+        }
+        
+        overlay.innerHTML = `
+            <div class="custom-dialog-box" style="max-width: 480px; width: 90%; max-height: 85vh; display: flex; flex-direction: column; padding: 20px;">
+                <h3 style="margin-top: 0; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                    <i class="ph-bold ph-package" style="color: var(--primary-color);"></i>
+                    Csomagok részletei: ${order.id}
+                </h3>
+                <p style="margin: 0 0 15px 0; font-size: 13px; color: var(--text-muted);">
+                    Módosítsd az egyes csomagok méreteit és súlyait.
+                </p>
+                
+                <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px;" id="pxp-modal-pkg-list">
+                    ${order.pxp_packages.map((pkg, idx) => `
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                            <div style="font-weight: 700; font-size: 12px; color: #1e293b; display: flex; justify-content: space-between;">
+                                <span>${idx + 1}. Csomag</span>
+                                <span style="font-weight: normal; font-size: 11px; color: #64748b;">${pkg.description || ''}</span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px;">
+                                <div>
+                                    <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px;">Súly (kg)</label>
+                                    <input type="number" class="pkg-edit-suly" data-idx="${idx}" value="${pkg.suly}" step="0.01" min="0.01" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
+                                </div>
+                                <div>
+                                    <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px;">Hossz (cm)</label>
+                                    <input type="number" class="pkg-edit-hossz" data-idx="${idx}" value="${pkg.hosszusag}" min="1" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
+                                </div>
+                                <div>
+                                    <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px;">Szél. (cm)</label>
+                                    <input type="number" class="pkg-edit-szel" data-idx="${idx}" value="${pkg.szelesseg}" min="1" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
+                                </div>
+                                <div>
+                                    <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px;">Mag. (cm)</label>
+                                    <input type="number" class="pkg-edit-mag" data-idx="${idx}" value="${pkg.magassag}" min="1" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div class="cd-actions" style="margin-top: 15px; display: flex; justify-content: flex-end; gap: 10px;">
+                    <button id="pxp-modal-btn-cancel" class="cd-btn cd-btn-secondary" style="margin:0;">Mégse</button>
+                    <button id="pxp-modal-btn-save" class="cd-btn cd-btn-primary" style="margin:0;">Mentés</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        
+        const cancelBtn = overlay.querySelector('#pxp-modal-btn-cancel');
+        const saveBtn = overlay.querySelector('#pxp-modal-btn-save');
+        
+        cancelBtn.addEventListener('click', () => {
+            overlay.remove();
+        });
+        
+        saveBtn.addEventListener('click', () => {
+            const sulyInputs = overlay.querySelectorAll('.pkg-edit-suly');
+            const hosszInputs = overlay.querySelectorAll('.pkg-edit-hossz');
+            const szelInputs = overlay.querySelectorAll('.pkg-edit-szel');
+            const magInputs = overlay.querySelectorAll('.pkg-edit-mag');
+            
+            sulyInputs.forEach(input => {
+                const idx = parseInt(input.dataset.idx);
+                order.pxp_packages[idx].suly = parseFloat(input.value) || 0.5;
+            });
+            hosszInputs.forEach(input => {
+                const idx = parseInt(input.dataset.idx);
+                order.pxp_packages[idx].hosszusag = parseInt(input.value) || 30;
+            });
+            szelInputs.forEach(input => {
+                const idx = parseInt(input.dataset.idx);
+                order.pxp_packages[idx].szelesseg = parseInt(input.value) || 20;
+            });
+            magInputs.forEach(input => {
+                const idx = parseInt(input.dataset.idx);
+                order.pxp_packages[idx].magassag = parseInt(input.value) || 10;
+            });
+            
+            order.pxp_csomagszam = order.pxp_packages.length;
+            order.pxp_suly = order.pxp_packages.reduce((sum, p) => sum + p.suly, 0);
+            
+            overlay.remove();
+            if (typeof onSave === 'function') {
+                onSave();
+            }
+        });
+    },
+    
+    showSettingsModal(container, orders, onExport) {
+        const overlay = document.createElement('div');
+        overlay.className = 'custom-dialog-overlay active no-print';
+        overlay.style.zIndex = '9999';
+        
+        const profiles = PannonXPService.getSenderProfiles();
+        const activeId = PannonXPService.getActiveProfileId();
+        const activeProfile = PannonXPService.getActiveProfile();
+        const rules = PannonXPService.getPackagingRules();
+        
+        overlay.innerHTML = `
+            <div class="custom-dialog-box modal-large" style="max-width: 760px; width: 95%; height: 85vh; max-height: 85vh; display: flex; flex-direction: column; padding: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px; margin-bottom: 10px;">
+                    <h2 style="margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                        <i class="ph-bold ph-gear" style="color: var(--primary-color);"></i>
+                        PannonXP Rendszerbeállítások
+                    </h2>
+                    <button id="pxp-settings-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b;">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                </div>
+                
+                <!-- Beállítások fülek -->
+                <div style="display: flex; gap: 4px; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 15px;">
+                    <button id="tab-settings-profiles" class="tab-btn active" style="padding: 10px 16px; background: none; border: none; font-weight: 600; color: var(--primary-color); border-bottom: 2px solid var(--primary-color); cursor: pointer;">
+                        <i class="ph-bold ph-user-gear"></i> Feladó Profilok
+                    </button>
+                    <button id="tab-settings-products" class="tab-btn" style="padding: 10px 16px; background: none; border: none; font-weight: 500; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer;">
+                        <i class="ph-bold ph-cube"></i> Termék & Csomagolási Szabályok
+                    </button>
+                </div>
+                
+                <!-- Fül Tartalmak -->
+                <div style="flex: 1; overflow-y: auto; padding-right: 5px;">
+                    
+                    <!-- 1. Fül: Feladó Profilok -->
+                    <div id="settings-content-profiles" style="display: flex; flex-direction: column; gap: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #cbd5e1;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-weight: 700; font-size: 13px; color: #475569;">Profil választása szerkesztésre:</span>
+                                <select id="pxp-settings-profile-select" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-family: inherit; font-weight: 600; background: #fff;">
+                                    ${profiles.map(p => `<option value="${p.id}" ${p.id === activeProfile.id ? 'selected' : ''}>${p.profileName}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div style="display: flex; gap: 6px;">
+                                <button type="button" id="pxp-settings-btn-new-profile" class="btn btn-secondary btn-sm" style="padding: 6px 10px; font-size: 12px;">
+                                    <i class="ph-bold ph-plus"></i> Új profil
+                                </button>
+                                <button type="button" id="pxp-settings-btn-delete-profile" class="btn btn-secondary btn-sm" style="padding: 6px 10px; font-size: 12px; background: #fee2e2; color: #b91c1c; border-color: #fca5a5;">
+                                    <i class="ph-bold ph-trash"></i> Törlés
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <form id="pxp-settings-profile-form" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">PXP Ügyfélkód</label>
+                                <input type="text" id="pxp-set-s-code" value="${activeProfile.uc_ugyfelkod || ''}" required style="padding: 8px 12px; font-size: 13px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Feladó Cégneve</label>
+                                <input type="text" id="pxp-set-s-company" value="${activeProfile.uc_ceg_nev || ''}" required style="padding: 8px 12px; font-size: 13px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Kapcsolattartó neve</label>
+                                <input type="text" id="pxp-set-s-name" value="${activeProfile.uc_nev || ''}" required style="padding: 8px 12px; font-size: 13px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Telefonszám</label>
+                                <input type="text" id="pxp-set-s-phone" value="${activeProfile.uc_tel || ''}" required style="padding: 8px 12px; font-size: 13px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
+                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">E-mail cím</label>
+                                <input type="email" id="pxp-set-s-email" value="${activeProfile.uc_email || ''}" required style="padding: 8px 12px; font-size: 13px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Irányítószám</label>
+                                <input type="text" id="pxp-set-s-zip" value="${activeProfile.uc_ceg_cim_iranyito || ''}" required style="padding: 8px 12px; font-size: 13px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Település</label>
+                                <input type="text" id="pxp-set-s-city" value="${activeProfile.uc_ceg_cim_telepules || ''}" required style="padding: 8px 12px; font-size: 13px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
+                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Közterület, házszám</label>
+                                <input type="text" id="pxp-set-s-street" value="${activeProfile.uc_ceg_cim_kozterulet || ''}" required style="padding: 8px 12px; font-size: 13px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Adószám</label>
+                                <input type="text" id="pxp-set-s-tax" value="${activeProfile.uc_ceg_adoszam || ''}" required style="padding: 8px 12px; font-size: 13px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Bankszámlaszám</label>
+                                <input type="text" id="pxp-set-s-bank" value="${activeProfile.uc_ceg_bankszamlaszam || ''}" required style="padding: 8px 12px; font-size: 13px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
+                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Csomag tartalma (szállítási leírás)</label>
+                                <input type="text" id="pxp-set-s-content" value="${activeProfile.szl_tartalom || ''}" required style="padding: 8px 12px; font-size: 13px;">
+                            </div>
+                            <div style="grid-column: span 2; display: flex; justify-content: flex-end; margin-top: 10px;">
+                                <button type="submit" class="btn btn-primary" style="padding: 10px 20px;">Profil Adatok Mentése</button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- 2. Fül: Termék és Csomagolási Szabályok -->
+                    <div id="settings-content-products" style="display: none; flex-direction: column; gap: 20px;">
+                        <!-- Dinamikus tartalom JS-ből -->
+                    </div>
+                    
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        
+        // Initialize dynamic package dimension cards
+        const renderDimensionCards = (container, prefixId, maxQty, rulesList) => {
+            container.style.display = 'grid';
+            container.style.gridTemplateColumns = 'repeat(auto-fill, minmax(110px, 1fr))';
+            container.style.gap = '8px';
+            let html = '';
+            for (let num = 1; num <= maxQty; num++) {
+                const r = rulesList[num] || { weight: num * 10, width: 20, height: 10 };
+                html += `
+                    <div style="background: #fff; padding: 6px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 11px;">
+                        <div style="font-weight: 700; margin-bottom: 6px; text-align:center; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">${num} db:</div>
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <span style="font-size: 9px; color: #64748b; width: 30px; text-align: right; flex-shrink: 0; font-weight: 600;">Súly:</span>
+                                <input type="number" id="pxp-r-${prefixId}-w-${num}" value="${r.weight}" step="0.1" placeholder="kg" style="flex: 1; min-width: 0; padding: 3px; font-size: 10px; text-align:center; border: 1px solid #cbd5e1; border-radius: 4px;">
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <span style="font-size: 9px; color: #64748b; width: 30px; text-align: right; flex-shrink: 0; font-weight: 600;">Szél:</span>
+                                <input type="number" id="pxp-r-${prefixId}-wd-${num}" value="${r.width}" placeholder="cm" style="flex: 1; min-width: 0; padding: 3px; font-size: 10px; text-align:center; border: 1px solid #cbd5e1; border-radius: 4px;">
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <span style="font-size: 9px; color: #64748b; width: 30px; text-align: right; flex-shrink: 0; font-weight: 600;">Mag:</span>
+                                <input type="number" id="pxp-r-${prefixId}-h-${num}" value="${r.height}" placeholder="cm" style="flex: 1; min-width: 0; padding: 3px; font-size: 10px; text-align:center; border: 1px solid #cbd5e1; border-radius: 4px;">
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        };
+
+        const getCurrentRulesFromUI = (prefixId, currentRulesList) => {
+            const current = {};
+            const regex = new RegExp(`pxp-r-${prefixId}-w-(\\d+)`);
+            const inputs = overlay.querySelectorAll(`[id^="pxp-r-${prefixId}-w-"]`);
+            inputs.forEach(input => {
+                const match = input.id.match(regex);
+                if (match) {
+                    const num = parseInt(match[1]);
+                    const w = parseFloat(overlay.querySelector(`#pxp-r-${prefixId}-w-${num}`).value) || 0;
+                    const wd = parseInt(overlay.querySelector(`#pxp-r-${prefixId}-wd-${num}`).value) || 0;
+                    const h = parseInt(overlay.querySelector(`#pxp-r-${prefixId}-h-${num}`).value) || 0;
+                    current[num] = { weight: w, width: wd, height: h };
+                }
+            });
+            return { ...currentRulesList, ...current };
+        };
+
+        const bindProductTabListeners = (tabContainer) => {
+            // New Category Button
+            const newCatBtn = tabContainer.querySelector('#pxp-btn-new-category');
+            if (newCatBtn) {
+                newCatBtn.addEventListener('click', async () => {
+                    const name = await CustomDialog.prompt('Add meg az új termékkategória nevét:', '', 'Kategória hozzáadása');
+                    if (name) {
+                        const newId = 'cat_' + Date.now();
+                        rules.categories.push({
+                            id: newId,
+                            name: name,
+                            keywords: '',
+                            maxLength: 278,
+                            maxQty: 5,
+                            type: 'cards',
+                            rules: {
+                                1: { weight: 10, width: 20, height: 10 }
+                            }
+                        });
+                        renderProductTab();
+                    }
+                });
+            }
+            
+            // Delete Category Buttons
+            const deleteBtns = tabContainer.querySelectorAll('.pxp-btn-delete-category');
+            deleteBtns.forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const catId = btn.dataset.catId;
+                    const cat = rules.categories.find(c => c.id === catId);
+                    const confirmed = await CustomDialog.confirm(`Biztosan törlöd a(z) "${cat.name}" kategóriát?`, 'Kategória törlése');
+                    if (confirmed) {
+                        rules.categories = rules.categories.filter(c => c.id !== catId);
+                        renderProductTab();
+                    }
+                });
+            });
+            
+            // Name Change input listener
+            const nameInputs = tabContainer.querySelectorAll('.cat-input-name');
+            nameInputs.forEach(input => {
+                input.addEventListener('change', () => {
+                    const catId = input.dataset.catId;
+                    const cat = rules.categories.find(c => c.id === catId);
+                    if (cat) cat.name = input.value.trim();
+                });
+            });
+            
+            // Type Select change listener
+            const typeSelects = tabContainer.querySelectorAll('.cat-select-type');
+            typeSelects.forEach(select => {
+                select.addEventListener('change', () => {
+                    const catId = select.dataset.catId;
+                    const cat = rules.categories.find(c => c.id === catId);
+                    if (cat) {
+                        cat.type = select.value;
+                        if (cat.type === 'weight' && !cat.itemWeight) {
+                            cat.itemWeight = 1.0;
+                            cat.boxWeight = 1.0;
+                            cat.width = 5;
+                            cat.height = 5;
+                        } else if (cat.type === 'cards' && !cat.rules) {
+                            cat.rules = { 1: { weight: 10, width: 20, height: 10 } };
+                        } else if (cat.type === 'adhesive') {
+                            if (!cat.itemWeight) cat.itemWeight = 0.5;
+                            if (!cat.maxQty) cat.maxQty = 12;
+                            if (!cat.maxLength) cat.maxLength = 30;
+                            if (!cat.width) cat.width = 20;
+                            if (!cat.height) cat.height = 10;
+                        }
+                        renderProductTab();
+                    }
+                });
+            });
+            
+            // Keywords change listener
+            const keywordInputs = tabContainer.querySelectorAll('.cat-input-keywords');
+            keywordInputs.forEach(input => {
+                input.addEventListener('change', () => {
+                    const catId = input.dataset.catId;
+                    const cat = rules.categories.find(c => c.id === catId);
+                    if (cat) cat.keywords = input.value.trim();
+                });
+            });
+            
+            // MaxQty change listener (re-renders cards dynamically)
+            const maxQtyInputs = tabContainer.querySelectorAll('.cat-input-maxqty');
+            maxQtyInputs.forEach(input => {
+                input.addEventListener('input', () => {
+                    const catId = input.dataset.catId;
+                    const cat = rules.categories.find(c => c.id === catId);
+                    if (cat) {
+                        let val = parseInt(input.value) || 1;
+                        if (val < 1) val = 1;
+                        if (val > 50) val = 50;
+                        cat.maxQty = val;
+                        
+                        if (cat.type === 'cards') {
+                            const cardsContainer = tabContainer.querySelector(`.cards-list-container[data-cat-id="${cat.id}"]`);
+                            if (cardsContainer) {
+                                cat.rules = getCurrentRulesFromUI(cat.id, cat.rules || {});
+                                renderDimensionCards(cardsContainer, cat.id, val, cat.rules);
+                            }
+                        }
+                    }
+                });
+            });
+            
+            // Length change listener
+            const lengthInputs = tabContainer.querySelectorAll('.cat-input-maxlength');
+            lengthInputs.forEach(input => {
+                input.addEventListener('change', () => {
+                    const catId = input.dataset.catId;
+                    const cat = rules.categories.find(c => c.id === catId);
+                    if (cat) cat.maxLength = parseInt(input.value) || 278;
+                });
+            });
+            
+            // Rules submit handler
+            const form = tabContainer.querySelector('#pxp-settings-rules-form');
+            if (form) {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    try {
+                        rules.categories.forEach(cat => {
+                            const nameInput = tabContainer.querySelector(`.cat-input-name[data-cat-id="${cat.id}"]`);
+                            if (nameInput) cat.name = nameInput.value.trim();
+                            
+                            const kwInput = tabContainer.querySelector(`.cat-input-keywords[data-cat-id="${cat.id}"]`);
+                            if (kwInput) cat.keywords = kwInput.value.trim();
+                            
+                            const maxQtyInput = tabContainer.querySelector(`.cat-input-maxqty[data-cat-id="${cat.id}"]`);
+                            if (maxQtyInput) cat.maxQty = parseInt(maxQtyInput.value) || (cat.type === 'cards' ? 5 : cat.type === 'adhesive' ? 12 : 50);
+                            
+                            const lengthInput = tabContainer.querySelector(`.cat-input-maxlength[data-cat-id="${cat.id}"]`);
+                            if (lengthInput) cat.maxLength = parseInt(lengthInput.value) || (cat.type === 'adhesive' ? 30 : 278);
+                            
+                            if (cat.type === 'cards') {
+                                const oldRules = cat.rules || {};
+                                cat.rules = {};
+                                for (let num = 1; num <= cat.maxQty; num++) {
+                                    const wInput = tabContainer.querySelector(`#pxp-r-${cat.id}-w-${num}`);
+                                    const wdInput = tabContainer.querySelector(`#pxp-r-${cat.id}-wd-${num}`);
+                                    const hInput = tabContainer.querySelector(`#pxp-r-${cat.id}-h-${num}`);
+                                    
+                                    cat.rules[num] = {
+                                        weight: wInput ? (parseFloat(wInput.value) || 0) : ((oldRules[num] && oldRules[num].weight) || num * 10),
+                                        width: wdInput ? (parseInt(wdInput.value) || 0) : ((oldRules[num] && oldRules[num].width) || 20),
+                                        height: hInput ? (parseInt(hInput.value) || 0) : ((oldRules[num] && oldRules[num].height) || 10)
+                                    };
+                                }
+                            } else if (cat.type === 'weight') {
+                                const iwInput = tabContainer.querySelector(`.cat-input-itemweight[data-cat-id="${cat.id}"]`);
+                                if (iwInput) cat.itemWeight = parseFloat(iwInput.value) || 1.0;
+                                
+                                const bwInput = tabContainer.querySelector(`.cat-input-boxweight[data-cat-id="${cat.id}"]`);
+                                if (bwInput) cat.boxWeight = parseFloat(bwInput.value) || 0.0;
+                                
+                                const wInput = tabContainer.querySelector(`.cat-input-width[data-cat-id="${cat.id}"]`);
+                                if (wInput) cat.width = parseInt(wInput.value) || 5;
+                                
+                                const hInput = tabContainer.querySelector(`.cat-input-height[data-cat-id="${cat.id}"]`);
+                                if (hInput) cat.height = parseInt(hInput.value) || 5;
+                            } else if (cat.type === 'adhesive') {
+                                const iwInput = tabContainer.querySelector(`.cat-input-itemweight[data-cat-id="${cat.id}"]`);
+                                if (iwInput) cat.itemWeight = parseFloat(iwInput.value) || 0.5;
+                                
+                                const bwInput = tabContainer.querySelector(`.cat-input-boxweight[data-cat-id="${cat.id}"]`);
+                                if (bwInput) cat.boxWeight = parseFloat(bwInput.value) || 0.0;
+                                
+                                const wInput = tabContainer.querySelector(`.cat-input-width[data-cat-id="${cat.id}"]`);
+                                if (wInput) cat.width = parseInt(wInput.value) || 20;
+                                
+                                const hInput = tabContainer.querySelector(`.cat-input-height[data-cat-id="${cat.id}"]`);
+                                if (hInput) cat.height = parseInt(hInput.value) || 10;
+                            }
+                        });
+                        
+                        PannonXPService.savePackagingRules(rules);
+                        
+                        if (orders && Array.isArray(orders)) {
+                            orders.forEach(order => {
+                                const calc = PannonXPService.calculateWeightAndPackages(order.items);
+                                order.pxp_csomagszam = calc.packages;
+                                order.pxp_suly = calc.weight;
+                                order.pxp_packages = calc.packagesDetail;
+                                order.pxp_has_unmatched = calc.hasUnmatched;
+                            });
+                        }
+                        
+                        await CustomDialog.alert('Termék csomagolási szabályok sikeresen elmentve és újraszámolva!', 'Mentés sikeres', 'info');
+                        overlay.remove();
+                        this.render(container, orders, onExport);
+                    } catch (err) {
+                        console.error("Hiba a szabályok mentésekor:", err);
+                        await CustomDialog.alert('Hiba történt a mentés során: ' + err.message, 'Mentési hiba', 'error');
+                    }
+                });
+            }
+        };
+
+        const renderProductTab = () => {
+            const container = overlay.querySelector('#settings-content-products');
+            if (!container) return;
+            
+            let html = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span style="font-size:11px; color:#64748b; line-height:1.4;">
+                        A hívószavaknál használhatsz <b>vesszőt (,)</b> VAGY kapcsolathoz (pl. <i>akupanel, akusztikus</i>), vagy <b>plusz jelet (+)</b> ÉS kapcsolathoz (pl. <i>wood + spc</i>).
+                    </span>
+                    <button type="button" id="pxp-btn-new-category" class="btn btn-secondary btn-sm" style="padding:6px 12px; font-weight:600; display:flex; align-items:center; gap:4px; flex-shrink:0;">
+                        <i class="ph-bold ph-plus"></i> Új kategória
+                    </button>
+                </div>
+                <form id="pxp-settings-rules-form" style="display: flex; flex-direction: column; gap: 15px;">
+                    <div style="display:flex; flex-direction:column; gap:16px;" id="pxp-categories-list-container">
+            `;
+            
+            rules.categories.forEach((cat, index) => {
+                const isCustom = !['cat_acoustic', 'cat_spcwood', 'cat_spcstone', 'cat_profile', 'cat_adhesive'].includes(cat.id);
+                
+                html += `
+                    <div class="category-block" data-cat-id="${cat.id}" style="border: 1px solid #cbd5e1; border-radius: 12px; padding: 15px; background: #f8fafc; position:relative;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #cbd5e1; padding-bottom:6px; margin-bottom:12px;">
+                            <h3 style="margin:0; font-size: 14px; color: #1e293b; display:flex; align-items:center; gap:8px;">
+                                <span style="background:var(--primary-color); color:#fff; width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold;">${index + 1}</span>
+                                <input type="text" class="cat-input-name" data-cat-id="${cat.id}" value="${cat.name}" style="font-size:14px; font-weight:bold; border:none; background:transparent; color:#1e293b; outline:none; width:200px; border-bottom:1px dashed #cbd5e1;" placeholder="Kategória neve">
+                            </h3>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <select class="cat-select-type" data-cat-id="${cat.id}" style="padding:4px 8px; border-radius:6px; border:1px solid #cbd5e1; font-size:12px; background:#fff; font-weight:600; cursor:pointer;">
+                                    <option value="cards" ${cat.type === 'cards' ? 'selected' : ''}>Csomagméret kártyák</option>
+                                    <option value="weight" ${cat.type === 'weight' ? 'selected' : ''}>Egységsúly + dobozsúly</option>
+                                    <option value="adhesive" ${cat.type === 'adhesive' ? 'selected' : ''}>Segédanyag (csak súly)</option>
+                                </select>
+                                ${isCustom ? `
+                                <button type="button" class="pxp-btn-delete-category" data-cat-id="${cat.id}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center;" title="Kategória törlése">
+                                    <i class="ph-bold ph-trash"></i>
+                                </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Hívószavak / Kulcsszavak</label>
+                                <input type="text" class="cat-input-keywords" data-cat-id="${cat.id}" value="${cat.keywords || ''}" placeholder="pl.: wood + spc" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Max db egy csomagban</label>
+                                <input type="number" class="cat-input-maxqty" data-cat-id="${cat.id}" value="${cat.maxQty || (cat.type === 'cards' ? 5 : cat.type === 'adhesive' ? 12 : 50)}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Hossz (cm)</label>
+                                <input type="number" class="cat-input-maxlength" data-cat-id="${cat.id}" value="${cat.maxLength || (cat.type === 'adhesive' ? 30 : 278)}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                        </div>
+                        
+                        ${cat.type === 'weight' ? `
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px;">
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Egységsúly (kg/db)</label>
+                                <input type="number" step="0.01" class="cat-input-itemweight" data-cat-id="${cat.id}" value="${cat.itemWeight || 1.0}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Doboz súlya (kg)</label>
+                                <input type="number" step="0.01" class="cat-input-boxweight" data-cat-id="${cat.id}" value="${cat.boxWeight || 0.0}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Szélesség (cm)</label>
+                                <input type="number" class="cat-input-width" data-cat-id="${cat.id}" value="${cat.width || 5}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Magasság (cm)</label>
+                                <input type="number" class="cat-input-height" data-cat-id="${cat.id}" value="${cat.height || 5}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        ${cat.type === 'adhesive' ? `
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px;">
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Egységsúly (kg/db)</label>
+                                <input type="number" step="0.01" class="cat-input-itemweight" data-cat-id="${cat.id}" value="${cat.itemWeight || 0.5}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Doboz súlya (kg)</label>
+                                <input type="number" step="0.01" class="cat-input-boxweight" data-cat-id="${cat.id}" value="${cat.boxWeight || 0.0}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Szélesség (cm)</label>
+                                <input type="number" class="cat-input-width" data-cat-id="${cat.id}" value="${cat.width || 20}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Magasság (cm)</label>
+                                <input type="number" class="cat-input-height" data-cat-id="${cat.id}" value="${cat.height || 10}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        ${cat.type === 'cards' ? `
+                        <div style="margin-top:10px;">
+                            <label style="font-size: 10px; font-weight: 700; color: #475569; text-transform: uppercase; display: block; margin-bottom: 6px;">Méretek db szerint</label>
+                            <div class="cards-list-container" data-cat-id="${cat.id}" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px;"></div>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            html += `
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; margin-top: 15px; border-top:1px solid #cbd5e1; padding-top:15px;">
+                        <button type="submit" class="btn btn-primary" style="padding: 10px 20px;">Termék Szabályok Mentése</button>
+                    </div>
+                </form>
+            `;
+            
+            container.innerHTML = html;
+            
+            rules.categories.forEach(cat => {
+                if (cat.type !== 'cards') return;
+                const cardsContainer = container.querySelector(`.cards-list-container[data-cat-id="${cat.id}"]`);
+                if (cardsContainer) {
+                    renderDimensionCards(cardsContainer, cat.id, cat.maxQty || 5, cat.rules || {});
+                }
+            });
+            
+            bindProductTabListeners(container);
+        };
+
+        // Render initially
+        renderProductTab();
+
+        // Fülváltó eseménykezelők a modalban
+        const btnTabProfiles = overlay.querySelector('#tab-settings-profiles');
+        const btnTabProducts = overlay.querySelector('#tab-settings-products');
+        const contentProfiles = overlay.querySelector('#settings-content-profiles');
+        const contentProducts = overlay.querySelector('#settings-content-products');
+        
+        btnTabProfiles.addEventListener('click', () => {
+            btnTabProfiles.classList.add('active');
+            btnTabProfiles.style.color = 'var(--primary-color)';
+            btnTabProfiles.style.borderBottom = '2px solid var(--primary-color)';
+            btnTabProfiles.style.fontWeight = '600';
+            
+            btnTabProducts.classList.remove('active');
+            btnTabProducts.style.color = '#64748b';
+            btnTabProducts.style.borderBottom = '2px solid transparent';
+            btnTabProducts.style.fontWeight = '500';
+            
+            contentProfiles.style.display = 'flex';
+            contentProducts.style.display = 'none';
+        });
+        
+        btnTabProducts.addEventListener('click', () => {
+            btnTabProducts.classList.add('active');
+            btnTabProducts.style.color = 'var(--primary-color)';
+            btnTabProducts.style.borderBottom = '2px solid var(--primary-color)';
+            btnTabProducts.style.fontWeight = '600';
+            
+            btnTabProfiles.classList.remove('active');
+            btnTabProfiles.style.color = '#64748b';
+            btnTabProfiles.style.borderBottom = '2px solid transparent';
+            btnTabProfiles.style.fontWeight = '500';
+            
+            contentProducts.style.display = 'flex';
+            contentProfiles.style.display = 'none';
+            // Frissítsük be a termék fület megnyitáskor, hogy biztosan friss adatokkal renderelődjön
+            renderProductTab();
+        });
+        
+        // Bezárás gomb
+        overlay.querySelector('#pxp-settings-close').addEventListener('click', () => {
+            overlay.remove();
+        });
+        
+        // --- 1. PROFILOK KEZELÉSE A MODALBAN ---
+        const selectProfile = overlay.querySelector('#pxp-settings-profile-select');
+        selectProfile.addEventListener('change', (e) => {
+            PannonXPService.setActiveProfileId(e.target.value);
+            overlay.remove();
+            this.showSettingsModal(container, orders, onExport);
+        });
+        
+        // Új profil gomb a modalban
+        overlay.querySelector('#pxp-settings-btn-new-profile').addEventListener('click', async () => {
+            const name = await CustomDialog.prompt('Add meg az új feladó profil nevét:', '', 'Profil hozzáadása');
+            if (name) {
+                const allProfiles = PannonXPService.getSenderProfiles();
+                const currentActive = PannonXPService.getActiveProfile();
+                const newId = 'profile_' + Date.now();
+                const newProfile = { ...currentActive, id: newId, profileName: name };
+                allProfiles.push(newProfile);
+                PannonXPService.saveSenderProfiles(allProfiles);
+                PannonXPService.setActiveProfileId(newId);
+                
+                overlay.remove();
+                this.showSettingsModal(container, orders, onExport);
+                this.render(container, orders, onExport);
+            }
+        });
+        
+        // Profil törlése
+        overlay.querySelector('#pxp-settings-btn-delete-profile').addEventListener('click', async () => {
+            const currentProfiles = PannonXPService.getSenderProfiles();
+            if (currentProfiles.length <= 1) {
+                await CustomDialog.alert('Az utolsó feladó profilt nem lehet törölni!', 'Hiba', 'error');
+                return;
+            }
+            
+            const activeProfile = PannonXPService.getActiveProfile();
+            const confirmed = await CustomDialog.confirm(`Biztosan törlöd a(z) "${activeProfile.profileName}" feladó profilt?`, 'Profil törlése');
+            if (confirmed) {
+                const updated = currentProfiles.filter(p => p.id !== activeProfile.id);
+                PannonXPService.saveSenderProfiles(updated);
+                PannonXPService.setActiveProfileId(updated[0].id);
+                
+                overlay.remove();
+                this.showSettingsModal(container, orders, onExport);
+                this.render(container, orders, onExport);
+            }
+        });
+        
+        // Profil form mentés
+        overlay.querySelector('#pxp-settings-profile-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const activeProfile = PannonXPService.getActiveProfile();
+            
+            const updatedProfile = {
+                id: activeProfile.id,
+                profileName: activeProfile.profileName,
+                uc_ugyfelkod: overlay.querySelector('#pxp-set-s-code').value.trim(),
+                uc_ceg_nev: overlay.querySelector('#pxp-set-s-company').value.trim(),
+                uc_nev: overlay.querySelector('#pxp-set-s-name').value.trim(),
+                uc_tel: overlay.querySelector('#pxp-set-s-phone').value.trim(),
+                uc_email: overlay.querySelector('#pxp-set-s-email').value.trim(),
+                uc_ceg_cim_iranyito: overlay.querySelector('#pxp-set-s-zip').value.trim(),
+                uc_ceg_cim_telepules: overlay.querySelector('#pxp-set-s-city').value.trim(),
+                uc_ceg_cim_orszag: '36',
+                uc_ceg_cim_kozterulet: overlay.querySelector('#pxp-set-s-street').value.trim(),
+                uc_ceg_adoszam: overlay.querySelector('#pxp-set-s-tax').value.trim(),
+                uc_ceg_bankszamlaszam: overlay.querySelector('#pxp-set-s-bank').value.trim(),
+                szl_tartalom: overlay.querySelector('#pxp-set-s-content').value.trim()
+            };
+            
+            const allProfiles = PannonXPService.getSenderProfiles();
+            const index = allProfiles.findIndex(p => p.id === activeProfile.id);
+            if (index !== -1) {
+                allProfiles[index] = updatedProfile;
+            }
+            
+            PannonXPService.saveSenderProfiles(allProfiles);
+            await CustomDialog.alert('Feladó profil sikeresen mentve!', 'Mentés sikeres', 'info');
+            this.render(container, orders, onExport);
         });
     }
 };
