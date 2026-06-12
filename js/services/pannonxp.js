@@ -1,28 +1,63 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
 import { cleanItemNameForMapping } from './shopify.js';
+import { db, doc, getDoc, setDoc } from '../firebase-config.js?v=42';
+
+let mappingsCache = null;
 
 export const PannonXPService = {
-    getProductMappings() {
-        const stored = localStorage.getItem('pxp_product_mappings');
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored);
-                const cleaned = {};
-                for (const key in parsed) {
-                    const cleanedKey = cleanItemNameForMapping(key);
-                    if (cleanedKey) {
-                        cleaned[cleanedKey] = parsed[key];
+    async initializeMappings() {
+        try {
+            const docRef = doc(db, 'pxp_settings', 'product_mappings');
+            const docSnap = await getDoc(docRef);
+            let mappings = {};
+            if (docSnap.exists()) {
+                mappings = docSnap.data().mappings || {};
+            } else {
+                // Fallback to localStorage for smooth migration
+                const local = localStorage.getItem('pxp_product_mappings');
+                if (local) {
+                    try {
+                        mappings = JSON.parse(local);
+                        // Save to cloud immediately
+                        await setDoc(docRef, { mappings });
+                    } catch (err) {
+                        console.error("Local storage fallback parser error:", err);
                     }
                 }
-                return cleaned;
-            } catch (e) {
-                console.error("Hiba a termék rövidítések betöltésekor:", e);
             }
+            
+            // Clean keys on load
+            const cleaned = {};
+            for (const key in mappings) {
+                const cleanedKey = cleanItemNameForMapping(key);
+                if (cleanedKey) {
+                    cleaned[cleanedKey] = mappings[key];
+                }
+            }
+            mappingsCache = cleaned;
+            return cleaned;
+        } catch (e) {
+            console.error("Hiba a felhős termék rövidítések betöltésekor:", e);
+            mappingsCache = mappingsCache || {};
+            return mappingsCache;
         }
-        return {};
     },
 
-    saveProductMappings(mappings) {
+    getProductMappings() {
+        if (mappingsCache === null) {
+            console.warn("getProductMappings called before initializeMappings! Returning local storage fallback.");
+            const stored = localStorage.getItem('pxp_product_mappings');
+            if (stored) {
+                try {
+                    return JSON.parse(stored);
+                } catch (e) {}
+            }
+            return {};
+        }
+        return mappingsCache;
+    },
+
+    async saveProductMappings(mappings) {
         const cleaned = {};
         for (const key in mappings) {
             const cleanedKey = cleanItemNameForMapping(key);
@@ -30,7 +65,16 @@ export const PannonXPService = {
                 cleaned[cleanedKey] = mappings[key];
             }
         }
+        
+        mappingsCache = cleaned;
         localStorage.setItem('pxp_product_mappings', JSON.stringify(cleaned));
+        
+        try {
+            const docRef = doc(db, 'pxp_settings', 'product_mappings');
+            await setDoc(docRef, { mappings: cleaned });
+        } catch (e) {
+            console.error("Hiba a felhős mentéskor:", e);
+        }
     },
 
     // Alapértelmezett beállítások (local storage-ból tölthető)

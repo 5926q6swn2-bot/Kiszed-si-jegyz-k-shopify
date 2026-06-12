@@ -38,12 +38,15 @@ function initApp() {
 
     // (A bejelentkezést már az index.html kezeli)
     
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
         if (user) {
             // Bejelentkezve
             loginOverlay.classList.remove('active');
             mainApp.style.display = 'flex';
             userEmailDisplay.textContent = user.email;
+            
+            // Mappings inicializálása felhőből
+            await PannonXPService.initializeMappings();
         } else {
             // Kijelentkezve
             loginOverlay.classList.add('active');
