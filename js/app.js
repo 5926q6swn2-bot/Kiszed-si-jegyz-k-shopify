@@ -45,8 +45,8 @@ function initApp() {
             mainApp.style.display = 'flex';
             userEmailDisplay.textContent = user.email;
             
-            // Mappings inicializálása felhőből
-            await PannonXPService.initializeMappings();
+            // Mappings és egyéb beállítások inicializálása felhőből
+            await PannonXPService.initializeAllSettings();
         } else {
             // Kijelentkezve
             loginOverlay.classList.add('active');
