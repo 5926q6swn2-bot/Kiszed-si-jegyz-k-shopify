@@ -145,7 +145,11 @@ export const PannonXPView = {
                 const hasZip = !!o.zip;
                 const activeM = PannonXPService.getProductMappings();
                 const hasUnmapped = o.items.some(item => !activeM[cleanItemNameForMapping(item.name)]);
-                return !hasZip || !!o.pxp_has_unmatched || hasUnmapped;
+                const hasUnassignedCategory = o.items.some(item => {
+                    const m = activeM[cleanItemNameForMapping(item.name)];
+                    return m && !m.categoryId;
+                });
+                return !hasZip || !!o.pxp_has_unmatched || hasUnmapped || hasUnassignedCategory;
             });
             exportBtn.disabled = selectedOrders.length === 0 || hasErrors;
             if (hasErrors) {
@@ -162,7 +166,14 @@ export const PannonXPView = {
             const activeM = PannonXPService.getProductMappings();
             const unmappedItems = order.items.filter(item => !activeM[cleanItemNameForMapping(item.name)]);
             const hasUnmappedProduct = unmappedItems.length > 0;
-            const hasUnmatched = !!order.pxp_has_unmatched || hasUnmappedProduct;
+            
+            const unassignedCategoryItems = order.items.filter(item => {
+                const m = activeM[cleanItemNameForMapping(item.name)];
+                return m && !m.categoryId;
+            });
+            const hasUnassignedCategory = unassignedCategoryItems.length > 0;
+            
+            const hasUnmatched = !!order.pxp_has_unmatched || hasUnmappedProduct || hasUnassignedCategory;
             const hasError = !hasZip || hasUnmatched;
             
             if (order.pxp_csomagszam === undefined) order.pxp_csomagszam = 1;
@@ -170,6 +181,15 @@ export const PannonXPView = {
             if (order.pxp_selected === undefined) order.pxp_selected = true;
             
             const codFormatted = order.isCOD ? new Intl.NumberFormat('hu-HU').format(Math.round(order.codAmount)) + ' Ft' : '-';
+            
+            let warningMessage = '';
+            if (hasUnmappedProduct) {
+                warningMessage = `<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;" title="${unmappedItems.map(i => i.name).join(', ')}">⚠️ Rövidítés hiányzik: ${unmappedItems.map(i => cleanItemNameForMapping(i.name)).join(', ')}</span>`;
+            } else if (hasUnassignedCategory) {
+                warningMessage = `<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;" title="${unassignedCategoryItems.map(i => i.name).join(', ')}">⚠️ Nincs kategória rendelve: ${unassignedCategoryItems.map(i => cleanItemNameForMapping(i.name)).join(', ')}</span>`;
+            } else if (order.pxp_has_unmatched) {
+                warningMessage = '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;">⚠️ Ismeretlen termékcsalád!</span>';
+            }
             
             return `
                 <tr style="border-bottom: 1px solid #e2e8f0; ${hasError ? 'background: #fef2f2;' : ''}">
@@ -179,7 +199,7 @@ export const PannonXPView = {
                     <td style="padding: 10px; font-weight: 600; color: #0f172a;">${order.id}</td>
                     <td style="padding: 10px; font-weight: 500;">
                         ${order.shippingName}
-                        ${hasUnmappedProduct ? `<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;" title="${unmappedItems.map(i => i.name).join(', ')}">⚠️ Rövidítés hiányzik: ${unmappedItems.map(i => cleanItemNameForMapping(i.name)).join(', ')}</span>` : (hasUnmatched ? '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;">⚠️ Ismeretlen termékcsalád!</span>' : '')}
+                        ${warningMessage}
                     </td>
                     <td style="padding: 10px; color: #334155;">
                         ${order.fullAddress || order.address}
@@ -415,7 +435,7 @@ export const PannonXPView = {
         const rules = PannonXPService.getPackagingRules();
         
         overlay.innerHTML = `
-            <div class="custom-dialog-box modal-large" style="max-width: 760px; width: 95%; height: 85vh; max-height: 85vh; display: flex; flex-direction: column; padding: 20px;">
+            <div class="custom-dialog-box modal-large" style="max-width: 1000px; width: 95%; height: 90vh; max-height: 90vh; display: flex; flex-direction: column; padding: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px; margin-bottom: 10px;">
                     <h2 style="margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
                         <i class="ph-bold ph-gear" style="color: var(--primary-color);"></i>
@@ -651,16 +671,6 @@ export const PannonXPView = {
                 });
             });
             
-            // Keywords change listener
-            const keywordInputs = tabContainer.querySelectorAll('.cat-input-keywords');
-            keywordInputs.forEach(input => {
-                input.addEventListener('change', () => {
-                    const catId = input.dataset.catId;
-                    const cat = rules.categories.find(c => c.id === catId);
-                    if (cat) cat.keywords = input.value.trim();
-                });
-            });
-            
             // MaxQty change listener (re-renders cards dynamically)
             const maxQtyInputs = tabContainer.querySelectorAll('.cat-input-maxqty');
             maxQtyInputs.forEach(input => {
@@ -704,9 +714,6 @@ export const PannonXPView = {
                         rules.categories.forEach(cat => {
                             const nameInput = tabContainer.querySelector(`.cat-input-name[data-cat-id="${cat.id}"]`);
                             if (nameInput) cat.name = nameInput.value.trim();
-                            
-                            const kwInput = tabContainer.querySelector(`.cat-input-keywords[data-cat-id="${cat.id}"]`);
-                            if (kwInput) cat.keywords = kwInput.value.trim();
                             
                             const maxQtyInput = tabContainer.querySelector(`.cat-input-maxqty[data-cat-id="${cat.id}"]`);
                             if (maxQtyInput) cat.maxQty = parseInt(maxQtyInput.value) || (cat.type === 'cards' ? 5 : cat.type === 'adhesive' ? 12 : 50);
@@ -785,7 +792,7 @@ export const PannonXPView = {
             let html = `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                     <span style="font-size:11px; color:#64748b; line-height:1.4;">
-                        A hívószavaknál használhatsz <b>vesszőt (,)</b> VAGY kapcsolathoz (pl. <i>akupanel, akusztikus</i>), vagy <b>plusz jelet (+)</b> ÉS kapcsolathoz (pl. <i>wood + spc</i>).
+                        A termékeket a <b>Termék Rövidítések</b> fülön tudod közvetlenül a kívánt csomagolási kategóriához rendelni.
                     </span>
                     <button type="button" id="pxp-btn-new-category" class="btn btn-secondary btn-sm" style="padding:6px 12px; font-weight:600; display:flex; align-items:center; gap:4px; flex-shrink:0;">
                         <i class="ph-bold ph-plus"></i> Új kategória
@@ -819,12 +826,7 @@ export const PannonXPView = {
                             </div>
                         </div>
                         
-                        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-                            <div class="form-group" style="margin-bottom:0;">
-                                <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Hívószavak / Kulcsszavak</label>
-                                <input type="text" class="cat-input-keywords" data-cat-id="${cat.id}" value="${cat.keywords || ''}" placeholder="pl.: wood + spc" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
-                            </div>
-                            
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                             <div class="form-group" style="margin-bottom:0;">
                                 <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Max db egy csomagban</label>
                                 <input type="number" class="cat-input-maxqty" data-cat-id="${cat.id}" value="${cat.maxQty || (cat.type === 'cards' ? 5 : cat.type === 'adhesive' ? 12 : 50)}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
@@ -914,9 +916,10 @@ export const PannonXPView = {
             
             const mappings = PannonXPService.getProductMappings();
             const keys = Object.keys(mappings);
+            const categories = rules.categories || [];
             
             let html = `
-                <div style="display:flex; flex-direction:column; gap:15px;">
+                <div style="display:flex; flex-direction:column; gap:15px; height: 100%;">
                     <!-- Shopify Termék CSV Import szekció -->
                     <div style="background: #f8fafc; padding: 14px; border-radius: 12px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; gap: 8px;">
                         <h4 style="margin: 0; font-size: 13px; color: #1e293b;">Shopify Termék Export CSV Beolvasása</h4>
@@ -931,19 +934,6 @@ export const PannonXPView = {
                             <span id="pxp-product-csv-status" style="font-size: 11px; color: #64748b;">Nincs fájl betöltve</span>
                         </div>
                     </div>
-
-                    <div style="background: #f8fafc; padding: 14px; border-radius: 12px; border: 1px solid #cbd5e1;">
-                        <h4 style="margin: 0 0 8px 0; font-size: 13px; color: #1e293b;">Tömeges Manuális Feltöltés (Excel / CSV másolás)</h4>
-                        <p style="margin: 0 0 10px 0; font-size: 11px; color: #64748b; line-height: 1.4;">
-                            Másold be ide a termékeket Excelből vagy CSV-ből. Formátum soronként: <code>Pontos Terméknév;Rövidítés</code> (vagy Tab elválasztással).
-                        </p>
-                        <textarea id="pxp-bulk-import-area" placeholder="pl.:&#10;Akusztikus Prémium Falpanel Sonoma tölgy;Sonoma&#10;Akusztikus Prémium Falpanel Teak;Teak" style="width: 100%; height: 80px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: monospace; font-size: 12px; box-sizing: border-box; resize: vertical; outline: none;"></textarea>
-                        <div style="display: flex; justify-content: flex-end; margin-top: 10px; gap: 8px;">
-                            <button type="button" id="pxp-btn-bulk-import" class="btn btn-primary btn-sm" style="padding: 6px 14px;">
-                                <i class="ph-bold ph-plus"></i> Feltöltés / Hozzáadás
-                            </button>
-                        </div>
-                    </div>
                     
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <h4 style="margin: 0; font-size: 13px; color: #1e293b;">Regisztrált Termékek (${keys.length} db)</h4>
@@ -952,25 +942,35 @@ export const PannonXPView = {
                         </button>
                     </div>
                     
-                    <div style="max-height: 250px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;">
+                    <div style="max-height: 450px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; flex: 1;">
                         <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
                             <thead>
                                 <tr style="background: #f8fafc; border-bottom: 1px solid #cbd5e1; font-weight: 600; color: #475569;">
                                     <th style="padding: 8px 10px;">Shopify Terméknév</th>
                                     <th style="padding: 8px 10px; width: 150px;">Rövidítés</th>
+                                    <th style="padding: 8px 10px; width: 160px;">Kategória</th>
                                     <th style="padding: 8px 10px; width: 50px; text-align: center;">Törlés</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${keys.length === 0 ? `
                                     <tr>
-                                        <td colspan="3" style="padding: 20px; text-align: center; color: #64748b;">Nincsenek még termékek feltöltve.</td>
+                                        <td colspan="4" style="padding: 20px; text-align: center; color: #64748b;">Nincsenek még termékek feltöltve.</td>
                                     </tr>
-                                ` : keys.map(k => `
-                                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                                ` : keys.map(k => {
+                                    const mappingObj = mappings[k] || { abbrev: '', categoryId: '' };
+                                    const hasCat = !!mappingObj.categoryId;
+                                    return `
+                                    <tr style="border-bottom: 1px solid #f1f5f9; ${hasCat ? '' : 'background: #fff5f5;'}">
                                         <td style="padding: 8px 10px; color: #1e293b; font-weight: 500;">${k}</td>
                                         <td style="padding: 4px 10px;">
-                                            <input type="text" class="pxp-input-abbrev" data-key="${k.replace(/"/g, '&quot;')}" value="${mappings[k].replace(/"/g, '&quot;')}" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 12px; outline: none; font-weight: 600; color: #0f172a; box-sizing: border-box;">
+                                            <input type="text" class="pxp-input-abbrev" data-key="${k.replace(/"/g, '&quot;')}" value="${(mappingObj.abbrev || '').replace(/"/g, '&quot;')}" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 12px; outline: none; font-weight: 600; color: #0f172a; box-sizing: border-box;">
+                                        </td>
+                                        <td style="padding: 4px 10px;">
+                                            <select class="pxp-select-mapping-category" data-key="${k.replace(/"/g, '&quot;')}" style="width: 100%; border: 1.5px solid ${hasCat ? '#cbd5e1' : '#ef4444'}; background: ${hasCat ? '#fff' : '#fef2f2'}; border-radius: 6px; padding: 4px; font-size: 12px; outline: none; cursor: pointer; font-weight: ${hasCat ? 'normal' : 'bold'}; color: ${hasCat ? '#0f172a' : '#b91c1c'}; box-sizing: border-box;">
+                                                <option value="" ${!hasCat ? 'selected' : ''}>⚠️ Nincs kategória! ⚠️</option>
+                                                ${categories.map(cat => `<option value="${cat.id}" ${cat.id === mappingObj.categoryId ? 'selected' : ''}>${cat.name}</option>`).join('')}
+                                            </select>
                                         </td>
                                         <td style="padding: 8px 10px; text-align: center;">
                                             <button type="button" class="pxp-btn-delete-mapping" data-key="${k.replace(/"/g, '&quot;')}" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 14px; padding: 2px;">
@@ -978,7 +978,8 @@ export const PannonXPView = {
                                             </button>
                                         </td>
                                     </tr>
-                                `).join('')}
+                                    `;
+                                }).join('')}
                             </tbody>
                         </table>
                     </div>
@@ -995,7 +996,10 @@ export const PannonXPView = {
                     if (!newValue) return;
                     
                     const activeMappings = PannonXPService.getProductMappings();
-                    activeMappings[key] = newValue;
+                    if (!activeMappings[key]) {
+                        activeMappings[key] = { abbrev: '', categoryId: '' };
+                    }
+                    activeMappings[key].abbrev = newValue;
                     PannonXPService.saveProductMappings(activeMappings);
                     
                     // Recalculate references and unmatched flags for current orders
@@ -1003,6 +1007,42 @@ export const PannonXPView = {
                         orders.forEach(order => {
                             order.pxp_referencia = ShopifyParser.generateDefaultReference ? ShopifyParser.generateDefaultReference(order, 40) : order.pxp_referencia;
                             const calc = PannonXPService.calculateWeightAndPackages(order.items);
+                            order.pxp_csomagszam = calc.packages;
+                            order.pxp_suly = calc.weight;
+                            order.pxp_packages = calc.packagesDetail;
+                            order.pxp_has_unmatched = calc.hasUnmatched || order.items.some(item => {
+                                const activeM = PannonXPService.getProductMappings();
+                                return !activeM[cleanItemNameForMapping(item.name)];
+                            });
+                        });
+                    }
+                    
+                    // Refresh the main view
+                    PannonXPView.render(mainContainer, orders, onExport);
+                });
+            });
+
+            // Bind listeners for inline category editing
+            container.querySelectorAll('.pxp-select-mapping-category').forEach(select => {
+                select.addEventListener('change', () => {
+                    const key = select.dataset.key;
+                    const newCatId = select.value;
+                    
+                    const activeMappings = PannonXPService.getProductMappings();
+                    if (!activeMappings[key]) {
+                        activeMappings[key] = { abbrev: '', categoryId: '' };
+                    }
+                    activeMappings[key].categoryId = newCatId;
+                    PannonXPService.saveProductMappings(activeMappings);
+                    
+                    // Recalculate references and unmatched flags for current orders
+                    if (orders && Array.isArray(orders)) {
+                        orders.forEach(order => {
+                            order.pxp_referencia = ShopifyParser.generateDefaultReference ? ShopifyParser.generateDefaultReference(order, 40) : order.pxp_referencia;
+                            const calc = PannonXPService.calculateWeightAndPackages(order.items);
+                            order.pxp_csomagszam = calc.packages;
+                            order.pxp_suly = calc.weight;
+                            order.pxp_packages = calc.packagesDetail;
                             order.pxp_has_unmatched = calc.hasUnmatched || order.items.some(item => {
                                 const activeM = PannonXPService.getProductMappings();
                                 return !activeM[cleanItemNameForMapping(item.name)];
@@ -1072,7 +1112,19 @@ export const PannonXPView = {
                                         } else {
                                             autoAbbrev = cleanedName.split(' ').slice(0, 2).join(' ');
                                         }
-                                        activeMappings[cleanedName] = autoAbbrev || cleanedName;
+                                        
+                                        // Guess category
+                                        let guessedCategoryId = 'cat_acoustic';
+                                        const cleanNameLower = cleanedName.toLowerCase();
+                                        if (/(ragasztó|t-rex|trex|ragaszto|hpr)/i.test(cleanNameLower)) guessedCategoryId = 'cat_adhesive';
+                                        else if (/profil/i.test(cleanNameLower)) guessedCategoryId = 'cat_profile';
+                                        else if (/(wood|spc\s*wood)/i.test(cleanNameLower)) guessedCategoryId = 'cat_spcwood';
+                                        else if (/(stone|spc\s*stone)/i.test(cleanNameLower)) guessedCategoryId = 'cat_spcstone';
+
+                                        activeMappings[cleanedName] = {
+                                            abbrev: autoAbbrev || cleanedName,
+                                            categoryId: guessedCategoryId
+                                        };
                                         count++;
                                     }
                                 });
@@ -1084,6 +1136,9 @@ export const PannonXPView = {
                                         orders.forEach(order => {
                                             order.pxp_referencia = ShopifyParser.generateDefaultReference ? ShopifyParser.generateDefaultReference(order, 40) : order.pxp_referencia;
                                             const calc = PannonXPService.calculateWeightAndPackages(order.items);
+                                            order.pxp_csomagszam = calc.packages;
+                                            order.pxp_suly = calc.weight;
+                                            order.pxp_packages = calc.packagesDetail;
                                             order.pxp_has_unmatched = calc.hasUnmatched || order.items.some(item => {
                                                 const activeM = PannonXPService.getProductMappings();
                                                 const cleanedN = cleanItemNameForMapping(item.name);
@@ -1108,54 +1163,6 @@ export const PannonXPView = {
                     csvInput.value = '';
                 });
             }
-
-            // Bind listeners for abbreviations tab
-            container.querySelector('#pxp-btn-bulk-import').addEventListener('click', async () => {
-                const text = container.querySelector('#pxp-bulk-import-area').value;
-                if (!text.trim()) return;
-                
-                const lines = text.split('\n');
-                let count = 0;
-                const activeMappings = PannonXPService.getProductMappings();
-                
-                lines.forEach(line => {
-                    if (!line.trim()) return;
-                    let parts = line.split(';');
-                    if (parts.length < 2) {
-                        parts = line.split('\t');
-                    }
-                    if (parts.length >= 2) {
-                        const prodName = parts[0].trim();
-                        const abbrev = parts[1].trim();
-                        if (prodName && abbrev) {
-                            activeMappings[prodName] = abbrev;
-                            count++;
-                        }
-                    }
-                });
-                
-                if (count > 0) {
-                    PannonXPService.saveProductMappings(activeMappings);
-                    
-                    // Recalculate references and unmatched flags for current orders
-                    if (orders && Array.isArray(orders)) {
-                        orders.forEach(order => {
-                            order.pxp_referencia = ShopifyParser.generateDefaultReference ? ShopifyParser.generateDefaultReference(order, 40) : order.pxp_referencia;
-                            const calc = PannonXPService.calculateWeightAndPackages(order.items);
-                            order.pxp_has_unmatched = calc.hasUnmatched || order.items.some(item => {
-                                const activeM = PannonXPService.getProductMappings();
-                                return !activeM[cleanItemNameForMapping(item.name)];
-                            });
-                        });
-                    }
-                    
-                    await CustomDialog.alert(`${count} db termék sikeresen feltöltve és hozzárendelve!`, 'Sikeres feltöltés', 'info');
-                    renderAbbreviationsTab();
-                    PannonXPView.render(mainContainer, orders, onExport);
-                } else {
-                    await CustomDialog.alert('Nem sikerült beolvasni egyetlen terméket sem! Kérlek ellenőrizd a formátumot (Terméknév;Rövidítés).', 'Hiba', 'error');
-                }
-            });
             
             container.querySelectorAll('.pxp-btn-delete-mapping').forEach(btn => {
                 btn.addEventListener('click', async () => {

@@ -7,6 +7,37 @@ let profilesCache = null;
 let activeProfileIdCache = null;
 let rulesCache = null;
 
+function normalizeMappings(mappings) {
+    const cleaned = {};
+    for (const key in mappings) {
+        const cleanedKey = cleanItemNameForMapping(key);
+        if (!cleanedKey) continue;
+        
+        let val = mappings[key];
+        if (typeof val === 'string') {
+            // Guess category from name
+            let guessedCategoryId = 'cat_acoustic';
+            const cleanNameLower = cleanedKey.toLowerCase();
+            if (/(ragasztó|t-rex|trex|ragaszto|hpr)/i.test(cleanNameLower)) guessedCategoryId = 'cat_adhesive';
+            else if (/profil/i.test(cleanNameLower)) guessedCategoryId = 'cat_profile';
+            else if (/(wood|spc\s*wood)/i.test(cleanNameLower)) guessedCategoryId = 'cat_spcwood';
+            else if (/(stone|spc\s*stone)/i.test(cleanNameLower)) guessedCategoryId = 'cat_spcstone';
+            
+            val = {
+                abbrev: val,
+                categoryId: guessedCategoryId
+            };
+        } else if (val && typeof val === 'object') {
+            val = {
+                abbrev: val.abbrev || '',
+                categoryId: val.categoryId || ''
+            };
+        }
+        cleaned[cleanedKey] = val;
+    }
+    return cleaned;
+}
+
 export const PannonXPService = {
     async initializeAllSettings() {
         try {
@@ -33,23 +64,21 @@ export const PannonXPService = {
                 if (local) {
                     try {
                         mappings = JSON.parse(local);
-                        // Save to cloud immediately
-                        await setDoc(docRef, { mappings });
                     } catch (err) {
                         console.error("Local storage fallback parser error:", err);
                     }
                 }
             }
             
-            // Clean keys on load
-            const cleaned = {};
-            for (const key in mappings) {
-                const cleanedKey = cleanItemNameForMapping(key);
-                if (cleanedKey) {
-                    cleaned[cleanedKey] = mappings[key];
-                }
-            }
+            // Clean keys on load and normalize
+            const cleaned = normalizeMappings(mappings);
             mappingsCache = cleaned;
+            
+            // Save normalized mappings to cloud if we migrated from local storage
+            if (!docSnap.exists() && Object.keys(cleaned).length > 0) {
+                await setDoc(docRef, { mappings: cleaned });
+            }
+            
             return cleaned;
         } catch (e) {
             console.error("Hiba a felhős termék rövidítések betöltésekor:", e);
@@ -64,7 +93,7 @@ export const PannonXPService = {
             const stored = localStorage.getItem('pxp_product_mappings');
             if (stored) {
                 try {
-                    return JSON.parse(stored);
+                    return normalizeMappings(JSON.parse(stored));
                 } catch (e) {}
             }
             return {};
@@ -73,13 +102,7 @@ export const PannonXPService = {
     },
 
     async saveProductMappings(mappings) {
-        const cleaned = {};
-        for (const key in mappings) {
-            const cleanedKey = cleanItemNameForMapping(key);
-            if (cleanedKey) {
-                cleaned[cleanedKey] = mappings[key];
-            }
-        }
+        const cleaned = normalizeMappings(mappings);
         
         mappingsCache = cleaned;
         localStorage.setItem('pxp_product_mappings', JSON.stringify(cleaned));
@@ -465,6 +488,7 @@ export const PannonXPService = {
     calculateWeightAndPackages(items) {
         const rules = this.getPackagingRules();
         const categories = rules.categories || [];
+        const mappings = this.getProductMappings() || {};
         
         // Helper to convert user-friendly keywords to regex
         const parseKeywordsToRegex = (input) => {
@@ -501,8 +525,20 @@ export const PannonXPService = {
         items.forEach(item => {
             const name = item.name.toLowerCase();
             
-            const processItem = (itemName, itemQty) => {
-                const matchedCat = categoriesWithRegex.find(cat => cat.regex.test(itemName));
+            const processItem = (itemName, itemQty, originalName) => {
+                const cleanedName = cleanItemNameForMapping(originalName || itemName);
+                const mapping = mappings[cleanedName];
+                
+                let matchedCat = null;
+                if (mapping && typeof mapping === 'object' && mapping.categoryId) {
+                    matchedCat = categories.find(cat => cat.id === mapping.categoryId);
+                }
+                
+                // Fallback to keyword regex matching
+                if (!matchedCat) {
+                    matchedCat = categoriesWithRegex.find(cat => cat.regex.test(itemName));
+                }
+                
                 if (matchedCat) {
                     qtyMap[matchedCat.id] += itemQty;
                     if (matchedCat.type === 'adhesive') {
@@ -515,12 +551,12 @@ export const PannonXPService = {
             
             if (item.isCollapsedProfile && item.subItems) {
                 item.subItems.forEach(sub => {
-                    processItem(sub.name.toLowerCase(), sub.qty);
+                    processItem(sub.name.toLowerCase(), sub.qty, sub.name);
                 });
                 return;
             }
             
-            processItem(name, item.qty);
+            processItem(name, item.qty, item.name);
         });
         
         const packagesDetail = [];

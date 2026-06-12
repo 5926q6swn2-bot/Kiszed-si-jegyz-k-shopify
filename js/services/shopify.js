@@ -36,7 +36,8 @@ export function generateDefaultReference(order, maxLen = 40) {
     
     (order.items || []).forEach(item => {
         const cleanedName = cleanItemNameForMapping(item.name);
-        const abbrev = mappings[cleanedName];
+        const mapping = mappings[cleanedName];
+        const abbrev = mapping ? (typeof mapping === 'object' ? mapping.abbrev : mapping) : null;
         if (abbrev) {
             parts.push(`${abbrev}${item.qty}`);
         } else {
