@@ -1,9 +1,38 @@
-/**
- * PannonXP Szolgáltatás
- * Shopify megrendelések átalakítása a PannonXP import formátumára.
- */
+import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
+import { cleanItemNameForMapping } from './shopify.js';
 
 export const PannonXPService = {
+    getProductMappings() {
+        const stored = localStorage.getItem('pxp_product_mappings');
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                const cleaned = {};
+                for (const key in parsed) {
+                    const cleanedKey = cleanItemNameForMapping(key);
+                    if (cleanedKey) {
+                        cleaned[cleanedKey] = parsed[key];
+                    }
+                }
+                return cleaned;
+            } catch (e) {
+                console.error("Hiba a termék rövidítések betöltésekor:", e);
+            }
+        }
+        return {};
+    },
+
+    saveProductMappings(mappings) {
+        const cleaned = {};
+        for (const key in mappings) {
+            const cleanedKey = cleanItemNameForMapping(key);
+            if (cleanedKey) {
+                cleaned[cleanedKey] = mappings[key];
+            }
+        }
+        localStorage.setItem('pxp_product_mappings', JSON.stringify(cleaned));
+    },
+
     // Alapértelmezett beállítások (local storage-ból tölthető)
     getSenderProfiles() {
         const stored = localStorage.getItem('pxp_sender_profiles');
@@ -471,7 +500,7 @@ export const PannonXPService = {
             // 1. Feladó beállítások
             rowData.push(senderSettings.uc_ugyfelkod || '');
             rowData.push(senderSettings.uc_nev || '');
-            rowData.push(senderSettings.uc_tel || '');
+            rowData.push(formatHungarianPhoneNumber(senderSettings.uc_tel || ''));
             rowData.push(senderSettings.uc_email || '');
             rowData.push(senderSettings.uc_ceg_nev || '');
             rowData.push(senderSettings.uc_ceg_cim_iranyito || '');
@@ -485,7 +514,7 @@ export const PannonXPService = {
             // 2. Címzett adatok (Shopify-ból)
             rowData.push(''); // ucc_ugyfelkod (üres)
             rowData.push(order.shippingName || '');
-            rowData.push(order.shippingPhone || '');
+            rowData.push(formatHungarianPhoneNumber(order.shippingPhone || ''));
             rowData.push(order.email || ''); // email
             
             // Ha van cég megadva a Shopify-ban, azt használjuk, különben a nevet
@@ -539,7 +568,7 @@ export const PannonXPService = {
             rowData.push(''); // szl_ekaer_szam
             rowData.push(''); // szl_ekaer_email
             rowData.push(''); // szl_koltseghely
-            rowData.push(order.id || ''); // szl_referenciaszam (Shopify order name, pl. #1024)
+            rowData.push(order.pxp_referencia || order.id || ''); // szl_referenciaszam (Shopify order name or formatted reference)
             rowData.push('0'); // szl_koltsegviselo (0 = feladó fizet)
             rowData.push(senderSettings.uc_ceg_adoszam || ''); // szl_adoszam (feladó adószáma)
             rowData.push('0'); // szl_maganszemely (0 = cég fizet)

@@ -1,3 +1,62 @@
+import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
+import { PannonXPService } from './pannonxp.js';
+
+export function cleanItemNameForMapping(name) {
+    if (!name) return '';
+    return name
+        // 1. Zárójeles méretek eltávolítása, pl. (278x60cm), (280 cm), (280x122)
+        .replace(/\([\d\s*xXcm\-+.,/]*\)/gi, '')
+        // 2. Standalone méretek pl. 278x60cm, 280 x 120 cm, 280x120
+        .replace(/\b\d+\s*(x|\*)\s*\d+\s*(cm|m|mm)?\b/gi, '')
+        // 3. Standalone mértékegységes számok pl. 280 cm, 60cm
+        .replace(/\b\d+(\.\d+)?\s*(cm|m|mm)\b/gi, '')
+        // 4. Konkrét ismert méretek önmagukban
+        .replace(/\b(280|278|244|122|60)\b/g, '')
+        // 5. Megmaradt üres zárójelek
+        .replace(/\(\s*\)/g, '')
+        // 6. Eltávolítjuk a felesleges elválasztójeleket a név végéről és elejéről (pl. perjelek, kötőjelek)
+        .replace(/[\s\/\-\u2013\u2014]+$/, '')
+        .replace(/^[\s\/\-\u2013\u2014]+/, '')
+        // 7. Felesleges szóközök
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+export function generateDefaultReference(order, maxLen = 40) {
+    const orderId = order.id || '';
+    const cleanOrderId = orderId.replace(/^#/, '');
+    const prefix = cleanOrderId ? `${cleanOrderId} ` : '';
+    const availableLen = maxLen - prefix.length;
+    
+    if (availableLen <= 0) return cleanOrderId.substring(0, maxLen);
+    
+    const mappings = PannonXPService.getProductMappings() || {};
+    const parts = [];
+    let hasUnmapped = false;
+    
+    (order.items || []).forEach(item => {
+        const cleanedName = cleanItemNameForMapping(item.name);
+        const abbrev = mappings[cleanedName];
+        if (abbrev) {
+            parts.push(`${abbrev}${item.qty}`);
+        } else {
+            hasUnmapped = true;
+            const shortFallback = cleanedName.substring(0, 10);
+            parts.push(`${shortFallback}${item.qty}`);
+        }
+    });
+    
+    if (hasUnmapped) {
+        order.pxp_has_unmatched = true;
+    }
+    
+    let itemsStr = parts.join(',');
+    if (prefix.length + itemsStr.length > maxLen) {
+        return cleanOrderId ? `${cleanOrderId} kérdezd Mátét` : 'kérdezd Mátét';
+    }
+    
+    return prefix + itemsStr;
+}
 
 export const ShopifyParser = {
     
@@ -70,8 +129,8 @@ export const ShopifyParser = {
                     row['Shipping Address2']
                 ].filter(Boolean);
                 
-                const shippingPhone = row['Shipping Phone'] || '';
-                const billingPhone = row['Billing Phone'] || shippingPhone;
+                const shippingPhone = formatHungarianPhoneNumber(row['Shipping Phone'] || '');
+                const billingPhone = formatHungarianPhoneNumber(row['Billing Phone'] || shippingPhone);
 
                 // Hibák gyűjtése
                 let errors = [];
@@ -264,6 +323,8 @@ export const ShopifyParser = {
                 const typeB = ShopifyParser.getItemTypeWeight(b.name);
                 return typeA - typeB;
             });
+            
+            order.pxp_referencia = generateDefaultReference(order, 40);
             
             finalNewOrders.push(order);
         });

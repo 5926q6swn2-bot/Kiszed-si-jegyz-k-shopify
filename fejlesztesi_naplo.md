@@ -35,6 +35,18 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
+### 2026. június 12. - Telefonszámok formázása és Referenciaszám okos rövidítése (Shopify Termék CSV importálással)
+- **Telefonszám Formázó Utility**: Létrejött a `js/utils/phoneFormatter.js` segédfájl a magyar telefonszámok standardizálására.
+- **Shopify Parser**: A Shopify megrendelések beolvasásakor a vevők telefonszáma azonnal formázásra kerül.
+- **Manuális rendelések**: Új megrendelés felvitelekor és szerkesztésekor a telefonszám automatikusan +36 formátumot kap.
+- **PannonXP Exportőr**: A CSV exportálás során a feladó (`uc_tel`) és a címzett (`ucc_tel`) telefonszámai is átfutnak a formázón a maximális kompatibilitás érdekében.
+- **Feladó Profil**: A beállításokban a feladó profil mentésekor a rendszer automatikusan formázza a megadott telefonszámot.
+- **Referenciaszám okos tömörítése**: Új `generateDefaultReference` függvény a `js/services/shopify.js`-ben, ami a megrendelt termékek neveit és darabszámait okosan tömörítve fűzi össze a rendelésazonosító után (pl. `1024 Sonoma2,trex5` — a `#` karakter és a kettőspont eltávolításával, illetve szóköz és szorzójel nélkül). Amennyiben a hossz túllépné a 40 karakteres korlátot, a referenciaszám automatikusan a `[rendelésszám] kérdezd Mátét` formátumra vált (pl. `1024 kérdezd Mátét`).
+- **Interaktív Referenciaszerkesztő**: A PannonXP tab táblázatában megjelent egy külön "Referencia" oszlop, ahol a generált referenciaszámok importálás után közvetlenül szerkeszthetők, felülírhatók és ellenőrizhetők az exportálás előtt.
+- **Shopify Termék CSV Feltöltés & Méret-szűrés**: Létrehoztunk egy importálót a beállítások fülön, amellyel a Shopify termék export fájlja közvetlenül beolvasható. A parser automatikusan kiszűri a méretváltozatokat (pl. `280 cm`, `244 cm`, `122 cm`) és a fizikai paramétereket, így csak a tiszta termékneveket és színeket párosítja a rövidítésekhez. A rendelések referenciaszámainál is automatikusan a tisztított név alapján történik az illesztés és az ellenőrzés.
+- **Dinamikus Inline Rövidítés Szerkesztés**: A regisztrált termékek táblázatában a rövidítések plain text helyett szerkeszthető beviteli mezőkké lettek alakítva. A módosítások azonnal mentésre kerülnek az adatbázisba (localStorage), a referenciaszámok és hibajelzések pedig valós időben újraszámolódnak a háttérben.
+- **Szigorú Blokkolás**: Amennyiben olyan termék szerepel egy kijelölt megrendelésben, amely nincs regisztrálva az adatbázisban rövidítéssel, a PannonXP export gomb letiltódik, és piros színnel jelzi a hiányzó terméket.
+
 ### 2026. június 11. (2. session) - PannonXP Csomagolási Szabályok és Részletes Csomagszerkesztő
 - **Dinamikus Csomagolási Szabályok**: Új konfigurációs panel a bal oldali sávban az akusztikus panelek egyedi méreteinek és súlyainak beállítására, mely a localStorage-ban tárolódik. Mentéskor azonnal frissíti a betöltött rendelések csomagjait.
 - **Részletes Szerkesztő Modal**: A táblázatban a csomagszám mellett megjelent egy csomag ikon, amellyel egyénileg is beállítható a megrendelés minden egyes dobozának súlya, hossza, szélessége és magassága.

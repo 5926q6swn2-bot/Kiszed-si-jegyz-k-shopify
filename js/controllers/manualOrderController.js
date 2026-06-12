@@ -1,5 +1,7 @@
 import { Store } from '../store/state.js';
 import { CustomDialog } from '../utils/dialog.js';
+import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
+import { generateDefaultReference } from '../services/shopify.js';
 
 export function initManualOrderController({ renderOrders, updatePrintButtonState }) {
     const btnAddManual = document.getElementById('btn-add-manual');
@@ -47,7 +49,7 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
         const orderNum = document.getElementById('m-order-num').value.trim();
         const customerName = document.getElementById('m-customer').value.trim();
         const address = document.getElementById('m-address').value.trim();
-        const phone = document.getElementById('m-phone').value.trim();
+        const phone = formatHungarianPhoneNumber(document.getElementById('m-phone').value.trim());
         const balanceRaw = parseFloat(document.getElementById('m-balance').value) || 0;
 
         if (!orderNum || !customerName) {
@@ -84,10 +86,11 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
                 order.isBankDeposit = false;
                 order.isPaid = !isCOD;
                 order.items = items;
+                order.pxp_referencia = generateDefaultReference(order, 40);
                 order.isManuallyEdited = true;
             }
         } else {
-            Store.orders.push({
+            const newOrder = {
                 id: orderNum,
                 internalId: Math.random().toString(36).substr(2, 9),
                 shippingName: customerName,
@@ -106,7 +109,9 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
                 isManuallyEdited: true,
                 errors: [],
                 items: items
-            });
+            };
+            newOrder.pxp_referencia = generateDefaultReference(newOrder, 40);
+            Store.orders.push(newOrder);
         }
 
         manualModal.classList.remove('active');
