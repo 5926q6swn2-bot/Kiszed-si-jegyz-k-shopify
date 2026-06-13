@@ -584,3 +584,9 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Validáció enyhítése (Telefonszám és Email):** A felhasználó kérésére a telefonszám hiányát kivettük a kritikus hibák közül. Ha egy rendelésnél nincs telefonszám megadva, az többé nem színezi pirosra a sort, és nem gátolja az exportálást sem.
 - **SPC Padlócsoportosítás jegelése:** A korábbi bonyolult SPC padló és egyéb kategória-összevonási csoportosításokat a felhasználó kérésére lejegeltük és eltávolítottuk a kódból.
 - **Cache-busting:** `index.html`-ben `app.js?v=132`.
+
+### 2026. június 13. - Shopify Product CSV variáns propagáció és PannonXP leírások egységesítése
+- **Shopify Termék CSV variáns parser javítása**: Kijavítottuk a termék CSV-k beolvasását (`pannonxpView.js`-ben). Mivel a Shopify a `Title` és `Option Name` mezőket csak a termékek legelső variánsának sorában exportálja, a parser korábban átugrotta a további variánsokat. Mostantól a rendszer megjegyzi és automatikusan továbbviszi a hiányzó adatokat a többi variáns sorára is, így az összes variáns (pl. Élzáró Profil ezüst, arany, fekete) sikeresen beolvasásra kerül a táblázatba.
+- **Csomag leírások egységesítése**: Standardizáltuk a PannonXP csomagok leírását a felületen (`pannonxp.js`-ben) és a letöltött CSV-fájl tartalom (`szl_tartalom`) mezőjében egységesen a **"Panelburkolatok és kiegészítők"** szövegre, lefedve minden szállítási forgatókönyvet.
+- **Cache verzió frissítve**: `index.html`-ben `app.js?v=133` (és megegyezően a többi modul-hivatkozásnál).
+
