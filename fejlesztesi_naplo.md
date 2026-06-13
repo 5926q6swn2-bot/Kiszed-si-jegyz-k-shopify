@@ -559,6 +559,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - [x] **Gyors Szállítólevél, Előzmények UI redesign, Elszámolások, Statisztika térkép:** Megoldva (2026-05-14).
 - [ ] **Egyszerűsített Elszámolás:** Az elszámolás folyamatának logikáját és UI-ját jelentősen egyszerűsíteni kell.
 - [ ] **Architektúra Refaktorálás:** A kódbázis rendbetétele az  pp.js szétdarabolásával (vagy funkciók ésszerű kiszervezésével), elkerülve a spagetti kódot, szigorúan betartva az eseménykezelők biztonságát.
+- [ ] **Részleges visszahozatal / Utólagos elszámolás**: mi van ha csak visszahoznak lapokat, mert nem vették át egy kör egyik címét, viszont mivel nem Létai-s nem hozzák vissza az utánvétet csak a panelt és az utánvét később kerül átadásra stbstb
 
 ### 2026. június 3. - Keresési találatok UI finomítása & Elszámolás integráció
 - **Nyomtatási gombok eltávolítása a keresőből:** A keresési találatok közül kivettük az összes felesleges nyomtatási gombot (szedőlista, szállítólevél, összesítő és csomag nyomtatása), mivel itt nem akarjuk kinyomtatni a kört.

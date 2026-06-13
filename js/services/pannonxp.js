@@ -189,7 +189,7 @@ export const PannonXPService = {
                 uc_ceg_cim_megjegyzes: '',
                 uc_ceg_adoszam: '12345678-2-42',
                 uc_ceg_bankszamlaszam: '11111111-22222222-33333333',
-                szl_tartalom: 'Panelburkolat'
+                szl_tartalom: 'Panelburkolatok és kiegészítők'
             },
             {
                 id: 'minta',
@@ -206,7 +206,7 @@ export const PannonXPService = {
                 uc_ceg_cim_megjegyzes: '',
                 uc_ceg_adoszam: '12345678-1-12',
                 uc_ceg_bankszamlaszam: '11111111-22222222-00000000',
-                szl_tartalom: 'Webáruházi termék'
+                szl_tartalom: 'Panelburkolatok és kiegészítők'
             }
         ];
     },
@@ -584,7 +584,7 @@ export const PannonXPService = {
                         szelesseg: rule.width,
                         magassag: rule.height,
                         tipus: "doboz",
-                        description: `${qtyInPkg} db ${cat.name}`
+                        description: "Panelburkolatok és kiegészítők"
                     });
                 }
             } else if (cat.type === 'weight') {
@@ -602,7 +602,7 @@ export const PannonXPService = {
                         szelesseg: cat.width || 5,
                         magassag: cat.height || 5,
                         tipus: "doboz",
-                        description: `${qtyInPkg} db ${cat.name} (+doboz)`
+                        description: "Panelburkolatok és kiegészítők"
                     });
                 }
             }
@@ -611,14 +611,10 @@ export const PannonXPService = {
         // RAGASZTÓ LOGIKA
         // Ha van akupanel a rendelésben (qtyMap['cat_acoustic'] > 0), a ragasztó súlyát rárakjuk az akupanel csomagokra
         const hasAcoustic = (qtyMap['cat_acoustic'] || 0) > 0;
-        const acousticPkgs = packagesDetail.filter(p => p.description && p.description.includes('Akusztikus Panelek'));
+        const acousticPkgs = packagesDetail.filter(p => p.description && p.description.includes('Panelburkolatok'));
         
         if (hasAcoustic && acousticPkgs.length > 0) {
-            if (adhesiveWeight > 0) {
-                acousticPkgs.forEach(p => {
-                    p.description += ' (+ragasztó)';
-                });
-            }
+            // Nem kell változtatni a leírást, mert már "Panelburkolatok és kiegészítők"
         } else {
             // Ha nincs akupanel, a ragasztók saját dobozt kapnak a beállított maxQty, boxWeight és itemWeight szerint
             categories.forEach(cat => {
@@ -640,7 +636,7 @@ export const PannonXPService = {
                         szelesseg: cat.width || 20,
                         magassag: cat.height || 10,
                         tipus: "doboz",
-                        description: `${qtyInPkg} db ${cat.name}`
+                        description: "Panelburkolatok és kiegészítők"
                     });
                 }
             });
@@ -654,7 +650,7 @@ export const PannonXPService = {
                 szelesseg: 20,
                 magassag: 10,
                 tipus: "doboz",
-                description: "Egyéb termékek"
+                description: "Panelburkolatok és kiegészítők"
             });
         }
         
@@ -666,7 +662,7 @@ export const PannonXPService = {
                 szelesseg: 20,
                 magassag: 10,
                 tipus: "doboz",
-                description: "Csomag"
+                description: "Panelburkolatok és kiegészítők"
             });
         }
         

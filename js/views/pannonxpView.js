@@ -1067,7 +1067,7 @@ export const PannonXPView = {
                     const file = e.target.files[0];
                     if (!file) return;
                     
-                    csvStatus.textContent = file.name;
+csvStatus.textContent = file.name;
                     
                     Papa.parse(file, {
                         header: true,
@@ -1078,22 +1078,62 @@ export const PannonXPView = {
                                 const activeMappings = PannonXPService.getProductMappings();
                                 let count = 0;
                                 
+                                let lastTitle = '';
+                                let lastOption1Name = '';
+                                let lastOption2Name = '';
+                                let lastOption3Name = '';
+                                
                                 data.forEach(row => {
-                                    const title = row['Title'] || '';
+                                    let title = row['Title'] || '';
+                                    if (!title) {
+                                        title = lastTitle;
+                                    } else {
+                                        lastTitle = title;
+                                    }
                                     if (!title) return;
+                                    
+                                    let opt1Name = row['Option1 Name'] || '';
+                                    if (!opt1Name && row['Option1 Value']) opt1Name = lastOption1Name;
+                                    else if (opt1Name) lastOption1Name = opt1Name;
+                                    
+                                    let opt2Name = row['Option2 Name'] || '';
+                                    if (!opt2Name && row['Option2 Value']) opt2Name = lastOption2Name;
+                                    else if (opt2Name) lastOption2Name = opt2Name;
+                                    
+                                    let opt3Name = row['Option3 Name'] || '';
+                                    if (!opt3Name && row['Option3 Value']) opt3Name = lastOption3Name;
+                                    else if (opt3Name) lastOption3Name = opt3Name;
                                     
                                     // Gather non-size options
                                     const optionsList = [];
-                                    for (let i = 1; i <= 3; i++) {
-                                        const optName = (row[`Option${i} Name`] || '').toLowerCase();
-                                        const optVal = row[`Option${i} Value`] || '';
-                                        if (optVal && optVal !== 'Default Title') {
-                                            const isSizeName = /(size|méret|hossz|szélesség|magasság|átmérő)/i.test(optName);
-                                            const isSizeValue = /\b\d+(\.\d+)?\s*(cm|m|mm)\b/i.test(optVal) || /\b\d+\s*x\s*\d+\b/i.test(optVal);
-                                            
-                                            if (!isSizeName && !isSizeValue) {
-                                                optionsList.push(optVal);
-                                            }
+                                    
+                                    const optName1 = opt1Name.toLowerCase();
+                                    const optVal1 = row['Option1 Value'] || '';
+                                    if (optVal1 && optVal1 !== 'Default Title') {
+                                        const isSizeName = /(size|méret|hossz|szélesség|magasság|átmérő)/i.test(optName1);
+                                        const isSizeValue = /\b\d+(\.\d+)?\s*(cm|m|mm)\b/i.test(optVal1) || /\b\d+\s*x\s*\d+\b/i.test(optVal1);
+                                        if (!isSizeName && !isSizeValue) {
+                                            optionsList.push(optVal1);
+                                        }
+                                    }
+                                    
+                                    const optName2 = opt2Name.toLowerCase();
+                                    const optVal2 = row['Option2 Value'] || '';
+                                    if (optVal2 && optVal2 !== 'Default Title') {
+                                        const isSizeName = /(size|méret|hossz|szélesség|magasság|átmérő)/i.test(optName2);
+                                        const isSizeValue = /\b\d+(\.\d+)?\s*(cm|m|mm)\b/i.test(optVal2) || /\b\d+\s*x\s*\d+\b/i.test(optVal2);
+                                        if (!isSizeName && !isSizeValue) {
+                                            optionsList.push(optVal2);
+                                        }
+                                    }
+                                    
+                                    const optName3 = opt3Name.toLowerCase();
+                                    const optVal3 = row['Option3 Value'] || '';
+                                    if (optVal3 && optVal3 !== 'Default Title') {
+                                        const isSizeName = /(size|méret|hossz|szélesség|magasság|átmérő)/i.test(optName3);
+                                        const isSizeValue = /\b\d+(\.\d+)?\s*(cm|m|mm)\b/i.test(optVal3) || /\b\d+\s*x\s*\d+\b/i.test(optVal3);
+                                        if (!isSizeName && !isSizeValue) {
+                                            optionsList.push(optVal3);
                                         }
                                     }
                                     
