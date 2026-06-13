@@ -39,7 +39,7 @@ export function generateDefaultReference(order, maxLen = 40) {
     
     if (availableLen <= 0) return cleanOrderId.substring(0, maxLen);
     
-    const mappings = PannonXPService.getProductMappings() || {};
+    const mappings = PannonXPService.getNormalizedProductMappings() || {};
     const parts = [];
     let hasUnmapped = false;
     
