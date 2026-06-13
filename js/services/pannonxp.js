@@ -70,16 +70,14 @@ export const PannonXPService = {
                 }
             }
             
-            // Clean keys on load and normalize
-            const cleaned = normalizeMappings(mappings);
-            mappingsCache = cleaned;
+            mappingsCache = mappings;
             
-            // Save normalized mappings to cloud if we migrated from local storage
-            if (!docSnap.exists() && Object.keys(cleaned).length > 0) {
-                await setDoc(docRef, { mappings: cleaned });
+            // Save mappings to cloud if we migrated from local storage
+            if (!docSnap.exists() && Object.keys(mappings).length > 0) {
+                await setDoc(docRef, { mappings });
             }
             
-            return cleaned;
+            return mappings;
         } catch (e) {
             console.error("Hiba a felhős termék rövidítések betöltésekor:", e);
             mappingsCache = mappingsCache || {};
@@ -93,7 +91,7 @@ export const PannonXPService = {
             const stored = localStorage.getItem('pxp_product_mappings');
             if (stored) {
                 try {
-                    return normalizeMappings(JSON.parse(stored));
+                    return JSON.parse(stored);
                 } catch (e) {}
             }
             return {};
@@ -101,17 +99,61 @@ export const PannonXPService = {
         return mappingsCache;
     },
 
+    getNormalizedProductMappings() {
+        const raw = this.getProductMappings();
+        return normalizeMappings(raw);
+    },
+
     async saveProductMappings(mappings) {
-        const cleaned = normalizeMappings(mappings);
-        
-        mappingsCache = cleaned;
-        localStorage.setItem('pxp_product_mappings', JSON.stringify(cleaned));
+        mappingsCache = mappings;
+        localStorage.setItem('pxp_product_mappings', JSON.stringify(mappings));
         
         try {
             const docRef = doc(db, 'pxp_settings', 'product_mappings');
-            await setDoc(docRef, { mappings: cleaned });
+            await setDoc(docRef, { mappings });
         } catch (e) {
             console.error("Hiba a felhős mentéskor:", e);
+        }
+    },
+
+    async registerMissingProducts(orders) {
+        if (!orders || orders.length === 0) return;
+        const mappings = { ...this.getProductMappings() };
+        const normalizedMappings = this.getNormalizedProductMappings();
+        let updated = false;
+        
+        orders.forEach(order => {
+            (order.items || []).forEach(item => {
+                if (item.isCollapsedProfile && item.subItems) {
+                    item.subItems.forEach(sub => {
+                        const cleanedKey = cleanItemNameForMapping(sub.name);
+                        if (cleanedKey && !normalizedMappings[cleanedKey]) {
+                            // Register the formatted item name directly (human readable)
+                            mappings[sub.name] = {
+                                abbrev: '',
+                                categoryId: ''
+                            };
+                            normalizedMappings[cleanedKey] = { abbrev: '', categoryId: '' };
+                            updated = true;
+                        }
+                    });
+                } else {
+                    const cleanedKey = cleanItemNameForMapping(item.name);
+                    if (cleanedKey && !normalizedMappings[cleanedKey]) {
+                        // Register the formatted item name directly (human readable)
+                        mappings[item.name] = {
+                            abbrev: '',
+                            categoryId: ''
+                        };
+                        normalizedMappings[cleanedKey] = { abbrev: '', categoryId: '' };
+                        updated = true;
+                    }
+                }
+            });
+        });
+        
+        if (updated) {
+            await this.saveProductMappings(mappings);
         }
     },
 
@@ -488,7 +530,7 @@ export const PannonXPService = {
     calculateWeightAndPackages(items) {
         const rules = this.getPackagingRules();
         const categories = rules.categories || [];
-        const mappings = this.getProductMappings() || {};
+        const mappings = this.getNormalizedProductMappings() || {};
         
         // Helper to convert user-friendly keywords to regex
         const parseKeywordsToRegex = (input) => {

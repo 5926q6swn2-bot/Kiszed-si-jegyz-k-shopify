@@ -2,7 +2,7 @@ import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, coll
 import { CustomDialog } from './utils/dialog.js';
 import { HistoryManager } from './services/history.js';
 import { UnifiedPrinter } from './services/printer.js';
-import { ShopifyParser } from './services/shopify.js';
+import { ShopifyParser, cleanItemNameForMapping } from './services/shopify.js';
 import { PannonXPService } from './services/pannonxp.js';
 import { PannonXPView } from './views/pannonxpView.js';
 import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js';
@@ -290,9 +290,13 @@ function initApp() {
     }
 
     // --- Üzleti Logika ---
-    function processShopifyData(rows) {
+    async function processShopifyData(rows) {
         if (activeMainTab === 'pannonxp') {
             const result = ShopifyParser.parse(rows, pxpOrders);
+            
+            // Register missing products to Firestore/memory
+            await PannonXPService.registerMissingProducts(result.newOrders);
+            
             result.newOrders.forEach(order => {
                 const matchingRow = rows.find(r => r['Name'] === order.id);
                 if (matchingRow) {
@@ -308,7 +312,15 @@ function initApp() {
                 order.pxp_csomagszam = calc.packages;
                 order.pxp_suly = calc.weight;
                 order.pxp_packages = calc.packagesDetail;
-                order.pxp_has_unmatched = calc.hasUnmatched;
+                
+                // Recalculate unmatched checks after registration
+                const activeM = PannonXPService.getNormalizedProductMappings();
+                const hasUnmapped = order.items.some(item => !activeM[cleanItemNameForMapping(item.name)]);
+                const hasUnassignedCategory = order.items.some(item => {
+                    const m = activeM[cleanItemNameForMapping(item.name)];
+                    return !m || !m.categoryId;
+                });
+                order.pxp_has_unmatched = calc.hasUnmatched || hasUnmapped || hasUnassignedCategory;
                 
                 pxpOrders.push(order);
             });
@@ -333,6 +345,9 @@ function initApp() {
         }
 
         const result = ShopifyParser.parse(rows, Store.orders);
+        
+        // Register missing products to Firestore/memory
+        await PannonXPService.registerMissingProducts(result.newOrders);
         
         result.newOrders.forEach(order => {
             Store.addOrder(order);

@@ -143,7 +143,7 @@ export const PannonXPView = {
             const selectedOrders = orders.filter(o => o.pxp_selected);
             const hasErrors = selectedOrders.some(o => {
                 const hasZip = !!o.zip;
-                const activeM = PannonXPService.getProductMappings();
+                const activeM = PannonXPService.getNormalizedProductMappings();
                 const hasUnmapped = o.items.some(item => !activeM[cleanItemNameForMapping(item.name)]);
                 const hasUnassignedCategory = o.items.some(item => {
                     const m = activeM[cleanItemNameForMapping(item.name)];
@@ -163,7 +163,7 @@ export const PannonXPView = {
         
         tbody.innerHTML = orders.map((order, index) => {
             const hasZip = !!order.zip;
-            const activeM = PannonXPService.getProductMappings();
+            const activeM = PannonXPService.getNormalizedProductMappings();
             const unmappedItems = order.items.filter(item => !activeM[cleanItemNameForMapping(item.name)]);
             const hasUnmappedProduct = unmappedItems.length > 0;
             
@@ -1011,7 +1011,7 @@ export const PannonXPView = {
                             order.pxp_suly = calc.weight;
                             order.pxp_packages = calc.packagesDetail;
                             order.pxp_has_unmatched = calc.hasUnmatched || order.items.some(item => {
-                                const activeM = PannonXPService.getProductMappings();
+                                const activeM = PannonXPService.getNormalizedProductMappings();
                                 return !activeM[cleanItemNameForMapping(item.name)];
                             });
                         });
@@ -1044,7 +1044,7 @@ export const PannonXPView = {
                             order.pxp_suly = calc.weight;
                             order.pxp_packages = calc.packagesDetail;
                             order.pxp_has_unmatched = calc.hasUnmatched || order.items.some(item => {
-                                const activeM = PannonXPService.getProductMappings();
+                                const activeM = PannonXPService.getNormalizedProductMappings();
                                 return !activeM[cleanItemNameForMapping(item.name)];
                             });
                         });
@@ -1180,7 +1180,7 @@ csvStatus.textContent = file.name;
                                             order.pxp_suly = calc.weight;
                                             order.pxp_packages = calc.packagesDetail;
                                             order.pxp_has_unmatched = calc.hasUnmatched || order.items.some(item => {
-                                                const activeM = PannonXPService.getProductMappings();
+                                                const activeM = PannonXPService.getNormalizedProductMappings();
                                                 const cleanedN = cleanItemNameForMapping(item.name);
                                                 return !activeM[cleanedN];
                                             });
@@ -1219,7 +1219,7 @@ csvStatus.textContent = file.name;
                                 order.pxp_referencia = ShopifyParser.generateDefaultReference ? ShopifyParser.generateDefaultReference(order, 40) : order.pxp_referencia;
                                 const calc = PannonXPService.calculateWeightAndPackages(order.items);
                                 order.pxp_has_unmatched = calc.hasUnmatched || order.items.some(item => {
-                                    const activeM = PannonXPService.getProductMappings();
+                                    const activeM = PannonXPService.getNormalizedProductMappings();
                                     return !activeM[cleanItemNameForMapping(item.name)];
                                 });
                             });

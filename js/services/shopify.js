@@ -3,23 +3,32 @@ import { PannonXPService } from './pannonxp.js';
 
 export function cleanItemNameForMapping(name) {
     if (!name) return '';
-    return name
-        // 1. Zárójeles méretek eltávolítása, pl. (278x60cm), (280 cm), (280x122)
-        .replace(/\([\d\s*xXcm\-+.,/]*\)/gi, '')
-        // 2. Standalone méretek pl. 278x60cm, 280 x 120 cm, 280x120
-        .replace(/\b\d+\s*(x|\*)\s*\d+\s*(cm|m|mm)?\b/gi, '')
-        // 3. Standalone mértékegységes számok pl. 280 cm, 60cm
-        .replace(/\b\d+(\.\d+)?\s*(cm|m|mm)\b/gi, '')
-        // 4. Konkrét ismert méretek önmagukban
-        .replace(/\b(280|278|244|122|60)\b/g, '')
-        // 5. Megmaradt üres zárójelek
-        .replace(/\(\s*\)/g, '')
-        // 6. Eltávolítjuk a felesleges elválasztójeleket a név végéről és elejéről (pl. perjelek, kötőjelek)
-        .replace(/[\s\/\-\u2013\u2014]+$/, '')
-        .replace(/^[\s\/\-\u2013\u2014]+/, '')
-        // 7. Felesleges szóközök
-        .replace(/\s+/g, ' ')
-        .trim();
+    
+    // 1. Kisbetűsítés a konzisztenciához
+    let cleaned = name.toLowerCase();
+    
+    // 2. Méretek eltávolítása
+    cleaned = cleaned
+        // Zárójeles méretek eltávolítása, pl. (278x60cm), (280 cm), (280x122)
+        .replace(/\([\d\s*xXcm\-+.,/]*\)/g, '')
+        // Standalone méretek pl. 278x60cm, 280 x 120 cm, 280x120
+        .replace(/\b\d+\s*(x|\*)\s*\d+\s*(cm|m|mm)?\b/g, '')
+        // Standalone mértékegységes számok pl. 280 cm, 60cm
+        .replace(/\b\d+(\.\d+)?\s*(cm|m|mm)\b/g, '')
+        // Konkrét ismert méretek önmagukban
+        .replace(/\b(280|278|244|122|60)\b/g, '');
+        
+    // 3. Írásjelek, kötőjelek, perjelek cseréje szóközre
+    cleaned = cleaned.replace(/[\-\/\u2013\u2014.,()]/g, ' ');
+    
+    // 4. Szavakra bontás, üresek szűrése
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    
+    // 5. Szavak ábécé szerinti rendezése
+    words.sort();
+    
+    // 6. Összefűzés egyetlen szóközökkel elválasztott stringgé
+    return words.join(' ');
 }
 
 export function generateDefaultReference(order, maxLen = 40) {
