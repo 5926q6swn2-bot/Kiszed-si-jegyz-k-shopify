@@ -35,6 +35,13 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
+### 2026. június 13. - Hasonló Termékek Intelligens Társítása (Fuzzy Match), Linkek Vizuális Követése & Görgetési Fix
+- **Intelligens Termék Társítás (Fuzzy Match)**: A `js/services/pannonxp.js` szolgáltatásba beépítettünk egy karakter-alapú Levenshtein hasonlósági algoritmust (`getStringSimilarity`). Ismeretlen termék importálásakor, ha a rendszer legalább **75%-os** hasonlóságot talál egy már beállított termékkel, aszinkron megerősítő ablakot jelenít meg. Elfogadás esetén a termék megkapja a meglévő termék adatait, és a kapcsolat létrejön.
+- **Társítások Megjelenítése és Visszavonása**: A társított termékeket a `pxp_settings/product_mappings` adatbázisban a `linkedTo` tulajdonsággal jelöljük meg. A **Beállítások -> Termék Rövidítések** listában a terméknév alatt kék lánc ikon és felirat jelzi a kapcsolatot: `🔗 Párosítva: [Eredeti Terméknév]`. A sor végén lévő piros szemetes ikonnal a kapcsolat bármikor törölhető/szétválasztható.
+- **PannonXP Lap Görgetési Fix**: Kijavítottuk az `index.html` állományban a `#pannonxp-container` stílusát (`flex: 1; overflow-y: auto;`), így a PannonXP lap 50+ megrendelés betöltése esetén is zökkenőmentesen és teljesen görgethetővé vált.
+- **Cache-Busting és Verziókezelés**: A böngésző agresszív gyorsítótárazásának elkerülésére hozzáadtuk a `?v=145` lekérdezési paramétert a belső moduláris importálásokhoz az `app.js`, `pannonxpView.js`, `pannonxp.js`, `shopify.js` és `manualOrderController.js` fájlokban.
+- **References Lookup Bugfix**: Kijavítottunk egy kritikus hibát a `generateDefaultReference` függvényben, amely a nyers leképezések helyett most már a normalizált leképezéseket használja (`getNormalizedProductMappings`), így az egyedi termékrövidítések azonnal és helyesen jelennek meg a referenciaszámokban.
+
 ### 2026. június 12. - Telefonszámok formázása és Referenciaszám okos rövidítése (Shopify Termék CSV importálással)
 - **Telefonszám Formázó Utility**: Létrejött a `js/utils/phoneFormatter.js` segédfájl a magyar telefonszámok standardizálására.
 - **Shopify Parser**: A Shopify megrendelések beolvasásakor a vevők telefonszáma azonnal formázásra kerül.
