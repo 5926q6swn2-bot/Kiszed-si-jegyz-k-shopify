@@ -962,7 +962,15 @@ export const PannonXPView = {
                                     const hasCat = !!mappingObj.categoryId;
                                     return `
                                     <tr style="border-bottom: 1px solid #f1f5f9; ${hasCat ? '' : 'background: #fff5f5;'}">
-                                        <td style="padding: 8px 10px; color: #1e293b; font-weight: 500;">${k}</td>
+                                        <td style="padding: 8px 10px; color: #1e293b; font-weight: 500;">
+                                            <div>${k}</div>
+                                            ${mappingObj.linkedTo ? `
+                                                <div style="font-size: 10px; color: #0284c7; margin-top: 3px; display: flex; align-items: center; gap: 4px; font-weight: normal;">
+                                                    <i class="ph-bold ph-link" style="font-size: 11px;"></i>
+                                                    <span>Párosítva: <strong>${mappingObj.linkedTo}</strong></span>
+                                                </div>
+                                            ` : ''}
+                                        </td>
                                         <td style="padding: 4px 10px;">
                                             <input type="text" class="pxp-input-abbrev" data-key="${k.replace(/"/g, '&quot;')}" value="${(mappingObj.abbrev || '').replace(/"/g, '&quot;')}" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 12px; outline: none; font-weight: 600; color: #0f172a; box-sizing: border-box;">
                                         </td>

@@ -1,11 +1,46 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
 import { cleanItemNameForMapping } from './shopify.js';
 import { db, doc, getDoc, setDoc } from '../firebase-config.js?v=42';
+import { CustomDialog } from '../utils/dialog.js';
 
 let mappingsCache = null;
 let profilesCache = null;
 let activeProfileIdCache = null;
 let rulesCache = null;
+
+function getLevenshteinDistance(s1, s2) {
+    const m = s1.length;
+    const n = s2.length;
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            if (s1[i - 1] === s2[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1];
+            } else {
+                dp[i][j] = Math.min(
+                    dp[i - 1][j] + 1,    // delete
+                    dp[i][j - 1] + 1,    // insert
+                    dp[i - 1][j - 1] + 1 // substitute
+                );
+            }
+        }
+    }
+    return dp[m][n];
+}
+
+function getStringSimilarity(str1, str2) {
+    const s1 = (str1 || '').trim().toLowerCase();
+    const s2 = (str2 || '').trim().toLowerCase();
+    if (s1 === s2) return 1.0;
+    if (s1.length === 0 || s2.length === 0) return 0.0;
+    
+    const distance = getLevenshteinDistance(s1, s2);
+    return 1.0 - distance / Math.max(s1.length, s2.length);
+}
 
 function normalizeMappings(mappings) {
     const cleaned = {};
@@ -30,7 +65,8 @@ function normalizeMappings(mappings) {
         } else if (val && typeof val === 'object') {
             val = {
                 abbrev: val.abbrev || '',
-                categoryId: val.categoryId || ''
+                categoryId: val.categoryId || '',
+                linkedTo: val.linkedTo || undefined
             };
         }
         cleaned[cleanedKey] = val;
@@ -122,35 +158,67 @@ export const PannonXPService = {
         const normalizedMappings = this.getNormalizedProductMappings();
         let updated = false;
         
-        orders.forEach(order => {
-            (order.items || []).forEach(item => {
-                if (item.isCollapsedProfile && item.subItems) {
-                    item.subItems.forEach(sub => {
-                        const cleanedKey = cleanItemNameForMapping(sub.name);
-                        if (cleanedKey && !normalizedMappings[cleanedKey]) {
-                            // Register the formatted item name directly (human readable)
-                            mappings[sub.name] = {
-                                abbrev: '',
-                                categoryId: ''
-                            };
-                            normalizedMappings[cleanedKey] = { abbrev: '', categoryId: '' };
-                            updated = true;
+        for (const order of orders) {
+            for (const item of (order.items || [])) {
+                const processSingleItem = async (itemName) => {
+                    const cleanedKey = cleanItemNameForMapping(itemName);
+                    if (!cleanedKey || normalizedMappings[cleanedKey]) return;
+                    
+                    // Look for similar configured products
+                    let bestMatchKey = null;
+                    let bestScore = 0.0;
+                    
+                    for (const existingKey in mappings) {
+                        const existingVal = mappings[existingKey];
+                        if (!existingVal || (!existingVal.abbrev && !existingVal.categoryId)) continue;
+                        
+                        const existingCleaned = cleanItemNameForMapping(existingKey);
+                        const score = getStringSimilarity(cleanedKey, existingCleaned);
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestMatchKey = existingKey;
                         }
-                    });
-                } else {
-                    const cleanedKey = cleanItemNameForMapping(item.name);
-                    if (cleanedKey && !normalizedMappings[cleanedKey]) {
-                        // Register the formatted item name directly (human readable)
-                        mappings[item.name] = {
-                            abbrev: '',
-                            categoryId: ''
-                        };
-                        normalizedMappings[cleanedKey] = { abbrev: '', categoryId: '' };
-                        updated = true;
                     }
+                    
+                    if (bestScore >= 0.75 && bestMatchKey) {
+                        const confirmed = await CustomDialog.confirm(
+                            `A(z) "<strong>${itemName}</strong>" termék nagyon hasonlít a már beállított "<strong>${bestMatchKey}</strong>" termékre.<br><br>Szeretnéd, hogy mostantól ugyanúgy kezeljük (másoljuk a kategóriát és a rövidítést)?`,
+                            'Termék társítása'
+                        );
+                        if (confirmed) {
+                            const sourceVal = mappings[bestMatchKey];
+                            mappings[itemName] = {
+                                abbrev: sourceVal.abbrev || '',
+                                categoryId: sourceVal.categoryId || '',
+                                linkedTo: bestMatchKey
+                            };
+                            normalizedMappings[cleanedKey] = {
+                                abbrev: sourceVal.abbrev || '',
+                                categoryId: sourceVal.categoryId || ''
+                            };
+                            updated = true;
+                            return;
+                        }
+                    }
+                    
+                    // Default registration (blank)
+                    mappings[itemName] = {
+                        abbrev: '',
+                        categoryId: ''
+                    };
+                    normalizedMappings[cleanedKey] = { abbrev: '', categoryId: '' };
+                    updated = true;
+                };
+
+                if (item.isCollapsedProfile && item.subItems) {
+                    for (const sub of item.subItems) {
+                        await processSingleItem(sub.name);
+                    }
+                } else {
+                    await processSingleItem(item.name);
                 }
-            });
-        });
+            }
+        }
         
         if (updated) {
             await this.saveProductMappings(mappings);
