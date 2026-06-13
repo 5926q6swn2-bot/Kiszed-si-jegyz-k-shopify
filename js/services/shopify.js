@@ -1,5 +1,5 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
-import { PannonXPService } from './pannonxp.js';
+import { PannonXPService } from './pannonxp.js?v=145';
 
 export function cleanItemNameForMapping(name) {
     if (!name) return '';

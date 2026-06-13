@@ -1,5 +1,5 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
-import { cleanItemNameForMapping } from './shopify.js';
+import { cleanItemNameForMapping } from './shopify.js?v=145';
 import { db, doc, getDoc, setDoc } from '../firebase-config.js?v=42';
 import { CustomDialog } from '../utils/dialog.js';
 

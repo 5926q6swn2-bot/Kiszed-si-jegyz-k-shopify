@@ -1,7 +1,7 @@
 import { Store } from '../store/state.js';
 import { CustomDialog } from '../utils/dialog.js';
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
-import { generateDefaultReference } from '../services/shopify.js';
+import { generateDefaultReference } from '../services/shopify.js?v=145';
 
 export function initManualOrderController({ renderOrders, updatePrintButtonState }) {
     const btnAddManual = document.getElementById('btn-add-manual');
