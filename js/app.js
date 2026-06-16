@@ -2,13 +2,13 @@ import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, coll
 import { CustomDialog } from './utils/dialog.js';
 import { HistoryManager } from './services/history.js';
 import { UnifiedPrinter } from './services/printer.js';
-import { ShopifyParser, cleanItemNameForMapping } from './services/shopify.js?v=145';
-import { PannonXPService } from './services/pannonxp.js?v=145';
-import { PannonXPView } from './views/pannonxpView.js?v=145';
+import { ShopifyParser, cleanItemNameForMapping } from './services/shopify.js?v=147';
+import { PannonXPService } from './services/pannonxp.js?v=147';
+import { PannonXPView } from './views/pannonxpView.js?v=147';
 import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js';
 import { Store } from './store/state.js';
 import { OrdersView } from './views/ordersView.js';
-import { initManualOrderController } from './controllers/manualOrderController.js';
+import { initManualOrderController } from './controllers/manualOrderController.js?v=147';
 import { renderStatistics } from './views/stats.js';
 import { ExporterService } from './services/exporter.js';
 

@@ -128,7 +128,7 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
         
         document.getElementById('m-order-num').value = order.id;
         document.getElementById('m-customer').value = order.shippingName;
-        document.getElementById('m-address').value = order.address;
+        document.getElementById('m-address').value = order.fullAddress || order.address;
         document.getElementById('m-phone').value = order.shippingPhone;
         document.getElementById('m-balance').value = order.isCOD ? order.codAmount : 0;
         

@@ -132,11 +132,11 @@ export const ShopifyParser = {
                     row['Shipping City']
                 ].filter(Boolean);
 
+                let street = row['Shipping Street'] || [row['Shipping Address1'], row['Shipping Address2']].filter(Boolean).join(', ');
                 let fullShippingAddress = [
                     row['Shipping Zip'],
                     row['Shipping City'],
-                    row['Shipping Address1'],
-                    row['Shipping Address2']
+                    street
                 ].filter(Boolean);
                 
                 const shippingPhone = formatHungarianPhoneNumber(row['Shipping Phone'] || '');
@@ -200,17 +200,22 @@ export const ShopifyParser = {
                 let isCOD = false;
                 let codAmount = 0;
 
-                let noteCodAmount = null;
-                const matchBefore = notes.match(/(\d[\d\s\.]*?)\s*(?:ft|huf)?\s*(?:ut[aá]nv[eé]t|\buv)/i);
-                const matchAfter = notes.match(/(?:ut[aá]nv[eé]t|\buv).*?(\d[\d\s\.]*)/i);
-                const matchFt = notes.match(/(\d(?:[\d .]*\d)?)\s*ft/i);
+                // Clean dates from notes so they don't get matched as amounts (e.g. 06.16)
+                const cleanNotes = notes
+                    .replace(/\b\d{4}[. -/]+\d{1,2}[. -/]+\d{1,2}(?!\d)\.?/g, '') // YYYY.MM.DD
+                    .replace(/\b\d{1,2}[.-/]\d{1,2}(?!\d)\.?/g, ''); // MM.DD or DD.MM
 
-                if (matchBefore) {
-                    noteCodAmount = parseInt(matchBefore[1].replace(/[\s\.]/g, ''));
-                } else if (matchAfter) {
+                let noteCodAmount = null;
+                const matchBefore = cleanNotes.match(/(\d[\d\s\.]*?)\s*(?:ft|huf)?\s*(?:ut[aá]nv[eé]t|\buv)/i);
+                const matchAfter = cleanNotes.match(/(?:ut[aá]nv[eé]t|\buv).*?(\d[\d\s\.]*)/i);
+                const matchFt = cleanNotes.match(/(\d(?:[\d .]*\d)?)\s*ft/i);
+
+                if (matchAfter) {
                     noteCodAmount = parseInt(matchAfter[1].replace(/[\s\.]/g, ''));
                 } else if (matchFt) {
                     noteCodAmount = parseInt(matchFt[1].replace(/[\s\.]/g, ''));
+                } else if (matchBefore) {
+                    noteCodAmount = parseInt(matchBefore[1].replace(/[\s\.]/g, ''));
                 }
 
                 if (!isBankDeposit) {

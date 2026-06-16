@@ -28,7 +28,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.5 Flash (Low)
-- **Státusz**: A rendszer stabil. Elkészült a PannonXP Címkekonvertáló egyedi csomagolási szabályainak és részletes csomagszerkesztőjének integrációja (`app.js?v=120`).
+- **Státusz**: A rendszer stabil. Javítva a szállítási címek kinyerése a CSV-ből (Shipping Street prioritás), meggátolva az edit modal alatti címtörlés (address wipeout), és megoldva a megjegyzésekben lévő dátumok utánvét-ütközése (`app.js?v=147`).
 - **Folytatás**: Igény szerint folytatható egyéb fejlesztésekkel vagy a korábban jegelt Shopify API Sandbox projekttel.
 
 ---
@@ -596,4 +596,10 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Shopify Termék CSV variáns parser javítása**: Kijavítottuk a termék CSV-k beolvasását (`pannonxpView.js`-ben). Mivel a Shopify a `Title` és `Option Name` mezőket csak a termékek legelső variánsának sorában exportálja, a parser korábban átugrotta a további variánsokat. Mostantól a rendszer megjegyzi és automatikusan továbbviszi a hiányzó adatokat a többi variáns sorára is, így az összes variáns (pl. Élzáró Profil ezüst, arany, fekete) sikeresen beolvasásra kerül a táblázatba.
 - **Csomag leírások egységesítése**: Standardizáltuk a PannonXP csomagok leírását a felületen (`pannonxp.js`-ben) és a letöltött CSV-fájl tartalom (`szl_tartalom`) mezőjében egységesen a **"Panelburkolatok és kiegészítők"** szövegre, lefedve minden szállítási forgatókönyvet.
 - **Cache verzió frissítve**: `index.html`-ben `app.js?v=133` (és megegyezően a többi modul-hivatkozásnál).
+
+### 2026. június 16. - Szállítási cím és Notes utánvét dátum-ütközési hiba javítása
+- **Robusztus szállítási cím feldolgozás**: A `js/services/shopify.js`-ben a `fullShippingAddress` összeállításánál beépítettük a `row['Shipping Street']` mező elsődleges használatát. Ha a Shopify CSV-ben a `Shipping Address1` és `Shipping Address2` mezők üresek vagy hiányosak lennének, a rendszer a teljes utca+házszám adatot tartalmazó `Shipping Street` mezőből nyeri ki a címet, megakadályozva, hogy a pontos cím elvesszen és csak az irányítószám+város kerüljön a szállítólevélre.
+- **Szerkesztéskori címtörlési hiba (Address Wipeout) javítása**: A `js/controllers/manualOrderController.js`-ben javítottuk az `openEditModal` működését. Korábban a szerkesztő modal megnyitásakor az `address` (ami csak irányítószámot és várost tartalmazott a kompakt lista-megjelenítés miatt) került betöltésre a beviteli mezőbe a `fullAddress` helyett. Mentéskor ez felülírta a Firestore-ban lévő teljes címet, így törlődött a pontos szállítási cím. Mostantól a modal a teljes címet (`order.fullAddress || order.address`) tölti be szerkesztésre, megvédve a pontos utcaneveket.
+- **Notes dátumok szűrése az utánvét-kalkuláció előtt**: Megoldottuk azt a hibát, hogy a notes mezőben szereplő dátumokat (pl. `06.16` vagy `2026.06.16`) a rendszer tévesen utánvét összegnek (pl. 616 Ft) nézte. A `js/services/shopify.js` parser-ben az utánvét-kereső regex futtatása előtt egy robusztus szűrővel eltávolítjuk a dátum-mintázatokat, valamint megcseréltük az egyezések prioritását (először a konkrét `utánvét: X` típusú mintát keressük, és csak végső esetben esünk vissza a sima számokra), így teljesen kizártuk a hamis utánvét-felismeréseket.
+- **Cache-busting frissítve**: `index.html`-ben és az importokban a verziót `?v=147`-re emeltük.
 
