@@ -790,7 +790,7 @@ function initApp() {
 
                     const printChoice = await CustomDialog.choice(
                         msg,
-                        'Részleges (csak az újat/módosítottat)',
+                        'Részleges (összesítő + új/módosított szállítók)',
                         'Teljes csomag újra',
                         'Csak mentés (ne nyomtasson)',
                         'Módosítás nyomtatása',
@@ -802,16 +802,20 @@ function initApp() {
                             ...changes.added.map(o => o.id),
                             ...changes.modified.map(m => m.order.id)
                         ];
-                        if (targetOrderIds.length > 0) {
-                            const run = await HistoryManager.getRunById(currentLoadedRunId);
-                            if (run) {
-                                UnifiedPrinter.clear();
-                                const deliveryHtml = UnifiedPrinter.generateDeliveryNotesHtml(run, true, targetOrderIds);
-                                UnifiedPrinter.area.innerHTML = deliveryHtml;
-                                UnifiedPrinter.execute();
+                        const run = await HistoryManager.getRunById(currentLoadedRunId);
+                        if (run) {
+                            UnifiedPrinter.clear();
+                            // Mindig kinyomtatjuk az összesítőt és a korrekciós lapot (összesítő pakk), mivel az adatok változhattak
+                            const summaryHtml = UnifiedPrinter.generateSummaryHtml(run, false);
+                            const correctionHtml = UnifiedPrinter.generateCorrectionHtml(run);
+                            
+                            let deliveryHtml = '';
+                            if (targetOrderIds.length > 0) {
+                                deliveryHtml = UnifiedPrinter.generateDeliveryNotesHtml(run, true, targetOrderIds);
                             }
-                        } else {
-                            await CustomDialog.alert('Nincs hozzáadott vagy módosított rendelés a részleges nyomtatáshoz (csak törlés történt).', 'Részleges Nyomtatás', 'info');
+                            
+                            UnifiedPrinter.area.innerHTML = summaryHtml + correctionHtml + deliveryHtml;
+                            UnifiedPrinter.execute();
                         }
                         return; // Kilépés, ne nyomtasson teljeset
                     } else if (printChoice === 2) {
@@ -1022,6 +1026,9 @@ function initApp() {
             renderOrdersTab();
         }
     });
+    if (accountingFilterPending) {
+        accountingFilterPending.addEventListener('change', () => renderAccountingRuns());
+    }
     trashCompanyFilter.addEventListener('change', () => renderTrashRuns());
     trashDateStart.addEventListener('change', () => renderTrashRuns());
     trashDateEnd.addEventListener('change', () => renderTrashRuns());

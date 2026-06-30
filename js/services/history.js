@@ -300,7 +300,6 @@ export const HistoryManager = {
                         company: company,
                         sender: sender || 'capsula',
                         orders: ordersList,
-                        timestamp: Date.now(),
                         isModified: true,
                         modifiedAt: Date.now(),
                         modifyCount: increment(1)

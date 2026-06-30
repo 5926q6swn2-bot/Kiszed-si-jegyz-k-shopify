@@ -14,6 +14,12 @@ export function initHistoryView(context) {
         historySearchInput
     } = ctx;
         const runs = await HistoryManager.getAllRuns();
+        runs.sort((a, b) => {
+            const dateA = a.date || '';
+            const dateB = b.date || '';
+            if (dateA !== dateB) return dateB.localeCompare(dateA);
+            return (b.timestamp || 0) - (a.timestamp || 0);
+        });
         historyRunsContainer.innerHTML = '';
         
         // Szűrés a dátum/cég szerint
@@ -137,6 +143,12 @@ export function initHistoryView(context) {
     } = ctx;
         const q = historySearchInput.value.trim().toLowerCase();
         const allRuns = await HistoryManager.getAllRuns();
+        allRuns.sort((a, b) => {
+            const dateA = a.date || '';
+            const dateB = b.date || '';
+            if (dateA !== dateB) return dateB.localeCompare(dateA);
+            return (b.timestamp || 0) - (a.timestamp || 0);
+        });
         const filteredRuns = allRuns.filter(r => isFiltered(r));
 
         let matches = [];
@@ -774,6 +786,12 @@ export function initHistoryView(context) {
         historySearchInput
     } = ctx;
         let runs = await HistoryManager.getAllRuns();
+        runs.sort((a, b) => {
+            const dateA = a.date || '';
+            const dateB = b.date || '';
+            if (dateA !== dateB) return dateB.localeCompare(dateA);
+            return (b.timestamp || 0) - (a.timestamp || 0);
+        });
         const onlyPending = accountingFilterPending.checked;
 
         // Szűrés: a dátum/cég szűrők alapján
@@ -1039,6 +1057,12 @@ export function initHistoryView(context) {
         historySearchInput
     } = ctx;
         let runs = await HistoryManager.getTrashRuns();
+        runs.sort((a, b) => {
+            const dateA = a.date || '';
+            const dateB = b.date || '';
+            if (dateA !== dateB) return dateB.localeCompare(dateA);
+            return (b.timestamp || 0) - (a.timestamp || 0);
+        });
         trashRunsContainer.innerHTML = '';
         
         // Szűrés

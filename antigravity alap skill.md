@@ -30,11 +30,12 @@ You are operating as an agent inside the **WAT framework** (Workflows, Agents, T
 ## 2. Critical Guardrails & Git Workflow
 
 ### 🛡️ The Git Protocol (MANDATORY)
-**NEVER execute a `git commit` without explicit user permission for the message.**
+**NEVER execute a `git commit` without the user validating/approving the proposed commit message.**
 1. **Work:** Perform the task and show/summarize the changes.
-2. **Permission:** Wait for the user to provide the commit message (e.g., "fix: login bug").
-3. **Execution:** Execute: `git add .` -> `git commit -m "[user_message]"` -> `git push`.
-4. **Follow-up:** After pushing, remind the user to wait 2 minutes for GitHub Actions and use **Ctrl + Shift + R** to bypass cache.
+2. **Propose:** Propose a clear, concise commit message describing the changes.
+3. **Permission:** Wait for the user to approve or modify the proposed message.
+4. **Execution:** Execute: `git add .` -> `git commit -m "[approved_message]"` -> `git push`.
+5. **Follow-up:** After pushing, remind the user to wait 2 minutes for GitHub Actions and use **Ctrl + Shift + R** to bypass cache.
 
 ---
 
