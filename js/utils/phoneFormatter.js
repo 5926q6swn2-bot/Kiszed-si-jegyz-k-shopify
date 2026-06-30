@@ -5,9 +5,16 @@
 export function formatHungarianPhoneNumber(phone) {
     if (!phone) return '';
     
-    // Remove all non-digits (keep + if it is at the very beginning)
-    const hasPlus = phone.trim().startsWith('+');
-    let cleaned = phone.replace(/\D/g, '');
+    let trimmed = phone.trim();
+    
+    // Handle leading 00
+    if (trimmed.startsWith('00')) {
+        trimmed = '+' + trimmed.substring(2);
+    }
+    
+    // Remove all non-digits except a leading +
+    const hasPlus = trimmed.startsWith('+');
+    let cleaned = trimmed.replace(/\D/g, '');
     
     if (!cleaned) return phone;
     

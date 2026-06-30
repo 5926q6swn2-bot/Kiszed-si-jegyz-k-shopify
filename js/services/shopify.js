@@ -1,5 +1,5 @@
-import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
-import { PannonXPService } from './pannonxp.js?v=145';
+import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
+import { PannonXPService } from './pannonxp.js?v=150';
 
 export function cleanItemNameForMapping(name) {
     if (!name) return '';
@@ -51,8 +51,8 @@ export function generateDefaultReference(order, maxLen = 40) {
             parts.push(`${abbrev}${item.qty}`);
         } else {
             hasUnmapped = true;
-            const shortFallback = cleanedName.substring(0, 10);
-            parts.push(`${shortFallback}${item.qty}`);
+            // Nem generálunk automatikus félkész rövidítést, hanem kérdőjellel jelöljük a hiányt
+            parts.push(`?${item.qty}`);
         }
     });
     
@@ -69,6 +69,7 @@ export function generateDefaultReference(order, maxLen = 40) {
 }
 
 export const ShopifyParser = {
+    generateDefaultReference: generateDefaultReference,
     
 
     isProfile(name) {

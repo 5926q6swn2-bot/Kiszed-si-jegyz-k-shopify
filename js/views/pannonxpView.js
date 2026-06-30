@@ -3,10 +3,10 @@
  * Kezeli a PannonXP Címkekonvertáló felületét.
  */
 
-import { PannonXPService } from '../services/pannonxp.js?v=145';
+import { PannonXPService } from '../services/pannonxp.js?v=150';
 import { CustomDialog } from '../utils/dialog.js';
-import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
-import { ShopifyParser, cleanItemNameForMapping } from '../services/shopify.js?v=145';
+import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
+import { ShopifyParser, cleanItemNameForMapping } from '../services/shopify.js?v=150';
 
 export const PannonXPView = {
     render(container, orders, onExport) {
@@ -184,9 +184,25 @@ export const PannonXPView = {
             
             let warningMessage = '';
             if (hasUnmappedProduct) {
-                warningMessage = `<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;" title="${unmappedItems.map(i => i.name).join(', ')}">⚠️ Rövidítés hiányzik: ${unmappedItems.map(i => cleanItemNameForMapping(i.name)).join(', ')}</span>`;
+                warningMessage = unmappedItems.map(item => {
+                    const cleanedName = cleanItemNameForMapping(item.name);
+                    return `
+                    <span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:2px;" class="pxp-unmapped-span">
+                        ⚠️ Rövidítés hiányzik: ${cleanedName}
+                        <button type="button" class="btn-quick-add-mapping btn-sm" data-order-index="${index}" data-original-name="${item.name}" data-name="${cleanedName}" style="margin-left: 6px; padding: 2px 6px; font-size: 9px; font-weight: 700; background: #dc2626; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: all 0.15s; vertical-align: middle;" onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">Hozzáadás</button>
+                    </span>
+                    `;
+                }).join('');
             } else if (hasUnassignedCategory) {
-                warningMessage = `<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;" title="${unassignedCategoryItems.map(i => i.name).join(', ')}">⚠️ Nincs kategória rendelve: ${unassignedCategoryItems.map(i => cleanItemNameForMapping(i.name)).join(', ')}</span>`;
+                warningMessage = unassignedCategoryItems.map(item => {
+                    const cleanedName = cleanItemNameForMapping(item.name);
+                    return `
+                    <span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:2px;" class="pxp-unassigned-cat-span">
+                        ⚠️ Nincs kategória rendelve: ${cleanedName}
+                        <button type="button" class="btn-quick-assign-cat btn-sm" data-order-index="${index}" data-original-name="${item.name}" data-name="${cleanedName}" style="margin-left: 6px; padding: 2px 6px; font-size: 9px; font-weight: 700; background: #ea580c; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: all 0.15s; vertical-align: middle;" onmouseover="this.style.background='#c2410c'" onmouseout="this.style.background='#ea580c'">Hozzárendelés</button>
+                    </span>
+                    `;
+                }).join('');
             } else if (order.pxp_has_unmatched) {
                 warningMessage = '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;">⚠️ Ismeretlen termékcsalád!</span>';
             }
@@ -324,6 +340,81 @@ export const PannonXPView = {
                 });
             });
         });
+
+        // Gyors termékrövidítés hozzáadása gomb eseménykezelő
+        const quickAddBtns = tbody.querySelectorAll('.btn-quick-add-mapping');
+        quickAddBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const orderIndex = parseInt(btn.dataset.orderIndex);
+                const order = orders[orderIndex];
+                const originalName = btn.dataset.originalName;
+                const cleanedName = btn.dataset.name;
+                
+                // Guess category
+                let guessedCategoryId = 'cat_acoustic';
+                const cleanNameLower = cleanedName.toLowerCase();
+                if (/(ragasztó|t-rex|trex|ragaszto|hpr)/i.test(cleanNameLower)) guessedCategoryId = 'cat_adhesive';
+                else if (/profil/i.test(cleanNameLower)) guessedCategoryId = 'cat_profile';
+                else if (/(wood|spc\s*wood)/i.test(cleanNameLower)) guessedCategoryId = 'cat_spcwood';
+                else if (/(stone|spc\s*stone)/i.test(cleanNameLower)) guessedCategoryId = 'cat_spcstone';
+
+                this.showConfigureProductModal(order, originalName, cleanedName, '', guessedCategoryId, () => {
+                    // Rendelések adatainak újraszámolása a frissített mapping-ek alapján
+                    if (orders && Array.isArray(orders)) {
+                        orders.forEach(o => {
+                            o.pxp_referencia = ShopifyParser.generateDefaultReference ? ShopifyParser.generateDefaultReference(o, 40) : o.pxp_referencia;
+                            const calc = PannonXPService.calculateWeightAndPackages(o.items);
+                            o.pxp_csomagszam = calc.packages;
+                            o.pxp_suly = calc.weight;
+                            o.pxp_packages = calc.packagesDetail;
+                            o.pxp_has_unmatched = calc.hasUnmatched || o.items.some(item => {
+                                const activeM = PannonXPService.getNormalizedProductMappings();
+                                return !activeM[cleanItemNameForMapping(item.name)];
+                            });
+                        });
+                    }
+                    
+                    // Nézet frissítése
+                    this.renderOrders(orders);
+                });
+            });
+        });
+        // Gyors kategória hozzárendelése gomb eseménykezelő
+        const quickAssignCatBtns = tbody.querySelectorAll('.btn-quick-assign-cat');
+        quickAssignCatBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const orderIndex = parseInt(btn.dataset.orderIndex);
+                const order = orders[orderIndex];
+                const originalName = btn.dataset.originalName;
+                const cleanedName = btn.dataset.name;
+                
+                const activeMappings = PannonXPService.getProductMappings() || {};
+                const currentMapping = activeMappings[originalName] || {};
+                const currentAbbrev = currentMapping.abbrev || '';
+                
+                this.showConfigureProductModal(order, originalName, cleanedName, currentAbbrev, '', () => {
+                    // Rendelések adatainak újraszámolása a frissített mapping-ek alapján
+                    if (orders && Array.isArray(orders)) {
+                        orders.forEach(o => {
+                            o.pxp_referencia = ShopifyParser.generateDefaultReference ? ShopifyParser.generateDefaultReference(o, 40) : o.pxp_referencia;
+                            const calc = PannonXPService.calculateWeightAndPackages(o.items);
+                            o.pxp_csomagszam = calc.packages;
+                            o.pxp_suly = calc.weight;
+                            o.pxp_packages = calc.packagesDetail;
+                            o.pxp_has_unmatched = calc.hasUnmatched || o.items.some(item => {
+                                const activeM = PannonXPService.getNormalizedProductMappings();
+                                return !activeM[cleanItemNameForMapping(item.name)];
+                            });
+                        });
+                    }
+                    
+                    // Nézet frissítése
+                    this.renderOrders(orders);
+                });
+            });
+        });
     },
     
     showDetailedPackagesModal(order, onSave) {
@@ -417,6 +508,103 @@ export const PannonXPView = {
             order.pxp_suly = order.pxp_packages.reduce((sum, p) => sum + p.suly, 0);
             
             overlay.remove();
+            if (typeof onSave === 'function') {
+                onSave();
+            }
+        });
+    },
+    
+    showConfigureProductModal(order, originalName, cleanedName, defaultAbbrev, defaultCategoryId, onSave) {
+        const overlay = document.createElement('div');
+        overlay.className = 'custom-dialog-overlay active no-print';
+        overlay.style.zIndex = '10000';
+        
+        const rules = PannonXPService.getPackagingRules();
+        const categories = rules.categories || [];
+        
+        const itemsListHtml = order.items.map(it => `
+            <li style="margin-bottom: 6px; font-size: 13px; color: #334155; text-align: left;">
+                <strong style="color: #0f172a;">${it.qty} db</strong> - ${it.name}
+            </li>
+        `).join('');
+
+        overlay.innerHTML = `
+            <div class="custom-dialog-box" style="max-width: 440px; width: 90%; max-height: 85vh; display: flex; flex-direction: column; padding: 20px;">
+                <h3 style="margin-top: 0; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                    <i class="ph-bold ph-gear" style="color: var(--primary-color);"></i>
+                    Termék beállítása PannonXP-hez
+                </h3>
+                
+                <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; margin-bottom: 15px;">
+                    <div style="text-align: left; font-family: inherit;">
+                        <p style="margin-top: 0; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: #1e293b;">
+                            A megrendelésben (${order.id}) lévő termékek:
+                        </p>
+                        <ul style="margin: 0 0 15px 0; padding-left: 20px; list-style-type: disc;">
+                            ${itemsListHtml}
+                        </ul>
+                        
+                        <p style="margin-bottom: 6px; font-size: 13px; color: #475569;">
+                            Kiválasztott termék: <strong style="color: var(--primary-color); word-break: break-all;">"${cleanedName}"</strong>
+                        </p>
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">1. Termékrövidítés (max 15-20 karakter ajánlott):</label>
+                        <input type="text" id="pxp-modal-abbrev-input" value="${defaultAbbrev}" placeholder="pl. Sonoma2, trex5, ezustsorolo" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 13px; font-weight: 600; color: #0f172a; outline: none; background: #fff;">
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">2. Csomagolási Kategória:</label>
+                        <select id="pxp-modal-cat-select" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 13px; font-weight: 600; color: #0f172a; outline: none; background: #fff;">
+                            <option value="">-- Válassz kategóriát --</option>
+                            ${categories.map(c => `<option value="${c.id}" ${c.id === defaultCategoryId ? 'selected' : ''}>${c.name}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="cd-actions" style="display: flex; justify-content: flex-end; gap: 10px; margin: 0;">
+                    <button id="pxp-modal-btn-cancel" class="cd-btn cd-btn-secondary" style="margin:0;">Mégse</button>
+                    <button id="pxp-modal-btn-save" class="cd-btn cd-btn-primary" style="margin:0;">Mentés</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        
+        const cancelBtn = overlay.querySelector('#pxp-modal-btn-cancel');
+        const saveBtn = overlay.querySelector('#pxp-modal-btn-save');
+        const abbrevInput = overlay.querySelector('#pxp-modal-abbrev-input');
+        const catSelect = overlay.querySelector('#pxp-modal-cat-select');
+        
+        abbrevInput.focus();
+        
+        cancelBtn.addEventListener('click', () => {
+            overlay.remove();
+        });
+        
+        saveBtn.addEventListener('click', async () => {
+            const abbrev = abbrevInput.value.trim();
+            const selectedCatId = catSelect.value;
+            
+            if (!abbrev) {
+                CustomDialog.alert('Kérlek, add meg a termék rövidítését!', 'Hiányzó adat', 'warning');
+                return;
+            }
+            if (!selectedCatId) {
+                CustomDialog.alert('Kérlek, válaszd ki a termék kategóriáját!', 'Hiányzó adat', 'warning');
+                return;
+            }
+            
+            const activeMappings = PannonXPService.getProductMappings();
+            activeMappings[originalName] = {
+                abbrev: abbrev,
+                categoryId: selectedCatId
+            };
+            
+            await PannonXPService.saveProductMappings(activeMappings);
+            overlay.remove();
+            
             if (typeof onSave === 'function') {
                 onSave();
             }

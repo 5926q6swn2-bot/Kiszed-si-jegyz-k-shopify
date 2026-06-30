@@ -1,4 +1,4 @@
-import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
+import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
 import { cleanItemNameForMapping } from './shopify.js?v=145';
 import { db, doc, getDoc, setDoc } from '../firebase-config.js?v=42';
 import { CustomDialog } from '../utils/dialog.js';
@@ -557,7 +557,7 @@ export const PannonXPService = {
     // A PannonXP CSV oszlopainak listája (pontosan 54 oszlop)
     COLUMNS: [
         'uc_ugyfelkod', 'uc_nev', 'uc_tel', 'uc_email', 'uc_ceg_nev', 'uc_ceg_cim_iranyito', 'uc_ceg_cim_telepules', 'uc_ceg_cim_orszag', 'uc_ceg_cim_kozterulet', 'uc_ceg_cim_megjegyzes', 'uc_ceg_adoszam', 'uc_ceg_bankszamlaszam',
-        'ucc_ugyfelkod', 'ucc_nev', 'ucc_tel', 'ucc_email', 'ucc_ceg_nev', 'ucc_ceg_cim_iranyito', 'ucc_ceg_cim_telepules', 'uc_ceg_cim_orszag', 'uc_ceg_cim_kozterulet', 'uc_ceg_cim_megjegyzes', 'uc_ceg_adoszam',
+        'ucc_ugyfelkod', 'ucc_nev', 'ucc_tel', 'ucc_email', 'ucc_ceg_nev', 'ucc_ceg_cim_iranyito', 'ucc_ceg_cim_telepules', 'ucc_ceg_cim_orszag', 'ucc_ceg_cim_kozterulet', 'ucc_ceg_cim_megjegyzes', 'ucc_ceg_adoszam',
         'szl_12h', 'szl_okmany', 'szl_okmanyok', 'szl_sms', 'szl_visszaru', 'szl_csomagszam', 'szl_csomag_suly', 'szl_csomagok', 'szl_raklapos', 'szl_tartalom', 'szl_biztositas', 'szl_aruertek', 'szl_utanvet', 'szl_ekaer_szam', 'szl_ekaer_email', 'szl_koltseghely', 'szl_referenciaszam', 'szl_koltsegviselo', 'szl_adoszam', 'szl_maganszemely',
         'ucch_ugyfelkod', 'ucch_nev', 'ucch_tel', 'ucch_email', 'ucch_ceg_nev', 'ucch_ceg_cim_iranyito', 'ucch_ceg_cim_telepules', 'ucch_ceg_cim_orszag', 'ucch_ceg_cim_kozterulet', 'ucch_ceg_cim_megjegyzes', 'ucch_ceg_adoszam'
     ],
@@ -790,27 +790,14 @@ export const PannonXPService = {
     convertToCSV(orders, senderSettings) {
         const csvRows = [];
         
-        // 1. Sor: ID-k (számok 0-tól 53-ig)
-        const idRow = ['ID:'].concat(Array.from({ length: 54 }, (_, i) => i));
-        csvRows.push(idRow.map(val => this.escapeCsvValue(val)).join(';'));
-        
-        // 2. Sor: Mezőnevek
-        const headerRow = ['Mezőnév:'].concat(this.COLUMNS);
+        // 1. Sor: Mezőnevek (ID sor és 'Mezőnév:' előtag nélkül)
+        const headerRow = [...this.COLUMNS];
         csvRows.push(headerRow.map(val => this.escapeCsvValue(val)).join(';'));
-        
-        // 3. Sor: Minta adat vagy rögtön a valós adatok?
-        // A mintafájlban a 3. és 4. sor is bemutató adatok, de az importálónak valószínűleg nem kell a "Minta adat" sor,
-        // viszont a biztonság kedvéért pontosan ugyanazt a formátumot követjük, de nem teszünk bele statikus minta sort,
-        // vagy ha igen, akkor üres előtaggal a megrendeléseket.
-        // A leírás szerint: "az oszlopok azonosítása a mezőnév alapján történik", a mezőnevek a 2. sorban vannak.
-        // A minta fájlban a 3. sornak az első cellája "Minta adat:", a 4. sor első cellája pedig üres.
-        // Így a valódi megrendelések soraiban az első cellát üresen hagyjuk!
         
         orders.forEach(order => {
             const rowData = [];
-            rowData.push(''); // Első oszlop üres (ahol a minta fájlban "Minta adat:" szerepel)
             
-            // 1. Feladó beállítások
+            // 1. Feladó beállítások (nincs szükség üres oszlopra az elején)
             rowData.push(senderSettings.uc_ugyfelkod || '');
             rowData.push(senderSettings.uc_nev || '');
             rowData.push(formatHungarianPhoneNumber(senderSettings.uc_tel || ''));
@@ -881,7 +868,8 @@ export const PannonXPService = {
             rowData.push(''); // szl_ekaer_szam
             rowData.push(''); // szl_ekaer_email
             rowData.push(''); // szl_koltseghely
-            rowData.push(order.pxp_referencia || order.id || ''); // szl_referenciaszam (Shopify order name or formatted reference)
+            const refVal = (order.pxp_referencia || order.id || '').replace(/^#/, '');
+            rowData.push(refVal); // szl_referenciaszam (Shopify order name or formatted reference)
             rowData.push('0'); // szl_koltsegviselo (0 = feladó fizet)
             rowData.push(senderSettings.uc_ceg_adoszam || ''); // szl_adoszam (feladó adószáma)
             rowData.push('0'); // szl_maganszemely (0 = cég fizet)
@@ -894,7 +882,7 @@ export const PannonXPService = {
             csvRows.push(rowData.map(val => this.escapeCsvValue(val)).join(';'));
         });
         
-        // PannonXP által kedvelt kódolás a pontosvesszős elválasztással
+        // PannonXP által kért kódolás a pontosvesszős elválasztással
         return csvRows.join('\r\n');
     },
 

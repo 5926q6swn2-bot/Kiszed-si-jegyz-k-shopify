@@ -2,13 +2,13 @@ import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, coll
 import { CustomDialog } from './utils/dialog.js';
 import { HistoryManager } from './services/history.js';
 import { UnifiedPrinter } from './services/printer.js';
-import { ShopifyParser, cleanItemNameForMapping } from './services/shopify.js?v=147';
-import { PannonXPService } from './services/pannonxp.js?v=147';
-import { PannonXPView } from './views/pannonxpView.js?v=147';
+import { ShopifyParser, cleanItemNameForMapping } from './services/shopify.js?v=150';
+import { PannonXPService } from './services/pannonxp.js?v=150';
+import { PannonXPView } from './views/pannonxpView.js?v=150';
 import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js';
 import { Store } from './store/state.js';
 import { OrdersView } from './views/ordersView.js';
-import { initManualOrderController } from './controllers/manualOrderController.js?v=147';
+import { initManualOrderController } from './controllers/manualOrderController.js?v=150';
 import { renderStatistics } from './views/stats.js';
 import { ExporterService } from './services/exporter.js';
 
@@ -282,7 +282,25 @@ function initApp() {
             header: true,
             skipEmptyLines: true,
             complete: function(results) {
-                processShopifyData(results.data);
+                const cleanedData = (results.data || []).map(row => {
+                    const cleanRow = {};
+                    for (const key in row) {
+                        let val = row[key];
+                        if (typeof val === 'string') {
+                            val = val.trim();
+                            if (val.startsWith("'")) {
+                                val = val.substring(1);
+                            }
+                            if (val.endsWith("'")) {
+                                val = val.substring(0, val.length - 1);
+                            }
+                            val = val.trim();
+                        }
+                        cleanRow[key] = val;
+                    }
+                    return cleanRow;
+                });
+                processShopifyData(cleanedData);
             }
         });
         
