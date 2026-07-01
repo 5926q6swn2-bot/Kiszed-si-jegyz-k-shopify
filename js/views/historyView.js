@@ -940,6 +940,43 @@ export function initHistoryView(context) {
             if (dateA !== dateB) return dateB.localeCompare(dateA);
             return (b.timestamp || 0) - (a.timestamp || 0);
         });
+
+        // Visszakompatibilitás: paymentStatusMap generálása a régi terítésekhez
+        runs.forEach(run => {
+            if (!run.paymentStatusMap || Object.keys(run.paymentStatusMap).length === 0) {
+                const map = {};
+                const uncollected = run.uncollectedOrderIds || [];
+                const bankTransferred = run.bankTransferredOrderIds || [];
+                const paymentMethods = run.paymentMethods || {};
+                const hasSettled = (run.settledAmount || 0) > 0 || run.isSettled;
+                
+                run.orders.forEach(o => {
+                    if (o.isCOD) {
+                        if (uncollected.includes(o.id) || bankTransferred.includes(o.id)) {
+                            map[o.id] = 'received';
+                        } else if (!hasSettled) {
+                            map[o.id] = 'pending';
+                        } else {
+                            const method = paymentMethods[o.id] || 'cash';
+                            if (method === 'card') {
+                                const isTransferSettled = run.isTransferSettled !== false;
+                                map[o.id] = isTransferSettled ? 'received' : 'pending';
+                            } else {
+                                map[o.id] = 'received';
+                            }
+                        }
+                    }
+                });
+                run.paymentStatusMap = map;
+                
+                // Ha a generált map alapján nincs benne függő tétel, és már elszámolták a kört, tekintsük elszámoltnak
+                const hasPending = run.orders.some(o => o.isCOD && !uncollected.includes(o.id) && map[o.id] === 'pending');
+                if (!hasPending && hasSettled) {
+                    run.isSettled = true;
+                }
+            }
+        });
+
         const onlyPending = accountingFilterPending.checked;
 
         // Szűrés: a dátum/cég szűrők alapján
