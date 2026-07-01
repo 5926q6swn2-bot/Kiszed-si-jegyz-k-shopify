@@ -1,5 +1,6 @@
 import { HistoryManager } from '../services/history.js';
 import { db, doc, updateDoc, deleteDoc } from '../firebase-config.js';
+import { CustomDialog } from '../utils/dialog.js';
 
 let ctx = {};
 
@@ -339,14 +340,25 @@ export function initHistoryView(context) {
                 const result = await showSettlementDialog(run, runCOD, existingState);
                 if (result === null) return;
 
-                if (await HistoryManager.updateSettlementStatus(run.docId, result.settledAmount, runCOD, result.uncollectedOrderIds, result.uncollectedReasons, result.partialOrders, result.bankTransferredOrderIds, result.uncollectedResponsibility)) {
+                if (await HistoryManager.updateSettlementStatus(
+                    run.docId, 
+                    result.settledAmount, 
+                    runCOD, 
+                    result.uncollectedOrderIds, 
+                    result.uncollectedReasons, 
+                    result.partialOrders, 
+                    result.bankTransferredOrderIds, 
+                    result.uncollectedResponsibility,
+                    result.settledKpAmount,
+                    result.settledCardAmount,
+                    result.paymentMethods,
+                    result.paymentStatusMap
+                )) {
                     renderOrdersTab();
                 }
             });
         });
     }
-
-
 
     function showSettlementDialog(run, runCOD, existingState = null) {
         return new Promise((resolve) => {
@@ -356,6 +368,8 @@ export function initHistoryView(context) {
             const prevUncollected  = new Set(existingState?.uncollectedOrderIds || run.uncollectedOrderIds || []);
             const prevReasons      = existingState?.uncollectedReasons || run.uncollectedReasons || {};
             const prevPartials     = existingState?.partialOrders || run.partialOrders || {};
+            const prevPaymentMethods = existingState?.paymentMethods || run.paymentMethods || {};
+            const prevPaymentStatusMap = existingState?.paymentStatusMap || run.paymentStatusMap || {};
 
             const makeReasonHtml = (orderId, wasUncollected) => {
                 const pr = prevReasons[orderId] || '';
@@ -384,7 +398,9 @@ export function initHistoryView(context) {
                 const wasUncollected = prevUncollected.has(o.id);
                 const wasBankTransferred = prevBankTransferred.has(o.id);
                 const prevPartial    = prevPartials[o.id];
-                const wasPartial     = !wasUncollected && !wasBankTransferred && !!prevPartial;
+                const wasPartial     = !wasUncollected && !!prevPartial;
+                const pm             = prevPaymentMethods[o.id] || (wasBankTransferred ? 'bank' : 'cash');
+                const isReceived     = prevPaymentStatusMap[o.id] !== 'pending';
                 
                 const currentResp = existingState?.uncollectedResponsibility?.[o.id] || run.uncollectedResponsibility?.[o.id] || 'vevo';
                 const rMienkActive = currentResp === 'mienk';
@@ -393,9 +409,34 @@ export function initHistoryView(context) {
 
                 const itemsList = (o.items || []).map(it => `<span style="display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;margin:2px 4px 2px 0;"><b>${it.qty}×</b> ${it.name}</span>`).join('');
                 
+                const payMethodStyle = wasUncollected ? 'display:none;' : 'display:inline-flex;';
+                
+                const paymentMethodSelectorHtml = `
+                <div class="sd-paymethod-selector" style="${payMethodStyle}align-items:center;gap:4px;" data-order-id="${o.id}">
+                    <button type="button" class="sd-paymethod-btn cash ${pm === 'cash' ? 'active' : ''}" data-method="cash" style="font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${pm === 'cash' ? '#cbd5e1' : '#e2e8f0'};background:${pm === 'cash' ? '#e2e8f0' : '#f8fafc'};color:${pm === 'cash' ? '#1e293b' : '#64748b'};transition:all .15s;">
+                        💵 KP
+                    </button>
+                    <button type="button" class="sd-paymethod-btn card ${pm === 'card' ? 'active' : ''}" data-method="card" style="font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${pm === 'card' ? '#93c5fd' : '#e2e8f0'};background:${pm === 'card' ? '#eff6ff' : '#f8fafc'};color:${pm === 'card' ? '#1d4ed8' : '#64748b'};transition:all .15s;">
+                        💳 Kártya
+                    </button>
+                    <button type="button" class="sd-paymethod-btn bank ${pm === 'bank' ? 'active' : ''}" data-method="bank" style="font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${pm === 'bank' ? '#bae6fd' : '#e2e8f0'};background:${pm === 'bank' ? '#f0f9ff' : '#f8fafc'};color:${pm === 'bank' ? '#0284c7' : '#64748b'};transition:all .15s;">
+                        🏦 Utalás
+                    </button>
+                </div>
+                `;
+
+                const paymentStatusSelectorHtml = `
+                <div class="sd-paystatus-container" style="${payMethodStyle}align-items:center;gap:6px;" data-order-id="${o.id}">
+                    <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;font-weight:700;color:#374151;user-select:none;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:5px 8px;transition:all .15s;" class="sd-paystatus-label">
+                        <input type="checkbox" class="sd-paystatus-checkbox" ${isReceived ? 'checked' : ''} style="cursor:pointer;accent-color:#16a34a;width:14px;height:14px;">
+                        <span>💵 Nálunk van</span>
+                    </label>
+                </div>
+                `;
+
                 return `
                 <div class="sd-order-row" style="border-bottom:1px solid #f1f5f9;">
-                    <label style="display:grid;grid-template-columns: 24px 80px minmax(0, 2fr) minmax(0, 1fr) minmax(240px, auto);align-items:start;gap:12px;padding:14px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                    <label style="display:grid;grid-template-columns: 24px 80px minmax(0, 2fr) minmax(0, 1fr) minmax(420px, auto);align-items:start;gap:12px;padding:14px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
                         <div style="display:flex;align-items:center;padding-top:2px;">
                             <input type="checkbox" data-order-id="${o.id}" data-amount="${o.codAmount}" data-is-cod="true" ${wasUncollected ? '' : 'checked'}
                                 style="width:20px;height:20px;cursor:pointer;accent-color:#22c55e;">
@@ -409,15 +450,13 @@ export function initHistoryView(context) {
                             <div class="sd-items-list" style="display:none;font-size:11px;color:#475569;margin-top:2px;" onclick="event.preventDefault();event.stopPropagation();">${itemsList}</div>` : ''}
                         </div>
                         <div style="display:flex;align-items:center;padding-top:2px;">
-                            <span class="sd-full-amount" style="font-size:15px;font-weight:800;color:${wasBankTransferred?'#0284c7':wasPartial?'#1d4ed8':'#b91c1c'};">${wasBankTransferred ? 'Utalva (0 Ft KP)' : wasPartial ? (prevPartial.amount||o.codAmount).toLocaleString('hu-HU') + ' Ft' : o.codAmount.toLocaleString('hu-HU') + ' Ft'}</span>
+                            <span class="sd-full-amount" style="font-size:15px;font-weight:800;color:#b91c1c;">— Ft</span>
                         </div>
                         <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;padding-top:2px;">
-                            <button class="sd-bank-toggle" onclick="event.preventDefault();event.stopPropagation();" data-active="${wasBankTransferred ? 'true' : 'false'}"
-                                style="display:${wasUncollected?'none':'inline-flex'};align-items:center;gap:4px;font-size:11px;font-weight:600;color:${wasBankTransferred?'#0284c7':'#64748b'};background:${wasBankTransferred?'#f0f9ff':'#f8fafc'};border:1px solid ${wasBankTransferred?'#bae6fd':'#e2e8f0'};border-radius:6px;padding:6px 10px;cursor:pointer;font-family:inherit;transition:all .15s;">
-                                <i class="ph-bold ph-bank" style="font-size:12px;"></i> Banki utalás
-                            </button>
+                            ${paymentMethodSelectorHtml}
+                            ${paymentStatusSelectorHtml}
                             <button class="sd-partial-toggle" onclick="event.preventDefault();event.stopPropagation();"
-                                style="display:${wasUncollected || wasBankTransferred ?'none':'inline-flex'};align-items:center;gap:4px;font-size:11px;font-weight:600;color:${wasPartial?'#1d4ed8':'#64748b'};background:${wasPartial?'#eff6ff':'#f8fafc'};border:1px solid ${wasPartial?'#93c5fd':'#e2e8f0'};border-radius:6px;padding:6px 10px;cursor:pointer;font-family:inherit;transition:all .15s;">
+                                style="display:${wasUncollected?'none':'inline-flex'};align-items:center;gap:4px;font-size:11px;font-weight:600;color:${wasPartial?'#1d4ed8':'#64748b'};background:${wasPartial?'#eff6ff':'#f8fafc'};border:1px solid ${wasPartial?'#93c5fd':'#e2e8f0'};border-radius:6px;padding:6px 10px;cursor:pointer;font-family:inherit;transition:all .15s;">
                                 <i class="ph-bold ph-split-horizontal" style="font-size:12px;"></i> Részlegesen fizetett
                             </button>
                         </div>
@@ -451,7 +490,7 @@ export function initHistoryView(context) {
                 const itemsList = (o.items || []).map(it => `<span style="display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;margin:2px 4px 2px 0;"><b>${it.qty}×</b> ${it.name}</span>`).join('');
                 return `
                 <div class="sd-order-row" style="border-bottom:1px solid #f1f5f9;">
-                    <label style="display:grid;grid-template-columns: 24px 80px minmax(0, 2fr) minmax(0, 1fr) minmax(240px, auto);align-items:start;gap:12px;padding:14px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                    <label style="display:grid;grid-template-columns: 24px 80px minmax(0, 2fr) minmax(0, 1fr) minmax(420px, auto);align-items:start;gap:12px;padding:14px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
                         <div style="display:flex;align-items:center;padding-top:2px;">
                             <input type="checkbox" data-order-id="${o.id}" data-is-cod="false" ${wasUncollected ? '' : 'checked'}
                                 style="width:20px;height:20px;cursor:pointer;accent-color:#22c55e;">
@@ -483,7 +522,7 @@ export function initHistoryView(context) {
             overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
 
             overlay.innerHTML = `
-                <div style="background:#fff;border-radius:20px;width:100%;max-width:850px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,0.35);overflow:hidden;">
+                <div style="background:#fff;border-radius:20px;width:100%;max-width:960px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,0.35);overflow:hidden;">
                     <div style="background:#0f172a;color:#fff;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
                         <div>
                             <div style="font-weight:700;font-size:15px;letter-spacing:-.2px;">Terítés rögzítése</div>
@@ -494,16 +533,29 @@ export function initHistoryView(context) {
                         </button>
                     </div>
                     <div style="padding:10px 20px 8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0;">
-                        <span style="font-size:12px;color:#64748b;font-weight:600;">Pipáld ki az <strong style="color:#0f172a;">átadott</strong> rendeléseket · Utánvéteseknél módosítható az elszámolás</span>
+                        <span style="font-size:12px;color:#64748b;font-weight:600;">Pipáld ki az <strong style="color:#0f172a;">átadott</strong> rendeléseket · Utánvéteknél válaszd ki a fizetés módját (KP / Kártya / Utalás)</span>
                     </div>
                     <div style="overflow-y:auto;flex:1;">${rowsHtml}</div>
                     <div style="padding:14px 20px;border-top:2px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;background:#fff;flex-shrink:0;">
-                        <div>
-                            <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Elvárt készpénz</div>
-                            <div id="sd-total" style="font-size:22px;font-weight:800;color:#0f172a;line-height:1.2;">${runCOD.toLocaleString('hu-HU')} Ft</div>
-                            <div id="sd-missing" style="font-size:12px;font-weight:700;color:#f97316;margin-top:2px;display:none;"></div>
+                        <div style="display:flex;gap:20px;flex-wrap:wrap;">
+                            <div>
+                                <div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">💵 Nálunk lévő KP</div>
+                                <div id="sd-total-kp-received" style="font-size:18px;font-weight:800;color:#16a34a;line-height:1.2;">0 Ft</div>
+                            </div>
+                            <div>
+                                <div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">⏳ Várható KP</div>
+                                <div id="sd-total-kp-pending" style="font-size:18px;font-weight:800;color:#d97706;line-height:1.2;">0 Ft</div>
+                            </div>
+                            <div>
+                                <div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">💳 Kártyás utalásra vár</div>
+                                <div id="sd-total-card-pending" style="font-size:18px;font-weight:800;color:#2563eb;line-height:1.2;">0 Ft</div>
+                            </div>
+                            <div style="border-left:1px solid #e2e8f0;padding-left:20px;">
+                                <div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">🏦 Közvetlen utalások</div>
+                                <div id="sd-total-other" style="font-size:18px;font-weight:800;color:#0f172a;line-height:1.2;">0 Ft</div>
+                            </div>
                         </div>
-                        <div style="display:flex;gap:8px;">
+                        <div style="display:flex;gap:8px;align-self:flex-end;">
                             <button id="sd-cancel" style="background:none;border:1.5px solid #e2e8f0;color:#64748b;font-size:13px;font-weight:600;padding:9px 18px;border-radius:12px;cursor:pointer;font-family:inherit;">Mégsem</button>
                             <button id="sd-save" style="background:#0f172a;border:none;color:#fff;font-size:13px;font-weight:700;padding:9px 20px;border-radius:12px;cursor:pointer;font-family:inherit;">Rögzítés</button>
                         </div>
@@ -512,31 +564,113 @@ export function initHistoryView(context) {
 
             document.body.appendChild(overlay);
 
+            const updateRowAmountDisplay = (row) => {
+                const cb = row.querySelector('input[type=checkbox]');
+                const fullAmount = parseInt(cb.getAttribute('data-amount'));
+                const partialRow = row.querySelector('.sd-partial-row');
+                const partialInput = row.querySelector('.sd-partial-amount');
+                const fullAmountEl = row.querySelector('.sd-full-amount');
+                if (!fullAmountEl) return;
+                
+                let amount = fullAmount;
+                if (partialRow && partialRow.style.display !== 'none' && partialInput.value !== '') {
+                    amount = Math.min(parseInt(partialInput.value) || 0, fullAmount);
+                }
+                
+                const paymethodSelector = row.querySelector('.sd-paymethod-selector');
+                const activePayBtn = paymethodSelector ? paymethodSelector.querySelector('.sd-paymethod-btn.active') : null;
+                const method = activePayBtn ? activePayBtn.getAttribute('data-method') : 'cash';
+                
+                const statusCheckbox = row.querySelector('.sd-paystatus-checkbox');
+                const isReceived = statusCheckbox ? statusCheckbox.checked : true;
+                
+                const statusLabelSpan = row.querySelector('.sd-paystatus-label span');
+                const statusLabel = row.querySelector('.sd-paystatus-label');
+                if (statusLabelSpan && statusLabel) {
+                    if (method === 'card') {
+                        statusLabelSpan.textContent = '💳 Utalva nekünk';
+                    } else if (method === 'bank') {
+                        statusLabelSpan.textContent = '🏦 Beérkezett';
+                    } else {
+                        statusLabelSpan.textContent = '💵 Nálunk van';
+                    }
+                    
+                    if (isReceived) {
+                        statusLabel.style.background = '#d1fae5';
+                        statusLabel.style.borderColor = '#10b981';
+                        statusLabel.style.color = '#065f46';
+                    } else {
+                        statusLabel.style.background = '#fef3c7';
+                        statusLabel.style.borderColor = '#f59e0b';
+                        statusLabel.style.color = '#92400e';
+                    }
+                }
+                
+                if (method === 'bank') {
+                    fullAmountEl.style.color = '#0284c7';
+                    fullAmountEl.textContent = amount.toLocaleString('hu-HU') + ' Ft (Utalás)';
+                } else if (method === 'card') {
+                    fullAmountEl.style.color = '#1d4ed8';
+                    fullAmountEl.textContent = amount.toLocaleString('hu-HU') + ' Ft (Kártya)';
+                } else {
+                    fullAmountEl.style.color = '#10b981';
+                    fullAmountEl.textContent = amount.toLocaleString('hu-HU') + ' Ft (KP)';
+                }
+            };
+
             const updateTotal = () => {
-                let total = 0;
+                let totalKpReceived = 0;
+                let totalKpPending = 0;
+                let totalCardPending = 0;
+                let totalOther = 0;
+
                 overlay.querySelectorAll('.sd-order-row').forEach(row => {
                     const cb = row.querySelector('input[type=checkbox]');
-                    if (!cb.checked || cb.getAttribute('data-is-cod') !== 'true') return;
+                    if (!cb || cb.getAttribute('data-is-cod') !== 'true') return;
                     
-                    const bankBtn = row.querySelector('.sd-bank-toggle');
-                    const isBankTransferred = bankBtn && bankBtn.getAttribute('data-active') === 'true';
-                    if (isBankTransferred) return;
+                    updateRowAmountDisplay(row);
+                    if (!cb.checked) return;
 
                     const fullAmount   = parseInt(cb.getAttribute('data-amount'));
                     const partialRow   = row.querySelector('.sd-partial-row');
                     const partialInput = row.querySelector('.sd-partial-amount');
+                    
+                    let rowAmount = fullAmount;
                     if (partialRow && partialRow.style.display !== 'none' && partialInput.value !== '') {
-                        total += Math.min(parseInt(partialInput.value) || 0, fullAmount);
-                    } else {
-                        total += fullAmount;
+                        rowAmount = Math.min(parseInt(partialInput.value) || 0, fullAmount);
+                    }
+
+                    const paymethodSelector = row.querySelector('.sd-paymethod-selector');
+                    const activePayBtn = paymethodSelector ? paymethodSelector.querySelector('.sd-paymethod-btn.active') : null;
+                    const method = activePayBtn ? activePayBtn.getAttribute('data-method') : 'cash';
+
+                    const statusCheckbox = row.querySelector('.sd-paystatus-checkbox');
+                    const isReceived = statusCheckbox ? statusCheckbox.checked : true;
+
+                    if (method === 'bank') {
+                        totalOther += rowAmount;
+                    } else if (method === 'card') {
+                        if (isReceived) {
+                            totalOther += rowAmount;
+                        } else {
+                            totalCardPending += rowAmount;
+                        }
+                    } else { // cash
+                        if (isReceived) {
+                            totalKpReceived += rowAmount;
+                        } else {
+                            totalKpPending += rowAmount;
+                        }
                     }
                 });
-                overlay.querySelector('#sd-total').textContent = total.toLocaleString('hu-HU') + ' Ft';
-                const missingEl = overlay.querySelector('#sd-missing');
-                if (missingEl) missingEl.style.display = 'none';
+
+                overlay.querySelector('#sd-total-kp-received').textContent = totalKpReceived.toLocaleString('hu-HU') + ' Ft';
+                overlay.querySelector('#sd-total-kp-pending').textContent = totalKpPending.toLocaleString('hu-HU') + ' Ft';
+                overlay.querySelector('#sd-total-card-pending').textContent = totalCardPending.toLocaleString('hu-HU') + ' Ft';
+                overlay.querySelector('#sd-total-other').textContent = totalOther.toLocaleString('hu-HU') + ' Ft';
             };
 
-            overlay.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', (e) => {
+            overlay.querySelectorAll('input[type=checkbox]:not(.sd-paystatus-checkbox)').forEach(cb => cb.addEventListener('change', (e) => {
                 const row    = e.target.closest('.sd-order-row');
                 const isCOD  = cb.getAttribute('data-is-cod') === 'true';
                 const reasonRow = row.querySelector('.sd-reason-row');
@@ -546,26 +680,22 @@ export function initHistoryView(context) {
                     if (rInput) rInput.value = '';
                     if (isCOD) {
                         const pt = row.querySelector('.sd-partial-toggle');
-                        const bt = row.querySelector('.sd-bank-toggle');
+                        const pm = row.querySelector('.sd-paymethod-selector');
+                        const pc = row.querySelector('.sd-paystatus-container');
                         if (pt) pt.style.display = 'inline-flex';
-                        if (bt) bt.style.display = 'inline-flex';
+                        if (pm) pm.style.display = 'inline-flex';
+                        if (pc) pc.style.display = 'inline-flex';
                     }
                 } else {
                     if (isCOD) {
                         const pr = row.querySelector('.sd-partial-row');
                         const pt = row.querySelector('.sd-partial-toggle');
-                        const bt = row.querySelector('.sd-bank-toggle');
+                        const pm = row.querySelector('.sd-paymethod-selector');
+                        const pc = row.querySelector('.sd-paystatus-container');
                         if (pr) { pr.style.display = 'none'; row.querySelector('.sd-partial-amount').value = ''; row.querySelector('.sd-partial-comment').value = ''; }
                         if (pt) pt.style.display = 'none';
-                        if (bt) {
-                            bt.style.display = 'none';
-                            bt.setAttribute('data-active', 'false');
-                            bt.style.background = '#f8fafc';
-                            bt.style.color = '#64748b';
-                            bt.style.borderColor = '#e2e8f0';
-                        }
-                        row.querySelector('.sd-full-amount').style.color = '#b91c1c';
-                        row.querySelector('.sd-full-amount').textContent = parseInt(cb.getAttribute('data-amount')).toLocaleString('hu-HU') + ' Ft';
+                        if (pm) pm.style.display = 'none';
+                        if (pc) pc.style.display = 'none';
                     }
                     reasonRow.style.display = 'block';
                     const rInput = row.querySelector('.sd-reason-input');
@@ -607,45 +737,46 @@ export function initHistoryView(context) {
                 }
             });
 
-            // Banki utalás toggle
-            overlay.querySelectorAll('.sd-bank-toggle').forEach(btn => btn.addEventListener('click', (e) => {
+            // Fizetési mód gombok eseménykezelése
+            overlay.addEventListener('click', (e) => {
+                const btn = e.target.closest('.sd-paymethod-btn');
+                if (!btn) return;
+                e.preventDefault();
                 e.stopPropagation();
-                const row = btn.closest('.sd-order-row');
-                const isBankTransferred = btn.getAttribute('data-active') === 'true';
-                const isChecked = row.querySelector('input[type=checkbox]').checked;
-                if (!isChecked) return;
                 
-                const newActive = !isBankTransferred;
-                btn.setAttribute('data-active', newActive ? 'true' : 'false');
+                const selector = btn.closest('.sd-paymethod-selector');
+                const buttons = selector.querySelectorAll('.sd-paymethod-btn');
+                buttons.forEach(b => {
+                    b.classList.remove('active');
+                    b.style.background = '#f8fafc';
+                    b.style.color = '#64748b';
+                    b.style.borderColor = '#e2e8f0';
+                });
                 
-                btn.style.background = newActive ? '#f0f9ff' : '#f8fafc';
-                btn.style.color = newActive ? '#0284c7' : '#64748b';
-                btn.style.borderColor = newActive ? '#bae6fd' : '#e2e8f0';
-                
-                const pt = row.querySelector('.sd-partial-toggle');
-                const fullAmountEl = row.querySelector('.sd-full-amount');
-                const cb = row.querySelector('input[type=checkbox]');
-                const fullAmount = parseInt(cb.getAttribute('data-amount'));
-                
-                if (newActive) {
-                    row.querySelector('.sd-partial-row').style.display = 'none';
-                    row.querySelector('.sd-partial-amount').value = '';
-                    row.querySelector('.sd-partial-comment').value = '';
-                    if (pt) {
-                        pt.style.display = 'none';
-                        pt.style.background = '#f8fafc';
-                        pt.style.color = '#64748b';
-                        pt.style.borderColor = '#e2e8f0';
-                    }
-                    fullAmountEl.style.color = '#0284c7';
-                    fullAmountEl.textContent = 'Utalva (0 Ft KP)';
+                btn.classList.add('active');
+                const method = btn.getAttribute('data-method');
+                if (method === 'cash') {
+                    btn.style.background = '#e2e8f0';
+                    btn.style.borderColor = '#cbd5e1';
+                    btn.style.color = '#1e293b';
+                } else if (method === 'card') {
+                    btn.style.background = '#eff6ff';
+                    btn.style.borderColor = '#93c5fd';
+                    btn.style.color = '#1d4ed8';
                 } else {
-                    if (pt) pt.style.display = 'inline-flex';
-                    fullAmountEl.style.color = '#b91c1c';
-                    fullAmountEl.textContent = fullAmount.toLocaleString('hu-HU') + ' Ft';
+                    btn.style.background = '#f0f9ff';
+                    btn.style.borderColor = '#bae6fd';
+                    btn.style.color = '#0284c7';
                 }
                 updateTotal();
-            }));
+            });
+
+            // Nálunk van checkbox eseménykezelése
+            overlay.addEventListener('change', (e) => {
+                const chk = e.target.closest('.sd-paystatus-checkbox');
+                if (!chk) return;
+                updateTotal();
+            });
 
             // Részleges toggle
             overlay.querySelectorAll('.sd-partial-toggle').forEach(btn => btn.addEventListener('click', (e) => {
@@ -660,7 +791,6 @@ export function initHistoryView(context) {
                     btn.style.background = '#f8fafc';
                     btn.style.color = '#64748b';
                     btn.style.borderColor = '#e2e8f0';
-                    row.querySelector('.sd-full-amount').style.color = '#b91c1c';
                 } else {
                     partialRow.style.display = 'block';
                     const cb = row.querySelector('input[type=checkbox]');
@@ -670,7 +800,6 @@ export function initHistoryView(context) {
                     btn.style.background = '#eff6ff';
                     btn.style.color = '#1d4ed8';
                     btn.style.borderColor = '#93c5fd';
-                    row.querySelector('.sd-full-amount').style.color = '#1d4ed8';
                 }
                 updateTotal();
             }));
@@ -678,10 +807,6 @@ export function initHistoryView(context) {
             // Részleges összeg változásakor frissítse a teljes összeget és a végösszeget
             overlay.querySelectorAll('.sd-partial-amount').forEach(input => {
                 input.addEventListener('input', (e) => {
-                    const row = input.closest('.sd-order-row');
-                    const fullAmount = parseInt(row.querySelector('input[type=checkbox]').getAttribute('data-amount'));
-                    const val = Math.min(parseInt(e.target.value) || 0, fullAmount);
-                    row.querySelector('.sd-full-amount').textContent = (val || fullAmount).toLocaleString('hu-HU') + ' Ft';
                     updateTotal();
                 });
             });
@@ -697,9 +822,6 @@ export function initHistoryView(context) {
                 toggle.style.background = '#f8fafc';
                 toggle.style.color = '#64748b';
                 toggle.style.borderColor = '#e2e8f0';
-                const fullAmount = parseInt(row.querySelector('input[type=checkbox]').getAttribute('data-amount'));
-                row.querySelector('.sd-full-amount').textContent = fullAmount.toLocaleString('hu-HU') + ' Ft';
-                row.querySelector('.sd-full-amount').style.color = '#b91c1c';
                 updateTotal();
             }));
 
@@ -712,6 +834,10 @@ export function initHistoryView(context) {
 
             overlay.querySelector('#sd-save').addEventListener('click', () => {
                 let settledAmount = 0;
+                let settledKpAmount = 0;
+                let settledCardAmount = 0;
+                const paymentMethods = {};
+                const paymentStatusMap = {};
                 const uncollectedOrderIds = [];
                 const uncollectedReasons  = {};
                 const uncollectedResponsibility = {};
@@ -725,32 +851,43 @@ export function initHistoryView(context) {
 
                     if (cb.checked) {
                         if (isCOD) {
-                            const bankBtn = row.querySelector('.sd-bank-toggle');
-                            const isBankTransferred = bankBtn && bankBtn.getAttribute('data-active') === 'true';
-                            if (isBankTransferred) {
+                            const paymethodSelector = row.querySelector('.sd-paymethod-selector');
+                            const activePayBtn = paymethodSelector ? paymethodSelector.querySelector('.sd-paymethod-btn.active') : null;
+                            const method = activePayBtn ? activePayBtn.getAttribute('data-method') : 'cash';
+                            paymentMethods[orderId] = method;
+
+                            const statusCheckbox = row.querySelector('.sd-paystatus-checkbox');
+                            const isReceived = statusCheckbox ? statusCheckbox.checked : true;
+                            paymentStatusMap[orderId] = isReceived ? 'received' : 'pending';
+
+                            const fullAmount   = parseInt(cb.getAttribute('data-amount'));
+                            const partialRow   = row.querySelector('.sd-partial-row');
+                            const partialInput = row.querySelector('.sd-partial-amount');
+                            
+                            let rowAmt = fullAmount;
+                            if (partialRow && partialRow.style.display !== 'none' && partialInput.value !== '') {
+                                rowAmt = Math.min(parseInt(partialInput.value) || 0, fullAmount);
+                                const comment = row.querySelector('.sd-partial-comment').value.trim();
+                                partialOrders[orderId] = { amount: rowAmt, comment };
+                                
+                                // Részleges megrendelés felelősség rögzítése
+                                const selector = partialRow.querySelector('.sd-resp-selector');
+                                if (selector) {
+                                    const activeBtn = selector.querySelector('.sd-resp-btn.active');
+                                    const resp = activeBtn ? activeBtn.getAttribute('data-resp') : 'vevo';
+                                    uncollectedResponsibility[orderId] = resp;
+                                } else {
+                                    uncollectedResponsibility[orderId] = 'vevo';
+                                }
+                            }
+                            
+                            settledAmount += rowAmt;
+                            if (method === 'card') {
+                                settledCardAmount += rowAmt;
+                            } else if (method === 'bank') {
                                 bankTransferredOrderIds.push(orderId);
                             } else {
-                                const fullAmount   = parseInt(cb.getAttribute('data-amount'));
-                                const partialRow   = row.querySelector('.sd-partial-row');
-                                const partialInput = row.querySelector('.sd-partial-amount');
-                                if (partialRow && partialRow.style.display !== 'none' && partialInput.value !== '') {
-                                    const partialAmount = Math.min(parseInt(partialInput.value) || 0, fullAmount);
-                                    const comment = row.querySelector('.sd-partial-comment').value.trim();
-                                    settledAmount += partialAmount;
-                                    partialOrders[orderId] = { amount: partialAmount, comment };
-                                    
-                                    // Részleges megrendelés felelősség rögzítése
-                                    const selector = partialRow.querySelector('.sd-resp-selector');
-                                    if (selector) {
-                                        const activeBtn = selector.querySelector('.sd-resp-btn.active');
-                                        const resp = activeBtn ? activeBtn.getAttribute('data-resp') : 'vevo';
-                                        uncollectedResponsibility[orderId] = resp;
-                                    } else {
-                                        uncollectedResponsibility[orderId] = 'vevo';
-                                    }
-                                } else {
-                                    settledAmount += fullAmount;
-                                }
+                                settledKpAmount += rowAmt;
                             }
                         }
                     } else {
@@ -773,7 +910,18 @@ export function initHistoryView(context) {
                     }
                 });
                 cleanup();
-                resolve({ settledAmount, uncollectedOrderIds, uncollectedReasons, partialOrders, bankTransferredOrderIds, uncollectedResponsibility });
+                resolve({ 
+                    settledAmount, 
+                    settledKpAmount, 
+                    settledCardAmount, 
+                    paymentMethods, 
+                    paymentStatusMap,
+                    uncollectedOrderIds, 
+                    uncollectedReasons, 
+                    partialOrders, 
+                    bankTransferredOrderIds, 
+                    uncollectedResponsibility 
+                });
             });
         });
     }
@@ -798,7 +946,12 @@ export function initHistoryView(context) {
         runs = runs.filter(r => isFiltered(r));
         // Eltávolítva: runs = runs.filter(r => r.orders.some(o => o.isCOD)); -> Mutassa a nem utánvétes köröket is
         if (onlyPending) {
-            runs = runs.filter(r => !r.isSettled && !(r.settledAmount > 0));
+            runs = runs.filter(r => {
+                const uncollected = r.uncollectedOrderIds || [];
+                const paymentStatusMap = r.paymentStatusMap || {};
+                const hasPending = r.orders.some(o => o.isCOD && !uncollected.includes(o.id) && paymentStatusMap[o.id] === 'pending');
+                return !r.isSettled || hasPending;
+            });
         }
 
         accountingRunsContainer.innerHTML = '';
@@ -807,6 +960,64 @@ export function initHistoryView(context) {
             accountingRunsContainer.innerHTML = `<p style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">Nincsenek a feltételnek megfelelő elszámolások.</p>`;
             return;
         }
+
+        // Számoljuk össze a szűrt követeléseket
+        let totalFilteredPendingKp = 0;
+        let totalFilteredPendingCard = 0;
+
+        runs.forEach(r => {
+            const uncollected = r.uncollectedOrderIds || [];
+            const paymentStatusMap = r.paymentStatusMap || {};
+            const paymentMethods = r.paymentMethods || {};
+            const partialOrders = r.partialOrders || {};
+
+            r.orders.forEach(o => {
+                if (o.isCOD && !uncollected.includes(o.id)) {
+                    if (paymentStatusMap[o.id] === 'pending') {
+                        const method = paymentMethods[o.id] || 'cash';
+                        let amt = o.codAmount;
+                        if (partialOrders[o.id]) {
+                            amt = partialOrders[o.id].amount || 0;
+                        }
+                        if (method === 'card') {
+                            totalFilteredPendingCard += amt;
+                        } else if (method === 'cash') {
+                            totalFilteredPendingKp += amt;
+                        }
+                    }
+                }
+            });
+        });
+
+        const summaryCard = document.createElement('div');
+        summaryCard.style.cssText = 'background: linear-gradient(135deg, #1e293b, #0f172a); color: white; padding: 18px 24px; border-radius: 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);';
+        summaryCard.innerHTML = `
+            <div>
+                <div style="font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Szűrt követelések összesen</div>
+                <div style="font-size: 11px; color: #64748b;">A fenti szűrők (Dátum, Szállítócég) alapján számítva</div>
+            </div>
+            <div style="display: flex; gap: 32px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(249, 115, 22, 0.15); display: flex; align-items: center; justify-content: center; color: #f97316;">
+                        <i class="ph-bold ph-hand-coins" style="font-size: 18px;"></i>
+                    </div>
+                    <div>
+                        <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">Függő KP (futártól)</div>
+                        <div style="font-size: 18px; font-weight: 800; color: #f97316;">${totalFilteredPendingKp.toLocaleString('hu-HU')} Ft</div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; border-left: 1px solid #334155; padding-left: 24px;">
+                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(37, 99, 235, 0.15); display: flex; align-items: center; justify-content: center; color: #3b82f6;">
+                        <i class="ph-bold ph-bank" style="font-size: 18px;"></i>
+                    </div>
+                    <div>
+                        <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">Kártyás utalásra vár</div>
+                        <div style="font-size: 18px; font-weight: 800; color: #3b82f6;">${totalFilteredPendingCard.toLocaleString('hu-HU')} Ft</div>
+                    </div>
+                </div>
+            </div>
+        `;
+        accountingRunsContainer.appendChild(summaryCard);
 
         // Csoportosítás cégek szerint
         const groups = {};
@@ -849,28 +1060,71 @@ export function initHistoryView(context) {
                 el.setAttribute('data-total-cod', runCOD);
                 el.setAttribute('data-run-id', run.id);
 
-                const isPartial = !run.isSettled && run.settledAmount > 0;
-                const circleColor = run.isSettled ? '#22c55e' : isPartial ? '#f97316' : '#cbd5e1';
-                const circleBg = run.isSettled ? '#22c55e' : isPartial ? '#fff7ed' : '#fff';
-                const circleTextColor = run.isSettled ? '#fff' : isPartial ? '#f97316' : '#94a3b8';
-                const circleTitle = run.isSettled ? 'Visszaállítás függőbe' : isPartial ? 'Módosítás / Visszaállítás' : 'Visszaérkezett az utánvét';
-                const btnClass = (run.isSettled || isPartial) ? 'btn-unsettle-run' : 'btn-settle-run';
-
-                const statusBadge = run.isSettled
-                    ? `<span class="hac-badge hac-badge-green" style="font-size:10px;"><i class="ph-bold ph-check-circle" style="font-size:10px;"></i>Elszámolva</span>`
-                    : isPartial
-                        ? `<span style="font-size:10px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:1px 7px;">~${run.settledAmount.toLocaleString('hu-HU')} / ${runCOD.toLocaleString('hu-HU')} Ft</span>`
-                        : '';
-
                 const uncollected    = run.uncollectedOrderIds || [];
                 const reasons        = run.uncollectedReasons || {};
                 const partialOrders  = run.partialOrders || {};
                 const bankTransferred = run.bankTransferredOrderIds || [];
+                const paymentMethods = run.paymentMethods || {};
+                const paymentStatusMap = run.paymentStatusMap || {};
+
+                // Számoljuk össze a függő KP és függő Kártya összegeket
+                let pendingKpAmount = 0;
+                let pendingCardAmount = 0;
+                
+                run.orders.forEach(o => {
+                    if (o.isCOD && !uncollected.includes(o.id)) {
+                        const status = paymentStatusMap[o.id] || 'received';
+                        if (status === 'pending') {
+                            const method = paymentMethods[o.id] || 'cash';
+                            let amt = o.codAmount;
+                            if (partialOrders[o.id]) {
+                                amt = partialOrders[o.id].amount || 0;
+                            }
+                            
+                            if (method === 'card') {
+                                pendingCardAmount += amt;
+                            } else if (method === 'cash') {
+                                pendingKpAmount += amt;
+                            }
+                        }
+                    }
+                });
+
+                const isPartial = !run.isSettled && run.settledAmount > 0;
+                const hasCardWait = pendingCardAmount > 0;
+                const hasKpWait = pendingKpAmount > 0;
+
+                const circleColor = hasCardWait ? '#2563eb' : (hasKpWait ? '#f97316' : (run.isSettled ? '#22c55e' : '#cbd5e1'));
+                const circleBg = hasCardWait ? '#eff6ff' : (hasKpWait ? '#fff7ed' : (run.isSettled ? '#22c55e' : '#fff'));
+                const circleTextColor = hasCardWait ? '#2563eb' : (hasKpWait ? '#f97316' : (run.isSettled ? '#fff' : '#94a3b8'));
+                const circleTitle = hasCardWait ? 'Kártyás utalásra vár' : (hasKpWait ? 'Függő készpénz' : (run.isSettled ? 'Elszámolva' : 'Elszámolásra vár'));
+                const btnClass = (run.isSettled || isPartial) ? 'btn-unsettle-run' : 'btn-settle-run';
+
+                const kpWaitBadge = hasKpWait
+                    ? `<span style="font-size:10px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:1px 7px;display:inline-flex;align-items:center;gap:3px;"><i class="ph-bold ph-hand-coins" style="font-size:10px;"></i>Függő KP: ${pendingKpAmount.toLocaleString('hu-HU')} Ft</span>`
+                    : '';
+
+                const cardWaitBadge = hasCardWait
+                    ? `<span style="font-size:10px;font-weight:700;color:#2563eb;background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:1px 7px;display:inline-flex;align-items:center;gap:3px;"><i class="ph-bold ph-bank" style="font-size:10px;"></i>Utalásra vár: ${pendingCardAmount.toLocaleString('hu-HU')} Ft</span>`
+                    : '';
+
+                let statusBadge = '';
+                if (run.isSettled && !hasKpWait && !hasCardWait) {
+                    statusBadge = `<span class="hac-badge hac-badge-green" style="font-size:10px;"><i class="ph-bold ph-check-circle" style="font-size:10px;"></i>Elszámolva</span>`;
+                } else {
+                    if (hasKpWait) statusBadge += kpWaitBadge + ' ';
+                    if (hasCardWait) statusBadge += cardWaitBadge;
+                    if (!hasKpWait && !hasCardWait && isPartial) {
+                        statusBadge = `<span style="font-size:10px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:1px 7px;">~${run.settledAmount.toLocaleString('hu-HU')} / ${runCOD.toLocaleString('hu-HU')} Ft</span>`;
+                    }
+                }
 
                 const codBadges = run.orders.filter(o => o.isCOD).map(o => {
                     const isUncollected = uncollected.includes(o.id);
                     const isBankTransferred = bankTransferred.includes(o.id);
-                    const isPartial = !isUncollected && !isBankTransferred && !!partialOrders[o.id];
+                    const isPartialOrder = !isUncollected && !isBankTransferred && !!partialOrders[o.id];
+                    const method = paymentMethods[o.id] || 'cash';
+                    
                     let badgeBg = '#f1f5f9';
                     let badgeColor = '#475569';
                     let statusLabel = 'Függő';
@@ -882,14 +1136,20 @@ export function initHistoryView(context) {
                         badgeBg = '#dbeafe';
                         badgeColor = '#3b82f6';
                         statusLabel = 'Utalva';
-                    } else if (isPartial) {
+                    } else if (isPartialOrder) {
                         badgeBg = '#ffedd5';
                         badgeColor = '#f97316';
                         statusLabel = 'Részleges';
                     } else if (run.isSettled) {
-                        badgeBg = '#d1fae5';
-                        badgeColor = '#10b981';
-                        statusLabel = 'Elszámolva';
+                        if (method === 'card') {
+                            badgeBg = '#eff6ff';
+                            badgeColor = '#2563eb';
+                            statusLabel = 'Kártya';
+                        } else {
+                            badgeBg = '#d1fae5';
+                            badgeColor = '#10b981';
+                            statusLabel = 'KP';
+                        }
                     }
                     return `<span class="acc-order-badge" style="font-size:10px; font-weight:700; background:${badgeBg}; color:${badgeColor}; border:1px solid ${badgeColor}33; padding:2px 6px; border-radius:6px; display:inline-flex; align-items:center; gap:3px;" title="${o.shippingName || ''} · ${statusLabel}">
                         ${o.id}
@@ -908,6 +1168,11 @@ export function initHistoryView(context) {
                     const isBankTransferred = bankTransferred.includes(o.id);
                     const partialInfo   = o.isCOD && !isUncollected && !isBankTransferred ? partialOrders[o.id] : null;
                     const reasonText    = isUncollected && reasons[o.id] ? ` · ${reasons[o.id]}` : '';
+                    const method        = paymentMethods[o.id] || 'cash';
+                    const status        = paymentStatusMap[o.id] || 'received';
+                    const statusText    = status === 'pending' ? ' ⏳' : ' ✓';
+                    const statusColor   = status === 'pending' ? '#d97706' : '#16a34a';
+                    
                     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f1f5f9;${isUncollected ? 'opacity:.55;' : ''}">
                         <span style="font-size:12px;font-weight:700;color:#374151;min-width:95px;${isUncollected ? 'text-decoration:line-through;' : ''}">${o.id}</span>
                         <span style="font-size:12px;color:#64748b;flex:1;">${o.shippingName || '—'}</span>
@@ -917,13 +1182,29 @@ export function initHistoryView(context) {
                                 : isBankTransferred
                                     ? `<span style="font-size:11px;font-weight:700;color:#3b82f6;">Elutalva (Banki utalás)<span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
                                     : partialInfo
-                                        ? `<span style="font-size:11px;font-weight:700;color:#1d4ed8;">~${partialInfo.amount.toLocaleString('hu-HU')} Ft<span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft${partialInfo.comment ? ' · ' + partialInfo.comment : ''}</span></span>`
-                                        : `<span style="font-size:11px;font-weight:700;color:#b91c1c;">${o.codAmount.toLocaleString('hu-HU')} Ft</span>`
+                                        ? `<span style="font-size:11px;font-weight:700;color:#1d4ed8;">~${partialInfo.amount.toLocaleString('hu-HU')} Ft ${method === 'card' ? '💳' : method === 'bank' ? '🏦' : '💵'}<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft${partialInfo.comment ? ' · ' + partialInfo.comment : ''}</span></span>`
+                                        : (method === 'card'
+                                            ? `<span style="font-size:11px;font-weight:700;color:#2563eb;">💳 Kártya<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
+                                            : method === 'bank'
+                                                ? `<span style="font-size:11px;font-weight:700;color:#0284c7;">🏦 Utalás<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
+                                                : `<span style="font-size:11px;font-weight:700;color:#10b981;">💵 KP<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`)
                             : isUncollected
                                 ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem lett átadva<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
                                 : '<span style="font-size:11px;color:#94a3b8;">átadva</span>'}
                     </div>`;
                 }).join('');
+
+                const settleKpBtn = hasKpWait
+                    ? `<button class="hac-btn-action btn-settle-kp" data-doc-id="${run.docId}" title="KP beérkezett" style="font-size:11px;font-weight:700;color:#f97316;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:8px;padding:4px 9px;cursor:pointer;font-family:inherit;flex-shrink:0;">
+                        <i class="ph-bold ph-hand-coins" style="font-size:11px;"></i> KP megjött
+                       </button>`
+                    : '';
+
+                const settleTransferBtn = hasCardWait
+                    ? `<button class="hac-btn-action btn-settle-transfer" data-doc-id="${run.docId}" title="Utalás beérkezett" style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border:1.5px solid #93c5fd;border-radius:8px;padding:4px 9px;cursor:pointer;font-family:inherit;flex-shrink:0;">
+                        <i class="ph-bold ph-check-square" style="font-size:11px;"></i> Kártya utalva
+                       </button>`
+                    : '';
 
                 el.innerHTML = `
                     <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;">
@@ -948,6 +1229,8 @@ export function initHistoryView(context) {
                             ${codBadgeContainer}
                         </div>
                         <div style="display:flex;align-items:center;gap:6px;">
+                            ${settleKpBtn}
+                            ${settleTransferBtn}
                             <button class="hac-btn-action hac-btn-ghost btn-print-summary" data-id="${run.id}" style="font-size:12px;">
                                 <i class="ph-bold ph-printer" style="font-size:12px;"></i>
                             </button>
@@ -991,26 +1274,67 @@ export function initHistoryView(context) {
                 if (!run) return;
                 const result = await showSettlementDialog(run, totalCOD);
                 if (result === null) return;
-                if (await HistoryManager.updateSettlementStatus(docId, result.settledAmount, totalCOD, result.uncollectedOrderIds, result.uncollectedReasons, result.partialOrders, result.bankTransferredOrderIds, result.uncollectedResponsibility)) renderAccountingRuns();
+                if (await HistoryManager.updateSettlementStatus(
+                    docId, 
+                    result.settledAmount, 
+                    totalCOD, 
+                    result.uncollectedOrderIds, 
+                    result.uncollectedReasons, 
+                    result.partialOrders, 
+                    result.bankTransferredOrderIds, 
+                    result.uncollectedResponsibility,
+                    result.settledKpAmount,
+                    result.settledCardAmount,
+                    result.paymentMethods,
+                    null,
+                    result.paymentStatusMap
+                )) renderAccountingRuns();
             });
         });
 
         accountingRunsContainer.querySelectorAll('.btn-unsettle-run').forEach(btn => {
             btn.addEventListener('click', async (e) => {
-                const docId = e.target.closest('button').getAttribute('data-doc-id');
-                const ok = await CustomDialog.confirm('Visszaállítás függőbe?\nAz elszámolási adat törlődik.');
-                if (!ok) return;
-                if (await HistoryManager.revertToPending(docId)) renderAccountingRuns();
+                try {
+                    const button = e.target.closest('button');
+                    const docId = button.getAttribute('data-doc-id');
+                    if (!docId || docId === 'undefined') {
+                        alert("Hiba: A terítés dokumentum azonosítója (docId) nem található!");
+                        return;
+                    }
+                    const ok = await CustomDialog.confirm('Visszaállítás függőbe?\nAz elszámolási adat törlődik.');
+                    if (!ok) return;
+                    const success = await HistoryManager.revertToPending(docId);
+                    if (success) {
+                        renderAccountingRuns();
+                    } else {
+                        alert("Hiba történt a Firebase visszaállítás közben. Ellenőrizd a konzolt!");
+                    }
+                } catch (err) {
+                    alert("Hiba a visszaállításkor: " + err.message);
+                }
             });
         });
 
         accountingRunsContainer.querySelectorAll('.btn-nullify-settlement').forEach(btn => {
             btn.addEventListener('click', async (e) => {
-                const button = e.target.closest('button');
-                const docId  = button.getAttribute('data-doc-id');
-                const ok = await CustomDialog.confirm('Visszavonás?\nAz elszámolás törlődik, a kör függőbe kerül.');
-                if (!ok) return;
-                if (await HistoryManager.revertToPending(docId)) renderAccountingRuns();
+                try {
+                    const button = e.target.closest('button');
+                    const docId  = button.getAttribute('data-doc-id');
+                    if (!docId || docId === 'undefined') {
+                        alert("Hiba: A terítés dokumentum azonosítója (docId) nem található!");
+                        return;
+                    }
+                    const ok = await CustomDialog.confirm('Visszavonás?\nAz elszámolás törlődik, a kör függőbe kerül.');
+                    if (!ok) return;
+                    const success = await HistoryManager.revertToPending(docId);
+                    if (success) {
+                        renderAccountingRuns();
+                    } else {
+                        alert("Hiba történt a Firebase visszaállítás közben. Ellenőrizd a konzolt!");
+                    }
+                } catch (err) {
+                    alert("Hiba a visszavonáskor: " + err.message);
+                }
             });
         });
 
@@ -1028,11 +1352,51 @@ export function initHistoryView(context) {
                     uncollectedReasons: run.uncollectedReasons || {},
                     partialOrders: run.partialOrders || {},
                     bankTransferredOrderIds: run.bankTransferredOrderIds || [],
-                    uncollectedResponsibility: run.uncollectedResponsibility || {}
+                    uncollectedResponsibility: run.uncollectedResponsibility || {},
+                    paymentMethods: run.paymentMethods || {},
+                    settledKpAmount: run.settledKpAmount || null,
+                    settledCardAmount: run.settledCardAmount || null,
+                    paymentStatusMap: run.paymentStatusMap || {}
                 };
                 const result = await showSettlementDialog(run, totalCOD, existingState);
                 if (result === null) return;
-                if (await HistoryManager.updateSettlementStatus(docId, result.settledAmount, totalCOD, result.uncollectedOrderIds, result.uncollectedReasons, result.partialOrders, result.bankTransferredOrderIds, result.uncollectedResponsibility)) renderAccountingRuns();
+                if (await HistoryManager.updateSettlementStatus(
+                    docId, 
+                    result.settledAmount, 
+                    totalCOD, 
+                    result.uncollectedOrderIds, 
+                    result.uncollectedReasons, 
+                    result.partialOrders, 
+                    result.bankTransferredOrderIds, 
+                    result.uncollectedResponsibility,
+                    result.settledKpAmount,
+                    result.settledCardAmount,
+                    result.paymentMethods,
+                    null,
+                    result.paymentStatusMap
+                )) renderAccountingRuns();
+            });
+        });
+
+        accountingRunsContainer.querySelectorAll('.btn-settle-transfer').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const docId = e.target.closest('button').getAttribute('data-doc-id');
+                const ok = await CustomDialog.confirm('Megerősíted, hogy a kártyás utalás megérkezett a bankszámlára ehhez a terítéshez?');
+                if (!ok) return;
+                if (await HistoryManager.settlePaymentGroup(docId, 'card')) {
+                    renderAccountingRuns();
+                }
+            });
+        });
+
+        accountingRunsContainer.querySelectorAll('.btn-settle-kp').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const docId = e.target.closest('button').getAttribute('data-doc-id');
+                const ok = await CustomDialog.confirm('Megerősíted, hogy a függő készpénz (KP) beérkezett ehhez a terítéshez?');
+                if (!ok) return;
+                if (await HistoryManager.settlePaymentGroup(docId, 'cash')) {
+                    renderAccountingRuns();
+                }
             });
         });
 
@@ -1281,13 +1645,31 @@ export function initHistoryView(context) {
                     uncollectedReasons: run.uncollectedReasons || {},
                     partialOrders: run.partialOrders || {},
                     bankTransferredOrderIds: run.bankTransferredOrderIds || [],
-                    uncollectedResponsibility: run.uncollectedResponsibility || {}
+                    uncollectedResponsibility: run.uncollectedResponsibility || {},
+                    paymentMethods: run.paymentMethods || {},
+                    settledKpAmount: run.settledKpAmount || null,
+                    settledCardAmount: run.settledCardAmount || null,
+                    paymentStatusMap: run.paymentStatusMap || {}
                 };
                 
                 const result = await showSettlementDialog(run, runCOD, existingState);
                 if (result === null) return;
                 
-                if (await HistoryManager.updateSettlementStatus(run.docId, result.settledAmount, runCOD, result.uncollectedOrderIds, result.uncollectedReasons, result.partialOrders, result.bankTransferredOrderIds, result.uncollectedResponsibility)) {
+                if (await HistoryManager.updateSettlementStatus(
+                    run.docId, 
+                    result.settledAmount, 
+                    runCOD, 
+                    result.uncollectedOrderIds, 
+                    result.uncollectedReasons, 
+                    result.partialOrders, 
+                    result.bankTransferredOrderIds, 
+                    result.uncollectedResponsibility,
+                    result.settledKpAmount,
+                    result.settledCardAmount,
+                    result.paymentMethods,
+                    null,
+                    result.paymentStatusMap
+                )) {
                     handleHistorySearch();
                 }
             });

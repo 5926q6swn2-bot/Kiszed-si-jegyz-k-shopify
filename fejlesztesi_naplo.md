@@ -28,8 +28,8 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.5 Flash (Low)
-- **Státusz**: A rendszer stabil. Javítva a szállítási címek kinyerése a CSV-ből (Shipping Street prioritás), meggátolva az edit modal alatti címtörlés (address wipeout), és megoldva a megjegyzésekben lévő dátumok utánvét-ütközése (`app.js?v=147`).
-- **Folytatás**: Igény szerint folytatható egyéb fejlesztésekkel vagy a korábban jegelt Shopify API Sandbox projekttel.
+- **Státusz**: A rendszer stabil. Bevezetve a kétlépcsős elszámolás (logisztikai + kártyás/KP fizetési bontás) és a kártyás utalások nyomon követése.
+- **Folytatás**: Tesztelés után további funkciók fejlesztése vagy a statisztikák finomhangolása az új fizetési módok alapján.
 
 ---
 
@@ -615,4 +615,11 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Szerkesztéskori címtörlési hiba (Address Wipeout) javítása**: A `js/controllers/manualOrderController.js`-ben javítottuk az `openEditModal` működését. Korábban a szerkesztő modal megnyitásakor az `address` (ami csak irányítószámot és várost tartalmazott a kompakt lista-megjelenítés miatt) került betöltésre a beviteli mezőbe a `fullAddress` helyett. Mentéskor ez felülírta a Firestore-ban lévő teljes címet, így törlődött a pontos szállítási cím. Mostantól a modal a teljes címet (`order.fullAddress || order.address`) tölti be szerkesztésre, megvédve a pontos utcaneveket.
 - **Notes dátumok szűrése az utánvét-kalkuláció előtt**: Megoldottuk azt a hibát, hogy a notes mezőben szereplő dátumokat (pl. `06.16` vagy `2026.06.16`) a rendszer tévesen utánvét összegnek (pl. 616 Ft) nézte. A `js/services/shopify.js` parser-ben az utánvét-kereső regex futtatása előtt egy robusztus szűrővel eltávolítjuk a dátum-mintázatokat, valamint megcseréltük az egyezések prioritását (először a konkrét `utánvét: X` típusú mintát keressük, és csak végső esetben esünk vissza a sima számokra), így teljesen kizártuk a hamis utánvét-felismeréseket.
 - **Cache-busting frissítve**: `index.html`-ben és az importokban a verziót `?v=147`-re emeltük.
+
+### 2026. július 1. - Logisztikai átadás és Pénzügyi rendezettség rendelés szintű különválasztása
+- **Rendelés szintű fizetési státusz**: Teljesen függetlenítettük a logisztikai kézbesítést az utánvét kifizetésének fizikai beérkezésétől. A `showSettlementDialog` felületen a sikeres COD rendelések mellé bevezettünk egy **"Nálunk van"** checkboxot. Ezzel külön-külön jelezhető, hogy az adott tétel összege már megérkezett hozzánk (pl. a futár odaadta a KP-t, a vevő azonnal utalt), vagy még függőben van (kártyás utalásra várunk a szállítótól, vagy a futár csak másnap hozza a KP-t).
+- **Finomhangolt összesítő panel**: A rögzítő modal alján a korábbi 3 helyett 4 részletes zónára osztottuk a kalkulációt: *💵 Nálunk lévő KP*, *⏳ Várható KP (futártól)*, *💳 Kártyás utalásra vár (szállítótól)* és *🏦 Közvetlen utalások (vevőtől)*. A "Nálunk van" checkbox állapota és a fizetési módok (KP / Kártya / Utalás) dinamikusan és azonnal újraszámolják ezeket.
+- **Dinamikus fizetési badge-ek és státusz chipek**: Az Elszámolások tabon a terítések kártyáján külön jelennek meg a függőségek: **Függő KP: N Ft** (narancssárga) és **Utalásra vár: N Ft** (kék). A rendelések chipes listáján az ikonok mellett a `⏳` (függő) és `✓` (rendezve) szimbólumok jelzik az egyes tételek pénzügyi állapotát.
+- **Csoportos beérkezések kezelése**: A terítés kártyájára két új akciógombot integráltunk: **💵 KP megjött** és **💳 Kártya utalva**. Ezekkel egyetlen kattintással és megerősítéssel lezárható az adott kör összes függő KP-s vagy kártyás követelése, így a terítés azonnal átvált zöld, teljesen elszámolt státuszra, amint minden tétel rendezetté válik.
+- **Firebase és Service Layer bővítés**: A `HistoryManager`-ben elmentjük a `paymentStatusMap` (`{ [orderId]: 'received' | 'pending' }`) térképet, és bevezettük a `settlePaymentGroup(docId, type)` metódust a cash/card típusú követelések csoportos rendezéséhez.
 

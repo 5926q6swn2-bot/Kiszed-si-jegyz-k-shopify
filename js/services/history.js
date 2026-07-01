@@ -174,7 +174,7 @@ export const HistoryManager = {
             }
         },
 
-        updateSettlementStatus: async function(docId, settledAmount, totalCOD, uncollectedOrderIds = [], uncollectedReasons = {}, partialOrders = {}, bankTransferredOrderIds = [], uncollectedResponsibility = {}) {
+        updateSettlementStatus: async function(docId, settledAmount, totalCOD, uncollectedOrderIds = [], uncollectedReasons = {}, partialOrders = {}, bankTransferredOrderIds = [], uncollectedResponsibility = {}, settledKpAmount = null, settledCardAmount = null, paymentMethods = {}, isTransferSettled = null, paymentStatusMap = {}) {
             try {
                 const docRef = doc(db, this.COLLECTION_NAME, docId);
                 const docSnap = await getDoc(docRef);
@@ -183,29 +183,22 @@ export const HistoryManager = {
                     const runData = docSnap.data();
                     const ordersList = runData.orders || [];
                     
-                    let bankTransferredSum = 0;
-                    let uncollectedSum = 0;
-                    let partialDiffs = 0;
-                    
+                    let hasPendingCOD = false;
                     ordersList.forEach(o => {
-                        if (o.isCOD) {
-                            if (bankTransferredOrderIds.includes(o.id)) {
-                                bankTransferredSum += o.codAmount;
-                            } else if (uncollectedOrderIds.includes(o.id)) {
-                                uncollectedSum += o.codAmount;
-                            } else if (partialOrders[o.id]) {
-                                partialDiffs += (o.codAmount - (partialOrders[o.id].amount || 0));
+                        if (o.isCOD && !uncollectedOrderIds.includes(o.id)) {
+                            const status = paymentStatusMap[o.id] || 'received';
+                            if (status === 'pending') {
+                                hasPendingCOD = true;
                             }
                         }
                     });
                     
-                    const expectedAmount = totalCOD - bankTransferredSum - uncollectedSum - partialDiffs;
-                    isSettled = settledAmount >= expectedAmount;
+                    isSettled = !hasPendingCOD;
                 } else {
                     isSettled = settledAmount >= totalCOD;
                 }
 
-                await updateDoc(docRef, {
+                const updateData = {
                     isSettled: isSettled,
                     settledAmount: settledAmount,
                     uncollectedOrderIds: uncollectedOrderIds,
@@ -213,11 +206,85 @@ export const HistoryManager = {
                     partialOrders: partialOrders,
                     bankTransferredOrderIds: bankTransferredOrderIds,
                     uncollectedResponsibility: uncollectedResponsibility,
+                    paymentStatusMap: paymentStatusMap,
                     settledAt: Date.now()
+                };
+
+                if (settledKpAmount !== null) updateData.settledKpAmount = settledKpAmount;
+                if (settledCardAmount !== null) updateData.settledCardAmount = settledCardAmount;
+                if (paymentMethods) updateData.paymentMethods = paymentMethods;
+                
+                let allTransferSettled = true;
+                Object.keys(paymentStatusMap).forEach(orderId => {
+                    if (paymentMethods[orderId] === 'card' && paymentStatusMap[orderId] === 'pending') {
+                        allTransferSettled = false;
+                    }
                 });
+                updateData.isTransferSettled = allTransferSettled;
+
+                await updateDoc(docRef, updateData);
                 return true;
             } catch (e) {
                 console.error("Hiba az elszámolás állapot frissítésénél: ", e);
+                return false;
+            }
+        },
+
+        settleTransfer: async function(docId) {
+            return this.settlePaymentGroup(docId, 'card');
+        },
+
+        settlePaymentGroup: async function(docId, type) {
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                const docSnap = await getDoc(docRef);
+                if (!docSnap.exists()) return false;
+                
+                const runData = docSnap.data();
+                const ordersList = runData.orders || [];
+                const paymentStatusMap = runData.paymentStatusMap || {};
+                const paymentMethods = runData.paymentMethods || {};
+                const uncollectedOrderIds = runData.uncollectedOrderIds || [];
+                
+                ordersList.forEach(o => {
+                    if (o.isCOD && !uncollectedOrderIds.includes(o.id)) {
+                        const method = paymentMethods[o.id] || (runData.bankTransferredOrderIds?.includes(o.id) ? 'bank' : 'cash');
+                        if (type === 'cash' && method === 'cash') {
+                            paymentStatusMap[o.id] = 'received';
+                        } else if (type === 'card' && method === 'card') {
+                            paymentStatusMap[o.id] = 'received';
+                        }
+                    }
+                });
+                
+                let hasPendingCOD = false;
+                ordersList.forEach(o => {
+                    if (o.isCOD && !uncollectedOrderIds.includes(o.id)) {
+                        const status = paymentStatusMap[o.id] || 'received';
+                        if (status === 'pending') {
+                            hasPendingCOD = true;
+                        }
+                    }
+                });
+                
+                const isSettled = !hasPendingCOD;
+                const updateData = {
+                    paymentStatusMap: paymentStatusMap,
+                    isSettled: isSettled
+                };
+                
+                let allTransferSettled = true;
+                Object.keys(paymentStatusMap).forEach(orderId => {
+                    if (paymentMethods[orderId] === 'card' && paymentStatusMap[orderId] === 'pending') {
+                        allTransferSettled = false;
+                    }
+                });
+                updateData.isTransferSettled = allTransferSettled;
+                
+                await updateDoc(docRef, updateData);
+                return true;
+            } catch (e) {
+                console.error("Hiba a fizetési csoport elszámolásánál: ", e);
                 return false;
             }
         },
@@ -268,13 +335,19 @@ export const HistoryManager = {
                 const docRef = doc(db, this.COLLECTION_NAME, docId);
                 await updateDoc(docRef, {
                     isSettled: false,
-                    settledAmount: null,
-                    settledAt: null,
+                    settledAmount: deleteField(),
+                    settledAt: deleteField(),
                     uncollectedOrderIds: deleteField(),
                     uncollectedReasons: deleteField(),
                     partialOrders: deleteField(),
                     bankTransferredOrderIds: deleteField(),
-                    uncollectedResponsibility: deleteField()
+                    uncollectedResponsibility: deleteField(),
+                    settledKpAmount: deleteField(),
+                    settledCardAmount: deleteField(),
+                    paymentMethods: deleteField(),
+                    isTransferSettled: deleteField(),
+                    transferSettledAt: deleteField(),
+                    paymentStatusMap: deleteField()
                 });
                 return true;
             } catch (e) {
