@@ -36,6 +36,7 @@ You are operating as an agent inside the **WAT framework** (Workflows, Agents, T
 3. **Permission:** Wait for the user to approve or modify the proposed message.
 4. **Execution:** Execute: `git add .` -> `git commit -m "[approved_message]"` -> `git push`.
 5. **Follow-up:** After pushing, remind the user to wait 2 minutes for GitHub Actions and use **Ctrl + Shift + R** to bypass cache.
+6. **Session Closure Rule:** NEVER say goodbye or close the session/day without first updating the `fejlesztesi_naplo.md`, committing the log, and pushing it to the repository. The log update and push must ALWAYS happen before the final sign-off.
 
 ---
 
