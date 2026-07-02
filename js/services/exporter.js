@@ -3,28 +3,23 @@
 import { CustomDialog } from '../utils/dialog.js';
 
 export const ExporterService = {
-    exportAccountingToCsv: async function(runs) {
+    exportAccountingToCsv: async function(runs, onlyPending = false) {
         if (!runs || runs.length === 0) {
-            await CustomDialog.alert("Nincs exportálható adat a megadott szűrési feltételekkel!", "Nincs adat", "warning");
+            await CustomDialog.alert("Nincs exportálható adat a megadott szűresi feltételekkel!", "Nincs adat", "warning");
             return;
         }
 
         const headers = [
-            "Terítés ID",
             "Kiszállítás Dátuma",
             "Szállító Cég",
             "Szállító Neve",
             "Rendelésszám",
             "Vevő Neve",
-            "Cím",
-            "Telefon",
-            "Utánvétes?",
-            "Elvárt Utánvét (Ft)",
-            "Rendelés Státusza",
-            "Begyűjtött Készpénz (Ft)",
-            "Szállító Tartozása (Ft)",
-            "Sikertelenség Oka",
-            "Felelős"
+            "Fizetés Módja",
+            "Függő KP (futártól) (Ft)",
+            "Kártyás utalásra vár (szállítótól) (Ft)",
+            "Státusz",
+            "Megjegyzés"
         ];
 
         const csvRows = [];
@@ -36,81 +31,74 @@ export const ExporterService = {
             const bankTransferred = run.bankTransferredOrderIds || [];
             const partialOrders = run.partialOrders || {};
             const reasons = run.uncollectedReasons || {};
-            const responsibility = run.uncollectedResponsibility || {};
+            const paymentStatusMap = run.paymentStatusMap || {};
+            const paymentMethods = run.paymentMethods || {};
 
-            // 1. Kiszámoljuk az elvárt készpénzt a körhöz a lezártság megállapításához
-            let totalCOD = 0;
-            let bankTransferredSum = 0;
-            let uncollectedSum = 0;
-            let partialDiffs = 0;
-
+            // Minden rendelést hozzáadunk a CSV-hez
             run.orders.forEach(o => {
-                if (o.isCOD) {
-                    totalCOD += o.codAmount || 0;
-                    if (bankTransferred.includes(o.id)) {
-                        bankTransferredSum += o.codAmount || 0;
-                    } else if (uncollected.includes(o.id)) {
-                        uncollectedSum += o.codAmount || 0;
-                    } else if (partialOrders[o.id]) {
-                        partialDiffs += ((o.codAmount || 0) - (partialOrders[o.id].amount || 0));
-                    }
-                }
-            });
-
-            const expectedCash = totalCOD - bankTransferredSum - uncollectedSum - partialDiffs;
-            const dynamicIsSettled = run.isSettled || (typeof run.settledAmount !== 'undefined' && run.settledAmount >= expectedCash);
-
-            // 2. Minden rendelést hozzáadunk a CSV-hez
-            run.orders.forEach(o => {
-                const isCodText = o.isCOD ? "Igen" : "Nem";
-                const expectedCodAmount = o.isCOD ? (o.codAmount || 0) : 0;
-
                 const isUnc = uncollected.includes(o.id);
                 const isBank = bankTransferred.includes(o.id);
+                const status = paymentStatusMap[o.id] || 'received';
+
+                if (onlyPending) {
+                    // Csak olyan COD-os rendelést exportálunk, ami nem kiesett, nem banki utalt, és még függőben van
+                    const isPendingCOD = o.isCOD && !isUnc && !isBank && status === 'pending';
+                    if (!isPendingCOD) return;
+                }
+
                 const isPart = !isUnc && !isBank && !!partialOrders[o.id];
+
+                // Fizetés módja
+                let paymentMethodText = "Nem utánvétes";
+                let method = "none";
+                if (o.isCOD) {
+                    if (isBank) {
+                        paymentMethodText = "Átutalás";
+                        method = "bank";
+                    } else {
+                        const m = paymentMethods[o.id] || 'cash';
+                        if (m === 'card') {
+                            paymentMethodText = "Bankkártya";
+                            method = "card";
+                        } else if (m === 'bank') {
+                            paymentMethodText = "Átutalás";
+                            method = "bank";
+                        } else {
+                            paymentMethodText = "Készpénz (KP)";
+                            method = "cash";
+                        }
+                    }
+                }
 
                 // Rendelés státusza
                 let orderStatus = "";
                 if (!o.isCOD) {
-                    orderStatus = isUnc ? "Nem átadva" : "Átadva";
+                    orderStatus = isUnc ? "Nem lett átadva" : "Átadva";
                 } else {
-                    if (isBank) {
-                        orderStatus = "Elutalva (Banki utalás)";
-                    } else if (isUnc) {
-                        orderStatus = "Nincs beszedve (Kiesett)";
+                    if (isUnc) {
+                        orderStatus = "Sikertelen (Kiesett)";
                     } else if (isPart) {
-                        orderStatus = "Részlegesen fizetve";
-                    } else if (dynamicIsSettled) {
-                        orderStatus = "Elszámolva (Átvéve)";
+                        orderStatus = status === 'pending' ? "Részlegesen fizetve (Függő)" : "Részlegesen fizetve (Rendezett)";
                     } else {
-                        orderStatus = "Függőben (Beszedve, elszámolásra vár)";
+                        orderStatus = status === 'pending' ? "Függő kintlévőség" : "Kiegyenlítve";
                     }
                 }
 
-                // Begyűjtött készpénz
-                let collectedCash = 0;
-                if (o.isCOD) {
-                    if (isBank || isUnc) {
-                        collectedCash = 0;
-                    } else if (isPart) {
-                        collectedCash = partialOrders[o.id].amount || 0;
+                // Függő kintlévőségek összegeinek bontása (csak ha még PENDING, azaz nem kaptuk kézhez)
+                let collectedAmount = 0;
+                if (o.isCOD && !isUnc) {
+                    if (isPart) {
+                        collectedAmount = partialOrders[o.id].amount || 0;
                     } else {
-                        collectedCash = o.codAmount || 0;
+                        collectedAmount = o.codAmount || 0;
                     }
                 }
 
-                // Szállító tartozása (készpénz ami még nincs átadva nekünk)
-                let courierDebt = 0;
-                if (o.isCOD) {
-                    if (dynamicIsSettled) {
-                        courierDebt = 0; // Már elszámolva és átadva a cégnek
-                    } else {
-                        // Ha a kör nincs elszámolva, a futár tartozik a beszedett készpénzzel
-                        courierDebt = collectedCash;
-                    }
-                }
+                const isPending = status === 'pending';
+                const pendingKp = (method === 'cash' && isPending) ? collectedAmount : 0;
+                const pendingCard = (method === 'card' && isPending) ? collectedAmount : 0;
 
-                // Sikertelenség indoka
+                // Megjegyzés / Sikertelenség oka
                 let failReason = "";
                 if (isUnc) {
                     failReason = reasons[o.id] || "";
@@ -118,16 +106,7 @@ export const ExporterService = {
                     failReason = partialOrders[o.id].comment || "";
                 }
 
-                // Felelős fél
-                let respPerson = "";
-                if (isUnc || isPart) {
-                    const rawResp = responsibility[o.id] || "vevo";
-                    if (rawResp === "mienk") respPerson = "Cégünk";
-                    else if (rawResp === "szallito") respPerson = "Szállító";
-                    else respPerson = "Vevő / Egyéb";
-                }
-
-                // Mezők tisztítása a CSV formátumhoz (idézőjelek duplázása, pontosvesszők és újsorok cseréje)
+                // Mezők tisztítása a CSV formátumhoz
                 const clean = (val) => {
                     if (val === undefined || val === null) return "";
                     let str = String(val);
@@ -139,21 +118,16 @@ export const ExporterService = {
                 };
 
                 const rowData = [
-                    clean(run.id),
                     clean(run.date),
                     clean(run.company || "-"),
                     clean(run.courier),
                     clean(o.id),
                     clean(o.shippingName),
-                    clean(o.address),
-                    clean(o.shippingPhone),
-                    clean(isCodText),
-                    expectedCodAmount,
+                    clean(paymentMethodText),
+                    pendingKp,
+                    pendingCard,
                     clean(orderStatus),
-                    collectedCash,
-                    courierDebt,
-                    clean(failReason),
-                    clean(respPerson)
+                    clean(failReason)
                 ];
 
                 csvRows.push(rowData.join(";"));

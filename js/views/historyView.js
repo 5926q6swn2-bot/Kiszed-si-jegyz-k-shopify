@@ -1104,37 +1104,41 @@ export function initHistoryView(context) {
                 const paymentMethods = run.paymentMethods || {};
                 const paymentStatusMap = run.paymentStatusMap || {};
 
+                const isNeverSettled = !run.isSettled && typeof run.settledAt === 'undefined' && !(run.settledAmount > 0) && (!run.uncollectedOrderIds || run.uncollectedOrderIds.length === 0);
+
                 // Számoljuk össze a függő KP és függő Kártya összegeket
                 let pendingKpAmount = 0;
                 let pendingCardAmount = 0;
                 
-                run.orders.forEach(o => {
-                    if (o.isCOD && !uncollected.includes(o.id)) {
-                        const status = paymentStatusMap[o.id] || 'received';
-                        if (status === 'pending') {
-                            const method = paymentMethods[o.id] || 'cash';
-                            let amt = o.codAmount;
-                            if (partialOrders[o.id]) {
-                                amt = partialOrders[o.id].amount || 0;
-                            }
-                            
-                            if (method === 'card') {
-                                pendingCardAmount += amt;
-                            } else if (method === 'cash') {
-                                pendingKpAmount += amt;
+                if (!isNeverSettled) {
+                    run.orders.forEach(o => {
+                        if (o.isCOD && !uncollected.includes(o.id)) {
+                            const status = paymentStatusMap[o.id] || 'received';
+                            if (status === 'pending') {
+                                const method = paymentMethods[o.id] || 'cash';
+                                let amt = o.codAmount;
+                                if (partialOrders[o.id]) {
+                                    amt = partialOrders[o.id].amount || 0;
+                                }
+                                
+                                if (method === 'card') {
+                                    pendingCardAmount += amt;
+                                } else if (method === 'cash') {
+                                    pendingKpAmount += amt;
+                                }
                             }
                         }
-                    }
-                });
+                    });
+                }
 
                 const isPartial = !run.isSettled && run.settledAmount > 0;
                 const hasCardWait = pendingCardAmount > 0;
                 const hasKpWait = pendingKpAmount > 0;
 
-                const circleColor = hasCardWait ? '#2563eb' : (hasKpWait ? '#f97316' : (run.isSettled ? '#22c55e' : '#cbd5e1'));
-                const circleBg = hasCardWait ? '#eff6ff' : (hasKpWait ? '#fff7ed' : (run.isSettled ? '#22c55e' : '#fff'));
-                const circleTextColor = hasCardWait ? '#2563eb' : (hasKpWait ? '#f97316' : (run.isSettled ? '#fff' : '#94a3b8'));
-                const circleTitle = hasCardWait ? 'Kártyás utalásra vár' : (hasKpWait ? 'Függő készpénz' : (run.isSettled ? 'Elszámolva' : 'Elszámolásra vár'));
+                const circleColor = run.isSettled ? '#22c55e' : (hasKpWait ? '#eab308' : (hasCardWait ? '#2563eb' : (isNeverSettled ? '#ef4444' : '#cbd5e1')));
+                const circleBg = run.isSettled ? '#22c55e' : (hasKpWait ? '#fef9c3' : (hasCardWait ? '#eff6ff' : (isNeverSettled ? '#fee2e2' : '#fff')));
+                const circleTextColor = run.isSettled ? '#fff' : (hasKpWait ? '#ca8a04' : (hasCardWait ? '#2563eb' : (isNeverSettled ? '#ef4444' : '#94a3b8')));
+                const circleTitle = run.isSettled ? 'Elszámolva' : (hasKpWait ? 'Függő készpénz' : (hasCardWait ? 'Kártyás utalásra vár' : (isNeverSettled ? 'Nincs elszámolva' : 'Elszámolásra vár')));
                 const btnClass = (run.isSettled || isPartial) ? 'btn-unsettle-run' : 'btn-settle-run';
 
                 const kpWaitBadge = hasKpWait

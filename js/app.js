@@ -1025,13 +1025,55 @@ function initApp() {
     if (btnExportAccountingCsv) {
         btnExportAccountingCsv.addEventListener('click', async () => {
             const allRuns = await HistoryManager.getAllRuns();
-            let filteredRuns = allRuns.filter(r => isFiltered(r));
             
-            if (accountingFilterPending && accountingFilterPending.checked) {
-                filteredRuns = filteredRuns.filter(r => !r.isSettled && !(r.settledAmount > 0));
+            // Visszakompatibilitás: paymentStatusMap generálása a régi terítésekhez
+            allRuns.forEach(run => {
+                if (!run.paymentStatusMap || Object.keys(run.paymentStatusMap).length === 0) {
+                    const map = {};
+                    const uncollected = run.uncollectedOrderIds || [];
+                    const bankTransferred = run.bankTransferredOrderIds || [];
+                    const paymentMethods = run.paymentMethods || {};
+                    const hasSettled = (run.settledAmount || 0) > 0 || run.isSettled;
+                    
+                    run.orders.forEach(o => {
+                        if (o.isCOD) {
+                            if (uncollected.includes(o.id) || bankTransferred.includes(o.id)) {
+                                map[o.id] = 'received';
+                            } else if (!hasSettled) {
+                                map[o.id] = 'pending';
+                            } else {
+                                const method = paymentMethods[o.id] || 'cash';
+                                if (method === 'card') {
+                                    const isTransferSettled = run.isTransferSettled !== false;
+                                    map[o.id] = isTransferSettled ? 'received' : 'pending';
+                                } else {
+                                    map[o.id] = 'received';
+                                }
+                            }
+                        }
+                    });
+                    run.paymentStatusMap = map;
+                    
+                    const hasPending = run.orders.some(o => o.isCOD && !uncollected.includes(o.id) && map[o.id] === 'pending');
+                    if (!hasPending && hasSettled) {
+                        run.isSettled = true;
+                    }
+                }
+            });
+
+            let filteredRuns = allRuns.filter(r => isFiltered(r));
+            const onlyPending = accountingFilterPending && accountingFilterPending.checked;
+            
+            if (onlyPending) {
+                filteredRuns = filteredRuns.filter(r => {
+                    const uncollected = r.uncollectedOrderIds || [];
+                    const paymentStatusMap = r.paymentStatusMap || {};
+                    const hasPending = r.orders.some(o => o.isCOD && !uncollected.includes(o.id) && paymentStatusMap[o.id] === 'pending');
+                    return !r.isSettled || hasPending;
+                });
             }
             
-            await ExporterService.exportAccountingToCsv(filteredRuns);
+            await ExporterService.exportAccountingToCsv(filteredRuns, onlyPending);
         });
     }
 

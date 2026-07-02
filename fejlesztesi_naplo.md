@@ -627,3 +627,17 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Hibakezelés és biztonsági try-catch**: A Visszavonás és Visszaállítás funkciókat kliens oldali és Firebase tranzakció-szintű hibakezeléssel vérteztük fel (alert és try-catch blokkokkal), valamint a Firestore `deleteField()` törlését is finomhangoltuk.
 - **Cache-busting verzió**: Az `index.html`-ben a script hivatkozást `js/app.js?v=158`-ra, a CSS stílust pedig `css/style.css?v=40`-re emeltük.
 
+### 2026. július 2. - Elszámolás CSV Export és Státuszszínek Javítása
+- **Szűrési Logika Szinkronizációja**: Kijavítottuk a hibát, ami miatt az Elszámolások fülön lévő "Export CSV" gomb megnyomásakor a rendszer tévesen azt jelezte, hogy nincs exportálható adat. A szűrést a felülettel azonos módon a `paymentStatusMap[o.id] === 'pending'` állapot szerint végezzük.
+- **Rendelés szintű függő szűrés**: Kiterjesztettük a CSV exportálót egy opcionális `onlyPending` paraméterrel, így ha be van jelölve a szűrő, csak a még függő kintlévőséges rendeléseket mentjük el.
+- **Letisztultabb CSV struktúra & Kintlévőségek követése**:
+  - Eltávolítottuk a zajos oszlopokat (pl. Terítés ID, Cím, Telefon, Utánvétes?, Szállító tartozása, Felelős, Elvárt Utánvét).
+  - A beérkezett összegek helyett a még kézhez nem kapott összegeket mentjük a **Függő KP (futártól) (Ft)** és a **Kártyás utalásra vár (szállítótól) (Ft)** oszlopokba (amik 0 Ft-ot mutatnak, ha a státusz már rendezett vagy közvetlen utalásos).
+- **Körök Státuszszíneinek Finomhangolása**: Az elszámolandó körök bal szélén lévő státuszjelző körök színét frissítettük:
+  - **Piros (`#ef4444`)**: Ha a kör még egyáltalán nincs elszámolva (a rögzítés még nem futott le, és `settledAt` hiányzik, valamint nincsenek részleges összegek vagy rögzített kiesett rendelések sem). Ez a kezdeti és a teljesen visszavont (resetelt) állapot.
+  - **Sárga/Citromsárga (`#eab308`)**: Ha már elindult az elszámolás, de még készpénzt (KP) várunk a futártól (a vásárlóknak megérkezett, de a pénz még nincs nálunk).
+  - **Kék (`#2563eb`)**: Ha a készpénzes rész lezárult (a vevők megkapták), de már csak kártyás utalások beérkezésére várunk a szállítócégtől.
+  - **Zöld (`#22c55e`)**: Ha minden kész (minden tétel maradéktalanul kiegyenlítésre került és nálunk van).
+- **Elszámolatlan Körök Javítása (Függő KP / Gombok Rejtése)**: Megoldottuk azt a hibát, hogy az elszámolatlan (piros) körök is tévesen sárgának mutatták magukat "Függő KP" felirattal és "KP megjött" gombbal. Mostantól ha egy kör még nincs elszámolva (`isNeverSettled`), a rendszer a függő összegeket 0-nak tekinti a felületen, elrejti a gyors gombokat, és tisztán a **Piros** állapotot mutatja.
+- **Cache-busting frissítve**: Az `index.html`-ben az `app.js` hivatkozás verzióját `?v=167`-re emeltük.
+
