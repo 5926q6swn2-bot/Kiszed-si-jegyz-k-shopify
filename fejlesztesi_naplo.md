@@ -645,4 +645,9 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **BOM Karakter Eltávolítása**: A PannonXP IT csapatának kérésére a PannonXP export generálásánál (`js/app.js`) a Blob fájl letöltéséből eltávolítottuk a fájl elejére fűzött UTF-8 Byte Order Mark (BOM) bájtsorozatot (`[0xEF, 0xBB, 0xBF]`). Ezzel a CSV export tisztán UTF-8 (BOM nélkül) kódolású lett, megkönnyítve a zökkenőmentes importálást a PannonXP rendszerébe.
 - **GitHub Pages Build Javítás (.nojekyll)**: Létrehoztunk egy `.nojekyll` fájlt a gyökérkönyvtárban, hogy a GitHub Pages kihagyja a Jekyll fordítási lépést. Ez megelőzi a Jekyll szintaktikai/kódolási hibák miatti build-elakadásokat és azonnali sikeres telepítést biztosít.
 
+### 2026. július 3. - Rendelés Szintű Elszámolási Badge-ek Javítása
+- **Pontos Rendelés Státusz Megjelenítés**: Kijavítottuk azt a hibát, hogy az Előzmények fülön a globális keresési találatokban a megrendelések (pl. a #2830-as rendelés) tévesen zöld "Elszámolva" badge-et kaptak akkor is, ha a rögzítő felületen még nem voltak pénzügyileg rendezve (azaz a "Nálunk van" checkbox üres volt).
+- **Integráció a paymentStatusMap-pel**: A keresési listázót (`historyView.js`) felkészítettük az új, rendelés szintű állapot-térkép lekérdezésére. Ha az adott rendelés kintlévősége függőben van (`status === 'pending'`), a státusza zöld "Elszámolva" helyett helyesen sárga/amber **"Függőben"** (vagy a kis chipeken szürke **"Függő"**) színnel jelenik meg a felületeken.
+- **Cache-busting frissítve**: Az `index.html`-ben az `app.js` hivatkozás verzióját `?v=169`-re emeltük.
+
 

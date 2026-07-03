@@ -217,25 +217,34 @@ export function initHistoryView(context) {
                 let badgeColor = '#f59e0b';
                 let badgeBg = '#fef3c7';
 
-                let dynamicIsSettled = m.runData && m.runData.isSettled;
-                if (m.runData && !dynamicIsSettled && typeof m.runData.settledAmount !== 'undefined') {
-                    let bankTransferredSum = 0;
-                    let uncollectedSum = 0;
-                    let partialDiffs = 0;
-                    (m.runData.orders || []).forEach(o => {
-                        if (o.isCOD) {
-                            if (m.runData.bankTransferredOrderIds && m.runData.bankTransferredOrderIds.some(id => String(id) === String(o.id))) {
-                                bankTransferredSum += o.codAmount;
-                            } else if (m.runData.uncollectedOrderIds && m.runData.uncollectedOrderIds.some(id => String(id) === String(o.id))) {
-                                uncollectedSum += o.codAmount;
-                            } else if (m.runData.partialOrders && (m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)])) {
-                                const partialVal = m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)];
-                                partialDiffs += (o.codAmount - (partialVal.amount || 0));
+                let dynamicIsSettled = false;
+                const hasStatusMap = m.runData && m.runData.paymentStatusMap && Object.keys(m.runData.paymentStatusMap).length > 0;
+                if (hasStatusMap) {
+                    const orderStatus = m.runData.paymentStatusMap[m.id] || m.runData.paymentStatusMap[String(m.id)] || 'received';
+                    dynamicIsSettled = (orderStatus === 'received');
+                } else {
+                    let dynamicIsSettledOld = m.runData && m.runData.isSettled;
+                    if (m.runData && !dynamicIsSettledOld && typeof m.runData.settledAmount !== 'undefined') {
+                        let bankTransferredSum = 0;
+                        let uncollectedSum = 0;
+                        let partialDiffs = 0;
+                        (m.runData.orders || []).forEach(o => {
+                            if (o.isCOD) {
+                                if (m.runData.bankTransferredOrderIds && m.runData.bankTransferredOrderIds.some(id => String(id) === String(o.id))) {
+                                    bankTransferredSum += o.codAmount;
+                                } else if (m.runData.uncollectedOrderIds && m.runData.uncollectedOrderIds.some(id => String(id) === String(o.id))) {
+                                    uncollectedSum += o.codAmount;
+                                } else if (m.runData.partialOrders && (m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)])) {
+                                    const partialVal = m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)];
+                                    partialDiffs += (o.codAmount - (partialVal.amount || 0));
+                                }
                             }
-                        }
-                    });
-                    const expectedAmount = (m.runData.totalCOD || 0) - bankTransferredSum - uncollectedSum - partialDiffs;
-                    dynamicIsSettled = m.runData.settledAmount >= expectedAmount;
+                        });
+                        const expectedAmount = (m.runData.totalCOD || 0) - bankTransferredSum - uncollectedSum - partialDiffs;
+                        dynamicIsSettled = m.runData.settledAmount >= expectedAmount;
+                    } else {
+                        dynamicIsSettled = dynamicIsSettledOld;
+                    }
                 }
 
                 if (m.runData && m.runData.bankTransferredOrderIds && m.runData.bankTransferredOrderIds.some(id => String(id) === String(m.id))) {
@@ -1169,6 +1178,14 @@ export function initHistoryView(context) {
                     let badgeBg = '#f1f5f9';
                     let badgeColor = '#475569';
                     let statusLabel = 'Függő';
+                    let isOrderSettled = false;
+                    const hasStatusMap = run.paymentStatusMap && Object.keys(run.paymentStatusMap).length > 0;
+                    if (hasStatusMap) {
+                        isOrderSettled = (run.paymentStatusMap[o.id] || run.paymentStatusMap[String(o.id)] || 'received') === 'received';
+                    } else {
+                        isOrderSettled = run.isSettled;
+                    }
+                    
                     if (isUncollected) {
                         badgeBg = '#fee2e2';
                         badgeColor = '#ef4444';
@@ -1181,7 +1198,7 @@ export function initHistoryView(context) {
                         badgeBg = '#ffedd5';
                         badgeColor = '#f97316';
                         statusLabel = 'Részleges';
-                    } else if (run.isSettled) {
+                    } else if (isOrderSettled) {
                         if (method === 'card') {
                             badgeBg = '#eff6ff';
                             badgeColor = '#2563eb';
@@ -1567,25 +1584,34 @@ export function initHistoryView(context) {
                 let badgeColor = '#f59e0b';
                 let badgeBg = '#fef3c7';
 
-                let dynamicIsSettled = m.runData && m.runData.isSettled;
-                if (m.runData && !dynamicIsSettled && typeof m.runData.settledAmount !== 'undefined') {
-                    let bankTransferredSum = 0;
-                    let uncollectedSum = 0;
-                    let partialDiffs = 0;
-                    (m.runData.orders || []).forEach(o => {
-                        if (o.isCOD) {
-                            if (m.runData.bankTransferredOrderIds && m.runData.bankTransferredOrderIds.some(id => String(id) === String(o.id))) {
-                                bankTransferredSum += o.codAmount;
-                            } else if (m.runData.uncollectedOrderIds && m.runData.uncollectedOrderIds.some(id => String(id) === String(o.id))) {
-                                uncollectedSum += o.codAmount;
-                            } else if (m.runData.partialOrders && (m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)])) {
-                                const partialVal = m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)];
-                                partialDiffs += (o.codAmount - (partialVal.amount || 0));
+                let dynamicIsSettled = false;
+                const hasStatusMap = m.runData && m.runData.paymentStatusMap && Object.keys(m.runData.paymentStatusMap).length > 0;
+                if (hasStatusMap) {
+                    const orderStatus = m.runData.paymentStatusMap[m.id] || m.runData.paymentStatusMap[String(m.id)] || 'received';
+                    dynamicIsSettled = (orderStatus === 'received');
+                } else {
+                    let dynamicIsSettledOld = m.runData && m.runData.isSettled;
+                    if (m.runData && !dynamicIsSettledOld && typeof m.runData.settledAmount !== 'undefined') {
+                        let bankTransferredSum = 0;
+                        let uncollectedSum = 0;
+                        let partialDiffs = 0;
+                        (m.runData.orders || []).forEach(o => {
+                            if (o.isCOD) {
+                                if (m.runData.bankTransferredOrderIds && m.runData.bankTransferredOrderIds.some(id => String(id) === String(o.id))) {
+                                    bankTransferredSum += o.codAmount;
+                                } else if (m.runData.uncollectedOrderIds && m.runData.uncollectedOrderIds.some(id => String(id) === String(o.id))) {
+                                    uncollectedSum += o.codAmount;
+                                } else if (m.runData.partialOrders && (m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)])) {
+                                    const partialVal = m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)];
+                                    partialDiffs += (o.codAmount - (partialVal.amount || 0));
+                                }
                             }
-                        }
-                    });
-                    const expectedAmount = (m.runData.totalCOD || 0) - bankTransferredSum - uncollectedSum - partialDiffs;
-                    dynamicIsSettled = m.runData.settledAmount >= expectedAmount;
+                        });
+                        const expectedAmount = (m.runData.totalCOD || 0) - bankTransferredSum - uncollectedSum - partialDiffs;
+                        dynamicIsSettled = m.runData.settledAmount >= expectedAmount;
+                    } else {
+                        dynamicIsSettled = dynamicIsSettledOld;
+                    }
                 }
 
                 if (m.runData && m.runData.bankTransferredOrderIds && m.runData.bankTransferredOrderIds.some(id => String(id) === String(m.id))) {
