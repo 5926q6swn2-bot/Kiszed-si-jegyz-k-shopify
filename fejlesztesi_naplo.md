@@ -648,6 +648,14 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ### 2026. július 3. - Rendelés Szintű Elszámolási Badge-ek Javítása
 - **Pontos Rendelés Státusz Megjelenítés**: Kijavítottuk azt a hibát, hogy az Előzmények fülön a globális keresési találatokban a megrendelések (pl. a #2830-as rendelés) tévesen zöld "Elszámolva" badge-et kaptak akkor is, ha a rögzítő felületen még nem voltak pénzügyileg rendezve (azaz a "Nálunk van" checkbox üres volt).
 - **Integráció a paymentStatusMap-pel**: A keresési listázót (`historyView.js`) felkészítettük az új, rendelés szintű állapot-térkép lekérdezésére. Ha az adott rendelés kintlévősége függőben van (`status === 'pending'`), a státusza zöld "Elszámolva" helyett helyesen sárga/amber **"Függőben"** (vagy a kis chipeken szürke **"Függő"**) színnel jelenik meg a felületeken.
-- **Cache-busting frissítve**: Az `index.html`-ben az `app.js` hivatkozás verzióját `?v=169`-re emeltük.
+- **Cache-busting frissítve**: Az `index.html`-ben az `app.js` hivatkozás verzióját `?v=170`-re emeltük.
+
+### 2026. július 3. - Számlaellenőrzés (Audit Panel) Bevezetése
+- **Új Audit Panel**: Létrehoztunk egy új **Számlaellenőrzés** fület a történeti modalban (`js/views/auditView.js`), amellyel ellenőrizhetők a szállító cégek számlái a vitás/duplázott tételek kizárásához.
+- **Részletes szűrés és vizualizáció**:
+  - Dátum (kezdő/záró) és szállító cég szerinti szűrés.
+  - Összesítő statisztikai kártyák a fuvarokról, a szállító hibájából sikertelen csomagokról, a többször megkísérelt csomagokról és a részleges összegekről.
+  - **Duplikáció szűrő**: Összegyűjti és csoportosítva jeleníti meg azokat a rendeléseket, amelyek többször is rákerültek egy-egy futárkörre, bemutatva a kísérletek történeti idővonalát (mikor, melyik futárral, milyen eredménnyel és megjegyzéssel futott le a szállítás).
+- **Audit CSV Export**: Beépítettünk egy CSV exportálót, ami pontosvesszős elválasztással, UTF-8 kódolással (BOM nélkül a szállítói rendszerek elvárásának megfelelően) kimenti a szűrt audit listát az Excel alapú összevetés megkönnyítésére.
 
 

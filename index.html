@@ -256,6 +256,7 @@
                 <button id="tab-btn-orders" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Rendelések</button>
                 <button id="tab-btn-accounting" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Elszámolások</button>
                 <button id="tab-btn-stats" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Statisztika</button>
+                <button id="tab-btn-audit" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Számlaellenőrzés</button>
             </div>
             <div class="modal-body" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; padding-top: 0;">
 
@@ -357,6 +358,9 @@
                     <div id="stats-summary-box" style="display:none;"></div>
                     <div id="stats-runs-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; grid-auto-flow: row dense;"></div>
                 </div>
+
+                <!-- Tab 5: Számlaellenőrzés -->
+                <div id="tab-content-audit" style="display: none; flex: 1; flex-direction: column;"></div>
 
             </div>
         </div>
@@ -483,7 +487,7 @@
             }
         });
     </script>
-    <script type="module" src="js/app.js?v=169"></script>
+    <script type="module" src="js/app.js?v=170"></script>
     <div id="print-area"></div>
 
 </body>

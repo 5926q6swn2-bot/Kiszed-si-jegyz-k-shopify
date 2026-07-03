@@ -11,6 +11,7 @@ import { OrdersView } from './views/ordersView.js';
 import { initManualOrderController } from './controllers/manualOrderController.js?v=150';
 import { renderStatistics } from './views/stats.js';
 import { ExporterService } from './services/exporter.js';
+import { AuditView } from './views/auditView.js?v=169';
 
 import { generatePdfHtml, openPdfView, generateDeliveryNotesHtml } from './utils/printTemplates.js';
 function initApp() {
@@ -107,10 +108,12 @@ function initApp() {
     const tabBtnOrders = document.getElementById('tab-btn-orders');
     const tabBtnAccounting = document.getElementById('tab-btn-accounting');
     const tabBtnStats = document.getElementById('tab-btn-stats');
+    const tabBtnAudit = document.getElementById('tab-btn-audit');
     const tabContentHistory = document.getElementById('tab-content-history');
     const tabContentOrders = document.getElementById('tab-content-orders');
     const tabContentAccounting = document.getElementById('tab-content-accounting');
     const tabContentStats = document.getElementById('tab-content-stats');
+    const tabContentAudit = document.getElementById('tab-content-audit');
     const trashView = document.getElementById('trash-view');
     const modalTabsBar = document.querySelector('#history-modal .modal-tabs');
     const modalSearchBar = document.querySelector('#history-modal .modal-body > .form-group');
@@ -909,6 +912,9 @@ function initApp() {
     tabBtnOrders.addEventListener('click', () => switchHistoryTab('orders'));
     tabBtnAccounting.addEventListener('click', () => switchHistoryTab('accounting'));
     tabBtnStats.addEventListener('click', () => switchHistoryTab('stats'));
+    if (tabBtnAudit) {
+        tabBtnAudit.addEventListener('click', () => switchHistoryTab('audit'));
+    }
 
     document.getElementById('btn-open-trash').addEventListener('click', showTrashView);
     document.getElementById('btn-close-trash').addEventListener('click', hideTrashView);
@@ -923,7 +929,7 @@ function initApp() {
     });
 
     function showTrashView() {
-        [tabContentHistory, tabContentOrders, tabContentAccounting, tabContentStats].forEach(c => { c.style.display = 'none'; });
+        [tabContentHistory, tabContentOrders, tabContentAccounting, tabContentStats, tabContentAudit].forEach(c => { if (c) c.style.display = 'none'; });
         if (modalTabsBar) modalTabsBar.style.display = 'none';
         if (modalSearchBar) modalSearchBar.style.display = 'none';
         trashView.style.display = 'flex';
@@ -940,14 +946,16 @@ function initApp() {
 
     async function switchHistoryTab(tab) {
         // Reset all tabs
-        [tabBtnHistory, tabBtnOrders, tabBtnAccounting, tabBtnStats].forEach(btn => {
-            btn.classList.remove('active');
-            btn.style.borderBottomColor = 'transparent';
-            btn.style.color = '#64748b';
-            btn.style.fontWeight = '500';
+        [tabBtnHistory, tabBtnOrders, tabBtnAccounting, tabBtnStats, tabBtnAudit].forEach(btn => {
+            if (btn) {
+                btn.classList.remove('active');
+                btn.style.borderBottomColor = 'transparent';
+                btn.style.color = '#64748b';
+                btn.style.fontWeight = '500';
+            }
         });
-        [tabContentHistory, tabContentOrders, tabContentAccounting, tabContentStats].forEach(content => {
-            content.style.display = 'none';
+        [tabContentHistory, tabContentOrders, tabContentAccounting, tabContentStats, tabContentAudit].forEach(content => {
+            if (content) content.style.display = 'none';
         });
 
         if (tab === 'history') {
@@ -978,6 +986,15 @@ function initApp() {
             tabBtnStats.style.fontWeight = '600';
             tabContentStats.style.display = 'block';
             renderStatistics();
+        } else if (tab === 'audit') {
+            if (tabBtnAudit && tabContentAudit) {
+                tabBtnAudit.classList.add('active');
+                tabBtnAudit.style.borderBottomColor = 'var(--primary-color)';
+                tabBtnAudit.style.color = 'var(--primary-color)';
+                tabBtnAudit.style.fontWeight = '600';
+                tabContentAudit.style.display = 'flex';
+                AuditView.render(tabContentAudit);
+            }
         }
     }
 
