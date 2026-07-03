@@ -639,5 +639,9 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
   - **Kék (`#2563eb`)**: Ha a készpénzes rész lezárult (a vevők megkapták), de már csak kártyás utalások beérkezésére várunk a szállítócégtől.
   - **Zöld (`#22c55e`)**: Ha minden kész (minden tétel maradéktalanul kiegyenlítésre került és nálunk van).
 - **Elszámolatlan Körök Javítása (Függő KP / Gombok Rejtése)**: Megoldottuk azt a hibát, hogy az elszámolatlan (piros) körök is tévesen sárgának mutatták magukat "Függő KP" felirattal és "KP megjött" gombbal. Mostantól ha egy kör még nincs elszámolva (`isNeverSettled`), a rendszer a függő összegeket 0-nak tekinti a felületen, elrejti a gyors gombokat, és tisztán a **Piros** állapotot mutatja.
-- **Cache-busting frissítve**: Az `index.html`-ben az `app.js` hivatkozás verzióját `?v=167`-re emeltük.
+- **Cache-busting frissítve**: Az `index.html`-ben az `app.js` hivatkozás verzióját `?v=168`-re emeltük.
+
+### 2026. július 2. - PannonXP CSV export UTF-8 BOM eltávolítása
+- **BOM Karakter Eltávolítása**: A PannonXP IT csapatának kérésére a PannonXP export generálásánál (`js/app.js`) a Blob fájl letöltéséből eltávolítottuk a fájl elejére fűzött UTF-8 Byte Order Mark (BOM) bájtsorozatot (`[0xEF, 0xBB, 0xBF]`). Ezzel a CSV export tisztán UTF-8 (BOM nélkül) kódolású lett, megkönnyítve a zökkenőmentes importálást a PannonXP rendszerébe.
+
 

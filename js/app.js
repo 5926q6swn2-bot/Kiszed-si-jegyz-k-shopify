@@ -221,8 +221,8 @@ function initApp() {
         }
         const csvContent = PannonXPService.convertToCSV(selectedOrders, senderSettings);
         
-        // Letöltés UTF-8-ban, BOM-mal Excel támogatáshoz
-        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+        // Letöltés UTF-8-ban, BOM nélkül (a PannonXP IT kérésére)
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
