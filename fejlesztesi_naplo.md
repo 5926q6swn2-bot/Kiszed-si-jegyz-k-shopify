@@ -643,5 +643,6 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ### 2026. július 2. - PannonXP CSV export UTF-8 BOM eltávolítása
 - **BOM Karakter Eltávolítása**: A PannonXP IT csapatának kérésére a PannonXP export generálásánál (`js/app.js`) a Blob fájl letöltéséből eltávolítottuk a fájl elejére fűzött UTF-8 Byte Order Mark (BOM) bájtsorozatot (`[0xEF, 0xBB, 0xBF]`). Ezzel a CSV export tisztán UTF-8 (BOM nélkül) kódolású lett, megkönnyítve a zökkenőmentes importálást a PannonXP rendszerébe.
+- **GitHub Pages Build Javítás (.nojekyll)**: Létrehoztunk egy `.nojekyll` fájlt a gyökérkönyvtárban, hogy a GitHub Pages kihagyja a Jekyll fordítási lépést. Ez megelőzi a Jekyll szintaktikai/kódolási hibák miatti build-elakadásokat és azonnali sikeres telepítést biztosít.
 
 
