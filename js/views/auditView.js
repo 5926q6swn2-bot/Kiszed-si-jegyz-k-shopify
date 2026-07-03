@@ -6,9 +6,7 @@ export const AuditView = {
     startDateInput: null,
     endDateInput: null,
     companyFilterSelect: null,
-    auditFilterSelect: null,
     resultsContainer: null,
-    summaryContainer: null,
     allRuns: [],
 
     async render(container) {
@@ -19,20 +17,10 @@ export const AuditView = {
         this.container.style.gap = '15px';
         this.container.style.padding = '15px 0';
 
-        // Load data
-        this.allRuns = await HistoryManager.getAllRuns();
-
         // 1. Render Filters & Header Area
         this.renderFilters();
 
-        // 2. Render Summary Panel container
-        this.summaryContainer = document.createElement('div');
-        this.summaryContainer.style.display = 'grid';
-        this.summaryContainer.style.gridTemplateColumns = 'repeat(auto-fit, minmax(180px, 1fr))';
-        this.summaryContainer.style.gap = '12px';
-        this.container.appendChild(this.summaryContainer);
-
-        // 3. Render Results container
+        // 2. Render Results container
         this.resultsContainer = document.createElement('div');
         this.resultsContainer.style.flex = '1';
         this.resultsContainer.style.display = 'flex';
@@ -49,13 +37,13 @@ export const AuditView = {
         this.endDateInput.value = today.toISOString().split('T')[0];
 
         // Populate companies dropdown
+        this.allRuns = await HistoryManager.getAllRuns();
         this.populateCompanies();
 
         // Bind events
         this.startDateInput.addEventListener('change', () => this.updateAudit());
         this.endDateInput.addEventListener('change', () => this.updateAudit());
         this.companyFilterSelect.addEventListener('change', () => this.updateAudit());
-        this.auditFilterSelect.addEventListener('change', () => this.updateAudit());
 
         // Initial update
         this.updateAudit();
@@ -63,12 +51,12 @@ export const AuditView = {
 
     renderFilters() {
         const filterBar = document.createElement('div');
-        filterBar.className = 'audit-filter-bar';
+        filterBar.className = 'audit-filter-bar no-print';
         filterBar.style.display = 'flex';
-        filterBar.style.gap = '8px';
+        filterBar.style.gap = '10px';
         filterBar.style.alignItems = 'center';
         filterBar.style.background = '#f8fafc';
-        filterBar.style.padding = '12px';
+        filterBar.style.padding = '12px 16px';
         filterBar.style.borderRadius = '12px';
         filterBar.style.border = '1px solid #e2e8f0';
         filterBar.style.flexWrap = 'wrap';
@@ -121,43 +109,10 @@ export const AuditView = {
         companyGroup.appendChild(this.companyFilterSelect);
         filterBar.appendChild(companyGroup);
 
-        // Audit type
-        const typeGroup = document.createElement('div');
-        typeGroup.style.display = 'flex';
-        typeGroup.style.flexDirection = 'column';
-        typeGroup.style.gap = '4px';
-        typeGroup.innerHTML = '<span style="font-size: 11px; font-weight: 600; color: #64748b;">Probléma típusa</span>';
-        this.auditFilterSelect = document.createElement('select');
-        this.auditFilterSelect.style.padding = '8px 12px';
-        this.auditFilterSelect.style.border = '1px solid #cbd5e1';
-        this.auditFilterSelect.style.borderRadius = '8px';
-        this.auditFilterSelect.style.fontSize = '13px';
-        this.auditFilterSelect.style.fontFamily = 'inherit';
-        this.auditFilterSelect.style.background = '#fff';
-
-        const types = [
-            { value: 'all', label: 'Összes hiba és duplikáció' },
-            { value: 'failed_carrier', label: 'Kiesett - Szállító hibája' },
-            { value: 'failed_buyer', label: 'Kiesett - Vevő/Egyéb hibája' },
-            { value: 'duplicates', label: 'Többszöri kísérletek (Duplikációk)' },
-            { value: 'partial', label: 'Részleges elszámolások' }
-        ];
-
-        types.forEach(t => {
-            const opt = document.createElement('option');
-            opt.value = t.value;
-            opt.textContent = t.label;
-            this.auditFilterSelect.appendChild(opt);
-        });
-
-        typeGroup.appendChild(this.auditFilterSelect);
-        filterBar.appendChild(typeGroup);
-
         // Clear button
         const btnClear = document.createElement('button');
         btnClear.type = 'button';
         btnClear.style.marginLeft = 'auto';
-        btnClear.style.marginTop = '15px';
         btnClear.style.padding = '8px 12px';
         btnClear.style.borderRadius = '8px';
         btnClear.style.border = '1.5px solid #cbd5e1';
@@ -167,7 +122,7 @@ export const AuditView = {
         btnClear.style.fontWeight = '600';
         btnClear.style.cursor = 'pointer';
         btnClear.style.fontFamily = 'inherit';
-        btnClear.innerHTML = 'Szűrők alaphelyzetbe';
+        btnClear.innerHTML = 'Szűrők törlése';
         btnClear.addEventListener('click', () => {
             const today = new Date();
             const thirtyDaysAgo = new Date();
@@ -175,7 +130,6 @@ export const AuditView = {
             this.startDateInput.value = thirtyDaysAgo.toISOString().split('T')[0];
             this.endDateInput.value = today.toISOString().split('T')[0];
             this.companyFilterSelect.value = '';
-            this.auditFilterSelect.value = 'all';
             this.updateAudit();
         });
         filterBar.appendChild(btnClear);
@@ -183,7 +137,6 @@ export const AuditView = {
         // Export button
         const btnExport = document.createElement('button');
         btnExport.type = 'button';
-        btnExport.style.marginTop = '15px';
         btnExport.style.padding = '8px 12px';
         btnExport.style.borderRadius = '8px';
         btnExport.style.border = '1.5px solid #10b981';
@@ -196,7 +149,7 @@ export const AuditView = {
         btnExport.style.display = 'flex';
         btnExport.style.alignItems = 'center';
         btnExport.style.gap = '5px';
-        btnExport.innerHTML = '<i class="ph-bold ph-download-simple" style="font-size: 15px;"></i> Audit CSV';
+        btnExport.innerHTML = '<i class="ph-bold ph-download-simple" style="font-size: 15px;"></i> Export CSV';
         btnExport.addEventListener('click', () => this.exportAuditToCsv());
         filterBar.appendChild(btnExport);
 
@@ -220,400 +173,370 @@ export const AuditView = {
         });
     },
 
-    updateAudit() {
+    async updateAudit() {
+        this.resultsContainer.innerHTML = '<p style="color:#94a3b8;font-size:13px;text-align:center;padding:30px;">Betöltés...</p>';
+        this.allRuns = await HistoryManager.getAllRuns();
+
         const startVal = this.startDateInput.value;
         const endVal = this.endDateInput.value;
         const selectedCompany = this.companyFilterSelect.value;
-        const selectedAuditType = this.auditFilterSelect.value;
 
-        const startD = startVal ? new Date(startVal) : null;
-        if (startD) startD.setHours(0, 0, 0, 0);
-        const endD = endVal ? new Date(endVal) : null;
-        if (endD) endD.setHours(23, 59, 59, 999);
+        const startD = startVal ? new Date(startVal + 'T00:00:00') : null;
+        const endD   = endVal   ? new Date(endVal   + 'T23:59:59') : null;
 
-        // 1. Filter runs
-        const filteredRuns = this.allRuns.filter(run => {
-            const runD = new Date(run.originalDate || run.date);
-            runD.setHours(12, 0, 0, 0);
-
-            if (startD && runD < startD) return false;
-            if (endD && runD > endD) return false;
-            if (selectedCompany && run.company !== selectedCompany) return false;
-
+        // Filter runs by date and optionally company
+        const filteredRuns = this.allRuns.filter(r => {
+            if (!r.date) return true;
+            const d = new Date(r.date + 'T00:00:00');
+            if (startD && d < startD) return false;
+            if (endD   && d > endD)   return false;
+            if (selectedCompany && r.company !== selectedCompany) return false;
             return true;
         });
 
-        // 2. Statistics and groups calculation
-        let totalRuns = filteredRuns.length;
-        let totalOrders = 0;
-        let carrierErrors = 0;
-        let buyerErrors = 0;
-        let partialCounts = 0;
-
-        // Duplicate tracker: map of orderId -> list of {run, order, isUncollected, status}
-        const orderAttemptsMap = {};
-
-        filteredRuns.forEach(run => {
-            const uncollected = run.uncollectedOrderIds || [];
-            const responsibilities = run.uncollectedResponsibility || {};
-            const reasons = run.uncollectedReasons || {};
-            const partialOrders = run.partialOrders || {};
-            const bankTransferred = run.bankTransferredOrderIds || [];
-            const paymentStatusMap = run.paymentStatusMap || {};
-
-            run.orders.forEach(o => {
-                totalOrders++;
-                const isUnc = uncollected.includes(o.id) || uncollected.includes(String(o.id));
-                const isBank = bankTransferred.includes(o.id) || bankTransferred.includes(String(o.id));
-                const isPart = !isUnc && !isBank && (!!partialOrders[o.id] || !!partialOrders[String(o.id)]);
-
-                let resp = 'vevo';
-                if (isUnc) {
-                    resp = responsibilities[o.id] || responsibilities[String(o.id)] || 'vevo';
-                    if (resp === 'szallito') {
-                        carrierErrors++;
-                    } else {
-                        buyerErrors++;
-                    }
-                }
-
-                if (isPart) {
-                    partialCounts++;
-                }
-
-                // Add to attempts map for duplicate checks
-                const cleanId = String(o.id).trim();
-                if (!orderAttemptsMap[cleanId]) {
-                    orderAttemptsMap[cleanId] = [];
-                }
-                orderAttemptsMap[cleanId].push({
-                    run: run,
-                    order: o,
-                    isUncollected: isUnc,
-                    isPartial: isPart,
-                    isBank: isBank,
-                    responsibility: resp,
-                    reason: isUnc ? (reasons[o.id] || reasons[String(o.id)] || 'Nincs indok') : (isPart ? 'Részleges átvétel' : 'Sikeres'),
-                    comment: isPart ? ((partialOrders[o.id] || partialOrders[String(o.id)]).comment || '') : ''
-                });
-            });
-        });
-
-        // Calculate duplicate counts
-        let duplicateOrdersCount = 0;
-        const duplicateAttempts = {};
-        for (const orderId in orderAttemptsMap) {
-            if (orderAttemptsMap[orderId].length > 1) {
-                duplicateOrdersCount++;
-                duplicateAttempts[orderId] = orderAttemptsMap[orderId];
-            }
-        }
-
-        // Render Summary Panel cards
-        this.renderSummaryCards(totalRuns, totalOrders, carrierErrors, buyerErrors, duplicateOrdersCount, partialCounts);
-
-        // 3. Filter results to display
-        const displayList = [];
-
-        for (const orderId in orderAttemptsMap) {
-            const attempts = orderAttemptsMap[orderId];
-            const isDuplicate = attempts.length > 1;
-
-            attempts.forEach((att, index) => {
-                let shouldInclude = false;
-
-                if (selectedAuditType === 'all') {
-                    shouldInclude = att.isUncollected || att.isPartial || isDuplicate;
-                } else if (selectedAuditType === 'failed_carrier') {
-                    shouldInclude = att.isUncollected && att.responsibility === 'szallito';
-                } else if (selectedAuditType === 'failed_buyer') {
-                    shouldInclude = att.isUncollected && att.responsibility !== 'szallito';
-                } else if (selectedAuditType === 'duplicates') {
-                    shouldInclude = isDuplicate;
-                } else if (selectedAuditType === 'partial') {
-                    shouldInclude = att.isPartial;
-                }
-
-                if (shouldInclude) {
-                    displayList.push({
-                        orderId: orderId,
-                        customerName: att.order.shippingName || '-',
-                        attemptNum: index + 1,
-                        totalAttempts: attempts.length,
-                        date: att.run.date,
-                        company: att.run.company || '-',
-                        courier: att.run.courier,
-                        isUnc: att.isUncollected,
-                        isPart: att.isPartial,
-                        isBank: att.isBank,
-                        codAmount: att.order.codAmount || 0,
-                        responsibility: att.responsibility,
-                        reason: att.reason,
-                        comment: att.comment,
-                        orderData: att.order,
-                        runData: att.run
-                    });
-                }
-            });
-        }
-
-        // Sort by order ID then attempt number
-        displayList.sort((a, b) => {
-            if (a.orderId !== b.orderId) return a.orderId.localeCompare(b.orderId, undefined, { numeric: true, sensitivity: 'base' });
-            return a.attemptNum - b.attemptNum;
-        });
-
-        // 4. Render Details List
-        this.renderDetailsList(displayList, duplicateAttempts);
-    },
-
-    renderSummaryCards(totalRuns, totalOrders, carrierErrors, buyerErrors, duplicates, partials) {
-        this.summaryContainer.innerHTML = `
-            <div style="background: #fff; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
-                <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">📊 Összes futárkör</span>
-                <span style="font-size: 20px; font-weight: 800; color: #0f172a;">${totalRuns} kör</span>
-            </div>
-            <div style="background: #fff; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
-                <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">📦 Összes csomag</span>
-                <span style="font-size: 20px; font-weight: 800; color: #0f172a;">${totalOrders} db</span>
-            </div>
-            <div style="background: #fee2e2; padding: 12px; border-radius: 12px; border: 1px solid #fecaca; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
-                <span style="font-size: 11px; font-weight: 700; color: #b91c1c; text-transform: uppercase;">❌ Szállító hibája</span>
-                <span style="font-size: 20px; font-weight: 800; color: #991b1b;">${carrierErrors} db</span>
-            </div>
-            <div style="background: #fef9c3; padding: 12px; border-radius: 12px; border: 1px solid #fef08a; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
-                <span style="font-size: 11px; font-weight: 700; color: #a16207; text-transform: uppercase;">🔄 Duplikációk</span>
-                <span style="font-size: 20px; font-weight: 800; color: #854d0e;">${duplicates} rendelés</span>
-            </div>
-            <div style="background: #ffedd5; padding: 12px; border-radius: 12px; border: 1px solid #fed7aa; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
-                <span style="font-size: 11px; font-weight: 700; color: #c2410c; text-transform: uppercase;">⚖️ Részleges</span>
-                <span style="font-size: 20px; font-weight: 800; color: #9a3412;">${partials} db</span>
-            </div>
-        `;
-    },
-
-    renderDetailsList(displayList, duplicateAttempts) {
-        this.resultsContainer.innerHTML = '';
-
-        if (displayList.length === 0) {
+        if (filteredRuns.length === 0) {
             this.resultsContainer.innerHTML = `
                 <div style="text-align: center; padding: 40px; border: 2px dashed #e2e8f0; border-radius: 12px; color: #94a3b8; font-weight: 600;">
-                    Nincsenek a szűrésnek megfelelő auditált adatok ebben az időszakban.
+                    Nincsenek adatok a megadott szűrési feltételekkel.
                 </div>
             `;
             return;
         }
 
+        // Map order ID -> list of runs and details to check duplicates and redeliveries
+        const orderRunsMap = new Map();
+        filteredRuns.forEach(r => {
+            const rUnc  = new Set(r.uncollectedOrderIds || []);
+            const rPart = r.partialOrders || {};
+            const settled = r.isSettled || (r.settledAmount > 0);
+            r.orders.forEach(o => {
+                if (!orderRunsMap.has(o.id)) orderRunsMap.set(o.id, []);
+                const isUnc  = rUnc.has(o.id);
+                const isPart = !!rPart[o.id];
+                orderRunsMap.get(o.id).push({
+                    date: r.date,
+                    courier: r.courier,
+                    company: r.company || '—',
+                    isUncollected: isUnc,
+                    isPartial: isPart,
+                    wasReceived: !isUnc && !isPart && settled,
+                    wasPartialReceived: isPart && settled,
+                });
+            });
+        });
+
+        // Collect problematic rows
+        const kiesettRows = [];
+        const duplicatesAdded = new Set();
+
+        filteredRuns.forEach((r, rIdx) => {
+            const runReasons  = r.uncollectedReasons || {};
+            const runPartials = r.partialOrders || {};
+            const runResponsibility = r.uncollectedResponsibility || {};
+
+            // 1. Failed orders
+            (r.uncollectedOrderIds || []).forEach(id => {
+                const o = (r.orders || []).find(x => x.id === id);
+                const laterEntries = (orderRunsMap.get(id) || []).filter(e => e.date > (r.date || ''));
+                kiesettRows.push({
+                    id,
+                    isPartial: false,
+                    isCOD: !!(o && o.isCOD),
+                    name: o ? (o.shippingName || '—') : '—',
+                    date: r.date || '—',
+                    courier: r.courier || '—',
+                    company: r.company || '—',
+                    codAmount: o && o.isCOD ? (o.codAmount || 0) : 0,
+                    reason: runReasons[id] || '',
+                    laterEntries,
+                    docId: r.docId,
+                    responsibility: runResponsibility[id] || 'vevo',
+                    isDuplicate: (orderRunsMap.get(id) || []).length > 1
+                });
+            });
+
+            // 2. Partial orders
+            Object.entries(runPartials).forEach(([id, info]) => {
+                const o = (r.orders || []).find(x => x.id === id);
+                if (!o || !o.isCOD) return;
+                const diff = o.codAmount - (info.amount || 0);
+                if (diff <= 0) return;
+                const laterEntries = (orderRunsMap.get(id) || []).filter(e => e.date > (r.date || ''));
+                kiesettRows.push({
+                    id,
+                    isPartial: true,
+                    isCOD: true,
+                    name: o.shippingName || '—',
+                    date: r.date || '—',
+                    courier: r.courier || '—',
+                    company: r.company || '—',
+                    codAmount: diff,
+                    fullAmount: o.codAmount,
+                    partialAmount: info.amount,
+                    reason: info.comment || '',
+                    laterEntries,
+                    docId: r.docId,
+                    responsibility: runResponsibility[id] || 'vevo',
+                    isDuplicate: (orderRunsMap.get(id) || []).length > 1
+                });
+            });
+
+            // 3. Duplicated orders (sent out multiple times, even if first/other round was fine)
+            r.orders.forEach(o => {
+                const allAttempts = orderRunsMap.get(o.id) || [];
+                if (allAttempts.length > 1 && !duplicatesAdded.has(o.id)) {
+                    // Check if this order is already in the list as a failed/partial attempt
+                    const isAlreadyListed = kiesettRows.some(x => x.id === o.id);
+                    if (!isAlreadyListed) {
+                        duplicatesAdded.add(o.id);
+                        kiesettRows.push({
+                            id: o.id,
+                            isPartial: false,
+                            isCOD: !!o.isCOD,
+                            name: o.shippingName || '—',
+                            date: r.date || '—',
+                            courier: r.courier || '—',
+                            company: r.company || '—',
+                            codAmount: o.isCOD ? (o.codAmount || 0) : 0,
+                            reason: 'Többszöri kiszállítási kísérlet',
+                            laterEntries: allAttempts.filter(e => e.date > r.date),
+                            docId: r.docId,
+                            responsibility: 'vevo',
+                            isDuplicate: true,
+                            isPureDuplicate: true // Indicated that this was not failed/partial on this run but is a duplicate
+                        });
+                    }
+                }
+            });
+        });
+
+        // Sort items: resolved redeliveries at the bottom, sorted by date desc
+        kiesettRows.sort((a, b) => {
+            const aRec = (a.laterEntries || []).some(e => e.wasReceived || e.wasPartialReceived) ? 1 : 0;
+            const bRec = (b.laterEntries || []).some(e => e.wasReceived || e.wasPartialReceived) ? 1 : 0;
+            if (aRec !== bRec) return aRec - bRec;
+            return b.date.localeCompare(a.date);
+        });
+
+        this.renderList(kiesettRows, orderRunsMap);
+    },
+
+    renderList(kiesettRows, orderRunsMap) {
+        this.resultsContainer.innerHTML = '';
+
+        if (kiesettRows.length === 0) {
+            this.resultsContainer.innerHTML = `
+                <div style="text-align: center; padding: 40px; border: 2px dashed #e2e8f0; border-radius: 12px; color: #94a3b8; font-weight: 600;">
+                    Nincsenek kiesett vagy többször kiszállított rendelések a megadott időszakban.
+                </div>
+            `;
+            return;
+        }
+
+        const renderLaterEntries = (entries) => {
+            if (!entries || entries.length === 0) return '';
+            const redeliveries = entries.filter(e => e.date);
+            if (redeliveries.length === 0) return '';
+            const last = redeliveries[redeliveries.length - 1];
+            const outcome = last.isUncollected
+                ? `<span style="font-size:10px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;padding:1px 6px;">ismét kiesett</span>`
+                : last.wasReceived || last.wasPartialReceived
+                    ? `<span style="font-size:10px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:1px 6px;">átvéve ✓</span>`
+                    : `<span style="font-size:10px;color:#94a3b8;background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;">függőben</span>`;
+            return `<div style="margin-top:6px;padding-left:14px;border-left:2px solid #cbd5e1;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span style="font-size:11px;color:#94a3b8;">↳</span>
+                <span style="font-size:11px;font-weight:600;color:#64748b;">${redeliveries.length}× újra szállítva</span>
+                <span style="font-size:11px;color:#94a3b8;">·</span>
+                <span style="font-size:11px;color:#64748b;">${last.date} · ${last.company} · ${last.courier || '—'}</span>
+                ${outcome}
+            </div>`;
+        };
+
         const listWrapper = document.createElement('div');
-        listWrapper.style.display = 'flex';
-        listWrapper.style.flexDirection = 'column';
-        listWrapper.style.gap = '8px';
-        listWrapper.style.maxHeight = '48vh';
+        listWrapper.style.display = 'grid';
+        listWrapper.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        listWrapper.style.gap = '12px';
+        listWrapper.style.maxHeight = '65vh';
         listWrapper.style.overflowY = 'auto';
         listWrapper.style.paddingRight = '4px';
 
-        // Keep track of rendered duplicate parent groups to avoid double headers
-        const renderedParents = new Set();
-
-        displayList.forEach(item => {
-            const hasMultipleAttempts = item.totalAttempts > 1;
-
-            if (hasMultipleAttempts) {
-                // If duplicate, group attempts under a single parent card
-                if (renderedParents.has(item.orderId)) return;
-                renderedParents.add(item.orderId);
-
-                const parentCard = document.createElement('div');
-                parentCard.style.background = '#fff';
-                parentCard.style.border = '1.5px solid #fed7aa';
-                parentCard.style.borderRadius = '12px';
-                parentCard.style.padding = '12px 16px';
-                parentCard.style.display = 'flex';
-                parentCard.style.flexDirection = 'column';
-                parentCard.style.gap = '8px';
-
-                // Parent card header
-                const attemptsList = duplicateAttempts[item.orderId];
-                parentCard.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px;">
-                        <span style="font-weight: 700; color: #c2410c; font-size: 14px;">📦 Rendelés: ${item.orderId} (Duplikált kiszállítás)</span>
-                        <span style="font-size: 11px; background: #ffedd5; color: #ea580c; font-weight: 700; padding: 2px 6px; border-radius: 5px;">Kísérletek száma: ${item.totalAttempts}x</span>
-                    </div>
-                    <div style="font-size: 13px; font-weight: 700; color: #1e293b; margin-top: 2px;">Vevő: ${item.customerName}</div>
-                `;
-
-                // Add timeline of attempts
-                const timeline = document.createElement('div');
-                timeline.style.display = 'flex';
-                timeline.style.flexDirection = 'column';
-                timeline.style.gap = '6px';
-                timeline.style.borderLeft = '2px solid #fdba74';
-                timeline.style.paddingLeft = '12px';
-                timeline.style.marginLeft = '4px';
-                timeline.style.marginTop = '6px';
-
-                attemptsList.forEach((att, idx) => {
-                    let statusHtml = '';
-                    let borderCol = '#e2e8f0';
-                    let bgCol = '#f8fafc';
-
-                    if (att.isUncollected) {
-                        const isSzallito = att.responsibility === 'szallito';
-                        statusHtml = `<span style="font-size: 10px; font-weight: 700; color: ${isSzallito ? '#ef4444' : '#64748b'}; background: ${isSzallito ? '#fee2e2' : '#f1f5f9'}; border: 1px solid ${isSzallito ? '#fecaca' : '#cbd5e1'}; border-radius: 6px; padding: 1px 6px;">
-                            ${isSzallito ? 'Kiesett (Szállító hibája)' : 'Kiesett (Vevő/Egyéb hibája)'}
-                        </span>`;
-                        borderCol = isSzallito ? '#fecaca' : '#e2e8f0';
-                        bgCol = isSzallito ? '#fffbfa' : '#f8fafc';
-                    } else if (att.isPartial) {
-                        statusHtml = `<span style="font-size: 10px; font-weight: 700; color: #f97316; background: #ffedd5; border: 1px solid #fed7aa; border-radius: 6px; padding: 1px 6px;">
-                            Részlegesen beszedve
-                        </span>`;
-                        borderCol = '#fed7aa';
-                        bgCol = '#fffbf7';
-                    } else {
-                        statusHtml = `<span style="font-size: 10px; font-weight: 700; color: #10b981; background: #d1fae5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 1px 6px;">
-                            Sikeres kézbesítés
-                        </span>`;
-                        borderCol = '#a7f3d0';
-                        bgCol = '#fafdfb';
-                    }
-
-                    const attItem = document.createElement('div');
-                    attItem.style.background = bgCol;
-                    attItem.style.border = `1px solid ${borderCol}`;
-                    attItem.style.borderRadius = '8px';
-                    attItem.style.padding = '8px 10px';
-                    attItem.style.fontSize = '12px';
-                    attItem.style.display = 'flex';
-                    attItem.style.flexDirection = 'column';
-                    attItem.style.gap = '4px';
-
-                    attItem.innerHTML = `
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <strong>Kísérlet ${idx + 1}: ${att.run.date}</strong>
-                            ${statusHtml}
-                        </div>
-                        <div style="color: #475569;">
-                            Cég: <strong>${att.run.company || '-'}</strong> | Futár: <strong>${att.run.courier}</strong>
-                        </div>
-                        <div style="font-size: 11px; color: #64748b; font-style: italic;">
-                            Utánvét: ${att.order.codAmount?.toLocaleString('hu-HU')} Ft | Eredmény/Indok: ${att.reason} ${att.comment ? `(${att.comment})` : ''}
-                        </div>
-                    `;
-                    timeline.appendChild(attItem);
-                });
-
-                parentCard.appendChild(timeline);
-                listWrapper.appendChild(parentCard);
-            } else {
-                // If single attempt but problematic (e.g. carrier error or partial)
-                const card = document.createElement('div');
-                card.style.background = '#fff';
-                card.style.borderRadius = '12px';
-                card.style.padding = '12px 16px';
-                card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
-
-                let badgeText = '';
-                let badgeColor = '';
-                let badgeBg = '';
-                let borderCol = '#e2e8f0';
-
-                if (item.isUnc) {
-                    const isSzallito = item.responsibility === 'szallito';
-                    badgeText = isSzallito ? 'Kiesett (Szállító hibája)' : 'Kiesett (Vevő hibája)';
-                    badgeColor = isSzallito ? '#ef4444' : '#64748b';
-                    badgeBg = isSzallito ? '#fee2e2' : '#f1f5f9';
-                    borderCol = isSzallito ? '#ef4444' : '#cbd5e1';
-                } else if (item.isPart) {
-                    badgeText = 'Részleges átvétel';
-                    badgeColor = '#f97316';
-                    badgeBg = '#ffedd5';
-                    borderCol = '#f97316';
-                }
-
-                card.style.border = '1px solid #e2e8f0';
-                card.style.borderLeft = `4px solid ${borderCol}`;
-
-                card.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
-                        <div>
-                            <span style="font-weight: 700; color: #0f172a;">#${item.orderId}</span>
-                            <span style="margin-left: 8px; font-weight: 600; color: #475569;">${item.customerName}</span>
-                        </div>
-                        <span style="font-size: 10px; font-weight: 700; color: ${badgeColor}; background: ${badgeBg}; border: 1px solid ${badgeColor}33; padding: 2px 6px; border-radius: 6px;">
-                            ${badgeText}
-                        </span>
-                    </div>
-                    <div style="font-size: 12px; color: #475569; display: flex; gap: 15px; margin-top: 4px;">
-                        <span>Dátum: <strong>${item.date}</strong></span>
-                        <span>Cég: <strong>${item.company}</strong></span>
-                        <span>Futár: <strong>${item.courier}</strong></span>
-                    </div>
-                    <div style="font-size: 11px; color: #64748b; font-style: italic; margin-top: 6px; display: flex; flex-direction: column; gap: 2px;">
-                        <div>Összeg: <strong>${item.codAmount.toLocaleString('hu-HU')} Ft</strong></div>
-                        <div>Indoklás: <strong>${item.reason} ${item.comment ? `(${item.comment})` : ''}</strong></div>
-                    </div>
-                `;
-                listWrapper.appendChild(card);
+        kiesettRows.forEach(k => {
+            const isRecovered = k.laterEntries && k.laterEntries.some(e => e.wasReceived || e.wasPartialReceived);
+            const amtColor = isRecovered ? '#94a3b8' : '#b91c1c';
+            
+            const resp = k.responsibility || 'vevo';
+            let pillClass = 'vevo';
+            let pillIcon = '<i class="ph-bold ph-user"></i>';
+            let pillLabel = 'Vevő / Egyéb';
+            if (resp === 'mienk') {
+                pillClass = 'mienk';
+                pillIcon = '<i class="ph-bold ph-x-circle"></i>';
+                pillLabel = 'Saját hiba';
+            } else if (resp === 'szallito') {
+                pillClass = 'szallito';
+                pillIcon = '<i class="ph-bold ph-truck"></i>';
+                pillLabel = 'Szállító hibája';
             }
+
+            const isDuplicate = k.isDuplicate;
+            const duplicateBadge = isDuplicate 
+                ? `<span style="font-size:10px;font-weight:700;color:#c2410c;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;padding:1px 6px;">Duplikált (${(orderRunsMap.get(k.id) || []).length}x kiment)</span>`
+                : '';
+
+            const actionContainer = `
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;border-top:1px dashed #e2e8f0;padding-top:8px;">
+                <div class="responsibility-display" style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:11px;color:#64748b;font-weight:600;margin-right:4px;">Felelős:</span>
+                    <span class="resp-pill ${pillClass}" data-doc-id="${k.docId}" data-order-id="${k.id}" data-resp="${resp}" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;padding:3px 8px;font-size:11px;font-weight:600;border-radius:8px;transition:all .15s;" title="Kattints a felelős váltásához">
+                        ${pillIcon}${pillLabel}
+                    </span>
+                </div>
+                ${!isRecovered && k.isCOD && !k.isPartial && !k.isPureDuplicate ? `<button class="btn-mark-bank-audit" data-doc-id="${k.docId}" data-order-id="${k.id}" style="display:flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#0284c7;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:4px 8px;cursor:pointer;transition:all .15s;" title="Áthelyezés utalt státuszba (nem lesz kiesett)">
+                    <i class="ph-bold ph-bank" style="font-size:10px;"></i>Utólag elutalva
+                </button>` : ''}
+            </div>
+            `;
+
+            const card = document.createElement('div');
+            card.style.background = '#fff';
+            card.style.border = isDuplicate ? '1px solid #fed7aa' : '1px solid #e2e8f0';
+            card.style.borderRadius = '12px';
+            card.style.padding = '12px';
+            card.style.display = 'flex';
+            card.style.flexDirection = 'column';
+            card.style.gap = '4px';
+
+            card.innerHTML = `
+                <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;justify-content:space-between;">
+                    <div>
+                        <strong style="font-size:13px;color:#0f172a;">${k.id}</strong>
+                        <span style="font-size:12px;color:#64748b;margin-left:5px;">${k.name}</span>
+                    </div>
+                    ${duplicateBadge}
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px;">
+                    <span style="font-size:11px;color:#94a3b8;">${k.date}</span>
+                    <span style="font-size:11px;color:#64748b;">Cég: <strong>${k.company}</strong></span>
+                    <span style="font-size:11px;color:#64748b;">Futár: <strong>${k.courier}</strong></span>
+                    ${!k.isCOD
+                        ? `<span style="font-size:10px;color:#64748b;background:#f1f5f9;border-radius:5px;padding:1px 6px;">Nem utánvétes</span>`
+                        : k.isPartial
+                            ? `<span style="font-size:10px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #93c5fd;border-radius:5px;padding:1px 6px;">Részleges</span>
+                               <span style="font-size:11px;font-weight:700;color:${amtColor};">-${k.codAmount.toLocaleString('hu-HU')} Ft</span>`
+                            : k.codAmount > 0
+                                ? `<span style="font-size:11px;font-weight:700;color:${amtColor};">${k.isPureDuplicate ? 'Eredeti UV: ' : ''}${k.codAmount.toLocaleString('hu-HU')} Ft</span>`
+                                : ''}
+                    ${k.reason ? `<span style="font-size:10px;color:#64748b;background:#f1f5f9;border-radius:5px;padding:2px 7px;">${k.reason}</span>` : ''}
+                </div>
+                ${renderLaterEntries(k.laterEntries)}
+                ${actionContainer}
+            `;
+            listWrapper.appendChild(card);
         });
 
         this.resultsContainer.appendChild(listWrapper);
+
+        // Bind interactive handlers
+        this.bindEvents(listWrapper);
     },
 
-    exportAuditToCsv() {
+    bindEvents(listWrapper) {
+        // Post-transferred action click handler
+        listWrapper.querySelectorAll('.btn-mark-bank-audit').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const docId = btn.getAttribute('data-doc-id');
+                const orderId = btn.getAttribute('data-order-id');
+                const ok = await CustomDialog.confirm(`Biztosan utólag elutalva állapotra állítod a ${orderId} rendelést? Ez kiveszi a kiesettek közül.`, 'Utólag elutalva', 'info');
+                if (ok) {
+                    const success = await HistoryManager.markAsBankTransferred(docId, orderId);
+                    if (success) {
+                        this.updateAudit(); // Refresh the list
+                    }
+                }
+            });
+        });
+
+        // Responsibility change cycle click handler
+        listWrapper.querySelectorAll('.resp-pill').forEach(pill => {
+            pill.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const docId = pill.getAttribute('data-doc-id');
+                const orderId = pill.getAttribute('data-order-id');
+                const currentResp = pill.getAttribute('data-resp');
+                
+                let nextResp = 'vevo';
+                let nextLabel = 'Vevő / Egyéb';
+                let nextClass = 'vevo';
+                let nextIcon = '<i class="ph-bold ph-user"></i>';
+
+                if (currentResp === 'vevo') {
+                    nextResp = 'mienk';
+                    nextLabel = 'Saját hiba';
+                    nextClass = 'mienk';
+                    nextIcon = '<i class="ph-bold ph-x-circle"></i>';
+                } else if (currentResp === 'mienk') {
+                    nextResp = 'szallito';
+                    nextLabel = 'Szállító hibája';
+                    nextClass = 'szallito';
+                    nextIcon = '<i class="ph-bold ph-truck"></i>';
+                }
+
+                // Optimistic visual update
+                pill.className = `resp-pill ${nextClass}`;
+                pill.setAttribute('data-resp', nextResp);
+                pill.innerHTML = `${nextIcon}${nextLabel}`;
+
+                const ok = await HistoryManager.updateResponsibilityInFirestore(docId, orderId, nextResp);
+                if (ok) {
+                    this.updateAudit(); // Refresh after saving
+                } else {
+                    await CustomDialog.alert("Hiba történt a felelősség rögzítésekor.", "Hiba", "error");
+                    this.updateAudit(); // Rollback/reload on failure
+                }
+            });
+        });
+    },
+
+    async exportAuditToCsv() {
         const startVal = this.startDateInput.value;
         const endVal = this.endDateInput.value;
         const selectedCompany = this.companyFilterSelect.value;
-        const selectedAuditType = this.auditFilterSelect.value;
 
-        const startD = startVal ? new Date(startVal) : null;
-        if (startD) startD.setHours(0, 0, 0, 0);
-        const endD = endVal ? new Date(endVal) : null;
-        if (endD) endD.setHours(23, 59, 59, 999);
+        const startD = startVal ? new Date(startVal + 'T00:00:00') : null;
+        const endD   = endVal   ? new Date(endVal   + 'T23:59:59') : null;
 
-        // Filter runs
-        const filteredRuns = this.allRuns.filter(run => {
-            const runD = new Date(run.originalDate || run.date);
-            runD.setHours(12, 0, 0, 0);
-
-            if (startD && runD < startD) return false;
-            if (endD && runD > endD) return false;
-            if (selectedCompany && run.company !== selectedCompany) return false;
-
+        const filteredRuns = this.allRuns.filter(r => {
+            if (!r.date) return true;
+            const d = new Date(r.date + 'T00:00:00');
+            if (startD && d < startD) return false;
+            if (endD   && d > endD)   return false;
+            if (selectedCompany && r.company !== selectedCompany) return false;
             return true;
         });
 
-        const orderAttemptsMap = {};
-        filteredRuns.forEach(run => {
-            const uncollected = run.uncollectedOrderIds || [];
-            const responsibilities = run.uncollectedResponsibility || {};
-            const reasons = run.uncollectedReasons || {};
-            const partialOrders = run.partialOrders || {};
-            const bankTransferred = run.bankTransferredOrderIds || [];
+        if (filteredRuns.length === 0) {
+            CustomDialog.alert('Nincs exportálható adat a jelenlegi szűréssel!', 'Figyelmeztetés', 'warning');
+            return;
+        }
 
-            run.orders.forEach(o => {
-                const isUnc = uncollected.includes(o.id) || uncollected.includes(String(o.id));
-                const isBank = bankTransferred.includes(o.id) || bankTransferred.includes(String(o.id));
-                const isPart = !isUnc && !isBank && (!!partialOrders[o.id] || !!partialOrders[String(o.id)]);
-
-                let resp = 'vevo';
-                if (isUnc) {
-                    resp = responsibilities[o.id] || responsibilities[String(o.id)] || 'vevo';
-                }
-
-                const cleanId = String(o.id).trim();
-                if (!orderAttemptsMap[cleanId]) {
-                    orderAttemptsMap[cleanId] = [];
-                }
-                orderAttemptsMap[cleanId].push({
-                    run: run,
-                    order: o,
-                    isUnc: isUnc,
-                    isPart: isPart,
-                    responsibility: resp,
-                    reason: isUnc ? (reasons[o.id] || reasons[String(o.id)] || 'Nincs indok') : (isPart ? 'Részleges átvétel' : 'Sikeres'),
-                    comment: isPart ? ((partialOrders[o.id] || partialOrders[String(o.id)]).comment || '') : ''
+        const orderRunsMap = new Map();
+        filteredRuns.forEach(r => {
+            const rUnc  = new Set(r.uncollectedOrderIds || []);
+            const rPart = r.partialOrders || {};
+            const settled = r.isSettled || (r.settledAmount > 0);
+            r.orders.forEach(o => {
+                if (!orderRunsMap.has(o.id)) orderRunsMap.set(o.id, []);
+                const isUnc  = rUnc.has(o.id);
+                const isPart = !!rPart[o.id];
+                orderRunsMap.get(o.id).push({
+                    date: r.date,
+                    courier: r.courier,
+                    company: r.company || '—',
+                    isUncollected: isUnc,
+                    isPartial: isPart,
+                    wasReceived: !isUnc && !isPart && settled,
+                    wasPartialReceived: isPart && settled,
                 });
             });
         });
@@ -621,16 +544,15 @@ export const AuditView = {
         const csvRows = [];
         const headers = [
             "Rendelésszám",
-            "Vevő Neve",
-            "Kísérlet száma",
-            "Összes kísérlet",
+            "Név",
             "Dátum",
-            "Szállító Cég",
-            "Szállító Neve",
-            "Eredmény",
+            "Cég",
+            "Futár",
+            "Összeg (Ft)",
+            "Státusz / Indok",
             "Felelősség",
-            "Utánvét összeg (Ft)",
-            "Megjegyzés / Sikertelenség oka"
+            "Duplikált?",
+            "Újra kiküldések száma"
         ];
         csvRows.push(headers.join(";"));
 
@@ -644,63 +566,86 @@ export const AuditView = {
             return str;
         };
 
-        for (const orderId in orderAttemptsMap) {
-            const attempts = orderAttemptsMap[orderId];
-            const isDuplicate = attempts.length > 1;
+        const addedIds = new Set();
+        filteredRuns.forEach(r => {
+            const runReasons  = r.uncollectedReasons || {};
+            const runPartials = r.partialOrders || {};
+            const runResponsibility = r.uncollectedResponsibility || {};
 
-            attempts.forEach((att, index) => {
-                let shouldInclude = false;
+            // 1. Failed orders
+            (r.uncollectedOrderIds || []).forEach(id => {
+                const o = (r.orders || []).find(x => x.id === id);
+                const attempts = orderRunsMap.get(id) || [];
+                const resp = runResponsibility[id] || 'vevo';
+                let respLabel = resp === 'szallito' ? "Szállító" : (resp === 'mienk' ? "Saját" : "Vevő");
 
-                if (selectedAuditType === 'all') {
-                    shouldInclude = att.isUnc || att.isPart || isDuplicate;
-                } else if (selectedAuditType === 'failed_carrier') {
-                    shouldInclude = att.isUnc && att.responsibility === 'szallito';
-                } else if (selectedAuditType === 'failed_buyer') {
-                    shouldInclude = att.isUnc && att.responsibility !== 'szallito';
-                } else if (selectedAuditType === 'duplicates') {
-                    shouldInclude = isDuplicate;
-                } else if (selectedAuditType === 'partial') {
-                    shouldInclude = att.isPart;
-                }
+                csvRows.push([
+                    clean(id),
+                    clean(o ? o.shippingName : '-'),
+                    clean(r.date || '—'),
+                    clean(r.company || '—'),
+                    clean(r.courier || '—'),
+                    o && o.isCOD ? o.codAmount : 0,
+                    clean(runReasons[id] || 'Kiesett'),
+                    clean(respLabel),
+                    attempts.length > 1 ? "IGEN" : "NEM",
+                    attempts.length - 1
+                ].join(";"));
+            });
 
-                if (shouldInclude) {
-                    let resultText = "Sikeres kézbesítés";
-                    if (att.isUnc) {
-                        resultText = "Nem lett átadva (kiesett)";
-                    } else if (att.isPart) {
-                        resultText = "Részleges átvétel";
+            // 2. Partial orders
+            Object.entries(runPartials).forEach(([id, info]) => {
+                const o = (r.orders || []).find(x => x.id === id);
+                if (!o || !o.isCOD) return;
+                const diff = o.codAmount - (info.amount || 0);
+                if (diff <= 0) return;
+                const attempts = orderRunsMap.get(id) || [];
+                const resp = runResponsibility[id] || 'vevo';
+                let respLabel = resp === 'szallito' ? "Szállító" : (resp === 'mienk' ? "Saját" : "Vevő");
+
+                csvRows.push([
+                    clean(id),
+                    clean(o.shippingName || '-'),
+                    clean(r.date || '—'),
+                    clean(r.company || '—'),
+                    clean(r.courier || '—'),
+                    diff,
+                    clean(info.comment || 'Részleges átvétel'),
+                    clean(respLabel),
+                    attempts.length > 1 ? "IGEN" : "NEM",
+                    attempts.length - 1
+                ].join(";"));
+            });
+
+            // 3. Duplicate orders (successful ones that went out > 1 time)
+            r.orders.forEach(o => {
+                const attempts = orderRunsMap.get(o.id) || [];
+                if (attempts.length > 1 && !addedIds.has(o.id)) {
+                    // check if already added as failed/partial
+                    const uncoll = r.uncollectedOrderIds || [];
+                    const part = r.partialOrders || {};
+                    if (!uncoll.includes(o.id) && !part[o.id]) {
+                        addedIds.add(o.id);
+                        csvRows.push([
+                            clean(o.id),
+                            clean(o.shippingName || '-'),
+                            clean(r.date || '—'),
+                            clean(r.company || '—'),
+                            clean(r.courier || '—'),
+                            o.isCOD ? o.codAmount : 0,
+                            clean("Többszöri kiszállítás (Sikeres)"),
+                            clean("-"),
+                            "IGEN",
+                            attempts.length - 1
+                        ].join(";"));
                     }
-
-                    let respText = "-";
-                    if (att.isUnc) {
-                        respText = att.responsibility === 'szallito' ? "Szállító" : "Vevő / Egyéb";
-                    }
-
-                    csvRows.push([
-                        clean(orderId),
-                        clean(att.order.shippingName || "-"),
-                        index + 1,
-                        attempts.length,
-                        clean(att.run.date),
-                        clean(att.run.company || "-"),
-                        clean(att.run.courier),
-                        clean(resultText),
-                        clean(respText),
-                        att.order.codAmount || 0,
-                        clean(att.reason + (att.comment ? ` (${att.comment})` : ""))
-                    ].join(";"));
                 }
             });
-        }
-
-        if (csvRows.length <= 1) {
-            CustomDialog.alert('Nincs exportálható audit adat a jelenlegi szűréssel!', 'Figyelmeztetés', 'warning');
-            return;
-        }
+        });
 
         const csvContent = csvRows.join("\r\n");
 
-        // Download UTF-8 without BOM as requested by PannonXP/Carrier IT teams
+        // Download UTF-8 without BOM (pure UTF-8)
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -708,7 +653,7 @@ export const AuditView = {
         
         const now = new Date();
         const dateStr = now.toISOString().split('T')[0];
-        link.setAttribute('download', `szamla_audit_${selectedCompany || 'osszes'}_${dateStr}.csv`);
+        link.setAttribute('download', `elszamolas_audit_${selectedCompany || 'osszes'}_${dateStr}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

@@ -654,8 +654,8 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Új Audit Panel**: Létrehoztunk egy új **Számlaellenőrzés** fület a történeti modalban (`js/views/auditView.js`), amellyel ellenőrizhetők a szállító cégek számlái a vitás/duplázott tételek kizárásához.
 - **Részletes szűrés és vizualizáció**:
   - Dátum (kezdő/záró) és szállító cég szerinti szűrés.
-  - Összesítő statisztikai kártyák a fuvarokról, a szállító hibájából sikertelen csomagokról, a többször megkísérelt csomagokról és a részleges összegekről.
-  - **Duplikáció szűrő**: Összegyűjti és csoportosítva jeleníti meg azokat a rendeléseket, amelyek többször is rákerültek egy-egy futárkörre, bemutatva a kísérletek történeti idővonalát (mikor, melyik futárral, milyen eredménnyel és megjegyzéssel futott le a szállítás).
+  - A kiesett, részleges és duplikált megrendelések kártyái **3 oszlopos rácsos (grid) elrendezésben** jelennek meg a jobb helykihasználás érdekében.
+  - **Duplikáció szűrő**: Összegyűjti és megjeleníti azokat a rendeléseket, amelyek többször is rákerültek egy-egy futárkörre, bemutatva a kísérletek történeti idővonalát (mikor, melyik futárral, milyen eredménnyel és megjegyzéssel futott le a szállítás).
 - **Audit CSV Export**: Beépítettünk egy CSV exportálót, ami pontosvesszős elválasztással, UTF-8 kódolással (BOM nélkül a szállítói rendszerek elvárásának megfelelően) kimenti a szűrt audit listát az Excel alapú összevetés megkönnyítésére.
 
 
