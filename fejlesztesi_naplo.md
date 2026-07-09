@@ -665,5 +665,13 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Kompakt Fejléc és CSV Export**: A helyi szűrők helyén egy letisztult, informatív fejléc kapott helyet, amely tartalmazza a CSV exportálás gombot is.
 - **Sikeres kísérletek tisztítása**: A sikeresen végződött kiszállítási kísérleteknél teljesen elrejtettük a felelős kiválasztására szolgáló alsó sávot és gombokat, hiszen a sikeres átvételnél értelmezhetetlen a hibás felelős megjelölése.
 
+### 2026. július 9. - Szedőlista Címkerubrikák Eltávolítása & Falpanel és Padlózat Kiemelés
+- **Címke Checkboxok Eltávolítása**: Eltávolítottuk a korábbi "címke" oszlopot és jelölőnégyzeteket a szedőlista felületéről (`js/views/ordersView.js`), a nyomtatási sablonból (`js/services/printer.js`) és a PDF generálóból (`js/utils/printTemplates.js`), mivel ezekre már nincs szükség.
+- **Padlózat Szó Kiemelése és Inverzálása**: Bevezettünk egy `highlightItemName` segédfüggvényt, amely a tétel nevében szereplő "padlózat" (vagy ragozott formái, pl. "padlózatok") szót keresi meg, és kizárólag ezt a szót emeli ki/inverzálja a szövegben (fekete háttér fehér betűkkel, félkövér betűstílussal). Ez a kiemelés a felületen és a kinyomtatott lapon (PDF-ben is) megjelenik, így fekete-fehér nyomtatásnál is azonnal és kontrasztosan felismerhetővé teszi a padlózat tételeket.
+- **Cache-Busting Frissítés**: Az `index.html`-ben és az `app.js`-ben megemeltük az importálási verziókat (`?v=172`-re).
+
+
+
+
 
 

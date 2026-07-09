@@ -1,3 +1,11 @@
+function highlightItemName(name) {
+    const regex = /(padl[óo]zat[a-z]*)/gi;
+    return name.replace(regex, `<span style="background: #000; color: #fff; padding: 2px 4px; border-radius: 3px; font-weight: bold; font-size: 0.95em; display: inline-block; line-height: 1;">$1</span>`);
+}
+
+
+
+
 function needsMarkerLabel(name, isCollapsedProfile) {
     if (isCollapsedProfile) return false;
     const excludedRegex = /(ragasztó|tapadóhíd|mélyalapozó|profil)/i;
@@ -72,9 +80,8 @@ export const UnifiedPrinter = {
                     return `
                     <tr>
                         <td class="col-check"><div class="col-flex-center"><div class="checkbox-box"></div></div></td>
-                        <td class="col-marker">${needsMarkerLabel(item.name) ? '<div class="col-flex-center"><span class="marker-lbl">címke</span><div class="checkbox-box marker"></div></div>' : ''}</td>
                         <td class="col-qty">${isCollapsed ? '' : `<strong>${item.qty} db</strong>`}</td>
-                        <td class="col-name">${item.name}${subItemsHtml}</td>
+                        <td class="col-name">${highlightItemName(item.name)}${subItemsHtml}</td>
                     </tr>`;
                 }).join('');
 

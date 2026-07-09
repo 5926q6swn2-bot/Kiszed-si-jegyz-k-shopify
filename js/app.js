@@ -7,7 +7,7 @@ import { PannonXPService } from './services/pannonxp.js?v=150';
 import { PannonXPView } from './views/pannonxpView.js?v=150';
 import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js';
 import { Store } from './store/state.js';
-import { OrdersView } from './views/ordersView.js';
+import { OrdersView } from './views/ordersView.js?v=172';
 import { initManualOrderController } from './controllers/manualOrderController.js?v=150';
 import { renderStatistics } from './views/stats.js';
 import { ExporterService } from './services/exporter.js';

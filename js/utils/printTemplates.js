@@ -1,5 +1,21 @@
 import { HistoryManager } from '../services/history.js';
-    export function generatePdfHtml(run) {
+
+function highlightItemName(name) {
+    const regex = /(padl[óo]zat[a-z]*)/gi;
+    return name.replace(regex, `<span style="background: #000; color: #fff; padding: 2px 4px; border-radius: 3px; font-weight: bold; font-size: 0.95em; display: inline-block; line-height: 1;">$1</span>`);
+}
+
+
+
+
+function needsMarkerLabel(name, isCollapsedProfile) {
+    if (isCollapsedProfile) return false;
+    const excludedRegex = /(ragasztó|tapadóhíd|mélyalapozó|profil)/i;
+    if (excludedRegex.test(name)) return false;
+    return true;
+}
+
+export function generatePdfHtml(run) {
         let cardsHtml = run.orders.map((order, index) => {
             let codHtml = '';
             if (order.isBankDeposit) {
@@ -49,9 +65,8 @@ import { HistoryManager } from '../services/history.js';
                 return `
                     <tr>
                         <td class="col-check"><div class="col-flex-center"><div class="checkbox-box"></div></div></td>
-                        <td class="col-marker">${showMarker ? '<div class="col-flex-center"><span class="marker-lbl">címke</span><div class="checkbox-box marker"></div></div>' : ''}</td>
                         <td class="col-qty nowrap"><strong>${item.qty} db</strong></td>
-                        <td class="col-name">${item.name}${toggleHtml}${subItemsHtml}</td>
+                        <td class="col-name">${highlightItemName(item.name)}${toggleHtml}${subItemsHtml}</td>
                     </tr>
                 `;
             }).join('');

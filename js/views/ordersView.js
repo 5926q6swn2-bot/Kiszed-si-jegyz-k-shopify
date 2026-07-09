@@ -1,5 +1,12 @@
 // js/views/ordersView.js
 
+function highlightItemName(name) {
+    const regex = /(padl[óo]zat[a-z]*)/gi;
+    return name.replace(regex, `<span style="background: #000; color: #fff; padding: 2px 4px; border-radius: 3px; font-weight: bold; font-size: 0.95em; display: inline-block; line-height: 1;">$1</span>`);
+}
+
+
+
 export const OrdersView = {
     render: function(ctx) {
         const {
@@ -70,9 +77,8 @@ export const OrdersView = {
                 return `
                     <tr>
                         <td class="col-check"><div class="col-flex-center"><div class="checkbox-box"></div></div></td>
-                        <td class="col-marker">${showMarker ? '<div class="col-flex-center"><span class="marker-lbl">címke</span><div class="checkbox-box marker"></div></div>' : ''}</td>
                         <td class="col-qty nowrap">${item.isCollapsedProfile ? '' : `<strong data-field="itemQty-${iIdx}">${item.qty} db</strong>`}</td>
-                        <td class="col-name" data-field="itemName-${iIdx}">${item.name}${toggleHtml}${subItemsHtml}</td>
+                        <td class="col-name" data-field="itemName-${iIdx}">${highlightItemName(item.name)}${toggleHtml}${subItemsHtml}</td>
                     </tr>
                 `;
             }).join('');
