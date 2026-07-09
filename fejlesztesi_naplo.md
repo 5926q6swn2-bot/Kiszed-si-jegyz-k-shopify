@@ -658,4 +658,12 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
   - **Duplikáció szűrő**: Összegyűjti és megjeleníti azokat a rendeléseket, amelyek többször is rákerültek egy-egy futárkörre, bemutatva a kísérletek történeti idővonalát (mikor, melyik futárral, milyen eredménnyel és megjegyzéssel futott le a szállítás).
 - **Audit CSV Export**: Beépítettünk egy CSV exportálót, ami pontosvesszős elválasztással, UTF-8 kódolással (BOM nélkül a szállítói rendszerek elvárásának megfelelően) kimenti a szűrt audit listát az Excel alapú összevetés megkönnyítésére.
 
+### 2026. július 8. - Számlaellenőrzés Csoportosítás & Globális Szűrők Integrációja
+- **Szállító Hibás és Csoportosított Rendelések**: Az Audit Panelt (`js/views/auditView.js`) átalakítottuk úgy, hogy csak azok a rendelések látszódjanak, ahol legalább egy kiszállítási kísérlet felelőse a **szállító** volt.
+- **Kiszállítási Kísérletek Összevonása**: Ha egy megrendelést többször próbáltak meg kiszállítani, az nem szerepel többször külön kártyaként. Ehelyett egyetlen kártyába csoportosítva jelenik meg, feltüntetve az összes kiszállítási kísérlet részleteit (dátum, cég, futár, státusz/eredmény, egyedi kommentek és az adott kísérletért felelős személy).
+- **Felesleges Duplikált Szűrők Eltávolítása**: Eltávolítottuk az Audit panel saját, redundáns szűrősávját. A Számlaellenőrzés fül mostantól zökkenőmentesen a történeti modal tetején lévő közös, globális szűrőket (Globális keresés, Szállító cég dropdown, Kezdő/Záró dátum) használja. Az ehhez kapcsolódó eseménykezelőket (`js/app.js`) is frissítettük a valós idejű szűrés érdekében.
+- **Kompakt Fejléc és CSV Export**: A helyi szűrők helyén egy letisztult, informatív fejléc kapott helyet, amely tartalmazza a CSV exportálás gombot is.
+- **Sikeres kísérletek tisztítása**: A sikeresen végződött kiszállítási kísérleteknél teljesen elrejtettük a felelős kiválasztására szolgáló alsó sávot és gombokat, hiszen a sikeres átvételnél értelmezhetetlen a hibás felelős megjelölése.
+
+
 

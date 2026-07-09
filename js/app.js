@@ -11,7 +11,7 @@ import { OrdersView } from './views/ordersView.js';
 import { initManualOrderController } from './controllers/manualOrderController.js?v=150';
 import { renderStatistics } from './views/stats.js';
 import { ExporterService } from './services/exporter.js';
-import { AuditView } from './views/auditView.js?v=169';
+import { AuditView } from './views/auditView.js?v=171';
 
 import { generatePdfHtml, openPdfView, generateDeliveryNotesHtml } from './utils/printTemplates.js';
 function initApp() {
@@ -1007,6 +1007,8 @@ function initApp() {
             renderOrdersTab();
         } else if (tabContentAccounting.style.display !== 'none') {
             renderAccountingRuns();
+        } else if (tabContentAudit && tabContentAudit.style.display !== 'none') {
+            AuditView.updateAudit();
         } else {
             renderTrashRuns();
         }
@@ -1153,6 +1155,8 @@ function initApp() {
             await renderHistoryRuns();
         } else if (tabContentOrders.style.display !== 'none') {
             await renderOrdersTab();
+        } else if (tabContentAudit && tabContentAudit.style.display !== 'none') {
+            await AuditView.updateAudit();
         }
     }
 

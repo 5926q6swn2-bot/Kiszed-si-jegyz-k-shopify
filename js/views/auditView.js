@@ -3,9 +3,6 @@ import { CustomDialog } from '../utils/dialog.js';
 
 export const AuditView = {
     container: null,
-    startDateInput: null,
-    endDateInput: null,
-    companyFilterSelect: null,
     resultsContainer: null,
     allRuns: [],
 
@@ -17,8 +14,8 @@ export const AuditView = {
         this.container.style.gap = '15px';
         this.container.style.padding = '15px 0';
 
-        // 1. Render Filters & Header Area
-        this.renderFilters();
+        // 1. Render Header Area (Info and Export CSV button)
+        this.renderHeader();
 
         // 2. Render Results container
         this.resultsContainer = document.createElement('div');
@@ -28,111 +25,27 @@ export const AuditView = {
         this.resultsContainer.style.gap = '10px';
         this.container.appendChild(this.resultsContainer);
 
-        // Set default dates (last 30 days)
-        const today = new Date();
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(today.getDate() - 30);
-
-        this.startDateInput.value = thirtyDaysAgo.toISOString().split('T')[0];
-        this.endDateInput.value = today.toISOString().split('T')[0];
-
-        // Populate companies dropdown
+        // Load runs
         this.allRuns = await HistoryManager.getAllRuns();
-        this.populateCompanies();
-
-        // Bind events
-        this.startDateInput.addEventListener('change', () => this.updateAudit());
-        this.endDateInput.addEventListener('change', () => this.updateAudit());
-        this.companyFilterSelect.addEventListener('change', () => this.updateAudit());
 
         // Initial update
         this.updateAudit();
     },
 
-    renderFilters() {
-        const filterBar = document.createElement('div');
-        filterBar.className = 'audit-filter-bar no-print';
-        filterBar.style.display = 'flex';
-        filterBar.style.gap = '10px';
-        filterBar.style.alignItems = 'center';
-        filterBar.style.background = '#f8fafc';
-        filterBar.style.padding = '12px 16px';
-        filterBar.style.borderRadius = '12px';
-        filterBar.style.border = '1px solid #e2e8f0';
-        filterBar.style.flexWrap = 'wrap';
+    renderHeader() {
+        const headerBar = document.createElement('div');
+        headerBar.className = 'audit-header-bar no-print';
+        headerBar.style.display = 'flex';
+        headerBar.style.justifyContent = 'space-between';
+        headerBar.style.alignItems = 'center';
+        headerBar.style.background = '#f8fafc';
+        headerBar.style.padding = '12px 16px';
+        headerBar.style.borderRadius = '12px';
+        headerBar.style.border = '1px solid #e2e8f0';
 
-        // Start Date
-        const startGroup = document.createElement('div');
-        startGroup.style.display = 'flex';
-        startGroup.style.flexDirection = 'column';
-        startGroup.style.gap = '4px';
-        startGroup.innerHTML = '<span style="font-size: 11px; font-weight: 600; color: #64748b;">Kezdő dátum</span>';
-        this.startDateInput = document.createElement('input');
-        this.startDateInput.type = 'date';
-        this.startDateInput.style.padding = '8px 10px';
-        this.startDateInput.style.border = '1px solid #cbd5e1';
-        this.startDateInput.style.borderRadius = '8px';
-        this.startDateInput.style.fontSize = '13px';
-        this.startDateInput.style.fontFamily = 'inherit';
-        startGroup.appendChild(this.startDateInput);
-        filterBar.appendChild(startGroup);
-
-        // End Date
-        const endGroup = document.createElement('div');
-        endGroup.style.display = 'flex';
-        endGroup.style.flexDirection = 'column';
-        endGroup.style.gap = '4px';
-        endGroup.innerHTML = '<span style="font-size: 11px; font-weight: 600; color: #64748b;">Záró dátum</span>';
-        this.endDateInput = document.createElement('input');
-        this.endDateInput.type = 'date';
-        this.endDateInput.style.padding = '8px 10px';
-        this.endDateInput.style.border = '1px solid #cbd5e1';
-        this.endDateInput.style.borderRadius = '8px';
-        this.endDateInput.style.fontSize = '13px';
-        this.endDateInput.style.fontFamily = 'inherit';
-        endGroup.appendChild(this.endDateInput);
-        filterBar.appendChild(endGroup);
-
-        // Company
-        const companyGroup = document.createElement('div');
-        companyGroup.style.display = 'flex';
-        companyGroup.style.flexDirection = 'column';
-        companyGroup.style.gap = '4px';
-        companyGroup.innerHTML = '<span style="font-size: 11px; font-weight: 600; color: #64748b;">Szállító cég</span>';
-        this.companyFilterSelect = document.createElement('select');
-        this.companyFilterSelect.style.padding = '8px 12px';
-        this.companyFilterSelect.style.border = '1px solid #cbd5e1';
-        this.companyFilterSelect.style.borderRadius = '8px';
-        this.companyFilterSelect.style.fontSize = '13px';
-        this.companyFilterSelect.style.fontFamily = 'inherit';
-        this.companyFilterSelect.style.background = '#fff';
-        companyGroup.appendChild(this.companyFilterSelect);
-        filterBar.appendChild(companyGroup);
-
-        // Clear button
-        const btnClear = document.createElement('button');
-        btnClear.type = 'button';
-        btnClear.style.marginLeft = 'auto';
-        btnClear.style.padding = '8px 12px';
-        btnClear.style.borderRadius = '8px';
-        btnClear.style.border = '1.5px solid #cbd5e1';
-        btnClear.style.background = '#fff';
-        btnClear.style.color = '#475569';
-        btnClear.style.fontSize = '13px';
-        btnClear.style.fontWeight = '600';
-        btnClear.style.cursor = 'pointer';
-        btnClear.style.fontFamily = 'inherit';
-        btnClear.innerHTML = 'Szűrők törlése';
-        btnClear.addEventListener('click', () => {
-            const today = new Date();
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(today.getDate() - 30);
-            this.startDateInput.value = thirtyDaysAgo.toISOString().split('T')[0];
-            this.endDateInput.value = today.toISOString().split('T')[0];
-            this.companyFilterSelect.value = '';
-            this.updateAudit();
-        });
-        filterBar.appendChild(btnClear);
+        const infoText = document.createElement('div');
+        infoText.innerHTML = '<span style="font-size: 13px; font-weight: 600; color: #475569;"><i class="ph-bold ph-info" style="margin-right: 5px;"></i>Csak a szállító hibás és többször kiszállított rendelések számlaellenőrzése</span>';
+        headerBar.appendChild(infoText);
 
         // Export button
         const btnExport = document.createElement('button');
@@ -151,35 +64,21 @@ export const AuditView = {
         btnExport.style.gap = '5px';
         btnExport.innerHTML = '<i class="ph-bold ph-download-simple" style="font-size: 15px;"></i> Export CSV';
         btnExport.addEventListener('click', () => this.exportAuditToCsv());
-        filterBar.appendChild(btnExport);
+        headerBar.appendChild(btnExport);
 
-        this.container.appendChild(filterBar);
-    },
-
-    populateCompanies() {
-        const companies = new Set();
-        this.allRuns.forEach(r => {
-            if (r.company) {
-                companies.add(r.company);
-            }
-        });
-
-        this.companyFilterSelect.innerHTML = '<option value="">Összes cég</option>';
-        Array.from(companies).sort().forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c;
-            opt.textContent = c;
-            this.companyFilterSelect.appendChild(opt);
-        });
+        this.container.appendChild(headerBar);
     },
 
     async updateAudit() {
+        if (!this.resultsContainer) return;
         this.resultsContainer.innerHTML = '<p style="color:#94a3b8;font-size:13px;text-align:center;padding:30px;">Betöltés...</p>';
         this.allRuns = await HistoryManager.getAllRuns();
 
-        const startVal = this.startDateInput.value;
-        const endVal = this.endDateInput.value;
-        const selectedCompany = this.companyFilterSelect.value;
+        // Read global filters from the history modal
+        const startVal = document.getElementById('history-date-start')?.value || '';
+        const endVal = document.getElementById('history-date-end')?.value || '';
+        const selectedCompany = document.getElementById('history-company-filter')?.value || '';
+        const searchVal = document.getElementById('history-search-input')?.value.toLowerCase().trim() || '';
 
         const startD = startVal ? new Date(startVal + 'T00:00:00') : null;
         const endD   = endVal   ? new Date(endVal   + 'T23:59:59') : null;
@@ -194,163 +93,107 @@ export const AuditView = {
             return true;
         });
 
-        if (filteredRuns.length === 0) {
-            this.resultsContainer.innerHTML = `
-                <div style="text-align: center; padding: 40px; border: 2px dashed #e2e8f0; border-radius: 12px; color: #94a3b8; font-weight: 600;">
-                    Nincsenek adatok a megadott szűrési feltételekkel.
-                </div>
-            `;
-            return;
-        }
-
-        // Map order ID -> list of runs and details to check duplicates and redeliveries
-        const orderRunsMap = new Map();
-        filteredRuns.forEach(r => {
-            const rUnc  = new Set(r.uncollectedOrderIds || []);
+        // Group order attempts across ALL runs
+        const orderAttemptsMap = new Map();
+        this.allRuns.forEach(r => {
+            const rUnc = new Set(r.uncollectedOrderIds || []);
             const rPart = r.partialOrders || {};
-            const settled = r.isSettled || (r.settledAmount > 0);
-            r.orders.forEach(o => {
-                if (!orderRunsMap.has(o.id)) orderRunsMap.set(o.id, []);
-                const isUnc  = rUnc.has(o.id);
+            const runResponsibility = r.uncollectedResponsibility || {};
+            const runReasons = r.uncollectedReasons || {};
+            
+            (r.orders || []).forEach(o => {
+                if (!o.id) return;
+                const isUnc = rUnc.has(o.id);
                 const isPart = !!rPart[o.id];
-                orderRunsMap.get(o.id).push({
-                    date: r.date,
-                    courier: r.courier,
+                const resp = runResponsibility[o.id] || 'vevo';
+                
+                let outcome = 'Sikeres';
+                let codAmount = 0;
+                let comment = '';
+                
+                if (isUnc) {
+                    outcome = 'Kiesett';
+                    codAmount = o.isCOD ? (o.codAmount || 0) : 0;
+                    comment = runReasons[o.id] || '';
+                } else if (isPart) {
+                    outcome = 'Részleges';
+                    const pInfo = rPart[o.id];
+                    codAmount = o.isCOD ? (o.codAmount - (pInfo.amount || 0)) : 0;
+                    comment = pInfo.comment || '';
+                }
+                
+                if (!orderAttemptsMap.has(o.id)) {
+                    orderAttemptsMap.set(o.id, {
+                        id: o.id,
+                        name: o.shippingName || '—',
+                        isCOD: !!o.isCOD,
+                        fullCodAmount: o.isCOD ? (o.codAmount || 0) : 0,
+                        attempts: []
+                    });
+                }
+                
+                orderAttemptsMap.get(o.id).attempts.push({
+                    date: r.date || '—',
+                    courier: r.courier || '—',
                     company: r.company || '—',
+                    docId: r.docId,
                     isUncollected: isUnc,
                     isPartial: isPart,
-                    wasReceived: !isUnc && !isPart && settled,
-                    wasPartialReceived: isPart && settled,
+                    responsibility: resp,
+                    outcome: outcome,
+                    codAmount: codAmount,
+                    comment: comment
                 });
             });
         });
 
-        // Collect problematic rows
-        const kiesettRows = [];
-        const duplicatesAdded = new Set();
+        // Filter to show only orders that have at least one attempt in filtered runs with carrier fault (szallito)
+        const filteredDocIds = new Set(filteredRuns.map(r => r.docId));
+        const eligibleOrders = [];
+        
+        for (const [id, orderData] of orderAttemptsMap.entries()) {
+            // Sort attempts chronologically
+            orderData.attempts.sort((a, b) => a.date.localeCompare(b.date));
+            
+            const hasCarrierFaultInFilteredRuns = orderData.attempts.some(att => 
+                filteredDocIds.has(att.docId) && att.responsibility === 'szallito'
+            );
+            
+            if (hasCarrierFaultInFilteredRuns) {
+                eligibleOrders.push(orderData);
+            }
+        }
 
-        filteredRuns.forEach((r, rIdx) => {
-            const runReasons  = r.uncollectedReasons || {};
-            const runPartials = r.partialOrders || {};
-            const runResponsibility = r.uncollectedResponsibility || {};
+        // Apply global search input filtering
+        let finalOrders = eligibleOrders;
+        if (searchVal) {
+            finalOrders = eligibleOrders.filter(o => 
+                o.id.toLowerCase().includes(searchVal) || 
+                o.name.toLowerCase().includes(searchVal)
+            );
+        }
 
-            // 1. Failed orders
-            (r.uncollectedOrderIds || []).forEach(id => {
-                const o = (r.orders || []).find(x => x.id === id);
-                const laterEntries = (orderRunsMap.get(id) || []).filter(e => e.date > (r.date || ''));
-                kiesettRows.push({
-                    id,
-                    isPartial: false,
-                    isCOD: !!(o && o.isCOD),
-                    name: o ? (o.shippingName || '—') : '—',
-                    date: r.date || '—',
-                    courier: r.courier || '—',
-                    company: r.company || '—',
-                    codAmount: o && o.isCOD ? (o.codAmount || 0) : 0,
-                    reason: runReasons[id] || '',
-                    laterEntries,
-                    docId: r.docId,
-                    responsibility: runResponsibility[id] || 'vevo',
-                    isDuplicate: (orderRunsMap.get(id) || []).length > 1
-                });
-            });
-
-            // 2. Partial orders
-            Object.entries(runPartials).forEach(([id, info]) => {
-                const o = (r.orders || []).find(x => x.id === id);
-                if (!o || !o.isCOD) return;
-                const diff = o.codAmount - (info.amount || 0);
-                if (diff <= 0) return;
-                const laterEntries = (orderRunsMap.get(id) || []).filter(e => e.date > (r.date || ''));
-                kiesettRows.push({
-                    id,
-                    isPartial: true,
-                    isCOD: true,
-                    name: o.shippingName || '—',
-                    date: r.date || '—',
-                    courier: r.courier || '—',
-                    company: r.company || '—',
-                    codAmount: diff,
-                    fullAmount: o.codAmount,
-                    partialAmount: info.amount,
-                    reason: info.comment || '',
-                    laterEntries,
-                    docId: r.docId,
-                    responsibility: runResponsibility[id] || 'vevo',
-                    isDuplicate: (orderRunsMap.get(id) || []).length > 1
-                });
-            });
-
-            // 3. Duplicated orders (sent out multiple times, even if first/other round was fine)
-            r.orders.forEach(o => {
-                const allAttempts = orderRunsMap.get(o.id) || [];
-                if (allAttempts.length > 1 && !duplicatesAdded.has(o.id)) {
-                    // Check if this order is already in the list as a failed/partial attempt
-                    const isAlreadyListed = kiesettRows.some(x => x.id === o.id);
-                    if (!isAlreadyListed) {
-                        duplicatesAdded.add(o.id);
-                        kiesettRows.push({
-                            id: o.id,
-                            isPartial: false,
-                            isCOD: !!o.isCOD,
-                            name: o.shippingName || '—',
-                            date: r.date || '—',
-                            courier: r.courier || '—',
-                            company: r.company || '—',
-                            codAmount: o.isCOD ? (o.codAmount || 0) : 0,
-                            reason: 'Többszöri kiszállítási kísérlet',
-                            laterEntries: allAttempts.filter(e => e.date > r.date),
-                            docId: r.docId,
-                            responsibility: 'vevo',
-                            isDuplicate: true,
-                            isPureDuplicate: true // Indicated that this was not failed/partial on this run but is a duplicate
-                        });
-                    }
-                }
-            });
+        // Sort by the latest attempt's date descending
+        finalOrders.sort((a, b) => {
+            const aMaxDate = a.attempts.reduce((max, att) => att.date > max ? att.date : max, '');
+            const bMaxDate = b.attempts.reduce((max, att) => att.date > max ? att.date : max, '');
+            return bMaxDate.localeCompare(aMaxDate);
         });
 
-        // Sort items: resolved redeliveries at the bottom, sorted by date desc
-        kiesettRows.sort((a, b) => {
-            const aRec = (a.laterEntries || []).some(e => e.wasReceived || e.wasPartialReceived) ? 1 : 0;
-            const bRec = (b.laterEntries || []).some(e => e.wasReceived || e.wasPartialReceived) ? 1 : 0;
-            if (aRec !== bRec) return aRec - bRec;
-            return b.date.localeCompare(a.date);
-        });
-
-        this.renderList(kiesettRows, orderRunsMap);
+        this.renderList(finalOrders);
     },
 
-    renderList(kiesettRows, orderRunsMap) {
+    renderList(finalOrders) {
         this.resultsContainer.innerHTML = '';
 
-        if (kiesettRows.length === 0) {
+        if (finalOrders.length === 0) {
             this.resultsContainer.innerHTML = `
                 <div style="text-align: center; padding: 40px; border: 2px dashed #e2e8f0; border-radius: 12px; color: #94a3b8; font-weight: 600;">
-                    Nincsenek kiesett vagy többször kiszállított rendelések a megadott időszakban.
+                    Nincsenek szállító hibás vagy hozzájuk kapcsolódó többször kiszállított rendelések a megadott szűréssel.
                 </div>
             `;
             return;
         }
-
-        const renderLaterEntries = (entries) => {
-            if (!entries || entries.length === 0) return '';
-            const redeliveries = entries.filter(e => e.date);
-            if (redeliveries.length === 0) return '';
-            const last = redeliveries[redeliveries.length - 1];
-            const outcome = last.isUncollected
-                ? `<span style="font-size:10px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;padding:1px 6px;">ismét kiesett</span>`
-                : last.wasReceived || last.wasPartialReceived
-                    ? `<span style="font-size:10px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:1px 6px;">átvéve ✓</span>`
-                    : `<span style="font-size:10px;color:#94a3b8;background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;">függőben</span>`;
-            return `<div style="margin-top:6px;padding-left:14px;border-left:2px solid #cbd5e1;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                <span style="font-size:11px;color:#94a3b8;">↳</span>
-                <span style="font-size:11px;font-weight:600;color:#64748b;">${redeliveries.length}× újra szállítva</span>
-                <span style="font-size:11px;color:#94a3b8;">·</span>
-                <span style="font-size:11px;color:#64748b;">${last.date} · ${last.company} · ${last.courier || '—'}</span>
-                ${outcome}
-            </div>`;
-        };
 
         const listWrapper = document.createElement('div');
         listWrapper.style.display = 'grid';
@@ -360,76 +203,94 @@ export const AuditView = {
         listWrapper.style.overflowY = 'auto';
         listWrapper.style.paddingRight = '4px';
 
-        kiesettRows.forEach(k => {
-            const isRecovered = k.laterEntries && k.laterEntries.some(e => e.wasReceived || e.wasPartialReceived);
-            const amtColor = isRecovered ? '#94a3b8' : '#b91c1c';
-            
-            const resp = k.responsibility || 'vevo';
-            let pillClass = 'vevo';
-            let pillIcon = '<i class="ph-bold ph-user"></i>';
-            let pillLabel = 'Vevő / Egyéb';
-            if (resp === 'mienk') {
-                pillClass = 'mienk';
-                pillIcon = '<i class="ph-bold ph-x-circle"></i>';
-                pillLabel = 'Saját hiba';
-            } else if (resp === 'szallito') {
-                pillClass = 'szallito';
-                pillIcon = '<i class="ph-bold ph-truck"></i>';
-                pillLabel = 'Szállító hibája';
-            }
-
-            const isDuplicate = k.isDuplicate;
-            const duplicateBadge = isDuplicate 
-                ? `<span style="font-size:10px;font-weight:700;color:#c2410c;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;padding:1px 6px;">Duplikált (${(orderRunsMap.get(k.id) || []).length}x kiment)</span>`
-                : '';
-
-            const actionContainer = `
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;border-top:1px dashed #e2e8f0;padding-top:8px;">
-                <div class="responsibility-display" style="display:flex;align-items:center;gap:6px;">
-                    <span style="font-size:11px;color:#64748b;font-weight:600;margin-right:4px;">Felelős:</span>
-                    <span class="resp-pill ${pillClass}" data-doc-id="${k.docId}" data-order-id="${k.id}" data-resp="${resp}" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;padding:3px 8px;font-size:11px;font-weight:600;border-radius:8px;transition:all .15s;" title="Kattints a felelős váltásához">
-                        ${pillIcon}${pillLabel}
-                    </span>
-                </div>
-                ${!isRecovered && k.isCOD && !k.isPartial && !k.isPureDuplicate ? `<button class="btn-mark-bank-audit" data-doc-id="${k.docId}" data-order-id="${k.id}" style="display:flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#0284c7;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:4px 8px;cursor:pointer;transition:all .15s;" title="Áthelyezés utalt státuszba (nem lesz kiesett)">
-                    <i class="ph-bold ph-bank" style="font-size:10px;"></i>Utólag elutalva
-                </button>` : ''}
-            </div>
-            `;
-
+        finalOrders.forEach(o => {
             const card = document.createElement('div');
             card.style.background = '#fff';
-            card.style.border = isDuplicate ? '1px solid #fed7aa' : '1px solid #e2e8f0';
+            card.style.border = o.attempts.length > 1 ? '1px solid #fed7aa' : '1px solid #e2e8f0';
             card.style.borderRadius = '12px';
-            card.style.padding = '12px';
+            card.style.padding = '14px';
             card.style.display = 'flex';
             card.style.flexDirection = 'column';
-            card.style.gap = '4px';
+            card.style.gap = '10px';
+            card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
 
-            card.innerHTML = `
-                <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;justify-content:space-between;">
+            const duplicateBadge = o.attempts.length > 1
+                ? `<span style="font-size:10px;font-weight:700;color:#c2410c;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;padding:2px 6px;">Többszöri kiszállítás (${o.attempts.length}x)</span>`
+                : '';
+
+            let cardHeader = `
+                <div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:6px;border-bottom:1px solid #f1f5f9;padding-bottom:8px;">
                     <div>
-                        <strong style="font-size:13px;color:#0f172a;">${k.id}</strong>
-                        <span style="font-size:12px;color:#64748b;margin-left:5px;">${k.name}</span>
+                        <strong style="font-size:14px;color:#0f172a;">${o.id}</strong>
+                        <span style="font-size:13px;color:#64748b;margin-left:6px;font-weight:500;">${o.name}</span>
                     </div>
                     ${duplicateBadge}
                 </div>
-                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px;">
-                    <span style="font-size:11px;color:#94a3b8;">${k.date}</span>
-                    <span style="font-size:11px;color:#64748b;">Cég: <strong>${k.company}</strong></span>
-                    <span style="font-size:11px;color:#64748b;">Futár: <strong>${k.courier}</strong></span>
-                    ${!k.isCOD
-                        ? `<span style="font-size:10px;color:#64748b;background:#f1f5f9;border-radius:5px;padding:1px 6px;">Nem utánvétes</span>`
-                        : k.isPartial
-                            ? `<span style="font-size:10px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #93c5fd;border-radius:5px;padding:1px 6px;">Részleges</span>
-                               <span style="font-size:11px;font-weight:700;color:${amtColor};">-${k.codAmount.toLocaleString('hu-HU')} Ft</span>`
-                            : k.codAmount > 0
-                                ? `<span style="font-size:11px;font-weight:700;color:${amtColor};">${k.isPureDuplicate ? 'Eredeti UV: ' : ''}${k.codAmount.toLocaleString('hu-HU')} Ft</span>`
-                                : ''}
-                    ${k.reason ? `<span style="font-size:10px;color:#64748b;background:#f1f5f9;border-radius:5px;padding:2px 7px;">${k.reason}</span>` : ''}
+            `;
+
+            let attemptsHtml = '';
+            o.attempts.forEach((att, attIdx) => {
+                const isRecovered = o.attempts.slice(attIdx + 1).some(e => e.outcome === 'Sikeres');
+                const amtColor = isRecovered ? '#94a3b8' : '#b91c1c';
+
+                let outcomeHtml = '';
+                if (att.outcome === 'Kiesett') {
+                    outcomeHtml = `<span style="font-size:11px;font-weight:700;color:${amtColor};background:#fee2e2;border:1px solid #fca5a5;border-radius:5px;padding:2px 6px;display:inline-block;">Kiesett: -${att.codAmount.toLocaleString('hu-HU')} Ft</span>`;
+                } else if (att.outcome === 'Részleges') {
+                    outcomeHtml = `<span style="font-size:11px;font-weight:700;color:${amtColor};background:#eff6ff;border:1px solid #93c5fd;border-radius:5px;padding:2px 6px;display:inline-block;">Részleges: -${att.codAmount.toLocaleString('hu-HU')} Ft</span>`;
+                } else {
+                    outcomeHtml = `<span style="font-size:11px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:2px 6px;display:inline-block;">Sikeres átvétel ✓</span>`;
+                }
+
+                const resp = att.responsibility || 'vevo';
+                let pillClass = 'vevo';
+                let pillIcon = '<i class="ph-bold ph-user"></i>';
+                let pillLabel = 'Vevő / Egyéb';
+                if (resp === 'mienk') {
+                    pillClass = 'mienk';
+                    pillIcon = '<i class="ph-bold ph-x-circle"></i>';
+                    pillLabel = 'Saját hiba';
+                } else if (resp === 'szallito') {
+                    pillClass = 'szallito';
+                    pillIcon = '<i class="ph-bold ph-truck"></i>';
+                    pillLabel = 'Szállító hibája';
+                }
+
+                // Show Utólag elutalva button if failed/partial and not recovered yet
+                const showBankButton = !isRecovered && att.outcome !== 'Sikeres' && o.isCOD;
+
+                attemptsHtml += `
+                    <div style="padding:10px;background:#f8fafc;border-radius:8px;border:1px solid #f1f5f9;display:flex;flex-direction:column;gap:6px;margin-bottom:6px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#64748b;">
+                            <span>${att.date} · <strong>${att.company}</strong></span>
+                            <span>Futár: <strong>${att.courier}</strong></span>
+                        </div>
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;">
+                            ${outcomeHtml}
+                            ${att.comment ? `<span style="font-size:11px;color:#475569;font-style:italic;" title="${att.comment}">"${att.comment}"</span>` : ''}
+                        </div>
+                        ${att.outcome !== 'Sikeres' ? `
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;border-top:1px dashed #e2e8f0;padding-top:6px;gap:6px;flex-wrap:wrap;">
+                            <div class="responsibility-display" style="display:flex;align-items:center;gap:4px;">
+                                <span style="font-size:10px;color:#64748b;font-weight:600;">Felelős:</span>
+                                <span class="resp-pill ${pillClass}" data-doc-id="${att.docId}" data-order-id="${o.id}" data-resp="${resp}" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;padding:2px 6px;font-size:10px;font-weight:600;border-radius:6px;transition:all .15s;" title="Kattints a felelős váltásához">
+                                    ${pillIcon}${pillLabel}
+                                </span>
+                            </div>
+                            ${showBankButton ? `
+                            <button class="btn-mark-bank-audit" data-doc-id="${att.docId}" data-order-id="${o.id}" style="display:flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#0284c7;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:3px 6px;cursor:pointer;transition:all .15s;" title="Áthelyezés utalt státuszba (nem lesz kiesett)">
+                                <i class="ph-bold ph-bank" style="font-size:10px;"></i>Utalt
+                            </button>` : ''}
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            card.innerHTML = cardHeader + `
+                <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px;">
+                    ${attemptsHtml}
                 </div>
-                ${renderLaterEntries(k.laterEntries)}
-                ${actionContainer}
             `;
             listWrapper.appendChild(card);
         });
@@ -499,13 +360,15 @@ export const AuditView = {
     },
 
     async exportAuditToCsv() {
-        const startVal = this.startDateInput.value;
-        const endVal = this.endDateInput.value;
-        const selectedCompany = this.companyFilterSelect.value;
+        const startVal = document.getElementById('history-date-start')?.value || '';
+        const endVal = document.getElementById('history-date-end')?.value || '';
+        const selectedCompany = document.getElementById('history-company-filter')?.value || '';
+        const searchVal = document.getElementById('history-search-input')?.value.toLowerCase().trim() || '';
 
         const startD = startVal ? new Date(startVal + 'T00:00:00') : null;
         const endD   = endVal   ? new Date(endVal   + 'T23:59:59') : null;
 
+        // Filter runs by date and optionally company
         const filteredRuns = this.allRuns.filter(r => {
             if (!r.date) return true;
             const d = new Date(r.date + 'T00:00:00');
@@ -515,31 +378,84 @@ export const AuditView = {
             return true;
         });
 
-        if (filteredRuns.length === 0) {
-            CustomDialog.alert('Nincs exportálható adat a jelenlegi szűréssel!', 'Figyelmeztetés', 'warning');
-            return;
-        }
-
-        const orderRunsMap = new Map();
-        filteredRuns.forEach(r => {
-            const rUnc  = new Set(r.uncollectedOrderIds || []);
+        // Group order attempts across ALL runs
+        const orderAttemptsMap = new Map();
+        this.allRuns.forEach(r => {
+            const rUnc = new Set(r.uncollectedOrderIds || []);
             const rPart = r.partialOrders || {};
-            const settled = r.isSettled || (r.settledAmount > 0);
-            r.orders.forEach(o => {
-                if (!orderRunsMap.has(o.id)) orderRunsMap.set(o.id, []);
-                const isUnc  = rUnc.has(o.id);
+            const runResponsibility = r.uncollectedResponsibility || {};
+            const runReasons = r.uncollectedReasons || {};
+            
+            (r.orders || []).forEach(o => {
+                if (!o.id) return;
+                const isUnc = rUnc.has(o.id);
                 const isPart = !!rPart[o.id];
-                orderRunsMap.get(o.id).push({
-                    date: r.date,
-                    courier: r.courier,
+                const resp = runResponsibility[o.id] || 'vevo';
+                
+                let outcome = 'Sikeres';
+                let codAmount = 0;
+                let comment = '';
+                
+                if (isUnc) {
+                    outcome = 'Kiesett';
+                    codAmount = o.isCOD ? (o.codAmount || 0) : 0;
+                    comment = runReasons[o.id] || '';
+                } else if (isPart) {
+                    outcome = 'Részleges';
+                    const pInfo = rPart[o.id];
+                    codAmount = o.isCOD ? (o.codAmount - (pInfo.amount || 0)) : 0;
+                    comment = pInfo.comment || '';
+                }
+                
+                if (!orderAttemptsMap.has(o.id)) {
+                    orderAttemptsMap.set(o.id, {
+                        id: o.id,
+                        name: o.shippingName || '—',
+                        isCOD: !!o.isCOD,
+                        fullCodAmount: o.isCOD ? (o.codAmount || 0) : 0,
+                        attempts: []
+                    });
+                }
+                
+                orderAttemptsMap.get(o.id).attempts.push({
+                    date: r.date || '—',
+                    courier: r.courier || '—',
                     company: r.company || '—',
+                    docId: r.docId,
                     isUncollected: isUnc,
                     isPartial: isPart,
-                    wasReceived: !isUnc && !isPart && settled,
-                    wasPartialReceived: isPart && settled,
+                    responsibility: resp,
+                    outcome: outcome,
+                    codAmount: codAmount,
+                    comment: comment
                 });
             });
         });
+
+        const filteredDocIds = new Set(filteredRuns.map(r => r.docId));
+        const eligibleOrders = [];
+        for (const [id, orderData] of orderAttemptsMap.entries()) {
+            orderData.attempts.sort((a, b) => a.date.localeCompare(b.date));
+            const hasCarrierFaultInFilteredRuns = orderData.attempts.some(att => 
+                filteredDocIds.has(att.docId) && att.responsibility === 'szallito'
+            );
+            if (hasCarrierFaultInFilteredRuns) {
+                eligibleOrders.push(orderData);
+            }
+        }
+
+        let finalOrders = eligibleOrders;
+        if (searchVal) {
+            finalOrders = eligibleOrders.filter(o => 
+                o.id.toLowerCase().includes(searchVal) || 
+                o.name.toLowerCase().includes(searchVal)
+            );
+        }
+
+        if (finalOrders.length === 0) {
+            CustomDialog.alert('Nincs exportálható adat a jelenlegi szűréssel!', 'Figyelmeztetés', 'warning');
+            return;
+        }
 
         const csvRows = [];
         const headers = [
@@ -548,11 +464,10 @@ export const AuditView = {
             "Dátum",
             "Cég",
             "Futár",
-            "Összeg (Ft)",
+            "Kiesett Összeg (Ft)",
             "Státusz / Indok",
             "Felelősség",
-            "Duplikált?",
-            "Újra kiküldések száma"
+            "Kiszállítások száma"
         ];
         csvRows.push(headers.join(";"));
 
@@ -566,86 +481,24 @@ export const AuditView = {
             return str;
         };
 
-        const addedIds = new Set();
-        filteredRuns.forEach(r => {
-            const runReasons  = r.uncollectedReasons || {};
-            const runPartials = r.partialOrders || {};
-            const runResponsibility = r.uncollectedResponsibility || {};
-
-            // 1. Failed orders
-            (r.uncollectedOrderIds || []).forEach(id => {
-                const o = (r.orders || []).find(x => x.id === id);
-                const attempts = orderRunsMap.get(id) || [];
-                const resp = runResponsibility[id] || 'vevo';
-                let respLabel = resp === 'szallito' ? "Szállító" : (resp === 'mienk' ? "Saját" : "Vevő");
-
+        finalOrders.forEach(o => {
+            o.attempts.forEach(att => {
+                let respLabel = att.responsibility === 'szallito' ? "Szállító" : (att.responsibility === 'mienk' ? "Saját" : "Vevő");
                 csvRows.push([
-                    clean(id),
-                    clean(o ? o.shippingName : '-'),
-                    clean(r.date || '—'),
-                    clean(r.company || '—'),
-                    clean(r.courier || '—'),
-                    o && o.isCOD ? o.codAmount : 0,
-                    clean(runReasons[id] || 'Kiesett'),
+                    clean(o.id),
+                    clean(o.name),
+                    clean(att.date),
+                    clean(att.company),
+                    clean(att.courier),
+                    att.codAmount,
+                    clean(att.outcome + (att.comment ? `: ${att.comment}` : '')),
                     clean(respLabel),
-                    attempts.length > 1 ? "IGEN" : "NEM",
-                    attempts.length - 1
+                    o.attempts.length
                 ].join(";"));
-            });
-
-            // 2. Partial orders
-            Object.entries(runPartials).forEach(([id, info]) => {
-                const o = (r.orders || []).find(x => x.id === id);
-                if (!o || !o.isCOD) return;
-                const diff = o.codAmount - (info.amount || 0);
-                if (diff <= 0) return;
-                const attempts = orderRunsMap.get(id) || [];
-                const resp = runResponsibility[id] || 'vevo';
-                let respLabel = resp === 'szallito' ? "Szállító" : (resp === 'mienk' ? "Saját" : "Vevő");
-
-                csvRows.push([
-                    clean(id),
-                    clean(o.shippingName || '-'),
-                    clean(r.date || '—'),
-                    clean(r.company || '—'),
-                    clean(r.courier || '—'),
-                    diff,
-                    clean(info.comment || 'Részleges átvétel'),
-                    clean(respLabel),
-                    attempts.length > 1 ? "IGEN" : "NEM",
-                    attempts.length - 1
-                ].join(";"));
-            });
-
-            // 3. Duplicate orders (successful ones that went out > 1 time)
-            r.orders.forEach(o => {
-                const attempts = orderRunsMap.get(o.id) || [];
-                if (attempts.length > 1 && !addedIds.has(o.id)) {
-                    // check if already added as failed/partial
-                    const uncoll = r.uncollectedOrderIds || [];
-                    const part = r.partialOrders || {};
-                    if (!uncoll.includes(o.id) && !part[o.id]) {
-                        addedIds.add(o.id);
-                        csvRows.push([
-                            clean(o.id),
-                            clean(o.shippingName || '-'),
-                            clean(r.date || '—'),
-                            clean(r.company || '—'),
-                            clean(r.courier || '—'),
-                            o.isCOD ? o.codAmount : 0,
-                            clean("Többszöri kiszállítás (Sikeres)"),
-                            clean("-"),
-                            "IGEN",
-                            attempts.length - 1
-                        ].join(";"));
-                    }
-                }
             });
         });
 
         const csvContent = csvRows.join("\r\n");
-
-        // Download UTF-8 without BOM (pure UTF-8)
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -653,7 +506,7 @@ export const AuditView = {
         
         const now = new Date();
         const dateStr = now.toISOString().split('T')[0];
-        link.setAttribute('download', `elszamolas_audit_${selectedCompany || 'osszes'}_${dateStr}.csv`);
+        link.setAttribute('download', `elszamolas_audit_szallito_${dateStr}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
