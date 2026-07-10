@@ -60,7 +60,16 @@ export const OrdersView = {
                 `).join('');
             }
 
-            let itemsHtml = order.items.map((item, iIdx) => {
+            const sortedItems = [...order.items].sort((a, b) => {
+                const getRank = (name) => {
+                    if (/falpanel/i.test(name)) return 1;
+                    if (/padl[óo]zat/i.test(name)) return 2;
+                    return 3;
+                };
+                return getRank(a.name) - getRank(b.name);
+            });
+
+            let itemsHtml = sortedItems.map((item, iIdx) => {
                 const showMarker = needsMarkerLabel(item.name, item.isCollapsedProfile);
                 let toggleHtml = '';
                 let subItemsHtml = '';

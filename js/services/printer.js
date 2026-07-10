@@ -72,7 +72,16 @@ export const UnifiedPrinter = {
                     codHtml = `<span class="badge badge-paid">Fizetve</span>`;
                 }
 
-                const itemsHtml = order.items.map(item => {
+                const sortedItems = [...order.items].sort((a, b) => {
+                    const getRank = (name) => {
+                        if (/falpanel/i.test(name)) return 1;
+                        if (/padl[óo]zat/i.test(name)) return 2;
+                        return 3;
+                    };
+                    return getRank(a.name) - getRank(b.name);
+                });
+
+                const itemsHtml = sortedItems.map(item => {
                     const isCollapsed = item.isCollapsedProfile || item.name === "Összekészített profilok";
                     const subItemsHtml = (isCollapsed && item.subItems?.length > 0)
                         ? `<div style="font-size: 9px; color: #475569; margin-top: 3px; padding-left: 6px; line-height: 1.6;">${item.subItems.map(sub => `<div>• ${sub.qty} db &nbsp;${sub.name}</div>`).join('')}</div>`
