@@ -129,6 +129,7 @@ export const UnifiedPrinter = {
             let countRagaszto = 0;
             let countProfil = 0;
             let countPadlozat = 0;
+            let otherItems = {};
 
             const addQtyToCategories = (name, qty) => {
                 if (/falpanel/i.test(name)) {
@@ -139,6 +140,8 @@ export const UnifiedPrinter = {
                     countProfil += qty;
                 } else if (/padl[óo]zat/i.test(name)) {
                     countPadlozat += qty;
+                } else {
+                    otherItems[name] = (otherItems[name] || 0) + qty;
                 }
             };
 
@@ -157,6 +160,17 @@ export const UnifiedPrinter = {
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700;">${aggregatedItems[name]} db</td>
                 </tr>
             `).join('');
+
+            let otherItemsHtml = '';
+            const otherKeys = Object.keys(otherItems);
+            if (otherKeys.length > 0) {
+                const listStr = otherKeys.map(name => `${name} (${otherItems[name]} db)`).join(', ');
+                otherItemsHtml = `
+                    <div style="margin-bottom: 20px; font-size: 12px; color: #475569; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; text-align: left; line-height: 1.4;">
+                        <strong>Egyéb átadott termékek:</strong> plusz ${listStr}
+                    </div>
+                `;
+            }
 
             const page = `
                 <div class="print-page" style="padding: 40px;">
@@ -182,6 +196,8 @@ export const UnifiedPrinter = {
                             <div style="font-size: 18px; font-weight: 800; color: #0f172a;">${countPadlozat} db</div>
                         </div>
                     </div>
+
+                    ${otherItemsHtml}
 
                     <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
                         <div style="font-size: 14px; color: #64748b; margin-bottom: 5px;">ÖSSZES UTÁNVÉT A KÖRBEN:</div>
