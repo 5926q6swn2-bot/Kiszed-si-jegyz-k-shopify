@@ -152,7 +152,7 @@ export const UnifiedPrinter = {
                     </div>
 
                     <div style="font-size: 11px; color: #64748b; font-style: italic; text-align: center; margin-bottom: 15px;">
-                        * A panelek sértetlen állapotban lettek átadva.
+                        * A fent felsorolt panelek sértetlen állapotban lettek átadva.
                     </div>
 
                     <table style="width: 100%; border-collapse: collapse;">

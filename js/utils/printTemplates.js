@@ -425,7 +425,7 @@ export function generatePdfHtml(run) {
                 </div>
 
                 <div style="font-size: 11px; color: #64748b; font-style: italic; text-align: center; margin-bottom: 15px;">
-                    * A panelek sértetlen állapotban lettek átadva.
+                    * A fent felsorolt panelek sértetlen állapotban lettek átadva.
                 </div>
 
                 <h3 style="margin-bottom: 15px; color: #334155; font-size: 18px;">Átadott termékek összesítve:</h3>
