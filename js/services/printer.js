@@ -151,8 +151,8 @@ export const UnifiedPrinter = {
                         <div style="font-size: 32px; font-weight: 800; color: #b91c1c;">${totalCOD.toLocaleString('hu-HU')} Ft</div>
                     </div>
 
-                    <div style="margin-bottom: 20px; padding: 8px 12px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 6px; font-weight: 600; color: #475569; text-align: center; font-size: 12px;">
-                        A panelek sértetlen állapotban lettek átadva.
+                    <div style="font-size: 11px; color: #64748b; font-style: italic; text-align: center; margin-bottom: 15px;">
+                        * A panelek sértetlen állapotban lettek átadva.
                     </div>
 
                     <table style="width: 100%; border-collapse: collapse;">
