@@ -399,11 +399,8 @@ export function generatePdfHtml(run) {
                     <td class="text-right" style="font-weight: 700; color: ${order.isCOD ? '#b91c1c' : '#15803d'};">
                         ${order.isCOD ? order.codAmount.toLocaleString('hu-HU') + ' Ft' : 'Fizetve'}
                     </td>
-                    <td style="text-align: center; border-left: 2px solid #cbd5e1;">
-                        <div style="width: 20px; height: 20px; border: 1px solid #94a3b8; border-radius: 3px; display: inline-block;"></div>
-                    </td>
                     <!-- KP Checkbox -->
-                    <td style="text-align: center; border-left: 1px solid #cbd5e1;">
+                    <td style="text-align: center; border-left: 2px solid #cbd5e1;">
                         <div style="width: 20px; height: 20px; border: 1px solid #94a3b8; border-radius: 3px; display: inline-block;"></div>
                     </td>
                     <!-- Kártya Checkbox -->
@@ -480,8 +477,7 @@ export function generatePdfHtml(run) {
                             <th>Rendelésszám</th>
                             <th>Vevő Neve</th>
                             <th class="text-right">Utánvét</th>
-                            <th style="text-align: center; border-left: 2px solid #cbd5e1; width: 60px;">Nem vette át</th>
-                            <th style="text-align: center; border-left: 1px solid #cbd5e1; width: 50px;">💵 KP</th>
+                            <th style="text-align: center; border-left: 2px solid #cbd5e1; width: 50px;">💵 KP</th>
                             <th style="text-align: center; border-left: 1px solid #cbd5e1; width: 50px;">💳 Kártya</th>
                             <th style="text-align: center; border-left: 1px solid #cbd5e1; width: 50px;">🏦 Utalás</th>
                             <th>Visszahozott tételek (Kézzel kitöltendő)</th>

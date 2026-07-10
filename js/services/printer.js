@@ -178,7 +178,6 @@ export const UnifiedPrinter = {
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 2px solid #cbd5e1;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 1px solid #cbd5e1;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 1px solid #cbd5e1;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 1px solid #cbd5e1;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;"></td>
                 </tr>
             `).join('');
@@ -194,8 +193,7 @@ export const UnifiedPrinter = {
                                 <th style="text-align: left; padding: 8px;">ID</th>
                                 <th style="text-align: left; padding: 8px;">Vevő</th>
                                 <th style="text-align: right; padding: 8px;">Utánvét</th>
-                                <th style="text-align: center; padding: 8px; border-left: 2px solid #cbd5e1; width: 60px;">Nem vette</th>
-                                <th style="text-align: center; padding: 8px; border-left: 1px solid #cbd5e1; width: 40px;">KP</th>
+                                <th style="text-align: center; padding: 8px; border-left: 2px solid #cbd5e1; width: 40px;">KP</th>
                                 <th style="text-align: center; padding: 8px; border-left: 1px solid #cbd5e1; width: 40px;">Kártya</th>
                                 <th style="text-align: center; padding: 8px; border-left: 1px solid #cbd5e1; width: 40px;">Utalás</th>
                                 <th style="text-align: left; padding: 8px;">Megjegyzés / Visszahozott tételek</th>
