@@ -676,14 +676,12 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Intelligens részleges fizetés**: Ha a megadott összegek összege kevesebb a teljes elvárt utánvétnél, a rendszer automatikusan részleges fizetésként kezeli a megrendelést, megjeleníti a hiányzó összeget, és megnyitja a részleges indoklási panelt a felelősségválasztóval.
 - **Élő összesítő számítások**: Frissítettük az elszámolási ablak lábjegyzetében lévő élő kalkulátorokat (Nálunk lévő KP, Várható KP, Kártyás utalásra vár, Közvetlen utalások), hogy a megosztott értékek alapján pontosan jelenítsék meg a végösszegeket.
 - **Kompatibilis adatbázis & cache-busting**: Az új osztott struktúra (`{ cash: X, card: Y, bank: Z }`) és a státusztömbök Firestore mentése teljesen visszafelé kompatibilis a korábbi egyszerű fizetési típusokkal. A cache-busting verziókat megemeltük `?v=173`-ra.
-- **Nyomtatványok kibővítése**:
-  - Az **Összesítő lapon** feltűnően megjelenítettük a következőt: `⚠️ A PANELEK SÉRTETLEN ÁLLAPOTBAN LETTEK ÁTADVA!`.
-  - A **Korrekciós és Elszámoló lap** táblázatában minden sorba bekerültek a **KP**, **Kártya** és **Utalás** pipálható jelölőrubrikák a könnyebb fizetés-beazonosításhoz.
-  - A korrekciós lap alján a készpénzes sor mellett külön sorba került a **Kártyával fizetve** és az **Utalva kifizetve** kézzel kitölthető összesítő mező.
-
-
-
-
-
-
-
+- **Nyomtatványok és bizonylatok testreszabása**:
+  - Az **Összesítő lapon** diszkrét, dőlt betűs, keret nélküli apró lábjegyzetként feltüntettük a nyilatkozatot: `* Az alább felsorolt panelek sértetlen állapotban lettek átadva.`.
+  - Az Összesítő lap fejlécébe egy 4 oszlopos, letisztult kategória összesítő szekciót ágyaztunk be, amely automatikusan összesíti és kiírja az adott körhöz tartozó **Falpanel**, **Ragasztó**, **Profil** és **Padlózat** darabszámokat.
+  - Az Összesítő lapon a besorolhatatlan egyéb termékek automatikusan egy különálló sorban tételesen listázásra kerülnek: `Egyéb átadott termékek: plusz ... (db)`.
+  - A **Korrekciós és Elszámoló lap** táblázatából eltávolítottuk a redundáns *Nem vette át* és *Utalás* oszlopokat, így közvetlenül a könnyen beikszelhető **KP** és **Kártya** rubrikák szerepelnek a rendelési sorok mellett.
+  - A korrekciós lap elszámolási részét letisztítottuk (emojik nélkül), az *Utalással kifizetve* mező felkerült a többi fizetési mód közé a vonal fölé, a vonal alá pedig vastag kiemeléssel a leadandó fizikai készpénzt jelző **Átadott KP rész** került.
+- **Szedőlista tételek automatikus rendezése**:
+  - Mind a képernyős szedőlistán (rendeléskártyákon belül), mind a nyomtatott Kiszedési Jegyzéken automatikus rendezést vezettünk be: a tételek közül mindig a **falpanelek** kerülnek legfelülre, őket közvetlenül a **padlózatok** követik, az egyéb profilok, ragasztók és kiegészítők pedig a lista végére rendeződnek az átláthatóbb raktári munka érdekében.
+- **Verziók & Cache-Busting**: A cache-busting verziókat frissítettük a böngészők kényszerített újratöltéséhez.
