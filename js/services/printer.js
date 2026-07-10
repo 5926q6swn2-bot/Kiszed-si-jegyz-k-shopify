@@ -177,7 +177,6 @@ export const UnifiedPrinter = {
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700;">${o.isCOD ? o.codAmount.toLocaleString('hu-HU') + ' Ft' : 'Fizetve'}</td>
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 2px solid #cbd5e1;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 1px solid #cbd5e1;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 1px solid #cbd5e1;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;"></td>
                 </tr>
             `).join('');
@@ -195,7 +194,6 @@ export const UnifiedPrinter = {
                                 <th style="text-align: right; padding: 8px;">Utánvét</th>
                                 <th style="text-align: center; padding: 8px; border-left: 2px solid #cbd5e1; width: 40px;">KP</th>
                                 <th style="text-align: center; padding: 8px; border-left: 1px solid #cbd5e1; width: 40px;">Kártya</th>
-                                <th style="text-align: center; padding: 8px; border-left: 1px solid #cbd5e1; width: 40px;">Utalás</th>
                                 <th style="text-align: left; padding: 8px;">Megjegyzés / Visszahozott tételek</th>
                             </tr>
                         </thead>
@@ -212,15 +210,19 @@ export const UnifiedPrinter = {
                             <span>.................... Ft</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 15px; color: #1e293b;">
-                            <span>💵 Befizetett Készpénz:</span>
+                            <span>Készpénzben fizetve:</span>
                             <span>.................... Ft</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 15px; color: #1d4ed8;">
-                            <span>💳 Kártyával fizetve:</span>
+                            <span>Kártyával fizetve:</span>
                             <span>.................... Ft</span>
                         </div>
-                        <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; border-top: 2px solid #000; padding-top: 8px; color: #0284c7;">
-                            <span>🏦 Utalva kifizetve:</span>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 15px; color: #0284c7;">
+                            <span>Utalással kifizetve:</span>
+                            <span>.................... Ft</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; border-top: 2px solid #000; padding-top: 8px; color: #16a34a;">
+                            <span>Átadott KP rész:</span>
                             <span>.................... Ft</span>
                         </div>
                     </div>
