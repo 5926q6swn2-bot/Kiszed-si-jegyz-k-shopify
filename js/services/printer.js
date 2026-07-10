@@ -125,11 +125,29 @@ export const UnifiedPrinter = {
         generateSummaryHtml: function(run, double) {
             let aggregatedItems = {};
             let totalCOD = 0;
+            let countFalpanel = 0;
+            let countRagaszto = 0;
+            let countProfil = 0;
+            let countPadlozat = 0;
+
+            const addQtyToCategories = (name, qty) => {
+                if (/falpanel/i.test(name)) {
+                    countFalpanel += qty;
+                } else if (/ragaszt[óo]/i.test(name)) {
+                    countRagaszto += qty;
+                } else if (/profil/i.test(name)) {
+                    countProfil += qty;
+                } else if (/padl[óo]zat/i.test(name)) {
+                    countPadlozat += qty;
+                }
+            };
+
             run.orders.forEach(order => {
                 if (order.isCOD) totalCOD += order.codAmount;
                 order.items.forEach(item => {
                     const name = item.name;
                     aggregatedItems[name] = (aggregatedItems[name] || 0) + item.qty;
+                    addQtyToCategories(name, item.qty);
                 });
             });
 
@@ -146,13 +164,32 @@ export const UnifiedPrinter = {
                     <div style="text-align: center; margin-bottom: 20px;">${run.date} | ${run.courier}</div>
                     <div style="background: #000; color: #fff; text-align: center; padding: 15px; font-size: 24px; font-weight: 800; border-radius: 8px; margin-bottom: 20px;">${run.company}</div>
                     
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; text-align: center; font-family: inherit;">
+                        <div>
+                            <div style="font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase;">Falpanel</div>
+                            <div style="font-size: 18px; font-weight: 800; color: #0f172a;">${countFalpanel} db</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase;">Ragasztó</div>
+                            <div style="font-size: 18px; font-weight: 800; color: #0f172a;">${countRagaszto} db</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase;">Profil</div>
+                            <div style="font-size: 18px; font-weight: 800; color: #0f172a;">${countProfil} db</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase;">Padlózat</div>
+                            <div style="font-size: 18px; font-weight: 800; color: #0f172a;">${countPadlozat} db</div>
+                        </div>
+                    </div>
+
                     <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
                         <div style="font-size: 14px; color: #64748b; margin-bottom: 5px;">ÖSSZES UTÁNVÉT A KÖRBEN:</div>
                         <div style="font-size: 32px; font-weight: 800; color: #b91c1c;">${totalCOD.toLocaleString('hu-HU')} Ft</div>
                     </div>
 
                     <div style="font-size: 11px; color: #64748b; font-style: italic; text-align: center; margin-bottom: 15px;">
-                        * A fent felsorolt panelek sértetlen állapotban lettek átadva.
+                        * Az alább felsorolt panelek sértetlen állapotban lettek átadva.
                     </div>
 
                     <table style="width: 100%; border-collapse: collapse;">
