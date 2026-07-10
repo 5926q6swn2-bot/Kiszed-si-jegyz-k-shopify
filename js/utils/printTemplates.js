@@ -349,7 +349,12 @@ export function generatePdfHtml(run) {
                         border-top: 1px dashed #e2e8f0;
                         padding-top: 10px;
                     }
-                </style>        let aggregatedItems = {};
+                </style>
+            </head>
+            <body>
+        `;
+
+        let aggregatedItems = {};
         let totalCOD = 0;
         let countFalpanel = 0;
         let countRagaszto = 0;
