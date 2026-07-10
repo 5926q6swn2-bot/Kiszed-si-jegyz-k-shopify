@@ -1,4 +1,4 @@
-import { HistoryManager } from '../services/history.js';
+import { HistoryManager } from '../services/history.js?v=173';
 import { db, doc, updateDoc, deleteDoc } from '../firebase-config.js';
 import { CustomDialog } from '../utils/dialog.js';
 
@@ -218,10 +218,19 @@ export function initHistoryView(context) {
                 let badgeBg = '#fef3c7';
 
                 let dynamicIsSettled = false;
+                let splitReceivedCount = 0;
+                let splitPendingCount = 0;
                 const hasStatusMap = m.runData && m.runData.paymentStatusMap && Object.keys(m.runData.paymentStatusMap).length > 0;
                 if (hasStatusMap) {
                     const orderStatus = m.runData.paymentStatusMap[m.id] || m.runData.paymentStatusMap[String(m.id)] || 'received';
-                    dynamicIsSettled = (orderStatus === 'received');
+                    if (typeof orderStatus === 'object' && orderStatus !== null) {
+                        const vals = Object.values(orderStatus);
+                        splitReceivedCount = vals.filter(v => v === 'received').length;
+                        splitPendingCount = vals.filter(v => v === 'pending').length;
+                        dynamicIsSettled = !vals.includes('pending');
+                    } else {
+                        dynamicIsSettled = (orderStatus === 'received');
+                    }
                 } else {
                     let dynamicIsSettledOld = m.runData && m.runData.isSettled;
                     if (m.runData && !dynamicIsSettledOld && typeof m.runData.settledAmount !== 'undefined') {
@@ -259,6 +268,10 @@ export function initHistoryView(context) {
                     badgeText = 'Részleges';
                     badgeColor = '#f97316';
                     badgeBg = '#ffedd5';
+                } else if (!dynamicIsSettled && splitReceivedCount > 0) {
+                    badgeText = 'Részben nálunk';
+                    badgeColor = '#d97706';
+                    badgeBg = '#fef3c7';
                 } else if (dynamicIsSettled) {
                     badgeText = 'Elszámolva';
                     badgeColor = '#10b981';
@@ -396,9 +409,9 @@ export function initHistoryView(context) {
                     
                     <div class="sd-resp-selector" style="display:flex;align-items:center;gap:8px;" data-order-id="${orderId}">
                         <span style="font-size:12px;color:#92400e;font-weight:700;margin-right:6px;">Kinek a hibájából hiúsult meg?</span>
-                        <button type="button" class="sd-resp-btn mienk ${rMienkActive ? 'active' : ''}" data-resp="mienk" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rMienkActive ? '#fca5a5' : '#e2e8f0'};background:${rMienkActive ? '#fee2e2' : '#fff'};color:${rMienkActive ? '#b91c1c' : '#64748b'};transition:all .15s;">Saját hiba</button>
-                        <button type="button" class="sd-resp-btn szallito ${rSzallitoActive ? 'active' : ''}" data-resp="szallito" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rSzallitoActive ? '#fed7aa' : '#e2e8f0'};background:${rSzallitoActive ? '#ffedd5' : '#fff'};color:${rSzallitoActive ? '#c2410c' : '#64748b'};transition:all .15s;">Szállító</button>
-                        <button type="button" class="sd-resp-btn vevo ${rVevoActive ? 'active' : ''}" data-resp="vevo" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rVevoActive ? '#cbd5e1' : '#e2e8f0'};background:${rVevoActive ? '#e2e8f0' : '#fff'};color:${rVevoActive ? '#475569' : '#64748b'};transition:all .15s;">Vevő / Egyéb</button>
+                        <button type="button" class="sd-resp-btn mienk ${rMienkActive ? 'active' : ''}" data-resp="mienk" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rMienkActive ? '#fca5a5' : '#cbd5e1'};background:${rMienkActive ? '#fee2e2' : '#fff'};color:${rMienkActive ? '#b91c1c' : '#64748b'};transition:all .15s;">Saját hiba</button>
+                        <button type="button" class="sd-resp-btn szallito ${rSzallitoActive ? 'active' : ''}" data-resp="szallito" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rSzallitoActive ? '#fed7aa' : '#cbd5e1'};background:${rSzallitoActive ? '#ffedd5' : '#fff'};color:${rSzallitoActive ? '#c2410c' : '#64748b'};transition:all .15s;">Szállító</button>
+                        <button type="button" class="sd-resp-btn vevo ${rVevoActive ? 'active' : ''}" data-resp="vevo" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rVevoActive ? '#cbd5e1' : '#cbd5e1'};background:${rVevoActive ? '#e2e8f0' : '#fff'};color:${rVevoActive ? '#475569' : '#64748b'};transition:all .15s;">Vevő / Egyéb</button>
                     </div>
                 </div>`;
             };
@@ -409,8 +422,40 @@ export function initHistoryView(context) {
                 const prevPartial    = prevPartials[o.id];
                 const wasPartial     = !wasUncollected && !!prevPartial;
                 const pm             = prevPaymentMethods[o.id] || (wasBankTransferred ? 'bank' : 'cash');
-                const isReceived     = prevPaymentStatusMap[o.id] !== 'pending';
+                const isReceived     = prevPaymentStatusMap[o.id] ? (prevPaymentStatusMap[o.id] !== 'pending') : false;
                 
+                let currentPm = { cash: 0, card: 0, bank: 0 };
+                let currentStatus = { cash: 'pending', card: 'pending', bank: 'pending' };
+
+                const isSplitSaved = typeof pm === 'object' && pm !== null;
+                if (isSplitSaved) {
+                    currentPm = { cash: pm.cash || 0, card: pm.card || 0, bank: pm.bank || 0 };
+                } else {
+                    currentPm[pm] = o.codAmount;
+                }
+
+                const prevStatus = prevPaymentStatusMap[o.id];
+                if (typeof prevStatus === 'object' && prevStatus !== null) {
+                    currentStatus = {
+                        cash: prevStatus.cash || 'pending',
+                        card: prevStatus.card || 'pending',
+                        bank: prevStatus.bank || 'pending'
+                    };
+                } else {
+                    const singleStatus = prevStatus ? (prevStatus !== 'pending' ? 'received' : 'pending') : 'pending';
+                    if (isSplitSaved) {
+                        currentStatus = {
+                            cash: pm.cash > 0 ? singleStatus : 'pending',
+                            card: pm.card > 0 ? singleStatus : 'pending',
+                            bank: pm.bank > 0 ? singleStatus : 'pending'
+                        };
+                    } else {
+                        currentStatus = { cash: 'pending', card: 'pending', bank: 'pending' };
+                        currentStatus[pm] = singleStatus;
+                    }
+                }
+                
+                const showSplitPanel = wasPartial || isSplitSaved;
                 const currentResp = existingState?.uncollectedResponsibility?.[o.id] || run.uncollectedResponsibility?.[o.id] || 'vevo';
                 const rMienkActive = currentResp === 'mienk';
                 const rSzallitoActive = currentResp === 'szallito';
@@ -418,34 +463,102 @@ export function initHistoryView(context) {
 
                 const itemsList = (o.items || []).map(it => `<span style="display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;margin:2px 4px 2px 0;"><b>${it.qty}×</b> ${it.name}</span>`).join('');
                 
-                const payMethodStyle = wasUncollected ? 'display:none;' : 'display:inline-flex;';
+                const simpleControlsStyle = showSplitPanel ? 'display:none;' : 'display:inline-flex;';
+                const splitContainerStyle = (!wasUncollected && showSplitPanel) ? 'display:flex;' : 'display:none;';
                 
                 const paymentMethodSelectorHtml = `
-                <div class="sd-paymethod-selector" style="${payMethodStyle}align-items:center;gap:4px;" data-order-id="${o.id}">
-                    <button type="button" class="sd-paymethod-btn cash ${pm === 'cash' ? 'active' : ''}" data-method="cash" style="font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${pm === 'cash' ? '#cbd5e1' : '#e2e8f0'};background:${pm === 'cash' ? '#e2e8f0' : '#f8fafc'};color:${pm === 'cash' ? '#1e293b' : '#64748b'};transition:all .15s;">
+                <div class="sd-paymethod-selector" style="${simpleControlsStyle}align-items:center;gap:4px;" data-order-id="${o.id}">
+                    <button type="button" class="sd-paymethod-btn cash ${(!isSplitSaved && pm === 'cash') ? 'active' : ''}" data-method="cash" style="font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${(!isSplitSaved && pm === 'cash') ? '#cbd5e1' : '#e2e8f0'};background:${(!isSplitSaved && pm === 'cash') ? '#e2e8f0' : '#f8fafc'};color:${(!isSplitSaved && pm === 'cash') ? '#1e293b' : '#64748b'};transition:all .15s;">
                         💵 KP
                     </button>
-                    <button type="button" class="sd-paymethod-btn card ${pm === 'card' ? 'active' : ''}" data-method="card" style="font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${pm === 'card' ? '#93c5fd' : '#e2e8f0'};background:${pm === 'card' ? '#eff6ff' : '#f8fafc'};color:${pm === 'card' ? '#1d4ed8' : '#64748b'};transition:all .15s;">
+                    <button type="button" class="sd-paymethod-btn card ${(!isSplitSaved && pm === 'card') ? 'active' : ''}" data-method="card" style="font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${(!isSplitSaved && pm === 'card') ? '#93c5fd' : '#e2e8f0'};background:${(!isSplitSaved && pm === 'card') ? '#eff6ff' : '#f8fafc'};color:${(!isSplitSaved && pm === 'card') ? '#1d4ed8' : '#64748b'};transition:all .15s;">
                         💳 Kártya
                     </button>
-                    <button type="button" class="sd-paymethod-btn bank ${pm === 'bank' ? 'active' : ''}" data-method="bank" style="font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${pm === 'bank' ? '#bae6fd' : '#e2e8f0'};background:${pm === 'bank' ? '#f0f9ff' : '#f8fafc'};color:${pm === 'bank' ? '#0284c7' : '#64748b'};transition:all .15s;">
+                    <button type="button" class="sd-paymethod-btn bank ${(!isSplitSaved && pm === 'bank') ? 'active' : ''}" data-method="bank" style="font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${(!isSplitSaved && pm === 'bank') ? '#bae6fd' : '#e2e8f0'};background:${(!isSplitSaved && pm === 'bank') ? '#f0f9ff' : '#f8fafc'};color:${(!isSplitSaved && pm === 'bank') ? '#0284c7' : '#64748b'};transition:all .15s;">
                         🏦 Utalás
                     </button>
                 </div>
                 `;
 
                 const paymentStatusSelectorHtml = `
-                <div class="sd-paystatus-container" style="${payMethodStyle}align-items:center;gap:6px;" data-order-id="${o.id}">
+                <div class="sd-paystatus-container" style="${simpleControlsStyle}align-items:center;gap:6px;" data-order-id="${o.id}">
                     <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;font-weight:700;color:#374151;user-select:none;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:5px 8px;transition:all .15s;" class="sd-paystatus-label">
-                        <input type="checkbox" class="sd-paystatus-checkbox" ${isReceived ? 'checked' : ''} style="cursor:pointer;accent-color:#16a34a;width:14px;height:14px;">
+                        <input type="checkbox" class="sd-paystatus-checkbox" ${(!isSplitSaved && isReceived) ? 'checked' : ''} style="cursor:pointer;accent-color:#16a34a;width:14px;height:14px;">
                         <span>💵 Nálunk van</span>
                     </label>
                 </div>
                 `;
 
+                const splitToggleBtnHtml = `
+                <button type="button" class="sd-split-toggle-btn" style="${simpleControlsStyle}align-items:center;gap:4px;font-size:11px;font-weight:600;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;cursor:pointer;font-family:inherit;transition:all .15s;">
+                    <i class="ph-bold ph-split-horizontal" style="font-size:12px;"></i> Részleges / Bontás
+                </button>
+                `;
+                
+                const splitContainerHtml = `
+                <div class="sd-payment-split-container" style="${splitContainerStyle}flex-direction:column;gap:8px;padding:12px 20px 16px 116px;background:#f8fafc;border-top:1px dashed #cbd5e1;">
+                    <div style="font-size:11px;font-weight:700;color:#475569;display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                        <span>Osztott fizetési bontás (Összesen elvárt: <strong style="color:#0f172a;">${o.codAmount.toLocaleString('hu-HU')} Ft</strong>) · <span class="sd-split-status" style="font-weight:800;color:#16a34a;">Rendben</span></span>
+                        <button type="button" class="sd-split-back-btn" style="font-size:10px;font-weight:700;color:#64748b;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:3px 8px;cursor:pointer;font-family:inherit;">Vissza az egyszerű fizetéshez</button>
+                    </div>
+                    
+                    <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
+                        <div style="display:flex;flex-direction:column;gap:4px;background:#fff;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;">
+                            <label style="font-size:11px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:4px;">
+                                💵 KP (készpénz)
+                            </label>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <input class="sd-split-amount-kp" type="number" min="0" max="${o.codAmount}" value="${isSplitSaved ? (currentPm.cash || '') : ''}" placeholder="0" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;font-family:inherit;">
+                                <label style="display:flex;align-items:center;gap:3px;font-size:10px;cursor:pointer;font-weight:700;padding:4px 6px;border-radius:6px;user-select:none;" class="sd-split-status-label-kp">
+                                    <input type="checkbox" class="sd-split-status-kp" ${currentStatus.cash === 'received' ? 'checked' : ''} style="accent-color:#16a34a;cursor:pointer;"> Nálunk van
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div style="display:flex;flex-direction:column;gap:4px;background:#fff;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;">
+                            <label style="font-size:11px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:4px;">
+                                💳 Kártya
+                            </label>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <input class="sd-split-amount-card" type="number" min="0" max="${o.codAmount}" value="${isSplitSaved ? (currentPm.card || '') : ''}" placeholder="0" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;font-family:inherit;">
+                                <label style="display:flex;align-items:center;gap:3px;font-size:10px;cursor:pointer;font-weight:700;padding:4px 6px;border-radius:6px;user-select:none;" class="sd-split-status-label-card">
+                                    <input type="checkbox" class="sd-split-status-card" ${currentStatus.card === 'received' ? 'checked' : ''} style="accent-color:#2563eb;cursor:pointer;"> Nálunk van
+                                </label>
+                            </div>
+                        </div>
+
+                        <div style="display:flex;flex-direction:column;gap:4px;background:#fff;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;">
+                            <label style="font-size:11px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:4px;">
+                                🏦 Közvetlen utalás
+                            </label>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <input class="sd-split-amount-bank" type="number" min="0" max="${o.codAmount}" value="${isSplitSaved ? (currentPm.bank || '') : ''}" placeholder="0" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;font-family:inherit;">
+                                <label style="display:flex;align-items:center;gap:3px;font-size:10px;cursor:pointer;font-weight:700;padding:4px 6px;border-radius:6px;user-select:none;" class="sd-split-status-label-bank">
+                                    <input type="checkbox" class="sd-split-status-bank" ${currentStatus.bank === 'received' ? 'checked' : ''} style="accent-color:#0284c7;cursor:pointer;"> Nálunk van
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="sd-split-partial-row" style="display:none;background:#eff6ff;border:1px dashed #93c5fd;border-radius:8px;padding:12px;margin-top:8px;">
+                        <div style="font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:8px;">
+                            ⚠️ Részleges fizetés történt! Hiányzó összeg: <span class="sd-split-diff-amount">0</span> Ft
+                        </div>
+                        <input class="sd-split-partial-comment" type="text" placeholder="Miért volt részleges? (pl. 1 db termék sérült, visszahozta)..." value="${wasPartial ? (prevPartial.comment||'').replace(/"/g,'&quot;') : ''}" style="width:100%;box-sizing:border-box;font-size:13px;border:2px solid #93c5fd;border-radius:8px;padding:8px 12px;outline:none;background:#fff;margin-bottom:12px;font-family:inherit;">
+                        
+                        <div class="sd-resp-selector" style="display:flex;align-items:center;gap:8px;" data-order-id="${o.id}">
+                            <span style="font-size:11px;color:#1d4ed8;font-weight:700;margin-right:6px;">Kinek a hibájából?</span>
+                            <button type="button" class="sd-resp-btn mienk ${rMienkActive ? 'active' : ''}" data-resp="mienk" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rMienkActive ? '#fca5a5' : '#cbd5e1'};background:${rMienkActive ? '#fee2e2' : '#fff'};color:${rMienkActive ? '#b91c1c' : '#64748b'};transition:all .1s;">Saját hiba</button>
+                            <button type="button" class="sd-resp-btn szallito ${rSzallitoActive ? 'active' : ''}" data-resp="szallito" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rSzallitoActive ? '#fed7aa' : '#cbd5e1'};background:${rSzallitoActive ? '#ffedd5' : '#fff'};color:${rSzallitoActive ? '#c2410c' : '#64748b'};transition:all .1s;">Szállító</button>
+                            <button type="button" class="sd-resp-btn vevo ${rVevoActive ? 'active' : ''}" data-resp="vevo" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rVevoActive ? '#cbd5e1' : '#cbd5e1'};background:${rVevoActive ? '#e2e8f0' : '#fff'};color:${rVevoActive ? '#475569' : '#64748b'};transition:all .1s;">Vevő / Egyéb</button>
+                        </div>
+                    </div>
+                </div>
+                `;
+
                 return `
                 <div class="sd-order-row" style="border-bottom:1px solid #f1f5f9;">
-                    <label style="display:grid;grid-template-columns: 24px 80px minmax(0, 2fr) minmax(0, 1fr) minmax(420px, auto);align-items:start;gap:12px;padding:14px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                    <label style="display:grid;grid-template-columns: 24px 80px minmax(0, 2fr) minmax(0, 1fr) minmax(360px, auto);align-items:start;gap:12px;padding:14px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
                         <div style="display:flex;align-items:center;padding-top:2px;">
                             <input type="checkbox" data-order-id="${o.id}" data-amount="${o.codAmount}" data-is-cod="true" ${wasUncollected ? '' : 'checked'}
                                 style="width:20px;height:20px;cursor:pointer;accent-color:#22c55e;">
@@ -464,32 +577,10 @@ export function initHistoryView(context) {
                         <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;padding-top:2px;">
                             ${paymentMethodSelectorHtml}
                             ${paymentStatusSelectorHtml}
-                            <button class="sd-partial-toggle" onclick="event.preventDefault();event.stopPropagation();"
-                                style="display:${wasUncollected?'none':'inline-flex'};align-items:center;gap:4px;font-size:11px;font-weight:600;color:${wasPartial?'#1d4ed8':'#64748b'};background:${wasPartial?'#eff6ff':'#f8fafc'};border:1px solid ${wasPartial?'#93c5fd':'#e2e8f0'};border-radius:6px;padding:6px 10px;cursor:pointer;font-family:inherit;transition:all .15s;">
-                                <i class="ph-bold ph-split-horizontal" style="font-size:12px;"></i> Részlegesen fizetett
-                            </button>
+                            ${splitToggleBtnHtml}
                         </div>
                     </label>
-                    <div class="sd-partial-row" style="display:${wasPartial?'block':'none'};padding:12px 20px 16px 116px;background:#eff6ff;border-top:1px dashed #93c5fd;">
-                        <div style="font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:8px;">Részleges fizetés történt. Kérlek add meg a részleteket:</div>
-                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-                            <input class="sd-partial-amount" type="number" min="0" max="${o.codAmount}"
-                                value="${wasPartial ? (prevPartial.amount||'') : ''}" placeholder="${o.codAmount}"
-                                style="width:120px;font-size:14px;font-weight:700;color:#1e40af;border:2px solid #93c5fd;border-radius:8px;padding:6px 10px;font-family:inherit;outline:none;">
-                            <span style="font-size:13px;color:#64748b;font-weight:600;">Ft átvett összeg <span style="color:#94a3b8;font-weight:normal;">(teljes elvárt: ${o.codAmount.toLocaleString('hu-HU')} Ft)</span></span>
-                            <button class="sd-partial-reset" onclick="event.stopPropagation();" style="margin-left:auto;font-size:12px;font-weight:600;color:#64748b;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;cursor:pointer;font-family:inherit;transition:all .15s;">Mégsem</button>
-                        </div>
-                        <input class="sd-partial-comment" type="text" placeholder="Miért volt részleges? (pl. 1 db tábla sérült)..."
-                            value="${wasPartial ? (prevPartial.comment||'').replace(/"/g,'&quot;') : ''}"
-                            style="width:100%;box-sizing:border-box;font-size:13px;border:2px solid #93c5fd;border-radius:8px;padding:8px 12px;font-family:inherit;margin-bottom:12px;outline:none;">
-                        
-                        <div class="sd-resp-selector" style="display:flex;align-items:center;gap:8px;" data-order-id="${o.id}">
-                            <span style="font-size:12px;color:#1d4ed8;font-weight:700;margin-right:6px;">Kinek a hibájából?</span>
-                            <button type="button" class="sd-resp-btn mienk ${rMienkActive ? 'active' : ''}" data-resp="mienk" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rMienkActive ? '#fca5a5' : '#e2e8f0'};background:${rMienkActive ? '#fee2e2' : '#fff'};color:${rMienkActive ? '#b91c1c' : '#64748b'};transition:all .1s;">Saját hiba</button>
-                            <button type="button" class="sd-resp-btn szallito ${rSzallitoActive ? 'active' : ''}" data-resp="szallito" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rSzallitoActive ? '#fed7aa' : '#e2e8f0'};background:${rSzallitoActive ? '#ffedd5' : '#fff'};color:${rSzallitoActive ? '#c2410c' : '#64748b'};transition:all .1s;">Szállító</button>
-                            <button type="button" class="sd-resp-btn vevo ${rVevoActive ? 'active' : ''}" data-resp="vevo" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rVevoActive ? '#cbd5e1' : '#e2e8f0'};background:${rVevoActive ? '#e2e8f0' : '#fff'};color:${rVevoActive ? '#475569' : '#64748b'};transition:all .1s;">Vevő / Egyéb</button>
-                        </div>
-                    </div>
+                    ${splitContainerHtml}
                     ${makeReasonHtml(o.id, wasUncollected)}
                 </div>`;
             }).join('');
@@ -499,7 +590,7 @@ export function initHistoryView(context) {
                 const itemsList = (o.items || []).map(it => `<span style="display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;margin:2px 4px 2px 0;"><b>${it.qty}×</b> ${it.name}</span>`).join('');
                 return `
                 <div class="sd-order-row" style="border-bottom:1px solid #f1f5f9;">
-                    <label style="display:grid;grid-template-columns: 24px 80px minmax(0, 2fr) minmax(0, 1fr) minmax(420px, auto);align-items:start;gap:12px;padding:14px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                    <label style="display:grid;grid-template-columns: 24px 80px minmax(0, 2fr) minmax(0, 1fr);align-items:start;gap:12px;padding:14px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
                         <div style="display:flex;align-items:center;padding-top:2px;">
                             <input type="checkbox" data-order-id="${o.id}" data-is-cod="false" ${wasUncollected ? '' : 'checked'}
                                 style="width:20px;height:20px;cursor:pointer;accent-color:#22c55e;">
@@ -512,10 +603,9 @@ export function initHistoryView(context) {
                             </div>
                             <div class="sd-items-list" style="display:none;font-size:11px;color:#475569;margin-top:2px;" onclick="event.preventDefault();event.stopPropagation();">${itemsList}</div>` : ''}
                         </div>
-                        <div style="display:flex;align-items:center;padding-top:2px;">
+                        <div style="display:flex;align-items:center;padding-top:2px;justify-content:flex-end;">
                             <span style="font-size:13px;font-weight:700;color:#64748b;background:#f1f5f9;border-radius:6px;padding:4px 10px;">Nem utánvétes</span>
                         </div>
-                        <div></div>
                     </label>
                     ${makeReasonHtml(o.id, wasUncollected)}
                 </div>`;
@@ -542,7 +632,7 @@ export function initHistoryView(context) {
                         </button>
                     </div>
                     <div style="padding:10px 20px 8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0;">
-                        <span style="font-size:12px;color:#64748b;font-weight:600;">Pipáld ki az <strong style="color:#0f172a;">átadott</strong> rendeléseket · Utánvéteknél válaszd ki a fizetés módját (KP / Kártya / Utalás)</span>
+                        <span style="font-size:12px;color:#64748b;font-weight:600;">Pipáld ki az <strong style="color:#0f172a;">átadott</strong> rendeléseket · Utánvéteknél add meg a fizetett összegeket és a státuszukat</span>
                     </div>
                     <div style="overflow-y:auto;flex:1;">${rowsHtml}</div>
                     <div style="padding:14px 20px;border-top:2px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;background:#fff;flex-shrink:0;">
@@ -574,56 +664,120 @@ export function initHistoryView(context) {
             document.body.appendChild(overlay);
 
             const updateRowAmountDisplay = (row) => {
-                const cb = row.querySelector('input[type=checkbox]');
+                const cb = row.querySelector('input[type=checkbox]:not(.sd-paystatus-checkbox):not(.sd-split-status-kp):not(.sd-split-status-card):not(.sd-split-status-bank)');
+                if (!cb || cb.getAttribute('data-is-cod') !== 'true') return;
+                
                 const fullAmount = parseInt(cb.getAttribute('data-amount'));
-                const partialRow = row.querySelector('.sd-partial-row');
-                const partialInput = row.querySelector('.sd-partial-amount');
                 const fullAmountEl = row.querySelector('.sd-full-amount');
-                if (!fullAmountEl) return;
                 
-                let amount = fullAmount;
-                if (partialRow && partialRow.style.display !== 'none' && partialInput.value !== '') {
-                    amount = Math.min(parseInt(partialInput.value) || 0, fullAmount);
-                }
+                const splitContainer = row.querySelector('.sd-payment-split-container');
+                const isSplitActive = splitContainer && splitContainer.style.display !== 'none';
                 
-                const paymethodSelector = row.querySelector('.sd-paymethod-selector');
-                const activePayBtn = paymethodSelector ? paymethodSelector.querySelector('.sd-paymethod-btn.active') : null;
-                const method = activePayBtn ? activePayBtn.getAttribute('data-method') : 'cash';
-                
-                const statusCheckbox = row.querySelector('.sd-paystatus-checkbox');
-                const isReceived = statusCheckbox ? statusCheckbox.checked : true;
-                
-                const statusLabelSpan = row.querySelector('.sd-paystatus-label span');
-                const statusLabel = row.querySelector('.sd-paystatus-label');
-                if (statusLabelSpan && statusLabel) {
-                    if (method === 'card') {
-                        statusLabelSpan.textContent = '💳 Utalva nekünk';
-                    } else if (method === 'bank') {
-                        statusLabelSpan.textContent = '🏦 Beérkezett';
+                if (isSplitActive) {
+                    const valKp = Math.max(0, parseInt(row.querySelector('.sd-split-amount-kp').value) || 0);
+                    const valCard = Math.max(0, parseInt(row.querySelector('.sd-split-amount-card').value) || 0);
+                    const valBank = Math.max(0, parseInt(row.querySelector('.sd-split-amount-bank').value) || 0);
+                    
+                    const sum = valKp + valCard + valBank;
+                    
+                    const splitStatusEl = row.querySelector('.sd-split-status');
+                    const partialRow = row.querySelector('.sd-split-partial-row');
+                    
+                    if (sum === fullAmount) {
+                        splitStatusEl.textContent = 'Rendben';
+                        splitStatusEl.style.color = '#16a34a';
+                        partialRow.style.display = 'none';
+                    } else if (sum > fullAmount) {
+                        splitStatusEl.textContent = `Túl sok (+${(sum - fullAmount).toLocaleString('hu-HU')} Ft)`;
+                        splitStatusEl.style.color = '#dc2626';
+                        partialRow.style.display = 'none';
                     } else {
-                        statusLabelSpan.textContent = '💵 Nálunk van';
+                        const diff = fullAmount - sum;
+                        splitStatusEl.textContent = `Részleges (-${diff.toLocaleString('hu-HU')} Ft)`;
+                        splitStatusEl.style.color = '#2563eb';
+                        partialRow.style.display = 'block';
+                        row.querySelector('.sd-split-diff-amount').textContent = diff.toLocaleString('hu-HU');
                     }
                     
-                    if (isReceived) {
-                        statusLabel.style.background = '#d1fae5';
-                        statusLabel.style.borderColor = '#10b981';
-                        statusLabel.style.color = '#065f46';
-                    } else {
-                        statusLabel.style.background = '#fef3c7';
-                        statusLabel.style.borderColor = '#f59e0b';
-                        statusLabel.style.color = '#92400e';
+                    const updateStatusLabel = (type, colorTheme) => {
+                        const chk = row.querySelector(`.sd-split-status-${type}`);
+                        const label = row.querySelector(`.sd-split-status-label-${type}`);
+                        if (!chk || !label) return;
+                        if (chk.checked) {
+                            label.style.background = colorTheme.receivedBg;
+                            label.style.borderColor = colorTheme.receivedBorder;
+                            label.style.color = colorTheme.receivedText;
+                        } else {
+                            label.style.background = colorTheme.pendingBg;
+                            label.style.borderColor = colorTheme.pendingBorder;
+                            label.style.color = colorTheme.pendingText;
+                        }
+                    };
+                    
+                    updateStatusLabel('kp', {
+                        receivedBg: '#d1fae5', receivedBorder: '#10b981', receivedText: '#065f46',
+                        pendingBg: '#fef3c7', pendingBorder: '#f59e0b', pendingText: '#92400e'
+                    });
+                    updateStatusLabel('card', {
+                        receivedBg: '#dbeafe', receivedBorder: '#3b82f6', receivedText: '#1e40af',
+                        pendingBg: '#eff6ff', pendingBorder: '#bfdbfe', pendingText: '#1d4ed8'
+                    });
+                    updateStatusLabel('bank', {
+                        receivedBg: '#e0f2fe', receivedBorder: '#0284c7', receivedText: '#0369a1',
+                        pendingBg: '#f0f9ff', pendingBorder: '#bae6fd', pendingText: '#0284c7'
+                    });
+                    
+                    if (fullAmountEl) {
+                        if (sum === fullAmount) {
+                            fullAmountEl.style.color = '#10b981';
+                            fullAmountEl.textContent = `${fullAmount.toLocaleString('hu-HU')} Ft`;
+                        } else {
+                            fullAmountEl.style.color = '#d97706';
+                            fullAmountEl.textContent = `${sum.toLocaleString('hu-HU')} / ${fullAmount.toLocaleString('hu-HU')} Ft`;
+                        }
                     }
-                }
-                
-                if (method === 'bank') {
-                    fullAmountEl.style.color = '#0284c7';
-                    fullAmountEl.textContent = amount.toLocaleString('hu-HU') + ' Ft (Utalás)';
-                } else if (method === 'card') {
-                    fullAmountEl.style.color = '#1d4ed8';
-                    fullAmountEl.textContent = amount.toLocaleString('hu-HU') + ' Ft (Kártya)';
                 } else {
-                    fullAmountEl.style.color = '#10b981';
-                    fullAmountEl.textContent = amount.toLocaleString('hu-HU') + ' Ft (KP)';
+                    const paymethodSelector = row.querySelector('.sd-paymethod-selector');
+                    const activePayBtn = paymethodSelector ? paymethodSelector.querySelector('.sd-paymethod-btn.active') : null;
+                    const method = activePayBtn ? activePayBtn.getAttribute('data-method') : 'cash';
+                    
+                    const statusCheckbox = row.querySelector('.sd-paystatus-checkbox');
+                    const isReceived = statusCheckbox ? statusCheckbox.checked : false;
+                    
+                    const statusLabelSpan = row.querySelector('.sd-paystatus-label span');
+                    const statusLabel = row.querySelector('.sd-paystatus-label');
+                    if (statusLabelSpan && statusLabel) {
+                        if (method === 'card') {
+                            statusLabelSpan.textContent = '💳 Utalva nekünk';
+                        } else if (method === 'bank') {
+                            statusLabelSpan.textContent = '🏦 Beérkezett';
+                        } else {
+                            statusLabelSpan.textContent = '💵 Nálunk van';
+                        }
+                        
+                        if (isReceived) {
+                            statusLabel.style.background = '#d1fae5';
+                            statusLabel.style.borderColor = '#10b981';
+                            statusLabel.style.color = '#065f46';
+                        } else {
+                            statusLabel.style.background = '#fef3c7';
+                            statusLabel.style.borderColor = '#f59e0b';
+                            statusLabel.style.color = '#92400e';
+                        }
+                    }
+                    
+                    if (fullAmountEl) {
+                        if (method === 'bank') {
+                            fullAmountEl.style.color = '#0284c7';
+                            fullAmountEl.textContent = `${fullAmount.toLocaleString('hu-HU')} Ft (Utalás)`;
+                        } else if (method === 'card') {
+                            fullAmountEl.style.color = '#1d4ed8';
+                            fullAmountEl.textContent = `${fullAmount.toLocaleString('hu-HU')} Ft (Kártya)`;
+                        } else {
+                            fullAmountEl.style.color = '#10b981';
+                            fullAmountEl.textContent = `${fullAmount.toLocaleString('hu-HU')} Ft (KP)`;
+                        }
+                    }
                 }
             };
 
@@ -634,41 +788,62 @@ export function initHistoryView(context) {
                 let totalOther = 0;
 
                 overlay.querySelectorAll('.sd-order-row').forEach(row => {
-                    const cb = row.querySelector('input[type=checkbox]');
+                    const cb = row.querySelector('input[type=checkbox]:not(.sd-paystatus-checkbox):not(.sd-split-status-kp):not(.sd-split-status-card):not(.sd-split-status-bank)');
                     if (!cb || cb.getAttribute('data-is-cod') !== 'true') return;
                     
                     updateRowAmountDisplay(row);
                     if (!cb.checked) return;
 
-                    const fullAmount   = parseInt(cb.getAttribute('data-amount'));
-                    const partialRow   = row.querySelector('.sd-partial-row');
-                    const partialInput = row.querySelector('.sd-partial-amount');
-                    
-                    let rowAmount = fullAmount;
-                    if (partialRow && partialRow.style.display !== 'none' && partialInput.value !== '') {
-                        rowAmount = Math.min(parseInt(partialInput.value) || 0, fullAmount);
-                    }
+                    const splitContainer = row.querySelector('.sd-payment-split-container');
+                    const isSplitActive = splitContainer && splitContainer.style.display !== 'none';
 
-                    const paymethodSelector = row.querySelector('.sd-paymethod-selector');
-                    const activePayBtn = paymethodSelector ? paymethodSelector.querySelector('.sd-paymethod-btn.active') : null;
-                    const method = activePayBtn ? activePayBtn.getAttribute('data-method') : 'cash';
+                    if (isSplitActive) {
+                        const valKp = Math.max(0, parseInt(row.querySelector('.sd-split-amount-kp').value) || 0);
+                        const valCard = Math.max(0, parseInt(row.querySelector('.sd-split-amount-card').value) || 0);
+                        const valBank = Math.max(0, parseInt(row.querySelector('.sd-split-amount-bank').value) || 0);
 
-                    const statusCheckbox = row.querySelector('.sd-paystatus-checkbox');
-                    const isReceived = statusCheckbox ? statusCheckbox.checked : true;
+                        const statusKp = row.querySelector('.sd-split-status-kp').checked;
+                        const statusCard = row.querySelector('.sd-split-status-card').checked;
+                        const statusBank = row.querySelector('.sd-split-status-bank').checked;
 
-                    if (method === 'bank') {
-                        totalOther += rowAmount;
-                    } else if (method === 'card') {
-                        if (isReceived) {
-                            totalOther += rowAmount;
+                        if (statusKp) {
+                            totalKpReceived += valKp;
                         } else {
-                            totalCardPending += rowAmount;
+                            totalKpPending += valKp;
                         }
-                    } else { // cash
-                        if (isReceived) {
-                            totalKpReceived += rowAmount;
+
+                        if (statusCard) {
+                            totalOther += valCard;
                         } else {
-                            totalKpPending += rowAmount;
+                            totalCardPending += valCard;
+                        }
+
+                        if (statusBank) {
+                            totalOther += valBank;
+                        }
+                    } else {
+                        const fullAmount = parseInt(cb.getAttribute('data-amount'));
+                        const paymethodSelector = row.querySelector('.sd-paymethod-selector');
+                        const activePayBtn = paymethodSelector ? paymethodSelector.querySelector('.sd-paymethod-btn.active') : null;
+                        const method = activePayBtn ? activePayBtn.getAttribute('data-method') : 'cash';
+
+                        const statusCheckbox = row.querySelector('.sd-paystatus-checkbox');
+                        const isReceived = statusCheckbox ? statusCheckbox.checked : false;
+
+                        if (method === 'bank') {
+                            totalOther += fullAmount;
+                        } else if (method === 'card') {
+                            if (isReceived) {
+                                totalOther += fullAmount;
+                            } else {
+                                totalCardPending += fullAmount;
+                            }
+                        } else { // cash
+                            if (isReceived) {
+                                totalKpReceived += fullAmount;
+                            } else {
+                                totalKpPending += fullAmount;
+                            }
                         }
                     }
                 });
@@ -679,7 +854,7 @@ export function initHistoryView(context) {
                 overlay.querySelector('#sd-total-other').textContent = totalOther.toLocaleString('hu-HU') + ' Ft';
             };
 
-            overlay.querySelectorAll('input[type=checkbox]:not(.sd-paystatus-checkbox)').forEach(cb => cb.addEventListener('change', (e) => {
+            overlay.querySelectorAll('input[type=checkbox]:not(.sd-paystatus-checkbox):not(.sd-split-status-kp):not(.sd-split-status-card):not(.sd-split-status-bank)').forEach(cb => cb.addEventListener('change', (e) => {
                 const row    = e.target.closest('.sd-order-row');
                 const isCOD  = cb.getAttribute('data-is-cod') === 'true';
                 const reasonRow = row.querySelector('.sd-reason-row');
@@ -688,23 +863,17 @@ export function initHistoryView(context) {
                     const rInput = row.querySelector('.sd-reason-input');
                     if (rInput) rInput.value = '';
                     if (isCOD) {
-                        const pt = row.querySelector('.sd-partial-toggle');
-                        const pm = row.querySelector('.sd-paymethod-selector');
-                        const pc = row.querySelector('.sd-paystatus-container');
-                        if (pt) pt.style.display = 'inline-flex';
-                        if (pm) pm.style.display = 'inline-flex';
-                        if (pc) pc.style.display = 'inline-flex';
+                        row.querySelector('.sd-paymethod-selector').style.display = 'inline-flex';
+                        row.querySelector('.sd-paystatus-container').style.display = 'inline-flex';
+                        row.querySelector('.sd-split-toggle-btn').style.display = 'inline-flex';
+                        row.querySelector('.sd-payment-split-container').style.display = 'none';
                     }
                 } else {
                     if (isCOD) {
-                        const pr = row.querySelector('.sd-partial-row');
-                        const pt = row.querySelector('.sd-partial-toggle');
-                        const pm = row.querySelector('.sd-paymethod-selector');
-                        const pc = row.querySelector('.sd-paystatus-container');
-                        if (pr) { pr.style.display = 'none'; row.querySelector('.sd-partial-amount').value = ''; row.querySelector('.sd-partial-comment').value = ''; }
-                        if (pt) pt.style.display = 'none';
-                        if (pm) pm.style.display = 'none';
-                        if (pc) pc.style.display = 'none';
+                        row.querySelector('.sd-paymethod-selector').style.display = 'none';
+                        row.querySelector('.sd-paystatus-container').style.display = 'none';
+                        row.querySelector('.sd-split-toggle-btn').style.display = 'none';
+                        row.querySelector('.sd-payment-split-container').style.display = 'none';
                     }
                     reasonRow.style.display = 'block';
                     const rInput = row.querySelector('.sd-reason-input');
@@ -713,7 +882,6 @@ export function initHistoryView(context) {
                 updateTotal();
             }));
 
-            // Felelősség gombok eseménydelegált kezelése a terítés dialógusban
             overlay.addEventListener('click', (e) => {
                 const btn = e.target.closest('.sd-resp-btn');
                 if (!btn) return;
@@ -726,7 +894,7 @@ export function initHistoryView(context) {
                     b.classList.remove('active');
                     b.style.background = '#fff';
                     b.style.color = '#64748b';
-                    b.style.borderColor = '#e2e8f0';
+                    b.style.borderColor = '#cbd5e1';
                 });
                 
                 btn.classList.add('active');
@@ -746,7 +914,65 @@ export function initHistoryView(context) {
                 }
             });
 
-            // Fizetési mód gombok eseménykezelése
+            // Split toggle button click
+            overlay.addEventListener('click', (e) => {
+                const btn = e.target.closest('.sd-split-toggle-btn');
+                if (!btn) return;
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const row = btn.closest('.sd-order-row');
+                const splitContainer = row.querySelector('.sd-payment-split-container');
+                const cb = row.querySelector('input[type=checkbox]');
+                const fullAmount = parseInt(cb.getAttribute('data-amount'));
+                
+                splitContainer.style.display = 'flex';
+                row.querySelector('.sd-paymethod-selector').style.display = 'none';
+                row.querySelector('.sd-paystatus-container').style.display = 'none';
+                btn.style.display = 'none';
+                
+                const kpInput = splitContainer.querySelector('.sd-split-amount-kp');
+                const cardInput = splitContainer.querySelector('.sd-split-amount-card');
+                const bankInput = splitContainer.querySelector('.sd-split-amount-bank');
+                
+                if (!kpInput.value && !cardInput.value && !bankInput.value) {
+                    kpInput.value = fullAmount;
+                }
+                
+                updateTotal();
+            });
+
+            // Split back button click (revert to simple mode)
+            overlay.addEventListener('click', (e) => {
+                const btn = e.target.closest('.sd-split-back-btn');
+                if (!btn) return;
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const row = btn.closest('.sd-order-row');
+                const splitContainer = row.querySelector('.sd-payment-split-container');
+                
+                splitContainer.style.display = 'none';
+                splitContainer.querySelector('.sd-split-amount-kp').value = '';
+                splitContainer.querySelector('.sd-split-amount-card').value = '';
+                splitContainer.querySelector('.sd-split-amount-bank').value = '';
+                splitContainer.querySelector('.sd-split-partial-comment').value = '';
+                
+                row.querySelector('.sd-paymethod-selector').style.display = 'inline-flex';
+                row.querySelector('.sd-paystatus-container').style.display = 'inline-flex';
+                row.querySelector('.sd-split-toggle-btn').style.display = 'inline-flex';
+                
+                updateTotal();
+            });
+
+            overlay.querySelectorAll('.sd-split-amount-kp, .sd-split-amount-card, .sd-split-amount-bank').forEach(input => {
+                input.addEventListener('input', () => updateTotal());
+            });
+            overlay.querySelectorAll('.sd-split-status-kp, .sd-split-status-card, .sd-split-status-bank').forEach(chk => {
+                chk.addEventListener('change', () => updateTotal());
+            });
+
+            // Fizetési mód gombok eseménykezelése egyszerű módban
             overlay.addEventListener('click', (e) => {
                 const btn = e.target.closest('.sd-paymethod-btn');
                 if (!btn) return;
@@ -780,59 +1006,12 @@ export function initHistoryView(context) {
                 updateTotal();
             });
 
-            // Nálunk van checkbox eseménykezelése
+            // Nálunk van checkbox egyszerű módban
             overlay.addEventListener('change', (e) => {
                 const chk = e.target.closest('.sd-paystatus-checkbox');
                 if (!chk) return;
                 updateTotal();
             });
-
-            // Részleges toggle
-            overlay.querySelectorAll('.sd-partial-toggle').forEach(btn => btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const row = btn.closest('.sd-order-row');
-                const partialRow = row.querySelector('.sd-partial-row');
-                const isOpen = partialRow.style.display !== 'none';
-                if (isOpen) {
-                    partialRow.style.display = 'none';
-                    row.querySelector('.sd-partial-amount').value = '';
-                    row.querySelector('.sd-partial-comment').value = '';
-                    btn.style.background = '#f8fafc';
-                    btn.style.color = '#64748b';
-                    btn.style.borderColor = '#e2e8f0';
-                } else {
-                    partialRow.style.display = 'block';
-                    const cb = row.querySelector('input[type=checkbox]');
-                    const amountInput = row.querySelector('.sd-partial-amount');
-                    if (!amountInput.value) amountInput.value = cb.getAttribute('data-amount');
-                    amountInput.focus();
-                    btn.style.background = '#eff6ff';
-                    btn.style.color = '#1d4ed8';
-                    btn.style.borderColor = '#93c5fd';
-                }
-                updateTotal();
-            }));
-
-            // Részleges összeg változásakor frissítse a teljes összeget és a végösszeget
-            overlay.querySelectorAll('.sd-partial-amount').forEach(input => {
-                input.addEventListener('input', (e) => {
-                    updateTotal();
-                });
-            });
-
-            // Mégsem részleges
-            overlay.querySelectorAll('.sd-partial-reset').forEach(btn => btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const row = btn.closest('.sd-order-row');
-                row.querySelector('.sd-partial-row').style.display = 'none';
-                row.querySelector('.sd-partial-amount').value = '';
-                row.querySelector('.sd-partial-comment').value = '';
-                const toggle = row.querySelector('.sd-partial-toggle');
-                toggle.style.background = '#f8fafc';
-                toggle.style.color = '#64748b';
-                toggle.style.borderColor = '#e2e8f0';
-                updateTotal();
-            }));
 
             updateTotal();
 
@@ -854,49 +1033,70 @@ export function initHistoryView(context) {
                 const bankTransferredOrderIds = [];
 
                 overlay.querySelectorAll('.sd-order-row').forEach(row => {
-                    const cb      = row.querySelector('input[type=checkbox]');
+                    const cb = row.querySelector('input[type=checkbox]:not(.sd-paystatus-checkbox):not(.sd-split-status-kp):not(.sd-split-status-card):not(.sd-split-status-bank)');
                     const orderId = cb.getAttribute('data-order-id');
                     const isCOD   = cb.getAttribute('data-is-cod') === 'true';
 
                     if (cb.checked) {
                         if (isCOD) {
-                            const paymethodSelector = row.querySelector('.sd-paymethod-selector');
-                            const activePayBtn = paymethodSelector ? paymethodSelector.querySelector('.sd-paymethod-btn.active') : null;
-                            const method = activePayBtn ? activePayBtn.getAttribute('data-method') : 'cash';
-                            paymentMethods[orderId] = method;
+                            const splitContainer = row.querySelector('.sd-payment-split-container');
+                            const isSplitActive = splitContainer && splitContainer.style.display !== 'none';
 
-                            const statusCheckbox = row.querySelector('.sd-paystatus-checkbox');
-                            const isReceived = statusCheckbox ? statusCheckbox.checked : true;
-                            paymentStatusMap[orderId] = isReceived ? 'received' : 'pending';
+                            if (isSplitActive) {
+                                const valKp = Math.max(0, parseInt(row.querySelector('.sd-split-amount-kp').value) || 0);
+                                const valCard = Math.max(0, parseInt(row.querySelector('.sd-split-amount-card').value) || 0);
+                                const valBank = Math.max(0, parseInt(row.querySelector('.sd-split-amount-bank').value) || 0);
 
-                            const fullAmount   = parseInt(cb.getAttribute('data-amount'));
-                            const partialRow   = row.querySelector('.sd-partial-row');
-                            const partialInput = row.querySelector('.sd-partial-amount');
-                            
-                            let rowAmt = fullAmount;
-                            if (partialRow && partialRow.style.display !== 'none' && partialInput.value !== '') {
-                                rowAmt = Math.min(parseInt(partialInput.value) || 0, fullAmount);
-                                const comment = row.querySelector('.sd-partial-comment').value.trim();
-                                partialOrders[orderId] = { amount: rowAmt, comment };
-                                
-                                // Részleges megrendelés felelősség rögzítése
-                                const selector = partialRow.querySelector('.sd-resp-selector');
-                                if (selector) {
-                                    const activeBtn = selector.querySelector('.sd-resp-btn.active');
-                                    const resp = activeBtn ? activeBtn.getAttribute('data-resp') : 'vevo';
-                                    uncollectedResponsibility[orderId] = resp;
-                                } else {
-                                    uncollectedResponsibility[orderId] = 'vevo';
+                                const statusKp = row.querySelector('.sd-split-status-kp').checked ? 'received' : 'pending';
+                                const statusCard = row.querySelector('.sd-split-status-card').checked ? 'received' : 'pending';
+                                const statusBank = row.querySelector('.sd-split-status-bank').checked ? 'received' : 'pending';
+
+                                paymentMethods[orderId] = { cash: valKp, card: valCard, bank: valBank };
+                                paymentStatusMap[orderId] = { cash: statusKp, card: statusCard, bank: statusBank };
+
+                                const fullAmount = parseInt(cb.getAttribute('data-amount'));
+                                const sum = valKp + valCard + valBank;
+
+                                if (sum < fullAmount) {
+                                    const comment = row.querySelector('.sd-split-partial-comment').value.trim();
+                                    partialOrders[orderId] = { amount: sum, comment };
+
+                                    const selector = row.querySelector('.sd-split-partial-row .sd-resp-selector');
+                                    if (selector) {
+                                        const activeBtn = selector.querySelector('.sd-resp-btn.active');
+                                        const resp = activeBtn ? activeBtn.getAttribute('data-resp') : 'vevo';
+                                        uncollectedResponsibility[orderId] = resp;
+                                    } else {
+                                        uncollectedResponsibility[orderId] = 'vevo';
+                                    }
                                 }
-                            }
-                            
-                            settledAmount += rowAmt;
-                            if (method === 'card') {
-                                settledCardAmount += rowAmt;
-                            } else if (method === 'bank') {
-                                bankTransferredOrderIds.push(orderId);
+
+                                settledAmount += sum;
+                                settledKpAmount += valKp;
+                                settledCardAmount += valCard;
+
+                                if (valBank > 0) {
+                                    bankTransferredOrderIds.push(orderId);
+                                }
                             } else {
-                                settledKpAmount += rowAmt;
+                                const paymethodSelector = row.querySelector('.sd-paymethod-selector');
+                                const activePayBtn = paymethodSelector ? paymethodSelector.querySelector('.sd-paymethod-btn.active') : null;
+                                const method = activePayBtn ? activePayBtn.getAttribute('data-method') : 'cash';
+                                paymentMethods[orderId] = method;
+
+                                const statusCheckbox = row.querySelector('.sd-paystatus-checkbox');
+                                const isReceived = statusCheckbox ? statusCheckbox.checked : false;
+                                paymentStatusMap[orderId] = isReceived ? 'received' : 'pending';
+
+                                const fullAmount = parseInt(cb.getAttribute('data-amount'));
+                                settledAmount += fullAmount;
+                                if (method === 'card') {
+                                    settledCardAmount += fullAmount;
+                                } else if (method === 'bank') {
+                                    bankTransferredOrderIds.push(orderId);
+                                } else {
+                                    settledKpAmount += fullAmount;
+                                }
                             }
                         }
                     } else {
@@ -907,7 +1107,6 @@ export function initHistoryView(context) {
                             if (reason) uncollectedReasons[orderId] = reason;
                         }
                         
-                        // Teljesen meghiúsult megrendelés felelősség rögzítése
                         const selector = row.querySelector('.sd-reason-row .sd-resp-selector');
                         if (selector) {
                             const activeBtn = selector.querySelector('.sd-resp-btn.active');
@@ -979,7 +1178,11 @@ export function initHistoryView(context) {
                 run.paymentStatusMap = map;
                 
                 // Ha a generált map alapján nincs benne függő tétel, és már elszámolták a kört, tekintsük elszámoltnak
-                const hasPending = run.orders.some(o => o.isCOD && !uncollected.includes(o.id) && map[o.id] === 'pending');
+                const hasPending = run.orders.some(o => {
+                    if (!o.isCOD || uncollected.includes(o.id)) return false;
+                    const status = map[o.id];
+                    return typeof status === 'object' && status !== null ? Object.values(status).includes('pending') : status === 'pending';
+                });
                 if (!hasPending && hasSettled) {
                     run.isSettled = true;
                 }
@@ -995,7 +1198,11 @@ export function initHistoryView(context) {
             runs = runs.filter(r => {
                 const uncollected = r.uncollectedOrderIds || [];
                 const paymentStatusMap = r.paymentStatusMap || {};
-                const hasPending = r.orders.some(o => o.isCOD && !uncollected.includes(o.id) && paymentStatusMap[o.id] === 'pending');
+                const hasPending = r.orders.some(o => {
+                    if (!o.isCOD || uncollected.includes(o.id)) return false;
+                    const status = paymentStatusMap[o.id];
+                    return typeof status === 'object' && status !== null ? Object.values(status).includes('pending') : status === 'pending';
+                });
                 return !r.isSettled || hasPending;
             });
         }

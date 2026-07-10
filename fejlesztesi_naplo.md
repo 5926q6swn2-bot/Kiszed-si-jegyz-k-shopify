@@ -670,6 +670,18 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Padlózat Szó Kiemelése és Inverzálása**: Bevezettünk egy `highlightItemName` segédfüggvényt, amely a tétel nevében szereplő "padlózat" (vagy ragozott formái, pl. "padlózatok") szót keresi meg, és kizárólag ezt a szót emeli ki/inverzálja a szövegben (fekete háttér fehér betűkkel, félkövér betűstílussal). Ez a kiemelés a felületen és a kinyomtatott lapon (PDF-ben is) megjelenik, így fekete-fehér nyomtatásnál is azonnal és kontrasztosan felismerhetővé teszi a padlózat tételeket.
 - **Cache-Busting Frissítés**: Az `index.html`-ben és az `app.js`-ben megemeltük az importálási verziókat (`?v=172`-re).
 
+### 2026. július 10. - Osztott fizetés és terítési elszámolás kibővítése
+- **Osztott fizetések kezelése**: Az elszámolási ablakban (`showSettlementDialog`) az utánvétes rendelésekhez bevezettünk egy teljesen új, külön mezős fizetési bontást. A korábbi választógombos (KP/Kártya/Utalás) módszer helyett mindhárom mezőhöz (Készpénz, Kártya, Utalás) külön érték bevitelt biztosítunk.
+- **Független „Nálunk van” státusz**: Mindhárom fizetési részhez külön-külön bejelölhető a „Nálunk van” (received) jelölőnégyzet. Így rögzíthető pl. ha a vevő az összeg felét kp-ban kifizette (nálunk van), a másik felét pedig kártyával egyenlítette ki (amely még függőben van az elszámolásig).
+- **Intelligens részleges fizetés**: Ha a megadott összegek összege kevesebb a teljes elvárt utánvétnél, a rendszer automatikusan részleges fizetésként kezeli a megrendelést, megjeleníti a hiányzó összeget, és megnyitja a részleges indoklási panelt a felelősségválasztóval.
+- **Élő összesítő számítások**: Frissítettük az elszámolási ablak lábjegyzetében lévő élő kalkulátorokat (Nálunk lévő KP, Várható KP, Kártyás utalásra vár, Közvetlen utalások), hogy a megosztott értékek alapján pontosan jelenítsék meg a végösszegeket.
+- **Kompatibilis adatbázis & cache-busting**: Az új osztott struktúra (`{ cash: X, card: Y, bank: Z }`) és a státusztömbök Firestore mentése teljesen visszafelé kompatibilis a korábbi egyszerű fizetési típusokkal. A cache-busting verziókat megemeltük `?v=173`-ra.
+- **Nyomtatványok kibővítése**:
+  - Az **Összesítő lapon** feltűnően megjelenítettük a következőt: `⚠️ A PANELEK SÉRTETLEN ÁLLAPOTBAN LETTEK ÁTADVA!`.
+  - A **Korrekciós és Elszámoló lap** táblázatában minden sorba bekerültek a **KP**, **Kártya** és **Utalás** pipálható jelölőrubrikák a könnyebb fizetés-beazonosításhoz.
+  - A korrekciós lap alján a készpénzes sor mellett külön sorba került a **Kártyával fizetve** és az **Utalva kifizetve** kézzel kitölthető összesítő mező.
+
+
 
 
 

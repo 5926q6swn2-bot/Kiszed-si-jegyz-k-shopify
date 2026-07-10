@@ -5,7 +5,7 @@ import { UnifiedPrinter } from './services/printer.js';
 import { ShopifyParser, cleanItemNameForMapping } from './services/shopify.js?v=150';
 import { PannonXPService } from './services/pannonxp.js?v=150';
 import { PannonXPView } from './views/pannonxpView.js?v=150';
-import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js';
+import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js?v=173';
 import { Store } from './store/state.js';
 import { OrdersView } from './views/ordersView.js?v=172';
 import { initManualOrderController } from './controllers/manualOrderController.js?v=150';
@@ -1073,7 +1073,11 @@ function initApp() {
                     });
                     run.paymentStatusMap = map;
                     
-                    const hasPending = run.orders.some(o => o.isCOD && !uncollected.includes(o.id) && map[o.id] === 'pending');
+                    const hasPending = run.orders.some(o => {
+                        if (!o.isCOD || uncollected.includes(o.id)) return false;
+                        const status = map[o.id];
+                        return typeof status === 'object' && status !== null ? Object.values(status).includes('pending') : status === 'pending';
+                    });
                     if (!hasPending && hasSettled) {
                         run.isSettled = true;
                     }
@@ -1087,7 +1091,11 @@ function initApp() {
                 filteredRuns = filteredRuns.filter(r => {
                     const uncollected = r.uncollectedOrderIds || [];
                     const paymentStatusMap = r.paymentStatusMap || {};
-                    const hasPending = r.orders.some(o => o.isCOD && !uncollected.includes(o.id) && paymentStatusMap[o.id] === 'pending');
+                    const hasPending = r.orders.some(o => {
+                        if (!o.isCOD || uncollected.includes(o.id)) return false;
+                        const status = paymentStatusMap[o.id];
+                        return typeof status === 'object' && status !== null ? Object.values(status).includes('pending') : status === 'pending';
+                    });
                     return !r.isSettled || hasPending;
                 });
             }

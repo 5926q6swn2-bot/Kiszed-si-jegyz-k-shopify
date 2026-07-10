@@ -187,7 +187,11 @@ export const HistoryManager = {
                     ordersList.forEach(o => {
                         if (o.isCOD && !uncollectedOrderIds.includes(o.id)) {
                             const status = paymentStatusMap[o.id] || 'received';
-                            if (status === 'pending') {
+                            if (typeof status === 'object' && status !== null) {
+                                if (Object.values(status).includes('pending')) {
+                                    hasPendingCOD = true;
+                                }
+                            } else if (status === 'pending') {
                                 hasPendingCOD = true;
                             }
                         }
@@ -216,8 +220,16 @@ export const HistoryManager = {
                 
                 let allTransferSettled = true;
                 Object.keys(paymentStatusMap).forEach(orderId => {
-                    if (paymentMethods[orderId] === 'card' && paymentStatusMap[orderId] === 'pending') {
-                        allTransferSettled = false;
+                    const status = paymentStatusMap[orderId];
+                    const method = paymentMethods[orderId];
+                    if (typeof status === 'object' && status !== null) {
+                        if (status.card === 'pending') {
+                            allTransferSettled = false;
+                        }
+                    } else {
+                        if (method === 'card' && status === 'pending') {
+                            allTransferSettled = false;
+                        }
                     }
                 });
                 updateData.isTransferSettled = allTransferSettled;
@@ -249,10 +261,21 @@ export const HistoryManager = {
                 ordersList.forEach(o => {
                     if (o.isCOD && !uncollectedOrderIds.includes(o.id)) {
                         const method = paymentMethods[o.id] || (runData.bankTransferredOrderIds?.includes(o.id) ? 'bank' : 'cash');
-                        if (type === 'cash' && method === 'cash') {
-                            paymentStatusMap[o.id] = 'received';
-                        } else if (type === 'card' && method === 'card') {
-                            paymentStatusMap[o.id] = 'received';
+                        if (typeof method === 'object' && method !== null) {
+                            if (typeof paymentStatusMap[o.id] !== 'object' || paymentStatusMap[o.id] === null) {
+                                paymentStatusMap[o.id] = {};
+                            }
+                            if (type === 'cash' && method.cash > 0) {
+                                paymentStatusMap[o.id].cash = 'received';
+                            } else if (type === 'card' && method.card > 0) {
+                                paymentStatusMap[o.id].card = 'received';
+                            }
+                        } else {
+                            if (type === 'cash' && method === 'cash') {
+                                paymentStatusMap[o.id] = 'received';
+                            } else if (type === 'card' && method === 'card') {
+                                paymentStatusMap[o.id] = 'received';
+                            }
                         }
                     }
                 });
@@ -261,7 +284,11 @@ export const HistoryManager = {
                 ordersList.forEach(o => {
                     if (o.isCOD && !uncollectedOrderIds.includes(o.id)) {
                         const status = paymentStatusMap[o.id] || 'received';
-                        if (status === 'pending') {
+                        if (typeof status === 'object' && status !== null) {
+                            if (Object.values(status).includes('pending')) {
+                                hasPendingCOD = true;
+                            }
+                        } else if (status === 'pending') {
                             hasPendingCOD = true;
                         }
                     }
@@ -275,8 +302,16 @@ export const HistoryManager = {
                 
                 let allTransferSettled = true;
                 Object.keys(paymentStatusMap).forEach(orderId => {
-                    if (paymentMethods[orderId] === 'card' && paymentStatusMap[orderId] === 'pending') {
-                        allTransferSettled = false;
+                    const status = paymentStatusMap[orderId];
+                    const method = paymentMethods[orderId];
+                    if (typeof status === 'object' && status !== null) {
+                        if (status.card === 'pending') {
+                            allTransferSettled = false;
+                        }
+                    } else {
+                        if (method === 'card' && status === 'pending') {
+                            allTransferSettled = false;
+                        }
                     }
                 });
                 updateData.isTransferSettled = allTransferSettled;

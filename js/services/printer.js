@@ -144,11 +144,15 @@ export const UnifiedPrinter = {
                 <div class="print-page" style="padding: 40px;">
                     <div style="text-align: center; font-size: 28px; font-weight: 800; margin-bottom: 10px;">ÖSSZESÍTŐ (Átadás-Átvétel)</div>
                     <div style="text-align: center; margin-bottom: 20px;">${run.date} | ${run.courier}</div>
-                    <div style="background: #000; color: #fff; text-align: center; padding: 15px; font-size: 24px; font-weight: 800; border-radius: 8px; margin-bottom: 30px;">${run.company}</div>
+                    <div style="background: #000; color: #fff; text-align: center; padding: 15px; font-size: 24px; font-weight: 800; border-radius: 8px; margin-bottom: 20px;">${run.company}</div>
                     
-                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 30px; text-align: center;">
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
                         <div style="font-size: 14px; color: #64748b; margin-bottom: 5px;">ÖSSZES UTÁNVÉT A KÖRBEN:</div>
                         <div style="font-size: 32px; font-weight: 800; color: #b91c1c;">${totalCOD.toLocaleString('hu-HU')} Ft</div>
+                    </div>
+
+                    <div style="margin-bottom: 25px; padding: 12px; border: 2px solid #16a34a; background: #f0fdf4; border-radius: 8px; font-weight: 700; color: #15803d; text-align: center; font-size: 14px; text-transform: uppercase;">
+                        ⚠️ A PANELEK SÉRTETLEN ÁLLAPOTBAN LETTEK ÁTADVA!
                     </div>
 
                     <table style="width: 100%; border-collapse: collapse;">
@@ -170,8 +174,11 @@ export const UnifiedPrinter = {
                 <tr>
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 700;">${o.id}</td>
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${o.shippingName}</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right;">${o.isCOD ? o.codAmount.toLocaleString('hu-HU') + ' Ft' : 'Fizetve'}</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700;">${o.isCOD ? o.codAmount.toLocaleString('hu-HU') + ' Ft' : 'Fizetve'}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 2px solid #cbd5e1;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 1px solid #cbd5e1;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 1px solid #cbd5e1;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 1px solid #cbd5e1;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;"></td>
                 </tr>
             `).join('');
@@ -182,14 +189,42 @@ export const UnifiedPrinter = {
                     <div style="text-align: center; margin-bottom: 30px;">${run.date} | ${run.courier} | ${run.company}</div>
                     
                     <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                        <thead><tr style="background: #f1f5f9;"><th style="text-align: left; padding: 8px;">ID</th><th style="text-align: left; padding: 8px;">Vevő</th><th style="text-align: right; padding: 8px;">Utánvét</th><th style="text-align: center; padding: 8px;">Sikertelen</th><th style="text-align: left; padding: 8px;">Megjegyzés</th></tr></thead>
+                        <thead>
+                            <tr style="background: #f1f5f9;">
+                                <th style="text-align: left; padding: 8px;">ID</th>
+                                <th style="text-align: left; padding: 8px;">Vevő</th>
+                                <th style="text-align: right; padding: 8px;">Utánvét</th>
+                                <th style="text-align: center; padding: 8px; border-left: 2px solid #cbd5e1; width: 60px;">Nem vette</th>
+                                <th style="text-align: center; padding: 8px; border-left: 1px solid #cbd5e1; width: 40px;">KP</th>
+                                <th style="text-align: center; padding: 8px; border-left: 1px solid #cbd5e1; width: 40px;">Kártya</th>
+                                <th style="text-align: center; padding: 8px; border-left: 1px solid #cbd5e1; width: 40px;">Utalás</th>
+                                <th style="text-align: left; padding: 8px;">Megjegyzés / Visszahozott tételek</th>
+                            </tr>
+                        </thead>
                         <tbody>${rows}</tbody>
                     </table>
 
-                    <div style="margin-top: 50px; width: 350px; margin-left: auto;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Várható utánvét:</span><strong>${(run.orders.reduce((sum, o) => sum + (o.isCOD ? o.codAmount : 0), 0)).toLocaleString('hu-HU')} Ft</strong></div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Meghiúsult:</span><span>.................... Ft</span></div>
-                        <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; border-top: 2px solid #000; padding-top: 10px;"><span>Befizetve:</span><span>.................... Ft</span></div>
+                    <div style="margin-top: 40px; width: 380px; margin-left: auto;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 15px;">
+                            <span>Eredeti Várható Utánvét:</span>
+                            <strong>${(run.orders.reduce((sum, o) => sum + (o.isCOD ? o.codAmount : 0), 0)).toLocaleString('hu-HU')} Ft</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 15px; color: #b91c1c;">
+                            <span>Meghiúsult Utánvét:</span>
+                            <span>.................... Ft</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 15px; color: #1e293b;">
+                            <span>💵 Befizetett Készpénz:</span>
+                            <span>.................... Ft</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 15px; color: #1d4ed8;">
+                            <span>💳 Kártyával fizetve:</span>
+                            <span>.................... Ft</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; border-top: 2px solid #000; padding-top: 8px; color: #0284c7;">
+                            <span>🏦 Utalva kifizetve:</span>
+                            <span>.................... Ft</span>
+                        </div>
                     </div>
 
                     <div style="margin-top: 80px; display: flex; justify-content: space-between;">

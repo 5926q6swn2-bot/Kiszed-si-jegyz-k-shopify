@@ -402,6 +402,18 @@ export function generatePdfHtml(run) {
                     <td style="text-align: center; border-left: 2px solid #cbd5e1;">
                         <div style="width: 20px; height: 20px; border: 1px solid #94a3b8; border-radius: 3px; display: inline-block;"></div>
                     </td>
+                    <!-- KP Checkbox -->
+                    <td style="text-align: center; border-left: 1px solid #cbd5e1;">
+                        <div style="width: 20px; height: 20px; border: 1px solid #94a3b8; border-radius: 3px; display: inline-block;"></div>
+                    </td>
+                    <!-- Kártya Checkbox -->
+                    <td style="text-align: center; border-left: 1px solid #cbd5e1;">
+                        <div style="width: 20px; height: 20px; border: 1px solid #94a3b8; border-radius: 3px; display: inline-block;"></div>
+                    </td>
+                    <!-- Utalás Checkbox -->
+                    <td style="text-align: center; border-left: 1px solid #cbd5e1;">
+                        <div style="width: 20px; height: 20px; border: 1px solid #94a3b8; border-radius: 3px; display: inline-block;"></div>
+                    </td>
                     <td></td>
                 </tr>
             `;
@@ -414,9 +426,13 @@ export function generatePdfHtml(run) {
                 <div style="text-align: center; color: #64748b; font-size: 14px; margin-bottom: 10px;">Kelt: ${run.date} | Szállító: ${run.courier}</div>
                 <div style="text-align: center; background: #0f172a; color: white; font-size: 22px; font-weight: 800; padding: 12px 24px; border-radius: 10px; margin-bottom: 30px; letter-spacing: 1px;">${run.company || '-'}</div>
 
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 30px; text-align: center;">
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
                     <div style="font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 5px; text-transform: uppercase;">Összes beszedendő utánvét a körben:</div>
                     <div style="font-size: 32px; font-weight: 800; color: #b91c1c;">${totalCOD.toLocaleString('hu-HU')} Ft</div>
+                </div>
+
+                <div style="margin-bottom: 25px; padding: 12px; border: 2px solid #16a34a; background: #f0fdf4; border-radius: 8px; font-weight: 700; color: #15803d; text-align: center; font-size: 14px; text-transform: uppercase;">
+                    ⚠️ A PANELEK SÉRTETLEN ÁLLAPOTBAN LETTEK ÁTADVA!
                 </div>
 
                 <h3 style="margin-bottom: 15px; color: #334155; font-size: 18px;">Átadott termékek összesítve:</h3>
@@ -464,7 +480,10 @@ export function generatePdfHtml(run) {
                             <th>Rendelésszám</th>
                             <th>Vevő Neve</th>
                             <th class="text-right">Utánvét</th>
-                            <th style="text-align: center; border-left: 2px solid #cbd5e1; width: 100px;">Nem vette át</th>
+                            <th style="text-align: center; border-left: 2px solid #cbd5e1; width: 60px;">Nem vette át</th>
+                            <th style="text-align: center; border-left: 1px solid #cbd5e1; width: 50px;">💵 KP</th>
+                            <th style="text-align: center; border-left: 1px solid #cbd5e1; width: 50px;">💳 Kártya</th>
+                            <th style="text-align: center; border-left: 1px solid #cbd5e1; width: 50px;">🏦 Utalás</th>
                             <th>Visszahozott tételek (Kézzel kitöltendő)</th>
                         </tr>
                     </thead>
@@ -482,9 +501,17 @@ export function generatePdfHtml(run) {
                         <span>Meghiúsult Utánvét (Mínusz):</span>
                         <strong style="border-bottom: 1px dashed #b91c1c; width: 120px; text-align: right;">.................... Ft</strong>
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin-top: 15px; padding-top: 15px; border-top: 2px solid #cbd5e1; font-size: 20px; font-weight: 800; color: #15803d;">
-                        <span>Befizetett Készpénz:</span>
-                        <strong style="border-bottom: 2px solid #15803d; width: 150px; text-align: right;">.................... Ft</strong>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 16px; color: #1e293b;">
+                        <span>💵 Befizetett Készpénz:</span>
+                        <strong style="border-bottom: 1px dashed #1e293b; width: 120px; text-align: right;">.................... Ft</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 16px; color: #1d4ed8;">
+                        <span>💳 Kártyával fizetve:</span>
+                        <strong style="border-bottom: 1px dashed #1d4ed8; width: 120px; text-align: right;">.................... Ft</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 15px; padding-top: 15px; border-top: 2px solid #cbd5e1; font-size: 16px; color: #0284c7;">
+                        <span>🏦 Utalva kifizetve:</span>
+                        <strong style="border-bottom: 1px dashed #0284c7; width: 120px; text-align: right;">.................... Ft</strong>
                     </div>
                 </div>
 
