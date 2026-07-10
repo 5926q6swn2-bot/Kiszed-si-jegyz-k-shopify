@@ -424,8 +424,8 @@ export function generatePdfHtml(run) {
                     <div style="font-size: 32px; font-weight: 800; color: #b91c1c;">${totalCOD.toLocaleString('hu-HU')} Ft</div>
                 </div>
 
-                <div style="margin-bottom: 25px; padding: 12px; border: 2px solid #16a34a; background: #f0fdf4; border-radius: 8px; font-weight: 700; color: #15803d; text-align: center; font-size: 14px; text-transform: uppercase;">
-                    ⚠️ A PANELEK SÉRTETLEN ÁLLAPOTBAN LETTEK ÁTADVA!
+                <div style="margin-bottom: 20px; padding: 8px 12px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 6px; font-weight: 600; color: #475569; text-align: center; font-size: 12px;">
+                    A panelek sértetlen állapotban lettek átadva.
                 </div>
 
                 <h3 style="margin-bottom: 15px; color: #334155; font-size: 18px;">Átadott termékek összesítve:</h3>
