@@ -682,6 +682,9 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
   - Az Összesítő lapon a besorolhatatlan egyéb termékek automatikusan egy különálló sorban tételesen listázásra kerülnek: `Egyéb átadott termékek: plusz ... (db)`.
   - A **Korrekciós és Elszámoló lap** táblázatából eltávolítottuk a redundáns *Nem vette át* és *Utalás* oszlopokat, így közvetlenül a könnyen beikszelhető **KP** és **Kártya** rubrikák szerepelnek a rendelési sorok mellett.
   - A korrekciós lap elszámolási részét letisztítottuk (emojik nélkül), az *Utalással kifizetve* mező felkerült a többi fizetési mód közé a vonal fölé, a vonal alá pedig vastag kiemeléssel a leadandó fizikai készpénzt jelző **Átadott KP rész** került.
+  - A Korrekciós lap fejlécében elhelyeztük a **gépjármű rendszámának** kitöltendő mezőjét (`Rendszám: ........................`).
+  - A Korrekciós lap alján a hitelesítés megerősítésére bekerült az elismerő nyilatkozat: `Az aláírással elismerem, hogy a fenti adatok a valóságnak megfelelnek.`.
+  - A korrekciós aláírás szekcióban pontosítottuk a **Sofőr aláírása** mezőt a futár nevével, és az átvevő aláírásához az **Elszámolás időpontja** rovatot rendeltük.
 - **Szedőlista tételek automatikus rendezése**:
   - Mind a képernyős szedőlistán (rendeléskártyákon belül), mind a nyomtatott Kiszedési Jegyzéken automatikus rendezést vezettünk be: a tételek közül mindig a **falpanelek** kerülnek legfelülre, őket közvetlenül a **padlózatok** követik, az egyéb profilok, ragasztók és kiegészítők pedig a lista végére rendeződnek az átláthatóbb raktári munka érdekében.
 - **Verziók & Cache-Busting**: A cache-busting verziókat frissítettük a böngészők kényszerített újratöltéséhez.

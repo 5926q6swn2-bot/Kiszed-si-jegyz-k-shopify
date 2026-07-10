@@ -518,7 +518,7 @@ export function generatePdfHtml(run) {
         const correctionPageHtml = `
             <div class="page">
                 <div class="doc-title" style="font-size: 28px; margin-bottom: 5px;">Korrekciós és Elszámoló Lap</div>
-                <div style="text-align: center; color: #64748b; font-size: 14px; margin-bottom: 30px;">Kelt: ${run.date} | Szállító: ${run.courier} | Kitöltendő visszavételkor!</div>
+                <div style="text-align: center; color: #64748b; font-size: 14px; margin-bottom: 30px;">Kelt: ${run.date} | Szállító: ${run.courier} | Rendszám: ........................ | Kitöltendő visszavételkor!</div>
 
                 <table>
                     <thead>
@@ -563,16 +563,20 @@ export function generatePdfHtml(run) {
                     </div>
                 </div>
 
-                <div class="signatures" style="margin-top: 80px;">
-                    <div class="signature-box">
+                <div style="margin-top: 50px; font-size: 12px; color: #475569; text-align: center; font-style: italic;">
+                    Az aláírással elismerem, hogy a fenti adatok a valóságnak megfelelnek.
+                </div>
+
+                <div class="signatures" style="margin-top: 40px;">
+                    <div class="signature-box" style="width: 280px;">
                         <div class="signature-line"></div>
                         <div>Átvette (Raktár)</div>
-                        <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Dátum: ...............................</div>
+                        <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Dátum/Idő: ...............................</div>
                     </div>
-                    <div class="signature-box">
+                    <div class="signature-box" style="width: 280px;">
                         <div class="signature-line"></div>
-                        <div>Befizette (Szállító: ${run.courier})</div>
-                        <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Dátum: ...............................</div>
+                        <div>Sofőr aláírása (${run.courier})</div>
+                        <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Elszámolás időpontja: ...............................</div>
                     </div>
                 </div>
             </div>

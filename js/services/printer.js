@@ -246,7 +246,7 @@ export const UnifiedPrinter = {
             return `
                 <div class="print-page" style="padding: 40px;">
                     <div style="text-align: center; font-size: 26px; font-weight: 800; margin-bottom: 10px;">KORREKCIÓS ÉS ELSZÁMOLÓ LAP</div>
-                    <div style="text-align: center; margin-bottom: 30px;">${run.date} | ${run.courier} | ${run.company}</div>
+                    <div style="text-align: center; margin-bottom: 30px;">${run.date} | ${run.courier} | ${run.company} | Rendszám: ........................</div>
                     
                     <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                         <thead>
@@ -289,9 +289,19 @@ export const UnifiedPrinter = {
                         </div>
                     </div>
 
-                    <div style="margin-top: 80px; display: flex; justify-content: space-between;">
-                        <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átadó (Szállító)</div>
-                        <div style="width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">Átvevő (Raktár)</div>
+                    <div style="margin-top: 50px; font-size: 12px; color: #475569; text-align: center; font-style: italic;">
+                        Az aláírással elismerem, hogy a fenti adatok a valóságnak megfelelnek.
+                    </div>
+
+                    <div style="margin-top: 40px; display: flex; justify-content: space-between;">
+                        <div style="width: 260px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">
+                            <div>Átvevő (Raktár)</div>
+                            <div style="font-size: 11px; color: #64748b; margin-top: 5px;">Dátum/Idő: .........................</div>
+                        </div>
+                        <div style="width: 260px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">
+                            <div>Sofőr aláírása (${run.courier})</div>
+                            <div style="font-size: 11px; color: #64748b; margin-top: 5px;">Elszámolás időpontja: .........................</div>
+                        </div>
                     </div>
                 </div>
             `;
