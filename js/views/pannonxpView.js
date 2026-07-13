@@ -149,7 +149,9 @@ export const PannonXPView = {
                     const m = activeM[cleanItemNameForMapping(item.name)];
                     return m && !m.categoryId;
                 });
-                return !hasZip || !!o.pxp_has_unmatched || hasUnmapped || hasUnassignedCategory;
+                const hasRemovedError = o.errors && o.errors.some(err => err.title === "Törölt tétel!");
+                
+                return !hasZip || !!o.pxp_has_unmatched || hasUnmapped || hasUnassignedCategory || hasRemovedError;
             });
             exportBtn.disabled = selectedOrders.length === 0 || hasErrors;
             if (hasErrors) {
@@ -173,8 +175,11 @@ export const PannonXPView = {
             });
             const hasUnassignedCategory = unassignedCategoryItems.length > 0;
             
+            const removedError = order.errors ? order.errors.find(err => err.title === "Törölt tétel!") : null;
+            const hasRemovedError = !!removedError;
+            
             const hasUnmatched = !!order.pxp_has_unmatched || hasUnmappedProduct || hasUnassignedCategory;
-            const hasError = !hasZip || hasUnmatched;
+            const hasError = !hasZip || hasUnmatched || hasRemovedError;
             
             if (order.pxp_csomagszam === undefined) order.pxp_csomagszam = 1;
             if (order.pxp_suly === undefined) order.pxp_suly = 0.5;
@@ -199,7 +204,14 @@ export const PannonXPView = {
             }
             
             let warningMessage = '';
-            if (hasUnmappedProduct) {
+            if (hasRemovedError) {
+                warningMessage = `
+                <span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;" class="pxp-removed-error-span">
+                    ⚠️ Törölt tétel van a megrendelésben, kérlek ellenőrizd a Shopifyban!
+                    <button type="button" class="btn-ack-pxp-removed btn-sm" data-order-index="${index}" data-err-id="${removedError.id}" style="margin-left: 6px; padding: 2px 6px; font-size: 9px; font-weight: 700; background: #dc2626; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: all 0.15s; vertical-align: middle;" onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">Ellenőrizve</button>
+                </span>
+                `;
+            } else if (hasUnmappedProduct) {
                 warningMessage = unmappedItems.map(item => {
                     const cleanedName = cleanItemNameForMapping(item.name);
                     return `
@@ -327,6 +339,21 @@ export const PannonXPView = {
                 
                 // Re-render table row and view
                 this.renderOrders(orders);
+            });
+        });
+
+        // Listener for acknowledging removed tag errors
+        const ackRemovedBtns = tbody.querySelectorAll('.btn-ack-pxp-removed');
+        ackRemovedBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const idx = parseInt(btn.dataset.orderIndex);
+                const errId = btn.dataset.errId;
+                const order = orders[idx];
+                if (order && order.errors) {
+                    order.errors = order.errors.filter(err => err.id !== errId);
+                    this.renderOrders(orders);
+                }
             });
         });
         

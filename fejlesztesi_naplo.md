@@ -707,3 +707,8 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
   - Módosítottuk a referenciaszámok generálását a `generateDefaultReference` függvényben (`js/services/shopify.js`).
   - Az akusztikus paneleknél (`cat_acoustic` kategória) a teljes mennyiség egyben történő kiírása helyett a referenciaszámban megjelenítjük, hogy melyik dobozba hány darab kerül a maximális 5 db/csomag szabály alapján (pl. 6 darab panel és 7 ragasztó esetén a referencia formátuma: `2345 Pecan 3-3, HPR7` lesz).
   - Az egyes tételeket a referenciában a korábbi vesszős elválasztás helyett egy sokkal olvashatóbb szóközös-vesszős formátumra cseréltük (pl. `, `).
+- **„Removed” tag ellenőrzése a PannonXP lapon**:
+  - Bevezettük a Shopify `removed` tag ellenőrzését a PannonXP címkegyártó felületére is.
+  - Ha egy megrendelésen szerepel a `removed` tag, a rendszer egy feltűnő piros hibaüzenetet jelenít meg a sorban (*„⚠️ Törölt tétel van a megrendelésben, kérlek ellenőrizd a Shopifyban!”*), és egy piros **Ellenőrizve** (`btn-ack-pxp-removed`) jóváhagyó gombot kínál fel.
+  - A PannonXP CSV exportálás gombja mindaddig le van tiltva, amíg a kiválasztott megrendelések között van jóváhagyatlan törölt tétel hiba, garantálva a hibás adatexportok elkerülését.
+
