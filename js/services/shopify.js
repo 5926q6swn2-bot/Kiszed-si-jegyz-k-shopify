@@ -80,11 +80,16 @@ export function generateDefaultReference(order, maxLen = 50) {
     }
     
     let itemsStr = parts.join(', ');
-    if (prefix.length + itemsStr.length > maxLen) {
+    let finalRef = prefix + itemsStr;
+    
+    // Add space after every dot if not already followed by space
+    finalRef = finalRef.replace(/\.(?!\s)/g, '. ');
+    
+    if (finalRef.length > maxLen) {
         return cleanOrderId ? `${cleanOrderId} kérdezd Mátét` : 'kérdezd Mátét';
     }
     
-    return prefix + itemsStr;
+    return finalRef;
 }
 
 export const ShopifyParser = {
