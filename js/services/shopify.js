@@ -31,7 +31,7 @@ export function cleanItemNameForMapping(name) {
     return words.join(' ');
 }
 
-export function generateDefaultReference(order, maxLen = 40) {
+export function generateDefaultReference(order, maxLen = 50) {
     const orderId = order.id || '';
     const cleanOrderId = orderId.replace(/^#/, '');
     const prefix = cleanOrderId ? `${cleanOrderId} ` : '';
