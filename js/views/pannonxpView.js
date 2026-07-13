@@ -1106,6 +1106,23 @@ export const PannonXPView = {
             const keys = Object.keys(mappings);
             const categories = rules.categories || [];
             
+            // Hide/filter out linked/merged variants (they point to a parent key via linkedTo)
+            const visibleKeys = keys.filter(k => !mappings[k].linkedTo);
+            
+            // Sort keys by abbreviation alphabetically (placing non-empty ones first)
+            visibleKeys.sort((a, b) => {
+                const abbrevA = (mappings[a].abbrev || '').toLowerCase();
+                const abbrevB = (mappings[b].abbrev || '').toLowerCase();
+                
+                if (abbrevA && !abbrevB) return -1;
+                if (!abbrevA && abbrevB) return 1;
+                
+                const comp = abbrevA.localeCompare(abbrevB, 'hu');
+                if (comp !== 0) return comp;
+                
+                return a.localeCompare(b, 'hu');
+            });
+            
             let html = `
                 <div style="display:flex; flex-direction:column; gap:15px; height: 100%;">
                     <!-- Shopify Termék CSV Import szekció -->
@@ -1124,7 +1141,7 @@ export const PannonXPView = {
                     </div>
                     
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <h4 style="margin: 0; font-size: 13px; color: #1e293b;">Regisztrált Termékek (${keys.length} db)</h4>
+                        <h4 style="margin: 0; font-size: 13px; color: #1e293b;">Regisztrált Termékek (${visibleKeys.length} db)</h4>
                         <button type="button" id="pxp-btn-clear-mappings" class="btn btn-secondary btn-sm" style="padding: 6px 12px; background: #fee2e2; color: #b91c1c; border-color: #fca5a5; font-size: 11px;">
                             Összes törlése
                         </button>
@@ -1141,11 +1158,11 @@ export const PannonXPView = {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${keys.length === 0 ? `
+                                ${visibleKeys.length === 0 ? `
                                     <tr>
                                         <td colspan="4" style="padding: 20px; text-align: center; color: #64748b;">Nincsenek még termékek feltöltve.</td>
                                     </tr>
-                                ` : keys.map(k => {
+                                ` : visibleKeys.map(k => {
                                     const mappingObj = mappings[k] || { abbrev: '', categoryId: '' };
                                     const hasCat = !!mappingObj.categoryId;
                                     return `
