@@ -700,6 +700,10 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
   - Teljesen eltávolítottuk a Levenshtein-hasonlóság alapján feldobott, zavaró *"A termék nagyon hasonlít egy már beállított termékre..."* megerősítő párbeszédpaneleket az új termékek regisztrációjakor.
   - Az új termékek csendesen, üres rövidítéssel és kategóriával kerülnek bejegyzésre, a raktárosnak csak a kategóriát és a rövidítést kell manuálisan megadnia.
   - Bevezettünk egy automatikus háttér-összevonási eljárást (`consolidateMappings`): ha a felhasználó elment egy új rövidítést, és az megegyezik egy már korábban regisztrált termékével (pl. mindkettőnek `"VO"` a rövidítése), a rendszer automatikusan összekapcsolja őket (`linkedTo` szülő-gyermek relációval). Így a beállított azonos rövidítésű variációk azonnal egyetlen sorba vonódnak össze a listában, megszüntetve a Vintage Oak és más azonos rövidítésű termékek ismétlődését.
+- **Rendelések variálása a PannonXP táblázatban**:
+  - **Szerkeszthető Utánvét (COD)**: A PannonXP lap táblázatában az utánvét oszlopot egy beviteli mezőre (`pxp-input-cod`) cseréltük. Így a megrendelések utánvét összegei exportálás előtt szabadon átírhatók, nullázhatók, vagy új összegek adhatók meg, és ez alapján a megrendelés COD státusza is automatikusan frissül.
+  - **Termékek dinamikus törlése a címkéből**: A címzettek neve alatt megjelenítjük az adott megrendelésben szereplő termékek listáját. Minden terméksor mellett elhelyeztünk egy kis piros törlés ikont (`pxp-btn-delete-item`). Erre kattintva a termék véglegesen törlődik az adott PannonXP címkéből, ami után a rendszer automatikusan újraszámolja a referenciaszámokat, a csomagszámokat, a súlyokat és a hiányzó rövidítésre vonatkozó figyelmeztetéseket.
+
 
 
 

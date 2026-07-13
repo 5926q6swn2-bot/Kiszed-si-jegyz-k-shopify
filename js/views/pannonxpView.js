@@ -180,7 +180,23 @@ export const PannonXPView = {
             if (order.pxp_suly === undefined) order.pxp_suly = 0.5;
             if (order.pxp_selected === undefined) order.pxp_selected = true;
             
-            const codFormatted = order.isCOD ? new Intl.NumberFormat('hu-HU').format(Math.round(order.codAmount)) + ' Ft' : '-';
+            let itemsPreviewHtml = '';
+            if (order.items && order.items.length > 0) {
+                itemsPreviewHtml = `
+                    <div style="font-size: 11px; color: #475569; margin-top: 5px; background: rgba(15, 23, 42, 0.03); border: 1px solid rgba(15, 23, 42, 0.08); padding: 5px 8px; border-radius: 6px; display: inline-flex; flex-direction: column; gap: 3px; max-width: 250px;">
+                        ${order.items.map((item, itemIdx) => `
+                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.qty}x <strong>${item.name}</strong></span>
+                                <button type="button" class="pxp-btn-delete-item" data-order-index="${index}" data-item-index="${itemIdx}" title="Termék eltávolítása ebből a címkéből" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0; font-size: 13px; display: flex; align-items: center; justify-content: center; opacity: 0.7; transition: opacity 0.15s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">
+                                    <i class="ph-bold ph-trash" style="font-size: 11px;"></i>
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                itemsPreviewHtml = `<div style="font-size: 11px; color: #94a3b8; font-style: italic; margin-top: 4px;">Nincsenek termékek</div>`;
+            }
             
             let warningMessage = '';
             if (hasUnmappedProduct) {
@@ -214,7 +230,8 @@ export const PannonXPView = {
                     </td>
                     <td style="padding: 10px; font-weight: 600; color: #0f172a;">${order.id}</td>
                     <td style="padding: 10px; font-weight: 500;">
-                        ${order.shippingName}
+                        <div>${order.shippingName}</div>
+                        ${itemsPreviewHtml}
                         ${warningMessage}
                     </td>
                     <td style="padding: 10px; color: #334155;">
@@ -225,8 +242,11 @@ export const PannonXPView = {
                     <td style="padding: 10px;">
                         <input type="text" class="pxp-input-referencia" data-index="${index}" value="${order.pxp_referencia || ''}" maxlength="40" style="width: 100%; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 11px;">
                     </td>
-                    <td style="padding: 10px; text-align: right; font-weight: bold; color: ${order.isCOD ? '#0f172a' : '#94a3b8'};">
-                        ${codFormatted}
+                    <td style="padding: 10px; text-align: right;">
+                        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+                            <input type="number" class="pxp-input-cod" data-index="${index}" value="${order.isCOD ? Math.round(order.codAmount) : 0}" style="width: 75px; padding: 4px; text-align: right; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: bold; font-size: 12px;">
+                            <span style="font-size: 11px; color: #64748b; font-weight: 600;">Ft</span>
+                        </div>
                     </td>
                     <td style="padding: 10px; text-align: center;">
                         <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
@@ -260,6 +280,53 @@ export const PannonXPView = {
             input.addEventListener('change', (e) => {
                 const idx = parseInt(e.target.dataset.index);
                 orders[idx].pxp_referencia = e.target.value.trim();
+            });
+        });
+        
+        // Listener for inline COD editing
+        const codInputs = tbody.querySelectorAll('.pxp-input-cod');
+        codInputs.forEach(input => {
+            input.addEventListener('change', (e) => {
+                const idx = parseInt(e.target.dataset.index);
+                let val = parseFloat(e.target.value);
+                if (isNaN(val) || val < 0) val = 0;
+                
+                const order = orders[idx];
+                order.codAmount = val;
+                order.isCOD = val > 0;
+                e.target.value = val;
+                
+                updateExportState();
+            });
+        });
+
+        // Listener for product item deletion
+        const deleteItemBtns = tbody.querySelectorAll('.pxp-btn-delete-item');
+        deleteItemBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const orderIdx = parseInt(btn.dataset.orderIndex);
+                const itemIdx = parseInt(btn.dataset.itemIndex);
+                const order = orders[orderIdx];
+                
+                // Remove item from list
+                order.items.splice(itemIdx, 1);
+                
+                // Recalculate weights, packages and reference
+                const calc = PannonXPService.calculateWeightAndPackages(order.items);
+                order.pxp_csomagszam = calc.packages;
+                order.pxp_suly = calc.weight;
+                order.pxp_packages = calc.packagesDetail;
+                
+                if (ShopifyParser.generateDefaultReference) {
+                    order.pxp_referencia = ShopifyParser.generateDefaultReference(order, 40);
+                }
+                
+                const activeM = PannonXPService.getNormalizedProductMappings();
+                order.pxp_has_unmatched = calc.hasUnmatched || order.items.some(item => !activeM[cleanItemNameForMapping(item.name)]);
+                
+                // Re-render table row and view
+                this.renderOrders(orders);
             });
         });
         
