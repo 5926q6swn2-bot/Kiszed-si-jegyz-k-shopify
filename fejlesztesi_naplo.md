@@ -688,3 +688,9 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Szedőlista tételek automatikus rendezése**:
   - Mind a képernyős szedőlistán (rendeléskártyákon belül), mind a nyomtatott Kiszedési Jegyzéken automatikus rendezést vezettünk be: a tételek közül mindig a **falpanelek** kerülnek legfelülre, őket közvetlenül a **padlózatok** követik, az egyéb profilok, ragasztók és kiegészítők pedig a lista végére rendeződnek az átláthatóbb raktári munka érdekében.
 - **Verziók & Cache-Busting**: A cache-busting verziókat frissítettük a böngészők kényszerített újratöltéséhez.
+
+### 2026. július 13. - PannonXP Termékregisztrációs és Duplikációs Javítások
+- **Szeparált Szedőlista betöltés**: Megszüntettük a termékek automatikus regisztrációját és a rövidítések kérését, amikor a megrendeléseket a normál **Szedőlista** (picking list) lapra töltik fel. A PannonXP-specifikus regisztráció kizárólag a **PannonXP Címkék** fül alatt végzett betöltésekre korlátozódik.
+- **Rövidítések automatikus újraszámolása társítás után**: Kijavítottuk a hibát, ami miatt fuzzy match/hasonló termék elfogadása után a referenciaszámban továbbra is `?` szerepelt az új rövidítés helyett. A rendszer mostantól azonnal újragenerálja a referenciaszámokat (`pxp_referencia`), miután a felhasználó jóváhagyta az új variáció társítását.
+- **Automatikus Adatbázis Deduplikáció**: Beépítettünk egy automatikus tisztító és összefésülő logikát a `PannonXPService.initializeMappings()` betöltési fázisába. Ez kiszűri és összevonja a termékvariációk miatti duplikált rekordokat (pl. Vintage Oak több sorban való ismétlődését), megtartva a már kitöltött legértékesebb (rövidítéssel bíró) adatokat, így a beállítások táblázatban ezentúl minden termékcsalád tisztán, csak egyszer szerepel.
+

@@ -329,6 +329,9 @@ function initApp() {
                     order.shippingCompany = matchingRow['Shipping Company'] || '';
                 }
                 
+                // Recalculate reference after fuzzy matching/abbreviation registration is done
+                order.pxp_referencia = ShopifyParser.generateDefaultReference(order, 40);
+
                 const calc = PannonXPService.calculateWeightAndPackages(order.items);
                 order.pxp_csomagszam = calc.packages;
                 order.pxp_suly = calc.weight;
@@ -366,9 +369,6 @@ function initApp() {
         }
 
         const result = ShopifyParser.parse(rows, Store.orders);
-        
-        // Register missing products to Firestore/memory
-        await PannonXPService.registerMissingProducts(result.newOrders);
         
         result.newOrders.forEach(order => {
             Store.addOrder(order);

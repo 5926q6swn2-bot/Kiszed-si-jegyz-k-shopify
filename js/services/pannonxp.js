@@ -106,14 +106,39 @@ export const PannonXPService = {
                 }
             }
             
-            mappingsCache = mappings;
+            // Deduplicate and clean mappings
+            const cleaned = {};
+            const seenCleaned = new Set();
+            const keys = Object.keys(mappings);
             
-            // Save mappings to cloud if we migrated from local storage
-            if (!docSnap.exists() && Object.keys(mappings).length > 0) {
-                await setDoc(docRef, { mappings });
+            // Sort keys to prioritize those that have abbreviations or categoryIds assigned
+            keys.sort((a, b) => {
+                const valA = mappings[a] || {};
+                const valB = mappings[b] || {};
+                const scoreA = (valA.abbrev ? 2 : 0) + (valA.categoryId ? 1 : 0);
+                const scoreB = (valB.abbrev ? 2 : 0) + (valB.categoryId ? 1 : 0);
+                return scoreB - scoreA;
+            });
+            
+            const newMappings = {};
+            for (const key of keys) {
+                const cleanedKey = cleanItemNameForMapping(key);
+                if (!cleanedKey) continue;
+                if (!seenCleaned.has(cleanedKey)) {
+                    seenCleaned.add(cleanedKey);
+                    const formattedKey = key.trim().replace(/\s+/g, ' ');
+                    newMappings[formattedKey] = mappings[key];
+                }
             }
             
-            return mappings;
+            mappingsCache = newMappings;
+            
+            // Save mappings to cloud if we migrated or if deduplication actually removed elements
+            if (!docSnap.exists() || keys.length !== Object.keys(newMappings).length) {
+                await setDoc(docRef, { mappings: newMappings });
+            }
+            
+            return newMappings;
         } catch (e) {
             console.error("Hiba a felhős termék rövidítések betöltésekor:", e);
             mappingsCache = mappingsCache || {};
