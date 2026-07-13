@@ -47,8 +47,24 @@ export function generateDefaultReference(order, maxLen = 40) {
         const cleanedName = cleanItemNameForMapping(item.name);
         const mapping = mappings[cleanedName];
         const abbrev = mapping ? (typeof mapping === 'object' ? mapping.abbrev : mapping) : null;
+        const categoryId = mapping ? (typeof mapping === 'object' ? mapping.categoryId : null) : null;
+        
         if (abbrev) {
-            parts.push(`${abbrev}${item.qty}`);
+            if (categoryId === 'cat_acoustic') {
+                const maxQty = 5; // Default maxQty for acoustic panels per box
+                const qty = item.qty;
+                const pkgsCount = Math.ceil(qty / maxQty);
+                const base = Math.floor(qty / pkgsCount);
+                const remainder = qty % pkgsCount;
+                
+                const packageSizes = [];
+                for (let i = 0; i < pkgsCount; i++) {
+                    packageSizes.push(i < remainder ? base + 1 : base);
+                }
+                parts.push(`${abbrev} ${packageSizes.join('-')}`);
+            } else {
+                parts.push(`${abbrev}${item.qty}`);
+            }
         } else {
             hasUnmapped = true;
             // Nem generálunk automatikus félkész rövidítést, hanem kérdőjellel jelöljük a hiányt
@@ -60,7 +76,7 @@ export function generateDefaultReference(order, maxLen = 40) {
         order.pxp_has_unmatched = true;
     }
     
-    let itemsStr = parts.join(',');
+    let itemsStr = parts.join(', ');
     if (prefix.length + itemsStr.length > maxLen) {
         return cleanOrderId ? `${cleanOrderId} kérdezd Mátét` : 'kérdezd Mátét';
     }

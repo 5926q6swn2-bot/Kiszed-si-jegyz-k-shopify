@@ -703,7 +703,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Rendelések variálása a PannonXP táblázatban**:
   - **Szerkeszthető Utánvét (COD)**: A PannonXP lap táblázatában az utánvét oszlopot egy beviteli mezőre (`pxp-input-cod`) cseréltük. Így a megrendelések utánvét összegei exportálás előtt szabadon átírhatók, nullázhatók, vagy új összegek adhatók meg, és ez alapján a megrendelés COD státusza is automatikusan frissül.
   - **Termékek dinamikus törlése a címkéből**: A címzettek neve alatt megjelenítjük az adott megrendelésben szereplő termékek listáját. Minden terméksor mellett elhelyeztünk egy kis piros törlés ikont (`pxp-btn-delete-item`). Erre kattintva a termék véglegesen törlődik az adott PannonXP címkéből, ami után a rendszer automatikusan újraszámolja a referenciaszámokat, a csomagszámokat, a súlyokat és a hiányzó rövidítésre vonatkozó figyelmeztetéseket.
-
-
-
-
+- **Részletes Csomagosztás a Referenciaszámban (Akusztikus Panelek)**:
+  - Módosítottuk a referenciaszámok generálását a `generateDefaultReference` függvényben (`js/services/shopify.js`).
+  - Az akusztikus paneleknél (`cat_acoustic` kategória) a teljes mennyiség egyben történő kiírása helyett a referenciaszámban megjelenítjük, hogy melyik dobozba hány darab kerül a maximális 5 db/csomag szabály alapján (pl. 6 darab panel és 7 ragasztó esetén a referencia formátuma: `2345 Pecan 3-3, HPR7` lesz).
+  - Az egyes tételeket a referenciában a korábbi vesszős elválasztás helyett egy sokkal olvashatóbb szóközös-vesszős formátumra cseréltük (pl. `, `).
