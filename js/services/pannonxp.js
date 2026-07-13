@@ -124,10 +124,17 @@ export const PannonXPService = {
             for (const key of keys) {
                 const cleanedKey = cleanItemNameForMapping(key);
                 if (!cleanedKey) continue;
+                
+                const val = mappings[key] || {};
+                // Skip empty mappings (no abbreviation and no category)
+                if (!val.abbrev && !val.categoryId) {
+                    continue;
+                }
+                
                 if (!seenCleaned.has(cleanedKey)) {
                     seenCleaned.add(cleanedKey);
                     const formattedKey = key.trim().replace(/\s+/g, ' ');
-                    newMappings[formattedKey] = mappings[key];
+                    newMappings[formattedKey] = val;
                 }
             }
             
