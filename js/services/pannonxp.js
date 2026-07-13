@@ -888,7 +888,7 @@ export const PannonXPService = {
             const csomagszam = parseInt(order.pxp_csomagszam) || 1;
             const suly = parseFloat(order.pxp_suly) || 0.5;
             rowData.push(csomagszam.toString());
-            rowData.push(suly.toString());
+            rowData.push(suly.toFixed(2));
             
             if (order.pxp_packages && order.pxp_packages.length === csomagszam) {
                 rowData.push(this.generateCsomagokJsonFromDetail(order.pxp_packages));
