@@ -51,7 +51,10 @@ export function generateDefaultReference(order, maxLen = 40) {
         
         if (abbrev) {
             if (categoryId === 'cat_acoustic') {
-                const maxQty = 5; // Default maxQty for acoustic panels per box
+                const rules = PannonXPService.getPackagingRules ? PannonXPService.getPackagingRules() : null;
+                const categories = rules ? (rules.categories || []) : [];
+                const catAcoustic = categories.find(c => c.id === 'cat_acoustic');
+                const maxQty = catAcoustic ? (catAcoustic.maxQty || 5) : 5;
                 const qty = item.qty;
                 const pkgsCount = Math.ceil(qty / maxQty);
                 const base = Math.floor(qty / pkgsCount);
