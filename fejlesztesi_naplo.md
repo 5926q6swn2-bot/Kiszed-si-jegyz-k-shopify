@@ -696,5 +696,10 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Rövidítések ABC sorrendbe rendezése és Összevont Sorok Elrejtése**: A termékbeállítások modal "Termék rövidítések" táblázatát átalakítottuk:
   - A már más termékhez párosított/összevont variációk (amelyek rendelkeznek `linkedTo` mutatóval) nem jelennek meg külön sorként, így elkerülhető, hogy a Vintage Oak és származékai 2 vagy több sorban is látszódjanak a listában.
   - A regisztrált terméklistát a megadott **rövidítések alapján ABC rendbe** állítva jelenítjük meg, a még kitöltetlen rövidítéssel bíró termékeket pedig a lista végére gyűjtjük.
+- **Hasonló termék figyelmeztetések eltávolítása és automatikus rövidítés alapú összevonás**:
+  - Teljesen eltávolítottuk a Levenshtein-hasonlóság alapján feldobott, zavaró *"A termék nagyon hasonlít egy már beállított termékre..."* megerősítő párbeszédpaneleket az új termékek regisztrációjakor.
+  - Az új termékek csendesen, üres rövidítéssel és kategóriával kerülnek bejegyzésre, a raktárosnak csak a kategóriát és a rövidítést kell manuálisan megadnia.
+  - Bevezettünk egy automatikus háttér-összevonási eljárást (`consolidateMappings`): ha a felhasználó elment egy új rövidítést, és az megegyezik egy már korábban regisztrált termékével (pl. mindkettőnek `"VO"` a rövidítése), a rendszer automatikusan összekapcsolja őket (`linkedTo` szülő-gyermek relációval). Így a beállított azonos rövidítésű variációk azonnal egyetlen sorba vonódnak össze a listában, megszüntetve a Vintage Oak és más azonos rövidítésű termékek ismétlődését.
+
 
 

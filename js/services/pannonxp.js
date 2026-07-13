@@ -138,12 +138,13 @@ export const PannonXPService = {
                 }
             }
             
+            // Consolidate abbreviation mappings
+            this.consolidateMappings(newMappings);
+            
             mappingsCache = newMappings;
             
-            // Save mappings to cloud if we migrated or if deduplication actually removed elements
-            if (!docSnap.exists() || keys.length !== Object.keys(newMappings).length) {
-                await setDoc(docRef, { mappings: newMappings });
-            }
+            // Save mappings to cloud if we migrated or if deduplication/consolidation changed the structure
+            await setDoc(docRef, { mappings: newMappings });
             
             return newMappings;
         } catch (e) {
@@ -172,7 +173,51 @@ export const PannonXPService = {
         return normalizeMappings(raw);
     },
 
+    consolidateMappings(mappings) {
+        if (!mappings) return;
+        
+        // 1. Clear existing linkedTo fields first
+        for (const key in mappings) {
+            if (mappings[key]) {
+                delete mappings[key].linkedTo;
+            }
+        }
+        
+        // 2. Group keys by abbreviation
+        const abbrevGroups = {};
+        for (const key in mappings) {
+            const val = mappings[key] || {};
+            const abbrev = (val.abbrev || '').trim().toLowerCase();
+            if (!abbrev) continue;
+            
+            if (!abbrevGroups[abbrev]) {
+                abbrevGroups[abbrev] = [];
+            }
+            abbrevGroups[abbrev].push(key);
+        }
+        
+        // 3. Mark secondary keys as linked to the shortest parent key in each group
+        for (const abbrev in abbrevGroups) {
+            const groupKeys = abbrevGroups[abbrev];
+            if (groupKeys.length > 1) {
+                groupKeys.sort((a, b) => a.length - b.length);
+                const parentKey = groupKeys[0];
+                for (let i = 1; i < groupKeys.length; i++) {
+                    const keyToLink = groupKeys[i];
+                    mappings[keyToLink] = {
+                        ...mappings[keyToLink],
+                        linkedTo: parentKey
+                    };
+                }
+            }
+        }
+        return mappings;
+    },
+
     async saveProductMappings(mappings) {
+        // Consolidate abbreviations before saving
+        this.consolidateMappings(mappings);
+        
         mappingsCache = mappings;
         localStorage.setItem('pxp_product_mappings', JSON.stringify(mappings));
         
@@ -196,44 +241,7 @@ export const PannonXPService = {
                     const cleanedKey = cleanItemNameForMapping(itemName);
                     if (!cleanedKey || normalizedMappings[cleanedKey]) return;
                     
-                    // Look for similar configured products
-                    let bestMatchKey = null;
-                    let bestScore = 0.0;
-                    
-                    for (const existingKey in mappings) {
-                        const existingVal = mappings[existingKey];
-                        if (!existingVal || (!existingVal.abbrev && !existingVal.categoryId)) continue;
-                        
-                        const existingCleaned = cleanItemNameForMapping(existingKey);
-                        const score = getStringSimilarity(cleanedKey, existingCleaned);
-                        if (score > bestScore) {
-                            bestScore = score;
-                            bestMatchKey = existingKey;
-                        }
-                    }
-                    
-                    if (bestScore >= 0.75 && bestMatchKey) {
-                        const confirmed = await CustomDialog.confirm(
-                            `A(z) "<strong>${itemName}</strong>" termék nagyon hasonlít a már beállított "<strong>${bestMatchKey}</strong>" termékre.<br><br>Szeretnéd, hogy mostantól ugyanúgy kezeljük (másoljuk a kategóriát és a rövidítést)?`,
-                            'Termék társítása'
-                        );
-                        if (confirmed) {
-                            const sourceVal = mappings[bestMatchKey];
-                            mappings[itemName] = {
-                                abbrev: sourceVal.abbrev || '',
-                                categoryId: sourceVal.categoryId || '',
-                                linkedTo: bestMatchKey
-                            };
-                            normalizedMappings[cleanedKey] = {
-                                abbrev: sourceVal.abbrev || '',
-                                categoryId: sourceVal.categoryId || ''
-                            };
-                            updated = true;
-                            return;
-                        }
-                    }
-                    
-                    // Default registration (blank)
+                    // Directly register as empty/blank mapping (no fuzzy matching / confirm prompt)
                     mappings[itemName] = {
                         abbrev: '',
                         categoryId: ''
