@@ -192,36 +192,20 @@ export const UnifiedPrinter = {
             }
 
             let returnItemsHtml = '';
-            const returnKeys = Object.keys(returnItems);
-            if (returnKeys.length > 0) {
-                const returnRows = returnKeys.sort().map(name => `
-                    <tr>
-                        <td style="padding: 4px 6px; border-bottom: 1px solid #e2e8f0; color: #6b21a8;">${name}</td>
-                        <td style="padding: 4px 6px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: #6b21a8;">${returnItems[name]} db</td>
-                    </tr>
-                `).join('');
-
-                const returnOrdersList = run.orders.filter(o => o.isReturn).map(o => `
+            const returnOrders = run.orders.filter(o => o.isReturn);
+            if (returnOrders.length > 0) {
+                const returnOrdersList = returnOrders.map(o => `
                     <div style="font-size: 11px; margin-top: 3px; color: #6b21a8; font-family: inherit; line-height: 1.3;">
                         <strong>${o.id}</strong> (${o.shippingName}): ${o.items.map(it => `${it.qty} db ${it.name}`).join(', ')}
                     </div>
                 `).join('');
 
                 returnItemsHtml = `
-                    <div style="margin-bottom: 12px; border: 1px solid #d8b4fe; border-radius: 6px; padding: 10px; background: #faf5ff;">
+                    <div style="margin-bottom: 12px; border: 1px solid #d8b4fe; border-radius: 6px; padding: 10px; background: #faf5ff; text-align: left;">
                         <h4 style="margin: 0 0 6px 0; color: #6b21a8; font-size: 12px; font-weight: 800; text-transform: uppercase; display: flex; align-items: center; gap: 6px; font-family: inherit;">
-                            <i class="ph-bold ph-arrow-counter-clockwise"></i> Visszahozandó termékek összesítve (Vevőtől vissza)
+                            <i class="ph-bold ph-arrow-counter-clockwise"></i> Visszahozandó megrendelések részletesen (Vevőtől vissza)
                         </h4>
-                        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-                            <thead>
-                                <tr style="background: #f3e8ff;"><th style="text-align: left; padding: 4px 6px; color: #6b21a8;">Megnevezés</th><th style="text-align: right; padding: 4px 6px; color: #6b21a8;">Mennyiség</th></tr>
-                            </thead>
-                            <tbody>${returnRows}</tbody>
-                        </table>
-                        <div style="margin-top: 8px; border-top: 1px dashed #d8b4fe; padding-top: 6px; text-align: left;">
-                            <div style="font-weight: 700; font-size: 10px; color: #6b21a8; text-transform: uppercase; margin-bottom: 2px;">Visszahozandó megrendelések részletesen:</div>
-                            ${returnOrdersList}
-                        </div>
+                        ${returnOrdersList}
                     </div>
                 `;
             }
@@ -317,15 +301,6 @@ export const UnifiedPrinter = {
                         <tbody>${rows}</tbody>
                     </table>
 
-                     <div style="margin-top: 12px; border: 1px dashed #64748b; border-radius: 6px; padding: 8px 12px; background: #f8fafc;">
-                         <div style="font-weight: 700; font-size: 11px; color: #475569; margin-bottom: 4px; text-transform: uppercase;">
-                             Meghiúsult kiszállításból visszahozott áruk részletezése (Sofőr tölti ki kézzel - Rendelésszám / Cikk / Mennyiség):
-                         </div>
-                         <div style="font-size: 11px; line-height: 1.6; color: #64748b;">
-                             ..................................................................................................................................................<br>
-                             ..................................................................................................................................................<br>
-                         </div>
-                     </div>
 
                      <div style="margin-top: 15px; width: 380px; margin-left: auto;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 15px;">
