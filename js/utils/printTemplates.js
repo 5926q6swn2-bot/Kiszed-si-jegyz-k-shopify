@@ -16,9 +16,12 @@ function needsMarkerLabel(name, isCollapsedProfile) {
 }
 
 export function generatePdfHtml(run) {
-        let cardsHtml = run.orders.map((order, index) => {
+        const nonReturnOrders = (run.orders || []).filter(o => !o.isReturn);
+        let cardsHtml = nonReturnOrders.map((order, index) => {
             let codHtml = '';
-            if (order.isBankDeposit) {
+            if (order.isReturn) {
+                codHtml = `<span class="badge" style="background: #faf5ff; color: #6b21a8; border: 1px solid #d8b4fe;"><i class="ph-bold ph-arrow-counter-clockwise"></i>VISSZASZÁLLÍTÁS</span>`;
+            } else if (order.isBankDeposit) {
                 if (order.isPaid) {
                     codHtml = `<span class="badge badge-paid">UTALVA (FIZETVE)</span>`;
                 } else {
@@ -243,7 +246,7 @@ export function generatePdfHtml(run) {
                             break-after: page; 
                             page-break-after: always; 
                             width: 100%;
-                            height: 100%;
+                            height: auto;
                             position: relative;
                         }
                         .signatures { break-inside: avoid; page-break-inside: avoid; margin-top: 25px; }
@@ -285,8 +288,8 @@ export function generatePdfHtml(run) {
                     table {
                         width: 100%;
                         border-collapse: collapse;
-                        margin-top: 20px;
-                        font-size: 14px;
+                        margin-bottom: 30px;
+                        height: auto;
                     }
                     th, td {
                         padding: 10px;
@@ -355,6 +358,7 @@ export function generatePdfHtml(run) {
         `;
 
         let aggregatedItems = {};
+        let returnItems = {};
         let totalCOD = 0;
         let countFalpanel = 0;
         let countRagaszto = 0;
@@ -377,26 +381,33 @@ export function generatePdfHtml(run) {
         };
 
         run.orders.forEach(order => {
-            if (order.isCOD) {
-                totalCOD += order.codAmount;
-            }
-            order.items.forEach(item => {
-                if (item.isCollapsedProfile && item.subItems && item.subItems.length > 0) {
-                    item.subItems.forEach(sub => {
-                        if (!aggregatedItems[sub.name]) {
-                            aggregatedItems[sub.name] = 0;
-                        }
-                        aggregatedItems[sub.name] += sub.qty;
-                        addQtyToCategories(sub.name, sub.qty);
-                    });
-                } else {
-                    if (!aggregatedItems[item.name]) {
-                        aggregatedItems[item.name] = 0;
-                    }
-                    aggregatedItems[item.name] += item.qty;
-                    addQtyToCategories(item.name, item.qty);
+            if (order.isReturn) {
+                order.items.forEach(item => {
+                    const name = item.name;
+                    returnItems[name] = (returnItems[name] || 0) + item.qty;
+                });
+            } else {
+                if (order.isCOD) {
+                    totalCOD += order.codAmount;
                 }
-            });
+                order.items.forEach(item => {
+                    if (item.isCollapsedProfile && item.subItems && item.subItems.length > 0) {
+                        item.subItems.forEach(sub => {
+                            if (!aggregatedItems[sub.name]) {
+                                aggregatedItems[sub.name] = 0;
+                            }
+                            aggregatedItems[sub.name] += sub.qty;
+                            addQtyToCategories(sub.name, sub.qty);
+                        });
+                    } else {
+                        if (!aggregatedItems[item.name]) {
+                            aggregatedItems[item.name] = 0;
+                        }
+                        aggregatedItems[item.name] += item.qty;
+                        addQtyToCategories(item.name, item.qty);
+                    }
+                });
+            }
         });
 
         let summaryItemsHtml = Object.keys(aggregatedItems)
@@ -413,22 +424,29 @@ export function generatePdfHtml(run) {
         const orderIdsList = run.orders.map(o => o.id).join(', ');
 
         let correctionRows = run.orders.map(order => {
+            let codVal = '';
+            if (order.isReturn) {
+                codVal = '<span style="color:#6b21a8; font-weight:700;">Visszaszállítás</span>';
+            } else {
+                codVal = order.isCOD ? order.codAmount.toLocaleString('hu-HU') + ' Ft' : 'Fizetve';
+            }
+            const commentVal = order.isReturn ? `<span style="color:#6b21a8; font-weight:600;">Visszajön: ${order.items.map(it => `${it.qty} db ${it.name}`).join(', ')}</span>` : '';
             return `
                 <tr>
-                    <td style="font-weight: 700;">${order.id}</td>
-                    <td>${order.shippingName}</td>
-                    <td class="text-right" style="font-weight: 700; color: ${order.isCOD ? '#b91c1c' : '#15803d'};">
-                        ${order.isCOD ? order.codAmount.toLocaleString('hu-HU') + ' Ft' : 'Fizetve'}
+                    <td style="padding: 6px 10px; font-weight: 700; vertical-align: top;">${order.id}</td>
+                    <td style="padding: 6px 10px; vertical-align: top;">${order.shippingName}</td>
+                    <td class="text-right" style="padding: 6px 10px; font-weight: 700; color: ${order.isReturn ? '#6b21a8' : (order.isCOD ? '#b91c1c' : '#15803d')}; vertical-align: top;">
+                        ${codVal}
                     </td>
                     <!-- KP Checkbox -->
-                    <td style="text-align: center; border-left: 2px solid #cbd5e1;">
+                    <td style="text-align: center; border-left: 2px solid #cbd5e1; vertical-align: top; padding: 6px 10px;">
                         <div style="width: 20px; height: 20px; border: 1px solid #94a3b8; border-radius: 3px; display: inline-block;"></div>
                     </td>
                     <!-- Kártya Checkbox -->
-                    <td style="text-align: center; border-left: 1px solid #cbd5e1;">
+                    <td style="text-align: center; border-left: 1px solid #cbd5e1; vertical-align: top; padding: 6px 10px;">
                         <div style="width: 20px; height: 20px; border: 1px solid #94a3b8; border-radius: 3px; display: inline-block;"></div>
                     </td>
-                    <td></td>
+                    <td style="padding: 6px 10px; font-size: 11px; vertical-align: top; line-height: 1.2;">${commentVal}</td>
                 </tr>
             `;
         }).join('');
@@ -440,6 +458,30 @@ export function generatePdfHtml(run) {
             otherItemsHtml = `
                 <div style="margin-bottom: 20px; font-size: 12px; color: #475569; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; text-align: left; line-height: 1.4;">
                     <strong>Egyéb átadott termékek:</strong> plusz ${listStr}
+                </div>
+            `;
+        }
+
+        let returnItemsHtml = '';
+        const returnKeys = Object.keys(returnItems);
+        if (returnKeys.length > 0) {
+            const returnRows = returnKeys.sort().map(name => `
+                <tr>
+                    <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #6b21a8;">${name}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: #6b21a8;">${returnItems[name]} db</td>
+                </tr>
+            `).join('');
+            returnItemsHtml = `
+                <div style="margin-bottom: 20px; border: 2px solid #d8b4fe; border-radius: 8px; padding: 15px; background: #faf5ff;">
+                    <h4 style="margin: 0 0 10px 0; color: #6b21a8; font-size: 14px; font-weight: 800; text-transform: uppercase; display: flex; align-items: center; gap: 6px; font-family: inherit;">
+                        <i class="ph-bold ph-arrow-counter-clockwise"></i> Visszahozandó termékek összesítve (Vevőtől vissza)
+                    </h4>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr style="background: #f3e8ff;"><th style="text-align: left; padding: 8px; color: #6b21a8;">Megnevezés</th><th style="text-align: right; padding: 8px; color: #6b21a8;">Mennyiség</th></tr>
+                        </thead>
+                        <tbody>${returnRows}</tbody>
+                    </table>
                 </div>
             `;
         }
@@ -471,6 +513,7 @@ export function generatePdfHtml(run) {
                 </div>
 
                 ${otherItemsHtml}
+                ${returnItemsHtml}
 
                 <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
                     <div style="font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 5px; text-transform: uppercase;">Összes beszedendő utánvét a körben:</div>
@@ -478,7 +521,7 @@ export function generatePdfHtml(run) {
                 </div>
 
                 <div style="font-size: 11px; color: #64748b; font-style: italic; text-align: center; margin-bottom: 15px;">
-                    * Az alább felsorolt panelek sértetlen állapotban lettek átadva.
+                    * A szállító (futár) a termékeket sértetlen állapotban veszi át. Amennyiben a termékek nem sértetlenül kerülnek átadásra, átvétel előtt egyeztetés szükséges.
                 </div>
 
                 <h3 style="margin-bottom: 15px; color: #334155; font-size: 18px;">Átadott termékek összesítve:</h3>
@@ -528,7 +571,7 @@ export function generatePdfHtml(run) {
                             <th class="text-right">Utánvét</th>
                             <th style="text-align: center; border-left: 2px solid #cbd5e1; width: 50px;">KP</th>
                             <th style="text-align: center; border-left: 1px solid #cbd5e1; width: 50px;">Kártya</th>
-                            <th>Visszahozott tételek (Kézzel kitöltendő)</th>
+                            <th>Visszahozott tételek (Megjegyzés)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -536,10 +579,22 @@ export function generatePdfHtml(run) {
                     </tbody>
                 </table>
 
+                <div style="margin-top: 20px; border: 1.5px dashed #64748b; border-radius: 8px; padding: 12px; background: #f8fafc;">
+                    <div style="font-weight: 700; font-size: 12px; color: #475569; margin-bottom: 6px; text-transform: uppercase;">
+                        Meghiúsult kiszállításból visszahozott áruk részletezése (Sofőr tölti ki kézzel - Rendelésszám / Cikk / Mennyiség):
+                    </div>
+                    <div style="font-size: 12px; line-height: 2;">
+                        ..................................................................................................................................................<br>
+                        ..................................................................................................................................................<br>
+                        ..................................................................................................................................................<br>
+                        ..................................................................................................................................................<br>
+                    </div>
+                </div>
+
                 <div style="margin-top: 40px; width: 400px; margin-left: auto;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 15px;">
                         <span>Eredeti Várható Utánvét:</span>
-                        <strong>${totalCOD.toLocaleString('hu-HU')} Ft</strong>
+                        <strong>${(run.orders.reduce((sum, o) => sum + ((o.isCOD && !o.isReturn) ? o.codAmount : 0), 0)).toLocaleString('hu-HU')} Ft</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 15px; color: #b91c1c;">
                         <span>Meghiúsult Utánvét:</span>
@@ -584,6 +639,13 @@ export function generatePdfHtml(run) {
 
         // === Szállítólevelek HTML (2x kell, sorban kétszer) ===
         const deliveryNotesHtmlAll = run.orders.map((order) => {
+            const isRet = !!order.isReturn;
+            const titleText = isRet ? 'Visszaszállítási Jegyzék' : 'Szállítólevél';
+            const senderLabel = isRet ? 'Címzett (Visszárus raktár)' : 'Feladó (Eladó)';
+            const recipientLabel = isRet ? 'Feladó (Vevő)' : 'Címzett (Vevő)';
+            const leftSignLabel = isRet ? 'Átvevő (Szállító)' : 'Átadó';
+            const rightSignLabel = isRet ? 'Átadó (Vevő)' : 'Átvette (Vevő)';
+
             let totalOrderValue = 0;
             const itemsHtml = order.items.map(item => {
                 const itemTotal = item.price * item.qty;
@@ -610,8 +672,8 @@ export function generatePdfHtml(run) {
             return `
                 <div class="page">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
-                        <div class="doc-title" style="margin-bottom: 0;">Szállítólevél</div>
-                        <div style="font-size: 28px; font-weight: 900; background: #f8fafc; padding: 10px 20px; border-radius: 8px; color: #0f172a; border: 2px solid #e2e8f0;">
+                        <div class="doc-title" style="margin-bottom: 0; color: ${isRet ? '#6b21a8' : 'inherit'};">${titleText}</div>
+                        <div style="font-size: 28px; font-weight: 900; background: #f8fafc; padding: 10px 20px; border-radius: 8px; color: ${isRet ? '#6b21a8' : '#0f172a'}; border: 2px solid ${isRet ? '#d8b4fe' : '#e2e8f0'};">
                             ${order.id}
                         </div>
                     </div>
@@ -619,7 +681,7 @@ export function generatePdfHtml(run) {
 
                     <div class="header">
                         <div class="header-block">
-                            <div class="header-title">Feladó (Eladó)</div>
+                            <div class="header-title" style="color: ${isRet ? '#6b21a8' : 'inherit'};">${senderLabel}</div>
                             <div class="info-text">
                                 <strong>${senderData.name}</strong><br>
                                 Cím: ${senderData.address}<br>
@@ -629,7 +691,7 @@ export function generatePdfHtml(run) {
                             </div>
                         </div>
                         <div class="header-block">
-                            <div class="header-title">Címzett (Vevő)</div>
+                            <div class="header-title" style="color: ${isRet ? '#6b21a8' : 'inherit'};">${recipientLabel}</div>
                             <div class="info-text">
                                 <strong>${order.shippingName}</strong><br>
                                 Cím: ${order.fullAddress}<br>
@@ -651,8 +713,13 @@ export function generatePdfHtml(run) {
                     </table>
 
                     <div class="summary">
-                        <div class="summary-box">
-                            ${order.isCOD ? `
+                        <div class="summary-box" style="${isRet ? 'border-color: #d8b4fe; background: #faf5ff;' : ''}">
+                            ${isRet ? `
+                            <div class="summary-row total" style="color: #6b21a8; border-top-color: #d8b4fe;">
+                                <span>PÉNZMOZGÁS:</span>
+                                <span style="font-size: 16px;">Pénzmozgás nem történik</span>
+                            </div>
+                            ` : (order.isCOD ? `
                             <div class="summary-row total" style="color: #b91c1c; border-top-color: #fca5a5;">
                                 <span>UTÁNVÉT:</span>
                                 <span style="font-size: 22px;">${order.codAmount.toLocaleString('hu-HU')} Ft</span>
@@ -662,7 +729,7 @@ export function generatePdfHtml(run) {
                                 <span>FIZETENDŐ:</span>
                                 <span style="font-size: 22px;">0 Ft (Fizetve)</span>
                             </div>
-                            `}
+                            `)}
                         </div>
                     </div>
 
@@ -670,11 +737,11 @@ export function generatePdfHtml(run) {
                         <div class="signatures" style="margin-top: 0;">
                             <div class="signature-box">
                                 <div class="signature-line"></div>
-                                <div>Átadó</div>
+                                <div>${leftSignLabel}</div>
                             </div>
                             <div class="signature-box">
                                 <div class="signature-line"></div>
-                                <div>Átvette (Vevő)</div>
+                                <div>${rightSignLabel}</div>
                             </div>
                         </div>
                         <div class="footer" style="margin-top: 20px;">

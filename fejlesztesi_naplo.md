@@ -35,6 +35,19 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
+### 2026. július 14. - Visszaszállítás (Visszáru) Funkció Implementálása
+- **Visszaszállítás Checkbox a Szerkesztőben**: Bekerült egy új "Visszaszállítás (Korábbi kiszállítás visszahozatala)" jelölőmező a manuális rendelés és a rendelés szerkesztése modalba (`index.html`, `js/controllers/manualOrderController.js`). Jelölés esetén az utánvét összege le lesz tiltva és automatikusan 0 Ft-ra áll be.
+- **Lila Visszaszállítás Badge**: A visszaszállítandó rendelés kártyáján egy egyedi, feltűnő lila badge jelenik meg a fő képernyőn (`js/views/ordersView.js`).
+- **Kiszedési Jegyzék Szűrés**: A visszaszállításos tételek teljesen elkerülik a Kiszedési Jegyzéket (`generatePickingHtml`, `generatePdfHtml`), mivel ezeket nem kell a raktárból összekészíteni.
+- **Összesítő és Korrekciós Lap Kiegészítések**:
+  - Az Összesítő lapon nem adódnak hozzá a raktárból sofőrnek kiadott áruk számához a visszaszállított tételek, viszont bekerült egy új, dedikált lila táblázat **"Visszahozandó termékek összesítve (Vevőtől vissza)"** néven.
+  - Az Összesítő lap lábjegyzetét frissítettük a sértetlen átvételre vonatkozó kikötéssel (ha nem sértetlen az átadás, egyeztetés szükséges).
+  - A Korrekciós lapon az utánvét helyett lila "Visszaszállítás" szöveg jelenik meg, és a Megjegyzés rovatban is listázzuk a visszahozandó árukat.
+  - A nyomtatási stílusokat és a táblázat-magasságokat (`height: auto`) finomhangoltuk, hogy a megjegyzések miatti sortágulás ne húzza szét a többi, rövidebb sort.
+  - Új, univerzális kézzel kitölthető üres jegyzet szekció került a Korrekciós lap aljára a napközben meghiúsult szállításokból visszahozott áruk tételes feljegyzésére (4 üres sor a rendelésszám, cikkek és mennyiség számára).
+- **Visszaszállítási Szállítólevél**: Ha a tétel visszaszállításos, a szállítólevél megnevezése **"VISSZASZÁLLÍTÁSI JEGYZÉK"** lesz, a fizetendő utánvét helyett a **"Visszaszállítás (Pénzmozgás nem történik)"** tájékoztató jelenik meg, az aláírások pedig Átadó (Vevő) / Átvevő (Szállító) formában szerepelnek.
+- **Konzisztens Nyomtatás**: A fenti sablonváltoztatások mind az aktív kör nyomtatásában (`js/services/printer.js`), mind a korábbi körök előzményekből történő nyomtatásában (`js/utils/printTemplates.js`) átvezetésre kerültek.
+
 ### 2026. június 30. - Részleges Nyomtatási Folyamat Bővítése Összesítő Csomaggal & Elszámolás Szűrő Fix & Időrend Megőrzés
 - **Összesítő és Korrekciós Lap Részleges Nyomtatása**: Módosítottuk a rendelések utólagos szerkesztése/módosítása utáni mentési folyamatot a `js/app.js` fájlban. Amennyiben a felhasználó a részleges nyomtatást választja ("Részleges (összesítő + új/módosított szállítók)"), a rendszer mostantól nemcsak a konkrétan módosított/új szállítóleveleket nyomtatja ki, hanem automatikusan újragenerálja és kinyomtatja a teljes frissített összesítő csomagot is (Összesítő átadás-átvételi lap + Korrekciós lap). Ez biztosítja, hogy az utánvét összegek, a termékmennyiségek és a futár elszámoló lap adatai mindig szinkronban legyenek a valós módosításokkal.
 - **Elszámolás Szűrő Valós Idejű Frissítése**: Javítottuk a "Csak a kiegyenlítésre váró fuvarok mutatása" checkbox viselkedését a `js/app.js` fájlban. Eseménykezelőt rendeltünk hozzá, így a checkbox ki-be jelölése azonnal, valós időben frissíti az elszámolások listáját (`renderAccountingRuns()`), szükségtelenné téve a lapok közötti navigációt.

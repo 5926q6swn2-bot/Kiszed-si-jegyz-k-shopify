@@ -33,7 +33,9 @@ export const OrdersView = {
             card.setAttribute('data-internal-id', order.internalId);
 
             let codHtml = '';
-            if (order.isBankDeposit) {
+            if (order.isReturn) {
+                codHtml = `<span class="badge" style="background: #faf5ff; color: #6b21a8; border: 1px solid #d8b4fe; display: inline-flex; align-items: center; gap: 4px; font-weight: 700;" data-internal-id="${order.internalId}"><i class="ph-bold ph-arrow-counter-clockwise"></i>VISSZASZÁLLÍTÁS</span>`;
+            } else if (order.isBankDeposit) {
                 if (order.isPaid) {
                     codHtml = `<span class="badge badge-paid" data-internal-id="${order.internalId}">UTALVA (FIZETVE)</span>`;
                 } else {

@@ -9,6 +9,19 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
     const btnSaveManual = document.getElementById('btn-save-manual');
     const mItemsContainer = document.getElementById('m-items-container');
     const btnAddItemRow = document.getElementById('btn-add-item-row');
+    const mIsReturn = document.getElementById('m-is-return');
+    const mBalance = document.getElementById('m-balance');
+
+    if (mIsReturn) {
+        mIsReturn.addEventListener('change', () => {
+            if (mIsReturn.checked) {
+                mBalance.value = '0';
+                mBalance.disabled = true;
+            } else {
+                mBalance.disabled = false;
+            }
+        });
+    }
 
     btnAddManual.addEventListener('click', () => {
         Store.setEditingOrderInternalId(null);
@@ -16,6 +29,10 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
         document.getElementById('manual-modal-desc').textContent = 'Kézi felvitel a listához';
         document.getElementById('btn-save-manual').textContent = 'Hozzáadás';
         document.getElementById('manual-order-form').reset();
+        if (mIsReturn) {
+            mIsReturn.checked = false;
+            mBalance.disabled = false;
+        }
         mItemsContainer.innerHTML = `
             <div class="m-item-row">
                 <input type="number" class="m-item-qty" placeholder="Db" min="1" value="1" required>
@@ -50,7 +67,8 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
         const customerName = document.getElementById('m-customer').value.trim();
         const address = document.getElementById('m-address').value.trim();
         const phone = formatHungarianPhoneNumber(document.getElementById('m-phone').value.trim());
-        const balanceRaw = parseFloat(document.getElementById('m-balance').value) || 0;
+        const isReturnVal = mIsReturn ? mIsReturn.checked : false;
+        const balanceRaw = isReturnVal ? 0 : (parseFloat(mBalance.value) || 0);
 
         if (!orderNum || !customerName) {
             await CustomDialog.alert('A rendelésszám és a vevő neve kötelező!', 'Hiányzó mezők', 'warning');
@@ -69,7 +87,7 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
             return;
         }
 
-        const isCOD = balanceRaw > 0;
+        const isCOD = !isReturnVal && balanceRaw > 0;
 
         if (Store.editingOrderInternalId) {
             const order = Store.orders.find(o => o.internalId === Store.editingOrderInternalId);
@@ -81,10 +99,11 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
                 order.fullAddress = address;
                 order.shippingPhone = phone;
                 order.billingPhone = phone;
+                order.isReturn = isReturnVal;
                 order.isCOD = isCOD;
                 order.codAmount = isCOD ? balanceRaw : 0;
                 order.isBankDeposit = false;
-                order.isPaid = !isCOD;
+                order.isPaid = isReturnVal || !isCOD;
                 order.items = items;
                 order.pxp_referencia = generateDefaultReference(order, 40);
                 order.isManuallyEdited = true;
@@ -101,9 +120,10 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
                 billingPhone: phone,
                 tags: '',
                 isBankDeposit: false,
-                isPaid: !isCOD,
+                isPaid: isReturnVal || !isCOD,
                 isCOD: isCOD,
                 codAmount: isCOD ? balanceRaw : 0,
+                isReturn: isReturnVal,
                 orderDate: '',
                 isPlannedDelay: false,
                 isManuallyEdited: true,
@@ -130,7 +150,14 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
         document.getElementById('m-customer').value = order.shippingName;
         document.getElementById('m-address').value = order.fullAddress || order.address;
         document.getElementById('m-phone').value = order.shippingPhone;
-        document.getElementById('m-balance').value = order.isCOD ? order.codAmount : 0;
+        
+        if (mIsReturn) {
+            mIsReturn.checked = !!order.isReturn;
+            mBalance.value = order.isReturn ? 0 : (order.isCOD ? order.codAmount : 0);
+            mBalance.disabled = !!order.isReturn;
+        } else {
+            mBalance.value = order.isCOD ? order.codAmount : 0;
+        }
         
         mItemsContainer.innerHTML = '';
         order.items.forEach((item, index) => {
