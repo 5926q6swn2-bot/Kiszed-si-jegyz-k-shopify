@@ -1330,14 +1330,27 @@ export function initHistoryView(context) {
                     run.orders.forEach(o => {
                         if (o.isCOD && !uncollected.includes(o.id)) {
                             const status = paymentStatusMap[o.id] || 'received';
-                            if (status === 'pending') {
-                                const method = paymentMethods[o.id] || 'cash';
+                            const method = paymentMethods[o.id] || 'cash';
+                            
+                            if (typeof status === 'object' && status !== null) {
+                                if (status.cash === 'pending' && method.cash > 0) {
+                                    pendingKpAmount += method.cash;
+                                }
+                                if (status.card === 'pending' && method.card > 0) {
+                                    pendingCardAmount += method.card;
+                                }
+                                if (status.bank === 'pending' && method.bank > 0) {
+                                    pendingCardAmount += method.bank;
+                                }
+                            } else if (status === 'pending') {
                                 let amt = o.codAmount;
                                 if (partialOrders[o.id]) {
                                     amt = partialOrders[o.id].amount || 0;
                                 }
                                 
                                 if (method === 'card') {
+                                    pendingCardAmount += amt;
+                                } else if (method === 'bank') {
                                     pendingCardAmount += amt;
                                 } else if (method === 'cash') {
                                     pendingKpAmount += amt;
@@ -1385,19 +1398,44 @@ export function initHistoryView(context) {
                     let badgeBg = '#f1f5f9';
                     let badgeColor = '#475569';
                     let statusLabel = 'Függő';
+                    
+                    const isSplit = typeof method === 'object' && method !== null;
                     let isOrderSettled = false;
-                    const hasStatusMap = run.paymentStatusMap && Object.keys(run.paymentStatusMap).length > 0;
-                    if (hasStatusMap) {
-                        isOrderSettled = (run.paymentStatusMap[o.id] || run.paymentStatusMap[String(o.id)] || 'received') === 'received';
+                    let isCardPending = false;
+                    let isKpPending = false;
+                    let splitPendingCardVal = 0;
+                    let splitPendingKpVal = 0;
+
+                    if (isSplit) {
+                        const sObj = typeof paymentStatusMap[o.id] === 'object' && paymentStatusMap[o.id] !== null ? paymentStatusMap[o.id] : {};
+                        isKpPending = (method.cash > 0 && sObj.cash === 'pending');
+                        isCardPending = (method.card > 0 && sObj.card === 'pending') || (method.bank > 0 && sObj.bank === 'pending');
+                        isOrderSettled = !isKpPending && !isCardPending;
+                        
+                        if (isCardPending) {
+                            if (sObj.card === 'pending') splitPendingCardVal += (method.card || 0);
+                            if (sObj.bank === 'pending') splitPendingCardVal += (method.bank || 0);
+                        }
+                        if (isKpPending) {
+                            splitPendingKpVal += (method.cash || 0);
+                        }
                     } else {
-                        isOrderSettled = run.isSettled;
+                        const statusVal = paymentStatusMap[o.id] || 'received';
+                        isOrderSettled = statusVal === 'received';
+                        if (!isOrderSettled) {
+                            if (method === 'card' || method === 'bank') {
+                                isCardPending = true;
+                            } else {
+                                isKpPending = true;
+                            }
+                        }
                     }
                     
                     if (isUncollected) {
                         badgeBg = '#fee2e2';
                         badgeColor = '#ef4444';
                         statusLabel = 'Kiesett';
-                    } else if (isBankTransferred) {
+                    } else if (isBankTransferred && !isSplit) {
                         badgeBg = '#dbeafe';
                         badgeColor = '#3b82f6';
                         statusLabel = 'Utalva';
@@ -1405,8 +1443,22 @@ export function initHistoryView(context) {
                         badgeBg = '#ffedd5';
                         badgeColor = '#f97316';
                         statusLabel = 'Részleges';
+                    } else if (isSplit && (isCardPending || isKpPending)) {
+                        if (isCardPending) {
+                            badgeBg = '#eff6ff';
+                            badgeColor = '#2563eb';
+                            statusLabel = `Vár: ${splitPendingCardVal.toLocaleString('hu-HU')} Ft`;
+                        } else {
+                            badgeBg = '#fff7ed';
+                            badgeColor = '#c2410c';
+                            statusLabel = `Vár: ${splitPendingKpVal.toLocaleString('hu-HU')} Ft`;
+                        }
                     } else if (isOrderSettled) {
-                        if (method === 'card') {
+                        if (isSplit) {
+                            badgeBg = '#d1fae5';
+                            badgeColor = '#10b981';
+                            statusLabel = 'Bontott KP+Kártya';
+                        } else if (method === 'card') {
                             badgeBg = '#eff6ff';
                             badgeColor = '#2563eb';
                             statusLabel = 'Kártya';
@@ -1437,6 +1489,26 @@ export function initHistoryView(context) {
                     const status        = paymentStatusMap[o.id] || 'received';
                     const statusText    = status === 'pending' ? ' ⏳' : ' ✓';
                     const statusColor   = status === 'pending' ? '#d97706' : '#16a34a';
+
+                    const isSplit = typeof method === 'object' && method !== null;
+                    let paymentBreakdownHtml = '';
+                    if (isSplit) {
+                        const sObj = typeof status === 'object' && status !== null ? status : {};
+                        const parts = [];
+                        if (method.cash > 0) {
+                            const got = sObj.cash !== 'pending';
+                            parts.push(`<span style="color:${got?'#10b981':'#d97706'}; font-weight:700;">${method.cash.toLocaleString('hu-HU')} Ft KP ${got?'✓':'⏳'}</span>`);
+                        }
+                        if (method.card > 0) {
+                            const got = sObj.card !== 'pending';
+                            parts.push(`<span style="color:${got?'#10b981':'#2563eb'}; font-weight:700;">${method.card.toLocaleString('hu-HU')} Ft Kártya ${got?'✓':'⏳'}</span>`);
+                        }
+                        if (method.bank > 0) {
+                            const got = sObj.bank !== 'pending';
+                            parts.push(`<span style="color:${got?'#10b981':'#0284c7'}; font-weight:700;">${method.bank.toLocaleString('hu-HU')} Ft Utalás ${got?'✓':'⏳'}</span>`);
+                        }
+                        paymentBreakdownHtml = `<span style="font-size:11px;font-weight:700;color:#1e293b; display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap;">Bontott: ${parts.join(' + ')} <span style="font-weight:400;color:#94a3b8;">/ ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`;
+                    }
                     
                     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f1f5f9;${isUncollected ? 'opacity:.55;' : ''}">
                         <span style="font-size:12px;font-weight:700;color:#374151;min-width:95px;${isUncollected ? 'text-decoration:line-through;' : ''}">${o.id}</span>
@@ -1444,15 +1516,17 @@ export function initHistoryView(context) {
                         ${o.isCOD
                             ? isUncollected
                                 ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem érkezett<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
-                                : isBankTransferred
+                                : isBankTransferred && !isSplit
                                     ? `<span style="font-size:11px;font-weight:700;color:#3b82f6;">Elutalva (Banki utalás)<span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
-                                    : partialInfo
-                                        ? `<span style="font-size:11px;font-weight:700;color:#1d4ed8;">~${partialInfo.amount.toLocaleString('hu-HU')} Ft ${method === 'card' ? '💳' : method === 'bank' ? '🏦' : '💵'}<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft${partialInfo.comment ? ' · ' + partialInfo.comment : ''}</span></span>`
-                                        : (method === 'card'
-                                            ? `<span style="font-size:11px;font-weight:700;color:#2563eb;">💳 Kártya<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
-                                            : method === 'bank'
-                                                ? `<span style="font-size:11px;font-weight:700;color:#0284c7;">🏦 Utalás<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
-                                                : `<span style="font-size:11px;font-weight:700;color:#10b981;">💵 KP<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`)
+                                    : isSplit
+                                        ? paymentBreakdownHtml
+                                        : partialInfo
+                                            ? `<span style="font-size:11px;font-weight:700;color:#1d4ed8;">~${partialInfo.amount.toLocaleString('hu-HU')} Ft ${method === 'card' ? '💳' : method === 'bank' ? '🏦' : '💵'}<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft${partialInfo.comment ? ' · ' + partialInfo.comment : ''}</span></span>`
+                                            : (method === 'card'
+                                                ? `<span style="font-size:11px;font-weight:700;color:#2563eb;">💳 Kártya<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
+                                                : method === 'bank'
+                                                    ? `<span style="font-size:11px;font-weight:700;color:#0284c7;">🏦 Utalás<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
+                                                    : `<span style="font-size:11px;font-weight:700;color:#10b981;">💵 KP<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`)
                             : isUncollected
                                 ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem lett átadva<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
                                 : '<span style="font-size:11px;color:#94a3b8;">átadva</span>'}

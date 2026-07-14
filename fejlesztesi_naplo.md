@@ -714,3 +714,9 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
   - Ha egy megrendelésen szerepel a `removed` tag, a rendszer egy feltűnő piros hibaüzenetet jelenít meg a sorban (*„⚠️ Törölt tétel van a megrendelésben, kérlek ellenőrizd a Shopifyban!”*), és egy piros **Ellenőrizve** (`btn-ack-pxp-removed`) jóváhagyó gombot kínál fel.
   - A PannonXP CSV exportálás gombja mindaddig le van tiltva, amíg a kiválasztott megrendelések között van jóváhagyatlan törölt tétel hiba, garantálva a hibás adatexportok elkerülését.
 
+- **Osztott (bontott) fizetések elszámolásának javítása**:
+  - Javítottuk a hátralévő függő összegek kiszámítását (`pendingKpAmount` és `pendingCardAmount` / `pendingBankAmount`): a rendszer mostantól helyesen kezeli az objektum alapú (bontott) fizetési státuszokat és összegeket is a szállítási kör összesítőjében.
+  - Ha egy bontott fizetésben a kártyás rész még nincs utalva, a kör kék színűvé válik, kiírja a pontos várakozó kártyás összeget („Utalásra vár: X Ft”), és a fejlécben megjelenik a **Kártya utalva** jóváhagyó gomb.
+  - A rendelés-szintű kis jelvény (badge) is kékké változik és mutatja a még be nem érkezett összeget (pl. *„Vár: 241 000 Ft”*), valamint a részletes nézetben külön zöld pipával (`✓`) vagy sárga homokórával (`⏳`) jelezzük az egyes fizetési módok (KP, Kártya, Utalás) egyéni státuszát (pl. *Bontott: 100 000 Ft KP ✓ + 241 000 Ft Kártya ⏳*).
+
+
