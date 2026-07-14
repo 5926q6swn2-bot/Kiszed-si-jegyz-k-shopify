@@ -200,6 +200,13 @@ export const UnifiedPrinter = {
                         <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: #6b21a8;">${returnItems[name]} db</td>
                     </tr>
                 `).join('');
+
+                const returnOrdersList = run.orders.filter(o => o.isReturn).map(o => `
+                    <div style="font-size: 12px; margin-top: 5px; color: #6b21a8; font-family: inherit;">
+                        <strong>${o.id}</strong> (${o.shippingName}): ${o.items.map(it => `${it.qty} db ${it.name}`).join(', ')}
+                    </div>
+                `).join('');
+
                 returnItemsHtml = `
                     <div style="margin-bottom: 20px; border: 2px solid #d8b4fe; border-radius: 8px; padding: 15px; background: #faf5ff;">
                         <h4 style="margin: 0 0 10px 0; color: #6b21a8; font-size: 14px; font-weight: 800; text-transform: uppercase; display: flex; align-items: center; gap: 6px; font-family: inherit;">
@@ -211,6 +218,10 @@ export const UnifiedPrinter = {
                             </thead>
                             <tbody>${returnRows}</tbody>
                         </table>
+                        <div style="margin-top: 12px; border-top: 1px dashed #d8b4fe; padding-top: 10px; text-align: left;">
+                            <div style="font-weight: 700; font-size: 11px; color: #6b21a8; text-transform: uppercase; margin-bottom: 4px;">Visszahozandó megrendelések részletesen:</div>
+                            ${returnOrdersList}
+                        </div>
                     </div>
                 `;
             }
@@ -274,15 +285,15 @@ export const UnifiedPrinter = {
                 } else {
                     codVal = o.isCOD ? o.codAmount.toLocaleString('hu-HU') + ' Ft' : 'Fizetve';
                 }
-                const commentVal = o.isReturn ? `<span style="color:#6b21a8; font-weight:600;">Visszajön: ${o.items.map(it => `${it.qty} db ${it.name}`).join(', ')}</span>` : '';
+                const commentVal = o.isReturn ? `<span style="color:#6b21a8;"><strong style="font-weight:700;">Visszajön:</strong> ${o.items.map(it => `${it.qty} db ${it.name}`).join(', ')}</span>` : '';
                 return `
                 <tr>
-                    <td style="padding: 6px 10px; border-bottom: 1px solid #e2e8f0; font-weight: 700; vertical-align: top;">${o.id}</td>
-                    <td style="padding: 6px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top;">${o.shippingName}</td>
-                    <td style="padding: 6px 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700; vertical-align: top;">${codVal}</td>
-                    <td style="padding: 6px 10px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 2px solid #cbd5e1; vertical-align: top;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
-                    <td style="padding: 6px 10px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 1px solid #cbd5e1; vertical-align: top;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
-                    <td style="padding: 6px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; vertical-align: top; line-height: 1.2;">${commentVal}</td>
+                    <td style="padding: 4px 8px; border-bottom: 1px solid #e2e8f0; font-weight: 700; vertical-align: top; white-space: nowrap;">${o.id}</td>
+                    <td style="padding: 4px 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; white-space: nowrap;">${o.shippingName}</td>
+                    <td style="padding: 4px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700; vertical-align: top; white-space: nowrap;">${codVal}</td>
+                    <td style="padding: 4px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 2px solid #cbd5e1; vertical-align: top;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
+                    <td style="padding: 4px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; border-left: 1px solid #cbd5e1; vertical-align: top;"><div style="width: 18px; height: 18px; border: 1px solid #000; margin: auto;"></div></td>
+                    <td style="padding: 4px 8px; border-bottom: 1px solid #e2e8f0; font-size: 11px; vertical-align: top; line-height: 1.2;">${commentVal}</td>
                 </tr>
                 `;
             }).join('');

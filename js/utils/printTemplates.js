@@ -430,23 +430,23 @@ export function generatePdfHtml(run) {
             } else {
                 codVal = order.isCOD ? order.codAmount.toLocaleString('hu-HU') + ' Ft' : 'Fizetve';
             }
-            const commentVal = order.isReturn ? `<span style="color:#6b21a8; font-weight:600;">Visszajön: ${order.items.map(it => `${it.qty} db ${it.name}`).join(', ')}</span>` : '';
+            const commentVal = order.isReturn ? `<span style="color:#6b21a8;"><strong style="font-weight:700;">Visszajön:</strong> ${order.items.map(it => `${it.qty} db ${it.name}`).join(', ')}</span>` : '';
             return `
                 <tr>
-                    <td style="padding: 6px 10px; font-weight: 700; vertical-align: top;">${order.id}</td>
-                    <td style="padding: 6px 10px; vertical-align: top;">${order.shippingName}</td>
-                    <td class="text-right" style="padding: 6px 10px; font-weight: 700; color: ${order.isReturn ? '#6b21a8' : (order.isCOD ? '#b91c1c' : '#15803d')}; vertical-align: top;">
+                    <td style="padding: 4px 8px; font-weight: 700; vertical-align: top; white-space: nowrap;">${order.id}</td>
+                    <td style="padding: 4px 8px; vertical-align: top; white-space: nowrap;">${order.shippingName}</td>
+                    <td class="text-right" style="padding: 4px 8px; font-weight: 700; color: ${order.isReturn ? '#6b21a8' : (order.isCOD ? '#b91c1c' : '#15803d')}; vertical-align: top; white-space: nowrap;">
                         ${codVal}
                     </td>
                     <!-- KP Checkbox -->
-                    <td style="text-align: center; border-left: 2px solid #cbd5e1; vertical-align: top; padding: 6px 10px;">
+                    <td style="text-align: center; border-left: 2px solid #cbd5e1; vertical-align: top; padding: 4px 8px;">
                         <div style="width: 20px; height: 20px; border: 1px solid #94a3b8; border-radius: 3px; display: inline-block;"></div>
                     </td>
                     <!-- Kártya Checkbox -->
-                    <td style="text-align: center; border-left: 1px solid #cbd5e1; vertical-align: top; padding: 6px 10px;">
+                    <td style="text-align: center; border-left: 1px solid #cbd5e1; vertical-align: top; padding: 4px 8px;">
                         <div style="width: 20px; height: 20px; border: 1px solid #94a3b8; border-radius: 3px; display: inline-block;"></div>
                     </td>
-                    <td style="padding: 6px 10px; font-size: 11px; vertical-align: top; line-height: 1.2;">${commentVal}</td>
+                    <td style="padding: 4px 8px; font-size: 11px; vertical-align: top; line-height: 1.2;">${commentVal}</td>
                 </tr>
             `;
         }).join('');
@@ -471,6 +471,13 @@ export function generatePdfHtml(run) {
                     <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: #6b21a8;">${returnItems[name]} db</td>
                 </tr>
             `).join('');
+
+            const returnOrdersList = run.orders.filter(o => o.isReturn).map(o => `
+                <div style="font-size: 12px; margin-top: 5px; color: #6b21a8; font-family: inherit;">
+                    <strong>${o.id}</strong> (${o.shippingName}): ${o.items.map(it => `${it.qty} db ${it.name}`).join(', ')}
+                </div>
+            `).join('');
+
             returnItemsHtml = `
                 <div style="margin-bottom: 20px; border: 2px solid #d8b4fe; border-radius: 8px; padding: 15px; background: #faf5ff;">
                     <h4 style="margin: 0 0 10px 0; color: #6b21a8; font-size: 14px; font-weight: 800; text-transform: uppercase; display: flex; align-items: center; gap: 6px; font-family: inherit;">
@@ -482,6 +489,10 @@ export function generatePdfHtml(run) {
                         </thead>
                         <tbody>${returnRows}</tbody>
                     </table>
+                    <div style="margin-top: 12px; border-top: 1px dashed #d8b4fe; padding-top: 10px; text-align: left;">
+                        <div style="font-weight: 700; font-size: 11px; color: #6b21a8; text-transform: uppercase; margin-bottom: 4px;">Visszahozandó megrendelések részletesen:</div>
+                        ${returnOrdersList}
+                    </div>
                 </div>
             `;
         }
