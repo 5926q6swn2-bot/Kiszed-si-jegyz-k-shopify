@@ -404,6 +404,8 @@ export function initHistoryView(context) {
             const prevPaymentStatusMap = existingState?.paymentStatusMap || run.paymentStatusMap || {};
 
             const makeReasonHtml = (orderId, wasUncollected) => {
+                const orderObj = run.orders.find(ord => String(ord.id) === String(orderId));
+                const isRet = orderObj ? !!orderObj.isReturn : false;
                 const pr = prevReasons[orderId] || '';
                 const currentResp = existingState?.uncollectedResponsibility?.[orderId] || run.uncollectedResponsibility?.[orderId] || 'vevo';
                 
@@ -412,8 +414,8 @@ export function initHistoryView(context) {
                 const rVevoActive = currentResp === 'vevo' || !currentResp;
 
                 return `<div class="sd-reason-row" style="display:${wasUncollected?'block':'none'};padding:12px 20px 16px 116px;background:#fff7ed;border-top:1px dashed #fed7aa;">
-                    <div style="font-size:12px;font-weight:700;color:#c2410c;margin-bottom:8px;">Megrendelés nem lett átadva. Kérlek add meg az okot:</div>
-                    <input class="sd-reason-input" type="text" placeholder="Miért nem lett átadva? (Kötelező kitölteni, pl. Sérült termék, vevő lemondta...)"
+                    <div style="font-size:12px;font-weight:700;color:#c2410c;margin-bottom:8px;">${isRet ? 'A visszaszállítás meghiúsult. Kérlek add meg az okot:' : 'Megrendelés nem lett átadva. Kérlek add meg az okot:'}</div>
+                    <input class="sd-reason-input" type="text" placeholder="${isRet ? 'Miért maradt el a visszahozatal? (pl. Vevő nem adta oda, elhalasztva...)' : 'Miért nem lett átadva? (Kötelező kitölteni, pl. Sérült termék, vevő lemondta...)'}"
                         value="${pr.replace(/"/g,'&quot;')}"
                         style="width:100%;box-sizing:border-box;font-size:13px;border:2px solid #fbbf24;border-radius:8px;padding:8px 12px;font-family:inherit;margin-bottom:12px;outline:none;background:#fff;">
                     
@@ -614,7 +616,10 @@ export function initHistoryView(context) {
                             <div class="sd-items-list" style="display:none;font-size:11px;color:#475569;margin-top:2px;" onclick="event.preventDefault();event.stopPropagation();">${itemsList}</div>` : ''}
                         </div>
                         <div style="display:flex;align-items:center;padding-top:2px;justify-content:flex-end;">
-                            <span style="font-size:13px;font-weight:700;color:#64748b;background:#f1f5f9;border-radius:6px;padding:4px 10px;">Nem utánvétes</span>
+                            ${o.isReturn 
+                                ? `<span style="font-size:13px;font-weight:700;color:#6b21a8;background:#f3e8ff;border-radius:6px;padding:4px 10px;display:inline-flex;align-items:center;gap:4px;"><i class="ph-bold ph-arrow-counter-clockwise"></i> Visszaszállítás</span>`
+                                : `<span style="font-size:13px;font-weight:700;color:#64748b;background:#f1f5f9;border-radius:6px;padding:4px 10px;">Nem utánvétes</span>`
+                            }
                         </div>
                     </label>
                     ${makeReasonHtml(o.id, wasUncollected)}

@@ -41,6 +41,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Elszámolások fül**:
   - A körök kártyájának fejlécében lévő utánvét badge-ek közé bekerültek a visszaszállításos rendelések is, lila színű státuszjelzőként (pl. `[ #3086 - Visszahozva ]` vagy `[ #3086 - Meghiúsult ]`).
   - Az elszámolás részleteiben (rendelés-listában) a visszaszállított tételek státusza nem az *"átadva"*/*"nem lett átadva"* szöveggel, hanem a valós visszáru helyzettel: **"visszahozva"** (lila) vagy **"meghiúsult visszahozatal"** (piros/narancs, sofőr által megadott kiesési indokkal) felirattal szerepel.
+  - **Elszámolás Módosító / Rögzítő Dialogus**: Az elszámolás rögzítése során a visszaszállításos megrendelések mellett a lila *"Visszaszállítás"* badge látható. Amennyiben a visszahozatal meghiúsult (a felhasználó kiveszi a pipát), a rendszer a visszárura szabott hibajelzést és indoklás-bekérőt jeleníti meg (*"A visszaszállítás meghiúsult. Kérlek add meg az okot"*).
 
 ### 2026. július 14. - Visszaszállítás (Visszáru) Funkció Implementálása
 - **Visszaszállítás Checkbox a Szerkesztőben**: Bekerült egy új "Visszaszállítás (Korábbi kiszállítás visszahozatala)" jelölőmező a manuális rendelés és a rendelés szerkesztése modalba (`index.html`, `js/controllers/manualOrderController.js`). Jelölés esetén az utánvét összege le lesz tiltva és automatikusan 0 Ft-ra áll be.
