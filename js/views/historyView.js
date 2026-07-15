@@ -59,13 +59,17 @@ export function initHistoryView(context) {
                 ? `<span class="hac-badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;display:inline-flex;align-items:center;gap:4px;"><i class="ph-bold ph-pencil-simple" style="font-size:10px;"></i>Módosítva${run.modifyCount > 1 ? ` (${run.modifyCount}×)` : ''}</span>`
                 : '';
 
-            const previewChips = run.orders.map(o =>
-                `<span class="hac-order-chip" title="${o.address || ''}" style="gap:5px;display:inline-flex;align-items:center;">
-                    <span class="hac-chip-id">${o.id}</span>
-                    <span class="hac-chip-name">${o.shippingName || ''}</span>
+            const previewChips = run.orders.map(o => {
+                const isRet = !!o.isReturn;
+                const borderStyle = isRet ? 'border: 1.5px solid #d8b4fe; background: #faf5ff;' : '';
+                const retIcon = isRet ? '<i class="ph-bold ph-arrow-counter-clockwise" style="color:#6b21a8;font-size:11px;" title="Visszaszállítás"></i>' : '';
+                return `<span class="hac-order-chip" title="${o.address || ''}" style="gap:5px;display:inline-flex;align-items:center;${borderStyle}">
+                    ${retIcon}
+                    <span class="hac-chip-id" style="${isRet ? 'color:#6b21a8;' : ''}">${o.id}</span>
+                    <span class="hac-chip-name" style="${isRet ? 'color:#581c87;' : ''}">${o.shippingName || ''}</span>
                     <i class="ph-bold ph-printer btn-print-chip-delivery no-print" data-run-id="${run.id}" data-order-id="${o.id}" style="cursor:pointer;color:#64748b;font-size:11px;padding:2px;transition:color .15s;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#64748b'"></i>
-                </span>`
-            ).join('');
+                </span>`;
+            }).join('');
             el.innerHTML = `
                 <div class="hac-row">
                     <div class="hac-info">
@@ -204,7 +208,7 @@ export function initHistoryView(context) {
             el.style.background = '#fff';
             el.style.borderRadius = '14px';
             el.style.boxShadow = '0 2px 10px rgba(0,0,0,0.02)';
-            el.style.borderLeft = '4px solid #3b82f6';
+            el.style.borderLeft = m.isReturn ? '4px solid #a855f7' : '4px solid #3b82f6';
 
             const itemsSummary = m.items.map(it => `${it.qty}× ${it.name}`).join(', ');
 
@@ -279,6 +283,12 @@ export function initHistoryView(context) {
                 }
 
                 accountingBadgeHtml = `<span style="font-size: 10px; background: ${badgeBg}; color: ${badgeColor}; padding: 1px 6px; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px;"><i class="ph-bold ph-currency-circle-dollar" style="font-size: 11px;"></i> ${badgeText}</span>`;
+            } else if (m.isReturn) {
+                const badgeText = isUncollected ? 'Meghiúsult visszahozatal' : 'Visszahozva';
+                const badgeColor = isUncollected ? '#ef4444' : '#6b21a8';
+                const badgeBg = isUncollected ? '#fee2e2' : '#f5f3ff';
+                const iconClass = isUncollected ? 'ph-x-circle' : 'ph-arrow-counter-clockwise';
+                accountingBadgeHtml = `<span style="font-size: 10px; background: ${badgeBg}; color: ${badgeColor}; padding: 1px 6px; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px;"><i class="ph-bold ${iconClass}" style="font-size: 11px;"></i> ${badgeText}</span>`;
             } else {
                 if (isUncollected) {
                     accountingBadgeHtml = `<span style="font-size: 10px; background: #fee2e2; color: #ef4444; padding: 1px 6px; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px;"><i class="ph-bold ph-x-circle" style="font-size: 11px;"></i> Nem átadva</span>`;
@@ -315,7 +325,7 @@ export function initHistoryView(context) {
             el.innerHTML = `
                 <div class="s-section-info" style="flex: 1;">
                     <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-bottom: 4px;">
-                        <span style="font-weight: 900; color: #3b82f6; font-size: 13px;">${m.id}</span>
+                        <span style="font-weight: 900; color: ${m.isReturn ? '#a855f7' : '#3b82f6'}; font-size: 13px;">${m.id}</span>
                         <span style="font-size: 9px; background: #0f172a; color: white; padding: 1px 6px; border-radius: 4px; font-weight: 700;">${m.runCompany}</span>
                         <span class="btn-settle-search-run" data-run-id="${m.runId}" style="font-size: 10px; background: #f1f5f9; color: #475569; padding: 1px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'"><i class="ph-bold ph-calendar" style="font-size: 11px;"></i> ${m.runDate}</span>
                         <span class="btn-settle-search-run" data-run-id="${m.runId}" style="font-size: 10px; background: #e0f2fe; color: #0284c7; padding: 1px 6px; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#bae6fd'" onmouseout="this.style.background='#e0f2fe'"><i class="ph-bold ph-truck" style="font-size: 11px;"></i> ${m.runCourier}</span>
@@ -1389,7 +1399,7 @@ export function initHistoryView(context) {
                     }
                 }
 
-                const codBadges = run.orders.filter(o => o.isCOD).map(o => {
+                const codBadges = run.orders.filter(o => o.isCOD || o.isReturn).map(o => {
                     const isUncollected = uncollected.includes(o.id);
                     const isBankTransferred = bankTransferred.includes(o.id);
                     const isPartialOrder = !isUncollected && !isBankTransferred && !!partialOrders[o.id];
@@ -1399,73 +1409,79 @@ export function initHistoryView(context) {
                     let badgeColor = '#475569';
                     let statusLabel = 'Függő';
                     
-                    const isSplit = typeof method === 'object' && method !== null;
-                    let isOrderSettled = false;
-                    let isCardPending = false;
-                    let isKpPending = false;
-                    let splitPendingCardVal = 0;
-                    let splitPendingKpVal = 0;
-
-                    if (isSplit) {
-                        const sObj = typeof paymentStatusMap[o.id] === 'object' && paymentStatusMap[o.id] !== null ? paymentStatusMap[o.id] : {};
-                        isKpPending = (method.cash > 0 && sObj.cash === 'pending');
-                        isCardPending = (method.card > 0 && sObj.card === 'pending') || (method.bank > 0 && sObj.bank === 'pending');
-                        isOrderSettled = !isKpPending && !isCardPending;
-                        
-                        if (isCardPending) {
-                            if (sObj.card === 'pending') splitPendingCardVal += (method.card || 0);
-                            if (sObj.bank === 'pending') splitPendingCardVal += (method.bank || 0);
-                        }
-                        if (isKpPending) {
-                            splitPendingKpVal += (method.cash || 0);
-                        }
+                    if (o.isReturn) {
+                        badgeBg = isUncollected ? '#fee2e2' : '#f5f3ff';
+                        badgeColor = isUncollected ? '#ef4444' : '#6b21a8';
+                        statusLabel = isUncollected ? 'Meghiúsult visszahozatal' : 'Visszahozva';
                     } else {
-                        const statusVal = paymentStatusMap[o.id] || 'received';
-                        isOrderSettled = statusVal === 'received';
-                        if (!isOrderSettled) {
-                            if (method === 'card' || method === 'bank') {
-                                isCardPending = true;
-                            } else {
-                                isKpPending = true;
+                        const isSplit = typeof method === 'object' && method !== null;
+                        let isOrderSettled = false;
+                        let isCardPending = false;
+                        let isKpPending = false;
+                        let splitPendingCardVal = 0;
+                        let splitPendingKpVal = 0;
+
+                        if (isSplit) {
+                            const sObj = typeof paymentStatusMap[o.id] === 'object' && paymentStatusMap[o.id] !== null ? paymentStatusMap[o.id] : {};
+                            isKpPending = (method.cash > 0 && sObj.cash === 'pending');
+                            isCardPending = (method.card > 0 && sObj.card === 'pending') || (method.bank > 0 && sObj.bank === 'pending');
+                            isOrderSettled = !isKpPending && !isCardPending;
+                            
+                            if (isCardPending) {
+                                if (sObj.card === 'pending') splitPendingCardVal += (method.card || 0);
+                                if (sObj.bank === 'pending') splitPendingCardVal += (method.bank || 0);
+                            }
+                            if (isKpPending) {
+                                splitPendingKpVal += (method.cash || 0);
+                            }
+                        } else {
+                            const statusVal = paymentStatusMap[o.id] || 'received';
+                            isOrderSettled = statusVal === 'received';
+                            if (!isOrderSettled) {
+                                if (method === 'card' || method === 'bank') {
+                                    isCardPending = true;
+                                } else {
+                                    isKpPending = true;
+                                }
                             }
                         }
-                    }
-                    
-                    if (isUncollected) {
-                        badgeBg = '#fee2e2';
-                        badgeColor = '#ef4444';
-                        statusLabel = 'Kiesett';
-                    } else if (isBankTransferred && !isSplit) {
-                        badgeBg = '#dbeafe';
-                        badgeColor = '#3b82f6';
-                        statusLabel = 'Utalva';
-                    } else if (isPartialOrder) {
-                        badgeBg = '#ffedd5';
-                        badgeColor = '#f97316';
-                        statusLabel = 'Részleges';
-                    } else if (isSplit && (isCardPending || isKpPending)) {
-                        if (isCardPending) {
-                            badgeBg = '#eff6ff';
-                            badgeColor = '#2563eb';
-                            statusLabel = `Vár: ${splitPendingCardVal.toLocaleString('hu-HU')} Ft`;
-                        } else {
-                            badgeBg = '#fff7ed';
-                            badgeColor = '#c2410c';
-                            statusLabel = `Vár: ${splitPendingKpVal.toLocaleString('hu-HU')} Ft`;
-                        }
-                    } else if (isOrderSettled) {
-                        if (isSplit) {
-                            badgeBg = '#d1fae5';
-                            badgeColor = '#10b981';
-                            statusLabel = 'Bontott KP+Kártya';
-                        } else if (method === 'card') {
-                            badgeBg = '#eff6ff';
-                            badgeColor = '#2563eb';
-                            statusLabel = 'Kártya';
-                        } else {
-                            badgeBg = '#d1fae5';
-                            badgeColor = '#10b981';
-                            statusLabel = 'KP';
+                        
+                        if (isUncollected) {
+                            badgeBg = '#fee2e2';
+                            badgeColor = '#ef4444';
+                            statusLabel = 'Kiesett';
+                        } else if (isBankTransferred && !isSplit) {
+                            badgeBg = '#dbeafe';
+                            badgeColor = '#3b82f6';
+                            statusLabel = 'Utalva';
+                        } else if (isPartialOrder) {
+                            badgeBg = '#ffedd5';
+                            badgeColor = '#f97316';
+                            statusLabel = 'Részleges';
+                        } else if (isSplit && (isCardPending || isKpPending)) {
+                            if (isCardPending) {
+                                badgeBg = '#eff6ff';
+                                badgeColor = '#2563eb';
+                                statusLabel = `Vár: ${splitPendingCardVal.toLocaleString('hu-HU')} Ft`;
+                            } else {
+                                badgeBg = '#fff7ed';
+                                badgeColor = '#c2410c';
+                                statusLabel = `Vár: ${splitPendingKpVal.toLocaleString('hu-HU')} Ft`;
+                            }
+                        } else if (isOrderSettled) {
+                            if (isSplit) {
+                                badgeBg = '#d1fae5';
+                                badgeColor = '#10b981';
+                                statusLabel = 'Bontott KP+Kártya';
+                            } else if (method === 'card') {
+                                badgeBg = '#eff6ff';
+                                badgeColor = '#2563eb';
+                                statusLabel = 'Kártya';
+                            } else {
+                                badgeBg = '#d1fae5';
+                                badgeColor = '#10b981';
+                                statusLabel = 'KP';
+                            }
                         }
                     }
                     return `<span class="acc-order-badge" style="font-size:10px; font-weight:700; background:${badgeBg}; color:${badgeColor}; border:1px solid ${badgeColor}33; padding:2px 6px; border-radius:6px; display:inline-flex; align-items:center; gap:3px;" title="${o.shippingName || ''} · ${statusLabel}">
@@ -1513,23 +1529,27 @@ export function initHistoryView(context) {
                     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f1f5f9;${isUncollected ? 'opacity:.55;' : ''}">
                         <span style="font-size:12px;font-weight:700;color:#374151;min-width:95px;${isUncollected ? 'text-decoration:line-through;' : ''}">${o.id}</span>
                         <span style="font-size:12px;color:#64748b;flex:1;">${o.shippingName || '—'}</span>
-                        ${o.isCOD
+                        ${o.isReturn
                             ? isUncollected
-                                ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem érkezett<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
-                                : isBankTransferred && !isSplit
-                                    ? `<span style="font-size:11px;font-weight:700;color:#3b82f6;">Elutalva (Banki utalás)<span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
-                                    : isSplit
-                                        ? paymentBreakdownHtml
-                                        : partialInfo
-                                            ? `<span style="font-size:11px;font-weight:700;color:#1d4ed8;">~${partialInfo.amount.toLocaleString('hu-HU')} Ft ${method === 'card' ? '💳' : method === 'bank' ? '🏦' : '💵'}<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft${partialInfo.comment ? ' · ' + partialInfo.comment : ''}</span></span>`
-                                            : (method === 'card'
-                                                ? `<span style="font-size:11px;font-weight:700;color:#2563eb;">💳 Kártya<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
-                                                : method === 'bank'
-                                                    ? `<span style="font-size:11px;font-weight:700;color:#0284c7;">🏦 Utalás<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
-                                                    : `<span style="font-size:11px;font-weight:700;color:#10b981;">💵 KP<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`)
-                            : isUncollected
-                                ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem lett átadva<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
-                                : '<span style="font-size:11px;color:#94a3b8;">átadva</span>'}
+                                ? `<span style="font-size:11px;font-weight:700;color:#ef4444;">meghiúsult visszahozatal<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
+                                : `<span style="font-size:11px;font-weight:700;color:#6b21a8;">visszahozva</span>`
+                            : o.isCOD
+                                ? isUncollected
+                                    ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem érkezett<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
+                                    : isBankTransferred && !isSplit
+                                        ? `<span style="font-size:11px;font-weight:700;color:#3b82f6;">Elutalva (Banki utalás)<span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
+                                        : isSplit
+                                            ? paymentBreakdownHtml
+                                            : partialInfo
+                                                ? `<span style="font-size:11px;font-weight:700;color:#1d4ed8;">~${partialInfo.amount.toLocaleString('hu-HU')} Ft ${method === 'card' ? '💳' : method === 'bank' ? '🏦' : '💵'}<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft${partialInfo.comment ? ' · ' + partialInfo.comment : ''}</span></span>`
+                                                : (method === 'card'
+                                                    ? `<span style="font-size:11px;font-weight:700;color:#2563eb;">💳 Kártya<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
+                                                    : method === 'bank'
+                                                        ? `<span style="font-size:11px;font-weight:700;color:#0284c7;">🏦 Utalás<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
+                                                        : `<span style="font-size:11px;font-weight:700;color:#10b981;">💵 KP<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`)
+                                : isUncollected
+                                    ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem lett átadva<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
+                                    : '<span style="font-size:11px;color:#94a3b8;">átadva</span>'}
                     </div>`;
                 }).join('');
 

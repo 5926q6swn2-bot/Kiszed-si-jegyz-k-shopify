@@ -35,6 +35,13 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
+### 2026. július 15. - Visszaszállítások Rendszeren Belüli Követése
+- **Előzmények Szedések fül (History)**: A befejezett/mentett körök legördülő rendelés-előnézeti chipjeiben a visszaszállításos megrendelések mostantól egyedi lila szegéllyel (`border: 1.5px solid #d8b4fe`), halvány lila háttérrel, lila betűszínnel és egy vissza-nyíl (⟲) ikonnal jelennek meg a könnyebb vizuális azonosítás érdekében.
+- **Rendelések fül**: A megrendelések történetében a visszaszállításos tételek kártyái egyedi lila bal oldali szegélyt kapnak, és az utánvét státuszuk helyén egy dedikált **"Visszahozva"** (lila) vagy **"Meghiúsult visszahozatal"** (piros, indokkal) badge látható.
+- **Elszámolások fül**:
+  - A körök kártyájának fejlécében lévő utánvét badge-ek közé bekerültek a visszaszállításos rendelések is, lila színű státuszjelzőként (pl. `[ #3086 - Visszahozva ]` vagy `[ #3086 - Meghiúsult ]`).
+  - Az elszámolás részleteiben (rendelés-listában) a visszaszállított tételek státusza nem az *"átadva"*/*"nem lett átadva"* szöveggel, hanem a valós visszáru helyzettel: **"visszahozva"** (lila) vagy **"meghiúsult visszahozatal"** (piros/narancs, sofőr által megadott kiesési indokkal) felirattal szerepel.
+
 ### 2026. július 14. - Visszaszállítás (Visszáru) Funkció Implementálása
 - **Visszaszállítás Checkbox a Szerkesztőben**: Bekerült egy új "Visszaszállítás (Korábbi kiszállítás visszahozatala)" jelölőmező a manuális rendelés és a rendelés szerkesztése modalba (`index.html`, `js/controllers/manualOrderController.js`). Jelölés esetén az utánvét összege le lesz tiltva és automatikusan 0 Ft-ra áll be.
 - **Lila Visszaszállítás Badge**: A visszaszállítandó rendelés kártyáján egy egyedi, feltűnő lila badge jelenik meg a fő képernyőn (`js/views/ordersView.js`).
