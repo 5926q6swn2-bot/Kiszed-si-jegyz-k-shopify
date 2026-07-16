@@ -35,6 +35,11 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
+### 2026. július 16. - Elszámolás CSV Export Szállítócégenkénti Csoportosítása és Részösszesítői
+- **Szállítócégenkénti csoportosítás**: Az elszámolások CSV exportja (`js/services/exporter.js`) mostantól nem ömlesztve, hanem szállítócégek (`company`) szerint ABC-rendbe rendezve menti le a rendeléseket.
+- **KP és Kártyás részösszesítők cégeken belül**: Minden egyes szállítócég rendelési blokkjának a végén egy dedikált részösszesítő sor jelenik meg (pl. `GLS ÖSSZESEN`), amelyben a függő készpénzes (KP) és a kártyás utalásra váró (kártya) kintlévőségek összege külön-külön összesítve szerepel a megfelelő oszlopokban.
+- **Üres elválasztó sorok**: A különböző szállítócégek blokkjai közé üres sorokat szúr be a CSV generáló, hogy Excelben megnyitva könnyen áttekinthető legyen a dokumentum.
+
 ### 2026. július 15. - Visszaszállítások Rendszeren Belüli Követése
 - **Előzmények Szedések fül (History)**: A befejezett/mentett körök legördülő rendelés-előnézeti chipjeiben a visszaszállításos megrendelések mostantól egyedi lila szegéllyel (`border: 1.5px solid #d8b4fe`), halvány lila háttérrel, lila betűszínnel és egy vissza-nyíl (⟲) ikonnal jelennek meg a könnyebb vizuális azonosítás érdekében.
 - **Rendelések fül**: A megrendelések történetében a visszaszállításos tételek kártyái egyedi lila bal oldali szegélyt kapnak, és az utánvét státuszuk helyén egy dedikált **"Visszahozva"** (lila) vagy **"Meghiúsult visszahozatal"** (piros, indokkal) badge látható.

@@ -23,8 +23,8 @@ export const ExporterService = {
         ];
 
         const csvRows = [];
-        // UTF-8 BOM a magyar karakterek helyes Excel megjelenítéséhez
         csvRows.push('\ufeff' + headers.join(";"));
+        const rows = [];
 
         runs.forEach(run => {
             const uncollected = run.uncollectedOrderIds || [];
@@ -34,14 +34,12 @@ export const ExporterService = {
             const paymentStatusMap = run.paymentStatusMap || {};
             const paymentMethods = run.paymentMethods || {};
 
-            // Minden rendelést hozzáadunk a CSV-hez
             run.orders.forEach(o => {
                 const isUnc = uncollected.includes(o.id);
                 const isBank = bankTransferred.includes(o.id);
                 const status = paymentStatusMap[o.id] || 'received';
 
                 if (onlyPending) {
-                    // Csak olyan COD-os rendelést exportálunk, ami nem kiesett, nem banki utalt, és még függőben van
                     const isPendingCOD = o.isCOD && !isUnc && !isBank && status === 'pending';
                     if (!isPendingCOD) return;
                 }
@@ -84,7 +82,7 @@ export const ExporterService = {
                     }
                 }
 
-                // Függő kintlévőségek összegeinek bontása (csak ha még PENDING, azaz nem kaptuk kézhez)
+                // Függő kintlévőségek összegeinek bontása (csak ha még PENDING)
                 let collectedAmount = 0;
                 if (o.isCOD && !isUnc) {
                     if (isPart) {
@@ -98,7 +96,7 @@ export const ExporterService = {
                 const pendingKp = (method === 'cash' && isPending) ? collectedAmount : 0;
                 const pendingCard = (method === 'card' && isPending) ? collectedAmount : 0;
 
-                // Megjegyzés / Sikertelenség oka
+                // Megjegyzés
                 let failReason = "";
                 if (isUnc) {
                     failReason = reasons[o.id] || "";
@@ -106,33 +104,90 @@ export const ExporterService = {
                     failReason = partialOrders[o.id].comment || "";
                 }
 
-                // Mezők tisztítása a CSV formátumhoz
-                const clean = (val) => {
-                    if (val === undefined || val === null) return "";
-                    let str = String(val);
-                    if (str.includes(";") || str.includes("\n") || str.includes('"')) {
-                        str = str.replace(/"/g, '""');
-                        return `"${str}"`;
-                    }
-                    return str;
-                };
-
-                const rowData = [
-                    clean(run.date),
-                    clean(run.company || "-"),
-                    clean(run.courier),
-                    clean(o.id),
-                    clean(o.shippingName),
-                    clean(paymentMethodText),
-                    pendingKp,
-                    pendingCard,
-                    clean(orderStatus),
-                    clean(failReason)
-                ];
-
-                csvRows.push(rowData.join(";"));
+                rows.push({
+                    date: run.date,
+                    company: run.company || "-",
+                    courier: run.courier,
+                    orderId: o.id,
+                    customerName: o.shippingName,
+                    paymentMethodText: paymentMethodText,
+                    pendingKp: pendingKp,
+                    pendingCard: pendingCard,
+                    orderStatus: orderStatus,
+                    failReason: failReason
+                });
             });
         });
+
+        // Csoportosítás szállítócég szerint ABC sorrendben
+        rows.sort((a, b) => a.company.localeCompare(b.company, 'hu'));
+
+        // Mezők tisztítása a CSV formátumhoz
+        const clean = (val) => {
+            if (val === undefined || val === null) return "";
+            let str = String(val);
+            if (str.includes(";") || str.includes("\n") || str.includes('"')) {
+                str = str.replace(/"/g, '""');
+                return `"${str}"`;
+            }
+            return str;
+        };
+
+        let currentCompany = null;
+        let companyKpSum = 0;
+        let companyCardSum = 0;
+
+        const appendSubtotal = (companyName) => {
+            if (companyName === null) return;
+            const subtotalRow = [
+                `${companyName} ÖSSZESEN`,
+                "",
+                "",
+                "",
+                "",
+                "",
+                companyKpSum,
+                companyCardSum,
+                "",
+                ""
+            ];
+            csvRows.push(subtotalRow.join(";"));
+        };
+
+        rows.forEach(row => {
+            if (row.company !== currentCompany) {
+                if (currentCompany !== null) {
+                    appendSubtotal(currentCompany);
+                    // Üres sor az elválasztáshoz
+                    csvRows.push(";;;;;;;;;");
+                }
+                currentCompany = row.company;
+                companyKpSum = 0;
+                companyCardSum = 0;
+            }
+
+            companyKpSum += row.pendingKp;
+            companyCardSum += row.pendingCard;
+
+            const rowData = [
+                clean(row.date),
+                clean(row.company),
+                clean(row.courier),
+                clean(row.orderId),
+                clean(row.customerName),
+                clean(row.paymentMethodText),
+                row.pendingKp,
+                row.pendingCard,
+                clean(row.orderStatus),
+                clean(row.failReason)
+            ];
+
+            csvRows.push(rowData.join(";"));
+        });
+
+        if (currentCompany !== null) {
+            appendSubtotal(currentCompany);
+        }
 
         // Letöltés indítása
         const csvContent = csvRows.join("\r\n");
