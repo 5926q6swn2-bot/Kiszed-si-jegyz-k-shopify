@@ -6,7 +6,7 @@
 import { PannonXPService } from '../services/pannonxp.js?v=150';
 import { CustomDialog } from '../utils/dialog.js';
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { ShopifyParser, cleanItemNameForMapping } from '../services/shopify.js?v=150';
+import { ShopifyParser, cleanItemNameForMapping, fixHungarianAccents } from '../services/shopify.js?v=150';
 
 export const PannonXPView = {
     render(container, orders, onExport) {
@@ -294,7 +294,7 @@ export const PannonXPView = {
             input.addEventListener('change', (e) => {
                 const idx = parseInt(e.target.dataset.index);
                 const order = orders[idx];
-                const addrVal = e.target.value.trim();
+                const addrVal = fixHungarianAccents(e.target.value.trim());
                 order.fullAddress = addrVal;
                 order.address = addrVal;
                 

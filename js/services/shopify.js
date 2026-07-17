@@ -1,6 +1,26 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
 import { PannonXPService } from './pannonxp.js?v=150';
 
+export function fixHungarianAccents(str) {
+    if (!str) return '';
+    return str
+        .replace(/à/g, 'á').replace(/À/g, 'Á')
+        .replace(/â/g, 'á').replace(/Â/g, 'Á')
+        .replace(/ä/g, 'á').replace(/Ä/g, 'Á')
+        .replace(/è/g, 'é').replace(/È/g, 'É')
+        .replace(/ê/g, 'é').replace(/Ê/g, 'É')
+        .replace(/ë/g, 'é').replace(/Ë/g, 'É')
+        .replace(/ì/g, 'í').replace(/Ì/g, 'Í')
+        .replace(/î/g, 'í').replace(/Î/g, 'Í')
+        .replace(/ï/g, 'í').replace(/Ï/g, 'Í')
+        .replace(/ò/g, 'ó').replace(/Ò/g, 'Ó')
+        .replace(/ô/g, 'ó').replace(/Ô/g, 'Ó')
+        .replace(/õ/g, 'ó').replace(/Õ/g, 'Ó')
+        .replace(/ù/g, 'ú').replace(/Ù/g, 'Ú')
+        .replace(/û/g, 'ú').replace(/Û/g, 'Ú')
+        .replace(/Bànhidai/gi, 'Bánhidai');
+}
+
 export function cleanItemNameForMapping(name) {
     if (!name) return '';
     
@@ -138,6 +158,18 @@ export const ShopifyParser = {
         rows.forEach(row => {
             const orderNum = row['Name'];
             if (!orderNum) return;
+
+            // Clean common mobile keyboard accent mistakes
+            const keysToFix = [
+                'Shipping City', 'Shipping Street', 'Shipping Address1', 'Shipping Address2', 
+                'Shipping Name', 'Billing Name', 'Billing City', 'Billing Street', 
+                'Billing Address1', 'Billing Address2', 'Notes', 'Lineitem name'
+            ];
+            keysToFix.forEach(key => {
+                if (row[key]) {
+                    row[key] = fixHungarianAccents(row[key]);
+                }
+            });
             
             // Duplikáció szűrés (ha már a meglévő orders tömbben benne van, kihagyjuk)
             if (existingOrders.some(o => o.id === orderNum)) {

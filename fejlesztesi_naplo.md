@@ -38,6 +38,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ### 2026. július 17. - PannonXP Cím szerkesztés és Kézi Csomag-kezelés
 - **Szerkeszthető szállítási címek és telefonok**: A PannonXP címkekészítő táblázatában (`js/views/pannonxpView.js`) a címek és telefonszámok sima szöveg helyett szerkeszthető input mezőkké váltak, így közvetlenül javíthatóak exportálás előtt.
 - **Automatikus magyar cím-elemzés**: Bevezettünk egy `parseHungarianAddress` segédfüggvényt, amely a manuálisan átírt szállítási címből valós időben kinyeri az irányítószámot (ZIP), a várost és a közterület nevét, majd ezeket frissíti a háttérben. Ezáltal a cím módosításával a *"Hiányzó irányítószám!"* figyelmeztetés is automatikusan eltűnik és javul a CSV exportban is.
+- **Automatikus ékezet- és gépelési javítás**: Létrehoztuk a `fixHungarianAccents` funkciót, amely automatikusan felismeri és javítja a mobil billentyűzeteken elcsúszott ékezeteket (pl. `à` -> `á`, `è` -> `é`, `Bànhidai` -> `Bánhidai`) mind a Shopify CSV beolvasásakor, mind a PannonXP címek manuális szerkesztésekor.
 - **Kézi csomag hozzáadás és törlés**: A csomagszám melletti doboz ikonra kattintva megnyíló részletes modalban egyedileg is lehet új csomagot hozzáadni vagy meglévőt törölni. Ez teljes kézi szabadságot ad a csomagkonfiguráció átalakítására (pl. több tétel, mint a ragasztók vagy profilok egyetlen közös dobozba vonására).
 
 ### 2026. július 16. - Elszámolás CSV Export Szállítócégenkénti Csoportosítása és Részösszesítői
