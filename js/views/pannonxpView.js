@@ -247,10 +247,12 @@ export const PannonXPView = {
                         ${warningMessage}
                     </td>
                     <td style="padding: 10px; color: #334155;">
-                        ${order.fullAddress || order.address}
-                        ${!hasZip ? '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;">⚠️ Hiányzó irányítószám!</span>' : ''}
+                        <input type="text" class="pxp-input-address" data-index="${index}" value="${(order.fullAddress || order.address || '').replace(/"/g, '&quot;')}" style="width: 100%; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 11px;">
+                        ${!hasZip ? '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;">⚠️ Hiányzó irányítószám!</span>' : ''}
                     </td>
-                    <td style="padding: 10px;">${order.shippingPhone || '-'}</td>
+                    <td style="padding: 10px;">
+                        <input type="text" class="pxp-input-phone" data-index="${index}" value="${order.shippingPhone || ''}" style="width: 100%; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 11px;">
+                    </td>
                     <td style="padding: 10px;">
                         <input type="text" class="pxp-input-referencia" data-index="${index}" value="${order.pxp_referencia || ''}" maxlength="40" style="width: 100%; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 11px;">
                     </td>
@@ -284,6 +286,33 @@ export const PannonXPView = {
                 const idx = parseInt(e.target.dataset.index);
                 orders[idx].pxp_selected = e.target.checked;
                 updateExportState();
+            });
+        });
+
+        const addressInputs = tbody.querySelectorAll('.pxp-input-address');
+        addressInputs.forEach(input => {
+            input.addEventListener('change', (e) => {
+                const idx = parseInt(e.target.dataset.index);
+                const order = orders[idx];
+                const addrVal = e.target.value.trim();
+                order.fullAddress = addrVal;
+                order.address = addrVal;
+                
+                const parsed = parseHungarianAddress(addrVal);
+                order.zip = parsed.zip;
+                order.city = parsed.city;
+                order.address1 = parsed.street;
+                order.address2 = '';
+                
+                this.renderOrders(orders);
+            });
+        });
+
+        const phoneInputs = tbody.querySelectorAll('.pxp-input-phone');
+        phoneInputs.forEach(input => {
+            input.addEventListener('change', (e) => {
+                const idx = parseInt(e.target.dataset.index);
+                orders[idx].shippingPhone = e.target.value.trim();
             });
         });
 
@@ -520,6 +549,8 @@ export const PannonXPView = {
             order.pxp_packages = PannonXPService.calculateWeightAndPackages(order.items).packagesDetail || [];
         }
         
+        let tempPackages = JSON.parse(JSON.stringify(order.pxp_packages));
+        
         overlay.innerHTML = `
             <div class="custom-dialog-box" style="max-width: 480px; width: 90%; max-height: 85vh; display: flex; flex-direction: column; padding: 20px;">
                 <h3 style="margin-top: 0; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
@@ -527,37 +558,15 @@ export const PannonXPView = {
                     Csomagok részletei: ${order.id}
                 </h3>
                 <p style="margin: 0 0 15px 0; font-size: 13px; color: var(--text-muted);">
-                    Módosítsd az egyes csomagok méreteit és súlyait.
+                    Módosítsd az egyes csomagok méreteit és súlyait, vagy adj hozzá újakat.
                 </p>
                 
                 <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px;" id="pxp-modal-pkg-list">
-                    ${order.pxp_packages.map((pkg, idx) => `
-                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
-                            <div style="font-weight: 700; font-size: 12px; color: #1e293b; display: flex; justify-content: space-between;">
-                                <span>${idx + 1}. Csomag</span>
-                                <span style="font-weight: normal; font-size: 11px; color: #64748b;">${pkg.description || ''}</span>
-                            </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px;">
-                                <div>
-                                    <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px;">Súly (kg)</label>
-                                    <input type="number" class="pkg-edit-suly" data-idx="${idx}" value="${pkg.suly}" step="0.01" min="0.01" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
-                                </div>
-                                <div>
-                                    <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px;">Hossz (cm)</label>
-                                    <input type="number" class="pkg-edit-hossz" data-idx="${idx}" value="${pkg.hosszusag}" min="1" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
-                                </div>
-                                <div>
-                                    <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px;">Szél. (cm)</label>
-                                    <input type="number" class="pkg-edit-szel" data-idx="${idx}" value="${pkg.szelesseg}" min="1" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
-                                </div>
-                                <div>
-                                    <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px;">Mag. (cm)</label>
-                                    <input type="number" class="pkg-edit-mag" data-idx="${idx}" value="${pkg.magassag}" min="1" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
                 </div>
+
+                <button type="button" id="pxp-modal-btn-add-pkg" class="cd-btn cd-btn-secondary" style="margin: 10px 0; width:100%; display:flex; align-items:center; justify-content:center; gap:6px;">
+                    <i class="ph-bold ph-plus-circle"></i> Új csomag hozzáadása
+                </button>
                 
                 <div class="cd-actions" style="margin-top: 15px; display: flex; justify-content: flex-end; gap: 10px;">
                     <button id="pxp-modal-btn-cancel" class="cd-btn cd-btn-secondary" style="margin:0;">Mégse</button>
@@ -566,7 +575,95 @@ export const PannonXPView = {
             </div>
         `;
         
+        const pkgListContainer = overlay.querySelector('#pxp-modal-pkg-list');
+        
+        const renderPkgList = () => {
+            pkgListContainer.innerHTML = tempPackages.map((pkg, idx) => `
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px;" class="pkg-modal-row" data-idx="${idx}">
+                    <div style="font-weight: 700; font-size: 12px; color: #1e293b; display: flex; justify-content: space-between; align-items: center;">
+                        <span>${idx + 1}. Csomag</span>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="font-weight: normal; font-size: 11px; color: #64748b;">${pkg.description || ''}</span>
+                            <button type="button" class="btn-delete-pkg" data-idx="${idx}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:14px; padding:2px; display:flex; align-items:center;" title="Csomag törlése">
+                                <i class="ph-bold ph-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px;">
+                        <div>
+                            <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px;">Súly (kg)</label>
+                            <input type="number" class="pkg-edit-suly" data-idx="${idx}" value="${pkg.suly}" step="0.01" min="0.01" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
+                        </div>
+                        <div>
+                            <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px;">Hossz (cm)</label>
+                            <input type="number" class="pkg-edit-hossz" data-idx="${idx}" value="${pkg.hosszusag}" min="1" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
+                        </div>
+                        <div>
+                            <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px;">Szél. (cm)</label>
+                            <input type="number" class="pkg-edit-szel" data-idx="${idx}" value="${pkg.szelesseg}" min="1" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
+                        </div>
+                        <div>
+                            <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px;">Mag. (cm)</label>
+                            <input type="number" class="pkg-edit-mag" data-idx="${idx}" value="${pkg.magassag}" min="1" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            const sulyInputs = pkgListContainer.querySelectorAll('.pkg-edit-suly');
+            const hosszInputs = pkgListContainer.querySelectorAll('.pkg-edit-hossz');
+            const szelInputs = pkgListContainer.querySelectorAll('.pkg-edit-szel');
+            const magInputs = pkgListContainer.querySelectorAll('.pkg-edit-mag');
+            
+            sulyInputs.forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const idx = parseInt(e.target.dataset.idx);
+                    tempPackages[idx].suly = parseFloat(e.target.value) || 0.5;
+                });
+            });
+            hosszInputs.forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const idx = parseInt(e.target.dataset.idx);
+                    tempPackages[idx].hosszusag = parseInt(e.target.value) || 30;
+                });
+            });
+            szelInputs.forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const idx = parseInt(e.target.dataset.idx);
+                    tempPackages[idx].szelesseg = parseInt(e.target.value) || 20;
+                });
+            });
+            magInputs.forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const idx = parseInt(e.target.dataset.idx);
+                    tempPackages[idx].magassag = parseInt(e.target.value) || 10;
+                });
+            });
+            
+            pkgListContainer.querySelectorAll('.btn-delete-pkg').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.dataset.idx);
+                    tempPackages.splice(idx, 1);
+                    renderPkgList();
+                });
+            });
+        };
+        
         document.body.appendChild(overlay);
+        renderPkgList();
+        
+        const addPkgBtn = overlay.querySelector('#pxp-modal-btn-add-pkg');
+        addPkgBtn.addEventListener('click', () => {
+            tempPackages.push({
+                suly: 1.0,
+                hosszusag: 30,
+                szelesseg: 20,
+                magassag: 10,
+                tipus: "doboz",
+                description: "Panelburkolatok és kiegészítők"
+            });
+            renderPkgList();
+        });
         
         const cancelBtn = overlay.querySelector('#pxp-modal-btn-cancel');
         const saveBtn = overlay.querySelector('#pxp-modal-btn-save');
@@ -576,30 +673,20 @@ export const PannonXPView = {
         });
         
         saveBtn.addEventListener('click', () => {
-            const sulyInputs = overlay.querySelectorAll('.pkg-edit-suly');
-            const hosszInputs = overlay.querySelectorAll('.pkg-edit-hossz');
-            const szelInputs = overlay.querySelectorAll('.pkg-edit-szel');
-            const magInputs = overlay.querySelectorAll('.pkg-edit-mag');
+            if (tempPackages.length === 0) {
+                tempPackages.push({
+                    suly: 1.0,
+                    hosszusag: 30,
+                    szelesseg: 20,
+                    magassag: 10,
+                    tipus: "doboz",
+                    description: "Panelburkolatok és kiegészítők"
+                });
+            }
             
-            sulyInputs.forEach(input => {
-                const idx = parseInt(input.dataset.idx);
-                order.pxp_packages[idx].suly = parseFloat(input.value) || 0.5;
-            });
-            hosszInputs.forEach(input => {
-                const idx = parseInt(input.dataset.idx);
-                order.pxp_packages[idx].hosszusag = parseInt(input.value) || 30;
-            });
-            szelInputs.forEach(input => {
-                const idx = parseInt(input.dataset.idx);
-                order.pxp_packages[idx].szelesseg = parseInt(input.value) || 20;
-            });
-            magInputs.forEach(input => {
-                const idx = parseInt(input.dataset.idx);
-                order.pxp_packages[idx].magassag = parseInt(input.value) || 10;
-            });
-            
-            order.pxp_csomagszam = order.pxp_packages.length;
-            order.pxp_suly = order.pxp_packages.reduce((sum, p) => sum + p.suly, 0);
+            order.pxp_packages = tempPackages;
+            order.pxp_csomagszam = tempPackages.length;
+            order.pxp_suly = parseFloat(tempPackages.reduce((sum, p) => sum + p.suly, 0).toFixed(2));
             
             overlay.remove();
             if (typeof onSave === 'function') {
@@ -1720,3 +1807,42 @@ csvStatus.textContent = file.name;
         });
     }
 };
+
+function parseHungarianAddress(addressStr) {
+    const res = { zip: '', city: '', street: '' };
+    if (!addressStr) return res;
+
+    let cleanStr = addressStr.trim();
+
+    const zipMatch = cleanStr.match(/^(\d{4})/);
+    if (zipMatch) {
+        res.zip = zipMatch[1];
+        cleanStr = cleanStr.substring(4).trim();
+    } else {
+        const anyZipMatch = cleanStr.match(/\b(\d{4})\b/);
+        if (anyZipMatch) {
+            res.zip = anyZipMatch[1];
+            cleanStr = cleanStr.replace(anyZipMatch[0], '').trim();
+        }
+    }
+
+    cleanStr = cleanStr.replace(/^[,\s]+/, '');
+
+    const commaIndex = cleanStr.indexOf(',');
+    if (commaIndex !== -1) {
+        res.city = cleanStr.substring(0, commaIndex).trim();
+        res.street = cleanStr.substring(commaIndex + 1).trim();
+    } else {
+        const spaceIndex = cleanStr.indexOf(' ');
+        if (spaceIndex !== -1) {
+            res.city = cleanStr.substring(0, spaceIndex).trim();
+            res.street = cleanStr.substring(spaceIndex + 1).trim();
+        } else {
+            res.city = cleanStr;
+            res.street = '';
+        }
+    }
+
+    res.street = res.street.replace(/^[,\s]+/, '').trim();
+    return res;
+}

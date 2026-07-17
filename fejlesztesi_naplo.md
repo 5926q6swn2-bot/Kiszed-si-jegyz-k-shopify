@@ -35,6 +35,11 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
+### 2026. július 17. - PannonXP Cím szerkesztés és Kézi Csomag-kezelés
+- **Szerkeszthető szállítási címek és telefonok**: A PannonXP címkekészítő táblázatában (`js/views/pannonxpView.js`) a címek és telefonszámok sima szöveg helyett szerkeszthető input mezőkké váltak, így közvetlenül javíthatóak exportálás előtt.
+- **Automatikus magyar cím-elemzés**: Bevezettünk egy `parseHungarianAddress` segédfüggvényt, amely a manuálisan átírt szállítási címből valós időben kinyeri az irányítószámot (ZIP), a várost és a közterület nevét, majd ezeket frissíti a háttérben. Ezáltal a cím módosításával a *"Hiányzó irányítószám!"* figyelmeztetés is automatikusan eltűnik és javul a CSV exportban is.
+- **Kézi csomag hozzáadás és törlés**: A csomagszám melletti doboz ikonra kattintva megnyíló részletes modalban egyedileg is lehet új csomagot hozzáadni vagy meglévőt törölni. Ez teljes kézi szabadságot ad a csomagkonfiguráció átalakítására (pl. több tétel, mint a ragasztók vagy profilok egyetlen közös dobozba vonására).
+
 ### 2026. július 16. - Elszámolás CSV Export Szállítócégenkénti Csoportosítása és Részösszesítői
 - **Szállítócégenkénti csoportosítás**: Az elszámolások CSV exportja (`js/services/exporter.js`) mostantól nem ömlesztve, hanem szállítócégek (`company`) szerint ABC-rendbe rendezve menti le a rendeléseket.
 - **KP és Kártyás részösszesítők cégeken belül**: Minden egyes szállítócég rendelési blokkjának a végén egy dedikált részösszesítő sor jelenik meg (pl. `GLS ÖSSZESEN`), amelyben a függő készpénzes (KP) és a kártyás utalásra váró (kártya) kintlévőségek összege külön-külön összesítve szerepel a megfelelő oszlopokban.
