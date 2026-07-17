@@ -150,8 +150,9 @@ export const PannonXPView = {
                     return m && !m.categoryId;
                 });
                 const hasRemovedError = o.errors && o.errors.some(err => err.title === "Törölt tétel!");
+                const isPendingDeposit = o.isBankDeposit && !o.isPaid;
                 
-                return !hasZip || !!o.pxp_has_unmatched || hasUnmapped || hasUnassignedCategory || hasRemovedError;
+                return !hasZip || !!o.pxp_has_unmatched || hasUnmapped || hasUnassignedCategory || hasRemovedError || isPendingDeposit;
             });
             exportBtn.disabled = selectedOrders.length === 0 || hasErrors;
             if (hasErrors) {
@@ -177,9 +178,10 @@ export const PannonXPView = {
             
             const removedError = order.errors ? order.errors.find(err => err.title === "Törölt tétel!") : null;
             const hasRemovedError = !!removedError;
+            const isPendingDeposit = order.isBankDeposit && !order.isPaid;
             
             const hasUnmatched = !!order.pxp_has_unmatched || hasUnmappedProduct || hasUnassignedCategory;
-            const hasError = !hasZip || hasUnmatched || hasRemovedError;
+            const hasError = !hasZip || hasUnmatched || hasRemovedError || isPendingDeposit;
             
             if (order.pxp_csomagszam === undefined) order.pxp_csomagszam = 1;
             if (order.pxp_suly === undefined) order.pxp_suly = 0.5;
@@ -204,15 +206,23 @@ export const PannonXPView = {
             }
             
             let warningMessage = '';
+            if (isPendingDeposit) {
+                warningMessage += `
+                <span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;" class="pxp-pending-deposit-span">
+                    ⚠️ Függő utalás (Bank Deposit) - Nincs fizetve!
+                </span>
+                `;
+            }
             if (hasRemovedError) {
-                warningMessage = `
+                warningMessage += `
                 <span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;" class="pxp-removed-error-span">
                     ⚠️ Törölt tétel van a megrendelésben, kérlek ellenőrizd a Shopifyban!
                     <button type="button" class="btn-ack-pxp-removed btn-sm" data-order-index="${index}" data-err-id="${removedError.id}" style="margin-left: 6px; padding: 2px 6px; font-size: 9px; font-weight: 700; background: #dc2626; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: all 0.15s; vertical-align: middle;" onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">Ellenőrizve</button>
                 </span>
                 `;
-            } else if (hasUnmappedProduct) {
-                warningMessage = unmappedItems.map(item => {
+            }
+            if (hasUnmappedProduct) {
+                warningMessage += unmappedItems.map(item => {
                     const cleanedName = cleanItemNameForMapping(item.name);
                     return `
                     <span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:2px;" class="pxp-unmapped-span">
@@ -221,8 +231,9 @@ export const PannonXPView = {
                     </span>
                     `;
                 }).join('');
-            } else if (hasUnassignedCategory) {
-                warningMessage = unassignedCategoryItems.map(item => {
+            }
+            if (hasUnassignedCategory) {
+                warningMessage += unassignedCategoryItems.map(item => {
                     const cleanedName = cleanItemNameForMapping(item.name);
                     return `
                     <span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:2px;" class="pxp-unassigned-cat-span">
@@ -231,8 +242,9 @@ export const PannonXPView = {
                     </span>
                     `;
                 }).join('');
-            } else if (order.pxp_has_unmatched) {
-                warningMessage = '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;">⚠️ Ismeretlen termékcsalád!</span>';
+            }
+            if (order.pxp_has_unmatched && !hasUnmappedProduct && !hasUnassignedCategory) {
+                warningMessage += '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;">⚠️ Ismeretlen termékcsalád!</span>';
             }
             
             return `
