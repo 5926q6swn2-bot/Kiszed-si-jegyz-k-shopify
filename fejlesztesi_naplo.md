@@ -778,4 +778,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
   - Ha egy bontott fizetésben a kártyás rész még nincs utalva, a kör kék színűvé válik, kiírja a pontos várakozó kártyás összeget („Utalásra vár: X Ft”), és a fejlécben megjelenik a **Kártya utalva** jóváhagyó gomb.
   - A rendelés-szintű kis jelvény (badge) is kékké változik és mutatja a még be nem érkezett összeget (pl. *„Vár: 241 000 Ft”*), valamint a részletes nézetben külön zöld pipával (`✓`) vagy sárga homokórával (`⏳`) jelezzük az egyes fizetési módok (KP, Kártya, Utalás) egyéni státuszát (pl. *Bontott: 100 000 Ft KP ✓ + 241 000 Ft Kártya ⏳*).
 
+## 🚀 TODO (Hátralévő feladatok)
+- **PannonXP Cím Validációs Figyelmeztetés debugolása**: Bár bevezetésre került a `checkAddressValidity` ellenőrzés (ami felismeri az érvényes címeket és kiszűri a hiányosakat), bizonyos helyes címeknél (pl. `2740, Abony, Szolnoki út 38` vagy `3351, Verpelét, Ifjúság út 36/6 1 emelet 18`) még mindig hibás/hiányos figyelmeztetést mutat a felület. Ezt a validációs logikát és a felületi szinkronizációt a következő sessionben tovább kell debugolni, hogy ne akadályozza a helyes címek exportálását, és szükség esetén lazítani kell a szabályokon (pl. ne legyen az utca kifejezés meglétéhez kötve az érvényesség, vagy az on-the-fly felbontás hibáit kell javítani).
+
 

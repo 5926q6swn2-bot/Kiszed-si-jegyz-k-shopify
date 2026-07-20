@@ -1,5 +1,5 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { PannonXPService } from './pannonxp.js?v=181';
+import { PannonXPService } from './pannonxp.js?v=182';
 
 export function fixHungarianAccents(str) {
     if (!str) return '';
@@ -87,6 +87,11 @@ export function checkAddressValidity(order) {
             zip = zip || parsed.zip;
             city = city || parsed.city;
             street = street || parsed.street.toLowerCase();
+            
+            // Mutáljuk a bejövő objektumot is, hogy a felület lássa a változást
+            order.zip = zip;
+            order.city = city;
+            order.address1 = parsed.street;
         }
     }
     
@@ -94,10 +99,21 @@ export function checkAddressValidity(order) {
     
     // Ha az utca csak számokból és alapvető jelekből áll (pl. "4" vagy "12/a")
     const justNumbersAndSymbols = /^[\d\s\/\.,\-–—a-fA-F]*$/.test(street) && street.length <= 6;
-    if (justNumbersAndSymbols) return true;
     
     // Ha egyáltalán nincs benne szám (hiányzó házszám)
     const hasDigits = /\d/.test(street);
+    
+    console.log("Address Validation Debug:", {
+        id: order.id,
+        zip: zip,
+        city: city,
+        street: street,
+        justNumbersAndSymbols: justNumbersAndSymbols,
+        hasDigits: hasDigits,
+        isInvalid: (justNumbersAndSymbols || !hasDigits)
+    });
+    
+    if (justNumbersAndSymbols) return true;
     if (!hasDigits) return true;
     
     return false;
