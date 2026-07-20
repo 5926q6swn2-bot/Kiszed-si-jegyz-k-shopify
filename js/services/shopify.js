@@ -1,5 +1,5 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { PannonXPService } from './pannonxp.js?v=175';
+import { PannonXPService } from './pannonxp.js?v=176';
 
 export function fixHungarianAccents(str) {
     if (!str) return '';
@@ -30,6 +30,14 @@ export function cleanName(name) {
     cleaned = cleaned.replace(/[^a-zA-ZáéíóöőúüűÁÉÍÓÖŐÚÜŰ\s\-]/g, '');
     // Dupla szóközök takarítása
     cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
+    
+    // Ha 4 vagy több szóból áll a név, levágjuk az utolsót
+    let words = cleaned.split(/\s+/).filter(Boolean);
+    if (words.length >= 4) {
+        words.pop();
+        cleaned = words.join(' ');
+    }
+    
     return cleaned;
 }
 

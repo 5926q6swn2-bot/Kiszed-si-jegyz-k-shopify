@@ -43,11 +43,13 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
   - Törli a zárójeleket és a bennük szereplő kiegészítéseket (pl. `(raktár)` $\rightarrow$ törlésre kerül).
   - Kiszűri a pontokat, számokat és bármilyen egyéb nem betű karaktert (szóközök és kötőjelek megtartása mellett).
   - Rendbe rakja a dupla szóközöket.
+  - **4 vagy több szóból álló nevek levágása**: Ha a megtisztított név 4 vagy több szóból áll, a rendszer automatikusan levágja a név legutolsó tagját (pl. `Kovács István Tamás Gábor` $\rightarrow$ `Kovács István Tamás`).
+- **Szerkeszthető vevőnevek a táblázatban**: A PannonXP táblázatban a „Címzett Név” Plain Text helyett szintén szerkeszthető input mezővé vált, így exportálás előtt a vevők nevei is teljesen átírhatóak.
 - **Automatikus szállítási cím deduplikáció (`cleanAddress`)**: Létrehoztunk egy új címtisztító funkciót a [js/services/shopify.js](file:///c:/Users/CH_001/Desktop/Projektek/kiszedesi/js/services/shopify.js) fájlban, amely automatikusan lefut a Shopify CSV beolvasásakor és a PannonXP táblázatbeli kézi címszerkesztéskor:
   - Felismeri és törli az ismétlődő, szóközökkel elválasztott házszámszerű mintázatokat (pl. `30/3 30/3` $\rightarrow$ `30/3`).
   - Felismeri és deduplikálja a perjelekkel halmozott házszámokat (pl. `30/3/3` $\rightarrow$ `30/3`).
   - Eltávolítja a vesszővel elválasztott ismétlődő címkomponenseket vagy utótagokat (pl. `Fő utca 30/3, 30/3` $\rightarrow$ `Fő utca 30/3`).
-- **Cache-Busting és verziókezelés**: Megemeltük az érintett fájlok importálási cache verzióit `v175`-re a böngészők frissítésének kikényszerítéséhez.
+- **Cache-Busting és verziókezelés**: Megemeltük az érintett fájlok importálási cache verzióit `v176`-re a böngészők frissítésének kikényszerítéséhez.
 
 ### 2026. július 17. - PannonXP Cím szerkesztés és Kézi Csomag-kezelés
 - **Szerkeszthető szállítási címek és telefonok**: A PannonXP címkekészítő táblázatában (`js/views/pannonxpView.js`) a címek és telefonszámok sima szöveg helyett szerkeszthető input mezőkké váltak, így közvetlenül javíthatóak exportálás előtt.

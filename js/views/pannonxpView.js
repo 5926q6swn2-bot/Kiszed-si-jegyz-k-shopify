@@ -3,10 +3,10 @@
  * Kezeli a PannonXP Címkekonvertáló felületét.
  */
 
-import { PannonXPService } from '../services/pannonxp.js?v=175';
+import { PannonXPService } from '../services/pannonxp.js?v=176';
 import { CustomDialog } from '../utils/dialog.js';
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { ShopifyParser, cleanItemNameForMapping, fixHungarianAccents, cleanName, cleanAddress } from '../services/shopify.js?v=175';
+import { ShopifyParser, cleanItemNameForMapping, fixHungarianAccents, cleanName, cleanAddress } from '../services/shopify.js?v=176';
 
 export const PannonXPView = {
     render(container, orders, onExport) {
@@ -254,7 +254,7 @@ export const PannonXPView = {
                     </td>
                     <td style="padding: 10px; font-weight: 600; color: #0f172a;">${order.id}</td>
                     <td style="padding: 10px; font-weight: 500;">
-                        <div>${order.shippingName}</div>
+                        <input type="text" class="pxp-input-name" data-index="${index}" value="${(order.shippingName || '').replace(/"/g, '&quot;')}" style="width: 100%; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 11px; font-weight: 600; margin-bottom: 4px;">
                         ${itemsPreviewHtml}
                         ${warningMessage}
                     </td>
@@ -317,6 +317,15 @@ export const PannonXPView = {
                 order.address2 = '';
                 
                 this.renderOrders(orders);
+            });
+        });
+
+        const nameInputs = tbody.querySelectorAll('.pxp-input-name');
+        nameInputs.forEach(input => {
+            input.addEventListener('change', (e) => {
+                const idx = parseInt(e.target.dataset.index);
+                orders[idx].shippingName = cleanName(e.target.value.trim());
+                e.target.value = orders[idx].shippingName;
             });
         });
 
