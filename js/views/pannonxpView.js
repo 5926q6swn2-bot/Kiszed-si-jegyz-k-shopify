@@ -3,10 +3,10 @@
  * Kezeli a PannonXP Címkekonvertáló felületét.
  */
 
-import { PannonXPService } from '../services/pannonxp.js?v=150';
+import { PannonXPService } from '../services/pannonxp.js?v=174';
 import { CustomDialog } from '../utils/dialog.js';
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { ShopifyParser, cleanItemNameForMapping, fixHungarianAccents } from '../services/shopify.js?v=150';
+import { ShopifyParser, cleanItemNameForMapping, fixHungarianAccents, cleanName } from '../services/shopify.js?v=174';
 
 export const PannonXPView = {
     render(container, orders, onExport) {
@@ -863,10 +863,14 @@ export const PannonXPView = {
                         </div>
                         
                         <form id="pxp-settings-profile-form" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">PXP Ügyfélkód</label>
-                                <input type="text" id="pxp-set-s-code" value="${activeProfile.uc_ugyfelkod || ''}" required style="padding: 8px 12px; font-size: 13px;">
-                            </div>
+                             <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
+                                 <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Profil Neve (Megjelenítés a listában)</label>
+                                 <input type="text" id="pxp-set-s-profilename" value="${activeProfile.profileName || ''}" required style="padding: 8px 12px; font-size: 13px;">
+                             </div>
+                             <div class="form-group" style="margin-bottom: 0;">
+                                 <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">PXP Ügyfélkód</label>
+                                 <input type="text" id="pxp-set-s-code" value="${activeProfile.uc_ugyfelkod || ''}" required style="padding: 8px 12px; font-size: 13px;">
+                             </div>
                             <div class="form-group" style="margin-bottom: 0;">
                                 <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Feladó Cégneve</label>
                                 <input type="text" id="pxp-set-s-company" value="${activeProfile.uc_ceg_nev || ''}" required style="padding: 8px 12px; font-size: 13px;">
@@ -1792,10 +1796,10 @@ csvStatus.textContent = file.name;
             
             const updatedProfile = {
                 id: activeProfile.id,
-                profileName: activeProfile.profileName,
+                profileName: cleanName(overlay.querySelector('#pxp-set-s-profilename').value.trim()),
                 uc_ugyfelkod: overlay.querySelector('#pxp-set-s-code').value.trim(),
-                uc_ceg_nev: overlay.querySelector('#pxp-set-s-company').value.trim(),
-                uc_nev: overlay.querySelector('#pxp-set-s-name').value.trim(),
+                uc_ceg_nev: cleanName(overlay.querySelector('#pxp-set-s-company').value.trim()),
+                uc_nev: cleanName(overlay.querySelector('#pxp-set-s-name').value.trim()),
                 uc_tel: formatHungarianPhoneNumber(overlay.querySelector('#pxp-set-s-phone').value.trim()),
                 uc_email: overlay.querySelector('#pxp-set-s-email').value.trim(),
                 uc_ceg_cim_iranyito: overlay.querySelector('#pxp-set-s-zip').value.trim(),

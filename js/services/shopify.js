@@ -1,5 +1,5 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { PannonXPService } from './pannonxp.js?v=150';
+import { PannonXPService } from './pannonxp.js?v=174';
 
 export function fixHungarianAccents(str) {
     if (!str) return '';
@@ -19,6 +19,18 @@ export function fixHungarianAccents(str) {
         .replace(/ù/g, 'ú').replace(/Ù/g, 'Ú')
         .replace(/û/g, 'ú').replace(/Û/g, 'Ú')
         .replace(/Bànhidai/gi, 'Bánhidai');
+}
+
+export function cleanName(name) {
+    if (!name) return '';
+    let cleaned = fixHungarianAccents(name);
+    // Zárójelek és azok tartalmának eltávolítása: (raktár) -> ""
+    cleaned = cleaned.replace(/\(.*?\)/g, '');
+    // Csak betűk (magyar ékezetekkel), szóközök és kötőjelek megtartása
+    cleaned = cleaned.replace(/[^a-zA-ZáéíóöőúüűÁÉÍÓÖŐÚÜŰ\s\-]/g, '');
+    // Dupla szóközök takarítása
+    cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
+    return cleaned;
 }
 
 export function cleanItemNameForMapping(name) {
@@ -214,8 +226,8 @@ export const ShopifyParser = {
 
                 // 1. Számla ki ellenőrzés
                 const tags = row['Tags'] || '';
-                const shippingName = row['Shipping Name'] || 'Ismeretlen';
-                const billingName = row['Billing Name'] || shippingName;
+                const shippingName = cleanName(row['Shipping Name'] || 'Ismeretlen');
+                const billingName = cleanName(row['Billing Name'] || row['Shipping Name'] || 'Ismeretlen');
                 if (!tags.toLowerCase().includes('számla ki')) {
                     errors.push({
                         id: Math.random().toString(36).substr(2, 9),

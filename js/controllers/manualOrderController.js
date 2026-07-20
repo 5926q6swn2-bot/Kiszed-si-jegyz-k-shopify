@@ -1,7 +1,7 @@
 import { Store } from '../store/state.js';
 import { CustomDialog } from '../utils/dialog.js';
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { generateDefaultReference } from '../services/shopify.js?v=145';
+import { generateDefaultReference, cleanName } from '../services/shopify.js?v=174';
 
 export function initManualOrderController({ renderOrders, updatePrintButtonState }) {
     const btnAddManual = document.getElementById('btn-add-manual');
@@ -64,14 +64,14 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
 
     btnSaveManual.addEventListener('click', async () => {
         const orderNum = document.getElementById('m-order-num').value.trim();
-        const customerName = document.getElementById('m-customer').value.trim();
+        const customerName = cleanName(document.getElementById('m-customer').value.trim());
         const address = document.getElementById('m-address').value.trim();
         const phone = formatHungarianPhoneNumber(document.getElementById('m-phone').value.trim());
         const isReturnVal = mIsReturn ? mIsReturn.checked : false;
         const balanceRaw = isReturnVal ? 0 : (parseFloat(mBalance.value) || 0);
 
         if (!orderNum || !customerName) {
-            await CustomDialog.alert('A rendelésszám és a vevő neve kötelező!', 'Hiányzó mezők', 'warning');
+            await CustomDialog.alert('A rendelésszám és a vevő neve (tisztítás után is) kötelező!', 'Hiányzó mezők', 'warning');
             return;
         }
 

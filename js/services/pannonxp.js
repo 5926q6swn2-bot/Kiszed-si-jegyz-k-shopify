@@ -759,14 +759,17 @@ export const PannonXPService = {
         });
         
         // RAGASZTÓ LOGIKA
-        // Ha van akupanel a rendelésben (qtyMap['cat_acoustic'] > 0), a ragasztó súlyát rárakjuk az akupanel csomagokra
+        // Ha van akupanel a rendelésben (qtyMap['cat_acoustic'] > 0), a ragasztó bekerülhet a panelek mellé doboz nélkül.
+        // Viszont ha a ragasztók száma 7 vagy annál több, mindenképp külön dobozba (csomagba) kell csomagolni.
         const hasAcoustic = (qtyMap['cat_acoustic'] || 0) > 0;
+        const adhesiveQty = qtyMap['cat_adhesive'] || 0;
         const acousticPkgs = packagesDetail.filter(p => p.description && p.description.includes('Panelburkolatok'));
+        const shouldGlueBeSeparate = !hasAcoustic || adhesiveQty >= 7;
         
-        if (hasAcoustic && acousticPkgs.length > 0) {
-            // Nem kell változtatni a leírást, mert már "Panelburkolatok és kiegészítők"
+        if (!shouldGlueBeSeparate && acousticPkgs.length > 0) {
+            // Nem kell külön csomag, mert bekerül az akupanel mellé doboz nélkül
         } else {
-            // Ha nincs akupanel, a ragasztók saját dobozt kapnak a beállított maxQty, boxWeight és itemWeight szerint
+            // Ha külön csomagba kell rakni, a ragasztók saját dobozt kapnak a beállított maxQty, boxWeight és itemWeight szerint
             categories.forEach(cat => {
                 if (cat.type !== 'adhesive') return;
                 const qty = qtyMap[cat.id] || 0;
