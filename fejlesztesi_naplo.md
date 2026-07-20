@@ -56,7 +56,9 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
   - **Nincsenek vesszők**: A rövidítések nem vesszővel, hanem egyszerű szóközzel vannak elválasztva (pl. `AP5-5 RAG1`).
   - **Nincsenek felesleges szóközök**: A termék rövidítése és a hozzá tartozó mennyiség/csomagszámok között nincs szóköz (pl. `AP 5-5` $\rightarrow$ `AP5-5`).
 - **Közterület címek vesszőinek eltávolítása**: Eltávolítottuk a vesszőket a közterületek/utcák címeiből (pl. `Jókai utca, 4` helyett `Jókai utca 4` lesz) a Shopify importálásakor, a PannonXP táblázatbeli kézi szerkesztéskor és a végső CSV exportáláskor is.
-- **Cache-Busting és verziókezelés**: Megemeltük az érintett fájlok importálási cache verzióit `v179`-re a böngészők frissítésének kikényszerítéséhez.
+- **Cím ellenőrzés robusztussági hibajavítás**: Kijavítottuk a hibát, ami miatt a meglévő vagy korábban mentett rendelések esetén a hiányzó részletes címadat-mezők miatt a validátor akkor is hibát jelzett, ha a cím egyébként helyes volt:
+  - Ha az ellenőrzéskor hiányzik az irányítószám vagy utca mező, a rendszer on-the-fly felbontja a teljes cím szövegét, így megbízhatóan felismeri a helyes címeket.
+- **Cache-Busting és verziókezelés**: Megemeltük az érintett fájlok importálási cache verzióit `v180`-re a böngészők frissítésének kikényszerítéséhez.
 
 ### 2026. július 17. - PannonXP Cím szerkesztés és Kézi Csomag-kezelés
 - **Szerkeszthető szállítási címek és telefonok**: A PannonXP címkekészítő táblázatában (`js/views/pannonxpView.js`) a címek és telefonszámok sima szöveg helyett szerkeszthető input mezőkké váltak, így közvetlenül javíthatóak exportálás előtt.

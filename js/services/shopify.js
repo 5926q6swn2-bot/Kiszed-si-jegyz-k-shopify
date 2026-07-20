@@ -1,5 +1,5 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { PannonXPService } from './pannonxp.js?v=179';
+import { PannonXPService } from './pannonxp.js?v=180';
 
 export function fixHungarianAccents(str) {
     if (!str) return '';
@@ -74,9 +74,21 @@ export function cleanAddress(address) {
 
 export function checkAddressValidity(order) {
     if (!order) return true;
-    const street = (order.address1 || '').trim().toLowerCase();
-    const city = (order.city || '').trim();
-    const zip = (order.zip || '').trim();
+    
+    let zip = (order.zip || '').trim();
+    let city = (order.city || '').trim();
+    let street = (order.address1 || '').trim().toLowerCase();
+    
+    // On-the-fly felbontás ha az adatbázisban meglévő/korábbi rendelésekből hiányoznának ezek a mezők
+    if (!zip || !city || !street) {
+        const fullAddr = order.fullAddress || order.address || '';
+        if (fullAddr) {
+            const parsed = parseHungarianAddress(fullAddr);
+            zip = zip || parsed.zip;
+            city = city || parsed.city;
+            street = street || parsed.street.toLowerCase();
+        }
+    }
     
     if (!zip || !city || !street) return true; // Bármelyik hiányzik, az hiba
     
