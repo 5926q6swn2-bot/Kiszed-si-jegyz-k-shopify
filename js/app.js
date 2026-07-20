@@ -2,9 +2,9 @@ import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, coll
 import { CustomDialog } from './utils/dialog.js';
 import { HistoryManager } from './services/history.js';
 import { UnifiedPrinter } from './services/printer.js';
-import { ShopifyParser, cleanItemNameForMapping } from './services/shopify.js?v=180';
-import { PannonXPService } from './services/pannonxp.js?v=180';
-import { PannonXPView } from './views/pannonxpView.js?v=180';
+import { ShopifyParser, cleanItemNameForMapping } from './services/shopify.js?v=181';
+import { PannonXPService } from './services/pannonxp.js?v=181';
+import { PannonXPView } from './views/pannonxpView.js?v=181';
 import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js?v=173';
 import { Store } from './store/state.js';
 import { OrdersView } from './views/ordersView.js?v=172';
@@ -321,12 +321,12 @@ function initApp() {
             result.newOrders.forEach(order => {
                 const matchingRow = rows.find(r => r['Name'] === order.id);
                 if (matchingRow) {
-                    order.zip = matchingRow['Shipping Zip'] || '';
-                    order.city = matchingRow['Shipping City'] || '';
-                    order.address1 = matchingRow['Shipping Address1'] || '';
-                    order.address2 = matchingRow['Shipping Address2'] || '';
-                    order.countryCode = matchingRow['Shipping Country'] || 'HU';
-                    order.shippingCompany = matchingRow['Shipping Company'] || '';
+                    order.zip = matchingRow['Shipping Zip'] || order.zip || '';
+                    order.city = matchingRow['Shipping City'] || order.city || '';
+                    order.address1 = matchingRow['Shipping Address1'] || matchingRow['Shipping Street'] || order.address1 || '';
+                    order.address2 = matchingRow['Shipping Address2'] || order.address2 || '';
+                    order.countryCode = matchingRow['Shipping Country'] || order.countryCode || 'HU';
+                    order.shippingCompany = matchingRow['Shipping Company'] || order.shippingCompany || '';
                 }
                 
                 // Recalculate reference after fuzzy matching/abbreviation registration is done

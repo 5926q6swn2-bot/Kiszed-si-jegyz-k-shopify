@@ -58,7 +58,8 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Közterület címek vesszőinek eltávolítása**: Eltávolítottuk a vesszőket a közterületek/utcák címeiből (pl. `Jókai utca, 4` helyett `Jókai utca 4` lesz) a Shopify importálásakor, a PannonXP táblázatbeli kézi szerkesztéskor és a végső CSV exportáláskor is.
 - **Cím ellenőrzés robusztussági hibajavítás**: Kijavítottuk a hibát, ami miatt a meglévő vagy korábban mentett rendelések esetén a hiányzó részletes címadat-mezők miatt a validátor akkor is hibát jelzett, ha a cím egyébként helyes volt:
   - Ha az ellenőrzéskor hiányzik az irányítószám vagy utca mező, a rendszer on-the-fly felbontja a teljes cím szövegét, így megbízhatóan felismeri a helyes címeket.
-- **Cache-Busting és verziókezelés**: Megemeltük az érintett fájlok importálási cache verzióit `v180`-re a böngészők frissítésének kikényszerítéséhez.
+  - **Futtató fájl felülírási hiba javítása**: Megszüntettük azt a hibát a [js/app.js](file:///c:/Users/CH_001/Desktop/Projektek/kiszedesi/js/app.js) fájlban, ami az importálás végén a `matchingRow` adatokkal üresre írta felül a helyesen beolvasott `address1` (utca) értéket, ha a CSV-ben az `Address1` oszlop üres volt (de a `Shipping Street`-ben szerepelt a cím).
+- **Cache-Busting és verziókezelés**: Megemeltük az érintett fájlok importálási cache verzióit `v181`-re a böngészők frissítésének kikényszerítéséhez.
 
 ### 2026. július 17. - PannonXP Cím szerkesztés és Kézi Csomag-kezelés
 - **Szerkeszthető szállítási címek és telefonok**: A PannonXP címkekészítő táblázatában (`js/views/pannonxpView.js`) a címek és telefonszámok sima szöveg helyett szerkeszthető input mezőkké váltak, így közvetlenül javíthatóak exportálás előtt.
