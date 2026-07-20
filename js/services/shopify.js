@@ -1,5 +1,5 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { PannonXPService } from './pannonxp.js?v=174';
+import { PannonXPService } from './pannonxp.js?v=175';
 
 export function fixHungarianAccents(str) {
     if (!str) return '';
@@ -31,6 +31,37 @@ export function cleanName(name) {
     // Dupla szóközök takarítása
     cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
     return cleaned;
+}
+
+export function cleanAddress(address) {
+    if (!address) return '';
+    let cleaned = fixHungarianAccents(address).trim();
+    
+    // 1. Eltávolítjuk a szóközökkel elválasztott ismétlődő szám mintázatokat (pl. "30/3 30/3" -> "30/3")
+    cleaned = cleaned.replace(/\b(\d+(?:\/\d+)*)\s+\1\b/g, '$1');
+    
+    // 2. Eltávolítjuk a vesszővel elválasztott duplikált komponenseket vagy utótagokat (pl. "30/3/3, 30/3" -> "30/3")
+    let parts = cleaned.split(',').map(p => p.trim()).filter(Boolean);
+    let uniqueParts = [];
+    for (let i = 0; i < parts.length; i++) {
+        let current = parts[i];
+        
+        // Ismétlődő perjelek eltávolítása a komponensen belül (pl. "30/3/3" -> "30/3")
+        current = current.replace(/(\b\d+)\/(\d+)(?:\/\2)+/g, '$1/$2');
+        
+        if (uniqueParts.length > 0) {
+            let last = uniqueParts[uniqueParts.length - 1];
+            if (last.endsWith(current) || current.endsWith(last)) {
+                if (current.endsWith(last)) {
+                    uniqueParts[uniqueParts.length - 1] = current;
+                }
+                continue;
+            }
+        }
+        uniqueParts.push(current);
+    }
+    
+    return uniqueParts.join(', ');
 }
 
 export function cleanItemNameForMapping(name) {
@@ -201,12 +232,12 @@ export const ShopifyParser = {
                     row['Shipping City']
                 ].filter(Boolean);
 
-                let street = row['Shipping Street'] || [row['Shipping Address1'], row['Shipping Address2']].filter(Boolean).join(', ');
-                let fullShippingAddress = [
+                let street = cleanAddress(row['Shipping Street'] || [row['Shipping Address1'], row['Shipping Address2']].filter(Boolean).join(', '));
+                let fullShippingAddress = cleanAddress([
                     row['Shipping Zip'],
                     row['Shipping City'],
                     street
-                ].filter(Boolean);
+                ].filter(Boolean).join(', '));
                 
                 const shippingPhone = formatHungarianPhoneNumber(row['Shipping Phone'] || '');
                 const billingPhone = formatHungarianPhoneNumber(row['Billing Phone'] || shippingPhone);
@@ -346,8 +377,8 @@ export const ShopifyParser = {
                     internalId: Math.random().toString(36).substr(2, 9), 
                     shippingName: shippingName,
                     billingName: billingName,
-                    address: shippingAddress.join(', '),
-                    fullAddress: fullShippingAddress.join(', '),
+                    address: cleanAddress(shippingAddress.join(', ')),
+                    fullAddress: fullShippingAddress,
                     shippingPhone: shippingPhone,
                     billingPhone: billingPhone,
                     tags: tags,

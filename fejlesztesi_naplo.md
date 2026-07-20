@@ -35,7 +35,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
-### 2026. július 20. - Ragasztó Csomagolás Szabály Módosítása & Automatikus Névtisztító Rendszer
+### 2026. július 20. - Ragasztó Csomagolás Szabály Módosítása, Névtisztító & Címtisztító Rendszer
 - **Külön csomag ragasztóknak 7 db felett**: Módosítottuk a PannonXP csomagolási algoritmusát (`js/services/pannonxp.js`). Ezentúl, ha egy megrendelésben 7 vagy annál több ragasztó szerepel, a rendszer nem teszi be őket az akusztikus panelek mellé doboz nélkül, hanem mindenképp külön dobozba (csomagba) helyezi el őket a beállított csomagolási szabályoknak megfelelően.
 - **Szerkeszthető feladó profil név**: A PannonXP beállítások panelen mostantól a feladó profil neve (Megjelenítési név) is közvetlenül szerkeszthetővé vált.
 - **Automatikus név-tisztítás (`cleanName`)**: Bevezettünk egy globális névtisztító eljárást a [js/services/shopify.js](file:///c:/Users/CH_001/Desktop/Projektek/kiszedesi/js/services/shopify.js) fájlban, ami mind a feladó (profil név, cég név, kapcsolattartó név), mind a címzett (Shopify CSV importált és manuálisan megadott vevőnevek) esetén automatikusan lefut:
@@ -43,7 +43,11 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
   - Törli a zárójeleket és a bennük szereplő kiegészítéseket (pl. `(raktár)` $\rightarrow$ törlésre kerül).
   - Kiszűri a pontokat, számokat és bármilyen egyéb nem betű karaktert (szóközök és kötőjelek megtartása mellett).
   - Rendbe rakja a dupla szóközöket.
-- **Cache-Busting és verziókezelés**: Megemeltük az érintett fájlok importálási cache verzióit `v174`-re a böngészők frissítésének kikényszerítéséhez.
+- **Automatikus szállítási cím deduplikáció (`cleanAddress`)**: Létrehoztunk egy új címtisztító funkciót a [js/services/shopify.js](file:///c:/Users/CH_001/Desktop/Projektek/kiszedesi/js/services/shopify.js) fájlban, amely automatikusan lefut a Shopify CSV beolvasásakor és a PannonXP táblázatbeli kézi címszerkesztéskor:
+  - Felismeri és törli az ismétlődő, szóközökkel elválasztott házszámszerű mintázatokat (pl. `30/3 30/3` $\rightarrow$ `30/3`).
+  - Felismeri és deduplikálja a perjelekkel halmozott házszámokat (pl. `30/3/3` $\rightarrow$ `30/3`).
+  - Eltávolítja a vesszővel elválasztott ismétlődő címkomponenseket vagy utótagokat (pl. `Fő utca 30/3, 30/3` $\rightarrow$ `Fő utca 30/3`).
+- **Cache-Busting és verziókezelés**: Megemeltük az érintett fájlok importálási cache verzióit `v175`-re a böngészők frissítésének kikényszerítéséhez.
 
 ### 2026. július 17. - PannonXP Cím szerkesztés és Kézi Csomag-kezelés
 - **Szerkeszthető szállítási címek és telefonok**: A PannonXP címkekészítő táblázatában (`js/views/pannonxpView.js`) a címek és telefonszámok sima szöveg helyett szerkeszthető input mezőkké váltak, így közvetlenül javíthatóak exportálás előtt.
