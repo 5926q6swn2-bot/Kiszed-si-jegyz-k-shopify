@@ -3,10 +3,10 @@
  * Kezeli a PannonXP Címkekonvertáló felületét.
  */
 
-import { PannonXPService } from '../services/pannonxp.js?v=176';
+import { PannonXPService } from '../services/pannonxp.js?v=179';
 import { CustomDialog } from '../utils/dialog.js';
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { ShopifyParser, cleanItemNameForMapping, fixHungarianAccents, cleanName, cleanAddress } from '../services/shopify.js?v=176';
+import { ShopifyParser, cleanItemNameForMapping, fixHungarianAccents, cleanName, cleanAddress, checkAddressValidity, parseHungarianAddress } from '../services/shopify.js?v=179';
 
 export const PannonXPView = {
     render(container, orders, onExport) {
@@ -143,6 +143,7 @@ export const PannonXPView = {
             const selectedOrders = orders.filter(o => o.pxp_selected);
             const hasErrors = selectedOrders.some(o => {
                 const hasZip = !!o.zip;
+                const isAddrInvalid = checkAddressValidity(o);
                 const activeM = PannonXPService.getNormalizedProductMappings();
                 const hasUnmapped = o.items.some(item => !activeM[cleanItemNameForMapping(item.name)]);
                 const hasUnassignedCategory = o.items.some(item => {
@@ -152,7 +153,7 @@ export const PannonXPView = {
                 const hasRemovedError = o.errors && o.errors.some(err => err.title === "Törölt tétel!");
                 const isPendingDeposit = o.isBankDeposit && !o.isPaid;
                 
-                return !hasZip || !!o.pxp_has_unmatched || hasUnmapped || hasUnassignedCategory || hasRemovedError || isPendingDeposit;
+                return isAddrInvalid || !hasZip || !!o.pxp_has_unmatched || hasUnmapped || hasUnassignedCategory || hasRemovedError || isPendingDeposit;
             });
             exportBtn.disabled = selectedOrders.length === 0 || hasErrors;
             if (hasErrors) {
@@ -179,9 +180,10 @@ export const PannonXPView = {
             const removedError = order.errors ? order.errors.find(err => err.title === "Törölt tétel!") : null;
             const hasRemovedError = !!removedError;
             const isPendingDeposit = order.isBankDeposit && !order.isPaid;
+            const isAddrInvalid = checkAddressValidity(order);
             
             const hasUnmatched = !!order.pxp_has_unmatched || hasUnmappedProduct || hasUnassignedCategory;
-            const hasError = !hasZip || hasUnmatched || hasRemovedError || isPendingDeposit;
+            const hasError = isAddrInvalid || !hasZip || hasUnmatched || hasRemovedError || isPendingDeposit;
             
             if (order.pxp_csomagszam === undefined) order.pxp_csomagszam = 1;
             if (order.pxp_suly === undefined) order.pxp_suly = 0.5;
@@ -261,6 +263,7 @@ export const PannonXPView = {
                     <td style="padding: 10px; color: #334155;">
                         <input type="text" class="pxp-input-address" data-index="${index}" value="${(order.fullAddress || order.address || '').replace(/"/g, '&quot;')}" style="width: 100%; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 11px;">
                         ${!hasZip ? '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;">⚠️ Hiányzó irányítószám!</span>' : ''}
+                        ${hasZip && isAddrInvalid ? '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;">⚠️ Hibás vagy hiányos szállítási cím!</span>' : ''}
                     </td>
                     <td style="padding: 10px;">
                         <input type="text" class="pxp-input-phone" data-index="${index}" value="${order.shippingPhone || ''}" style="width: 100%; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 11px;">
@@ -313,7 +316,7 @@ export const PannonXPView = {
                 const parsed = parseHungarianAddress(addrVal);
                 order.zip = parsed.zip;
                 order.city = parsed.city;
-                order.address1 = parsed.street;
+                order.address1 = parsed.street.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
                 order.address2 = '';
                 
                 this.renderOrders(orders);
@@ -1832,42 +1835,3 @@ csvStatus.textContent = file.name;
         });
     }
 };
-
-function parseHungarianAddress(addressStr) {
-    const res = { zip: '', city: '', street: '' };
-    if (!addressStr) return res;
-
-    let cleanStr = addressStr.trim();
-
-    const zipMatch = cleanStr.match(/^(\d{4})/);
-    if (zipMatch) {
-        res.zip = zipMatch[1];
-        cleanStr = cleanStr.substring(4).trim();
-    } else {
-        const anyZipMatch = cleanStr.match(/\b(\d{4})\b/);
-        if (anyZipMatch) {
-            res.zip = anyZipMatch[1];
-            cleanStr = cleanStr.replace(anyZipMatch[0], '').trim();
-        }
-    }
-
-    cleanStr = cleanStr.replace(/^[,\s]+/, '');
-
-    const commaIndex = cleanStr.indexOf(',');
-    if (commaIndex !== -1) {
-        res.city = cleanStr.substring(0, commaIndex).trim();
-        res.street = cleanStr.substring(commaIndex + 1).trim();
-    } else {
-        const spaceIndex = cleanStr.indexOf(' ');
-        if (spaceIndex !== -1) {
-            res.city = cleanStr.substring(0, spaceIndex).trim();
-            res.street = cleanStr.substring(spaceIndex + 1).trim();
-        } else {
-            res.city = cleanStr;
-            res.street = '';
-        }
-    }
-
-    res.street = res.street.replace(/^[,\s]+/, '').trim();
-    return res;
-}

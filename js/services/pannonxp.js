@@ -874,7 +874,8 @@ export const PannonXPService = {
             let addressParts = [];
             if (order.address1) addressParts.push(order.address1);
             if (order.address2) addressParts.push(order.address2);
-            rowData.push(addressParts.join(', ') || order.address || '');
+            let exportedStreet = addressParts.join(' ').replace(/,/g, ' ').replace(/\s+/g, ' ').trim() || (order.address || '').replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+            rowData.push(exportedStreet);
             
             // Címzett megjegyzés
             rowData.push(order.notes || '');

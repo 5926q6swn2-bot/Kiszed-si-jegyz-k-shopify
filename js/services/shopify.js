@@ -1,5 +1,5 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { PannonXPService } from './pannonxp.js?v=176';
+import { PannonXPService } from './pannonxp.js?v=179';
 
 export function fixHungarianAccents(str) {
     if (!str) return '';
@@ -72,6 +72,25 @@ export function cleanAddress(address) {
     return uniqueParts.join(', ');
 }
 
+export function checkAddressValidity(order) {
+    if (!order) return true;
+    const street = (order.address1 || '').trim().toLowerCase();
+    const city = (order.city || '').trim();
+    const zip = (order.zip || '').trim();
+    
+    if (!zip || !city || !street) return true; // Bármelyik hiányzik, az hiba
+    
+    // Ha az utca csak számokból és alapvető jelekből áll (pl. "4" vagy "12/a")
+    const justNumbersAndSymbols = /^[\d\s\/\.,\-–—a-fA-F]*$/.test(street) && street.length <= 6;
+    if (justNumbersAndSymbols) return true;
+    
+    // Ha egyáltalán nincs benne szám (hiányzó házszám)
+    const hasDigits = /\d/.test(street);
+    if (!hasDigits) return true;
+    
+    return false;
+}
+
 export function cleanItemNameForMapping(name) {
     if (!name) return '';
     
@@ -135,7 +154,7 @@ export function generateDefaultReference(order, maxLen = 50) {
                 for (let i = 0; i < pkgsCount; i++) {
                     packageSizes.push(i < remainder ? base + 1 : base);
                 }
-                parts.push(`${abbrev} ${packageSizes.join('-')}`);
+                parts.push(`${abbrev}${packageSizes.join('-')}`);
             } else {
                 parts.push(`${abbrev}${item.qty}`);
             }
@@ -150,7 +169,7 @@ export function generateDefaultReference(order, maxLen = 50) {
         order.pxp_has_unmatched = true;
     }
     
-    let itemsStr = parts.join(', ');
+    let itemsStr = parts.join(' ');
     let finalRef = prefix + itemsStr;
     
     // Add space after every dot if not already followed by space
@@ -240,7 +259,8 @@ export const ShopifyParser = {
                     row['Shipping City']
                 ].filter(Boolean);
 
-                let street = cleanAddress(row['Shipping Street'] || [row['Shipping Address1'], row['Shipping Address2']].filter(Boolean).join(', '));
+                let street = cleanAddress(row['Shipping Street'] || [row['Shipping Address1'], row['Shipping Address2']].filter(Boolean).join(' '));
+                street = street.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
                 let fullShippingAddress = cleanAddress([
                     row['Shipping Zip'],
                     row['Shipping City'],
@@ -387,6 +407,12 @@ export const ShopifyParser = {
                     billingName: billingName,
                     address: cleanAddress(shippingAddress.join(', ')),
                     fullAddress: fullShippingAddress,
+                    zip: row['Shipping Zip'] || '',
+                    city: row['Shipping City'] || '',
+                    address1: street,
+                    address2: row['Shipping Address2'] || '',
+                    countryCode: row['Shipping Country'] || 'HU',
+                    shippingCompany: row['Shipping Company'] || '',
                     shippingPhone: shippingPhone,
                     billingPhone: billingPhone,
                     tags: tags,
@@ -458,3 +484,42 @@ export const ShopifyParser = {
         };
     }
 };
+
+export function parseHungarianAddress(addressStr) {
+    const res = { zip: '', city: '', street: '' };
+    if (!addressStr) return res;
+
+    let cleanStr = addressStr.trim();
+
+    const zipMatch = cleanStr.match(/^(\d{4})/);
+    if (zipMatch) {
+        res.zip = zipMatch[1];
+        cleanStr = cleanStr.substring(4).trim();
+    } else {
+        const anyZipMatch = cleanStr.match(/\b(\d{4})\b/);
+        if (anyZipMatch) {
+            res.zip = anyZipMatch[1];
+            cleanStr = cleanStr.replace(anyZipMatch[0], '').trim();
+        }
+    }
+
+    cleanStr = cleanStr.replace(/^[,\s]+/, '');
+
+    const commaIndex = cleanStr.indexOf(',');
+    if (commaIndex !== -1) {
+        res.city = cleanStr.substring(0, commaIndex).trim();
+        res.street = cleanStr.substring(commaIndex + 1).trim();
+    } else {
+        const spaceIndex = cleanStr.indexOf(' ');
+        if (spaceIndex !== -1) {
+            res.city = cleanStr.substring(0, spaceIndex).trim();
+            res.street = cleanStr.substring(spaceIndex + 1).trim();
+        } else {
+            res.city = cleanStr;
+            res.street = '';
+        }
+    }
+
+    res.street = res.street.replace(/^[,\s]+/, '').trim();
+    return res;
+}

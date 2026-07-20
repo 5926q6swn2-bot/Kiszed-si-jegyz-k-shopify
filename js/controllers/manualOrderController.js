@@ -1,7 +1,7 @@
 import { Store } from '../store/state.js';
 import { CustomDialog } from '../utils/dialog.js';
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { generateDefaultReference, cleanName } from '../services/shopify.js?v=176';
+import { generateDefaultReference, cleanName, parseHungarianAddress } from '../services/shopify.js?v=179';
 
 export function initManualOrderController({ renderOrders, updatePrintButtonState }) {
     const btnAddManual = document.getElementById('btn-add-manual');
@@ -89,6 +89,9 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
 
         const isCOD = !isReturnVal && balanceRaw > 0;
 
+        const parsedAddr = parseHungarianAddress(address);
+        const streetCleaned = (parsedAddr.street || '').replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+
         if (Store.editingOrderInternalId) {
             const order = Store.orders.find(o => o.internalId === Store.editingOrderInternalId);
             if (order) {
@@ -97,6 +100,10 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
                 order.billingName = customerName;
                 order.address = address;
                 order.fullAddress = address;
+                order.zip = parsedAddr.zip;
+                order.city = parsedAddr.city;
+                order.address1 = streetCleaned;
+                order.address2 = '';
                 order.shippingPhone = phone;
                 order.billingPhone = phone;
                 order.isReturn = isReturnVal;
@@ -116,6 +123,10 @@ export function initManualOrderController({ renderOrders, updatePrintButtonState
                 billingName: customerName,
                 address: address,
                 fullAddress: address,
+                zip: parsedAddr.zip,
+                city: parsedAddr.city,
+                address1: streetCleaned,
+                address2: '',
                 shippingPhone: phone,
                 billingPhone: phone,
                 tags: '',

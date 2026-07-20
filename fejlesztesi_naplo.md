@@ -49,7 +49,14 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
   - Felismeri és törli az ismétlődő, szóközökkel elválasztott házszámszerű mintázatokat (pl. `30/3 30/3` $\rightarrow$ `30/3`).
   - Felismeri és deduplikálja a perjelekkel halmozott házszámokat (pl. `30/3/3` $\rightarrow$ `30/3`).
   - Eltávolítja a vesszővel elválasztott ismétlődő címkomponenseket vagy utótagokat (pl. `Fő utca 30/3, 30/3` $\rightarrow$ `Fő utca 30/3`).
-- **Cache-Busting és verziókezelés**: Megemeltük az érintett fájlok importálási cache verzióit `v176`-re a böngészők frissítésének kikényszerítéséhez.
+- **Automatikus címvalidáció (`checkAddressValidity`)**: Bevezettünk egy szigorú ellenőrzést a hiányos vagy hibás szállítási címek kiszűrésére (pl. ha a közterület hiányzik és csak a házszám van megadva, mint a `3521, MISKOLC-SZIRMA, 4`, vagy ha a házszám hiányzik):
+  - Az ilyen hibás rendelések sora piros színnel jelenik meg és figyelmeztető szöveget kap.
+  - Az exportálás gomb le van tiltva, amíg ki nem javítják a hibás címet.
+- **Címke referencia formátum módosítása**: Módosítottuk az automatikus referencia generálást (`generateDefaultReference`) a [js/services/shopify.js](file:///c:/Users/CH_001/Desktop/Projektek/kiszedesi/js/services/shopify.js) fájlban a felhasználó kérése alapján:
+  - **Nincsenek vesszők**: A rövidítések nem vesszővel, hanem egyszerű szóközzel vannak elválasztva (pl. `AP5-5 RAG1`).
+  - **Nincsenek felesleges szóközök**: A termék rövidítése és a hozzá tartozó mennyiség/csomagszámok között nincs szóköz (pl. `AP 5-5` $\rightarrow$ `AP5-5`).
+- **Közterület címek vesszőinek eltávolítása**: Eltávolítottuk a vesszőket a közterületek/utcák címeiből (pl. `Jókai utca, 4` helyett `Jókai utca 4` lesz) a Shopify importálásakor, a PannonXP táblázatbeli kézi szerkesztéskor és a végső CSV exportáláskor is.
+- **Cache-Busting és verziókezelés**: Megemeltük az érintett fájlok importálási cache verzióit `v179`-re a böngészők frissítésének kikényszerítéséhez.
 
 ### 2026. július 17. - PannonXP Cím szerkesztés és Kézi Csomag-kezelés
 - **Szerkeszthető szállítási címek és telefonok**: A PannonXP címkekészítő táblázatában (`js/views/pannonxpView.js`) a címek és telefonszámok sima szöveg helyett szerkeszthető input mezőkké váltak, így közvetlenül javíthatóak exportálás előtt.
