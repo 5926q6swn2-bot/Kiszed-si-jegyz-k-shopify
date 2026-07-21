@@ -1,5 +1,5 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { PannonXPService } from './pannonxp.js?v=186';
+import { PannonXPService } from './pannonxp.js?v=187';
 
 export function fixHungarianAccents(str) {
     if (!str) return '';
@@ -53,6 +53,9 @@ export function cleanAddress(address) {
     let uniqueParts = [];
     for (let i = 0; i < parts.length; i++) {
         let current = parts[i];
+        
+        // Ismétlődő perjelek eltávolítása a komponensen belül (pl. "38/38/38/38" -> "38")
+        current = current.replace(/(\b\w+)(?:\/\1)+/gi, '$1');
         
         // Ismétlődő perjelek eltávolítása a komponensen belül (pl. "30/3/3" -> "30/3")
         current = current.replace(/(\b\d+)\/(\d+)(?:\/\2)+/g, '$1/$2');
