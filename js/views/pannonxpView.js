@@ -3,10 +3,10 @@
  * Kezeli a PannonXP Címkekonvertáló felületét.
  */
 
-import { PannonXPService } from '../services/pannonxp.js?v=182';
+import { PannonXPService } from '../services/pannonxp.js?v=184';
 import { CustomDialog } from '../utils/dialog.js';
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { ShopifyParser, cleanItemNameForMapping, fixHungarianAccents, cleanName, cleanAddress, checkAddressValidity, parseHungarianAddress } from '../services/shopify.js?v=182';
+import { ShopifyParser, cleanItemNameForMapping, fixHungarianAccents, cleanName, cleanAddress, checkAddressValidity, parseHungarianAddress } from '../services/shopify.js?v=184';
 
 export const PannonXPView = {
     render(container, orders, onExport) {
@@ -194,8 +194,11 @@ export const PannonXPView = {
                 itemsPreviewHtml = `
                     <div style="font-size: 11px; color: #475569; margin-top: 5px; background: rgba(15, 23, 42, 0.03); border: 1px solid rgba(15, 23, 42, 0.08); padding: 5px 8px; border-radius: 6px; display: inline-flex; flex-direction: column; gap: 3px; max-width: 250px;">
                         ${order.items.map((item, itemIdx) => `
-                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.qty}x <strong>${item.name}</strong></span>
+                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;">
+                                <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                                    <input type="number" class="pxp-input-item-qty" data-order-index="${index}" data-item-index="${itemIdx}" value="${item.qty}" min="0" required style="width: 42px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 10px; font-weight: bold; text-align: center; box-sizing: border-box;">
+                                    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px;"><strong>${item.name}</strong></span>
+                                </div>
                                 <button type="button" class="pxp-btn-delete-item" data-order-index="${index}" data-item-index="${itemIdx}" title="Termék eltávolítása ebből a címkéből" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0; font-size: 13px; display: flex; align-items: center; justify-content: center; opacity: 0.7; transition: opacity 0.15s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">
                                     <i class="ph-bold ph-trash" style="font-size: 11px;"></i>
                                 </button>
@@ -362,6 +365,39 @@ export const PannonXPView = {
                 e.target.value = val;
                 
                 updateExportState();
+            });
+        });
+
+        // Listener for product item quantity changes
+        const itemQtyInputs = tbody.querySelectorAll('.pxp-input-item-qty');
+        itemQtyInputs.forEach(input => {
+            input.addEventListener('change', (e) => {
+                const orderIdx = parseInt(e.target.dataset.orderIndex);
+                const itemIdx = parseInt(e.target.dataset.itemIndex);
+                const newQty = parseInt(e.target.value) || 0;
+                const order = orders[orderIdx];
+                
+                if (newQty <= 0) {
+                    // Ha a mennyiség 0, töröljük a tételt
+                    order.items.splice(itemIdx, 1);
+                } else {
+                    order.items[itemIdx].qty = newQty;
+                }
+                
+                // Újraszámoljuk a referenciaszámot, súlyt és csomagszámokat
+                const calc = PannonXPService.calculateWeightAndPackages(order.items);
+                order.pxp_csomagszam = calc.packages;
+                order.pxp_suly = calc.weight;
+                order.pxp_packages = calc.packagesDetail;
+                
+                if (ShopifyParser.generateDefaultReference) {
+                    order.pxp_referencia = ShopifyParser.generateDefaultReference(order, 40);
+                }
+                
+                const activeM = PannonXPService.getNormalizedProductMappings();
+                order.pxp_has_unmatched = calc.hasUnmatched || order.items.some(item => !activeM[cleanItemNameForMapping(item.name)]);
+                
+                this.renderOrders(orders);
             });
         });
 
