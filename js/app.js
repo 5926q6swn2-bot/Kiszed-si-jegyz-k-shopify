@@ -2,9 +2,9 @@ import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, coll
 import { CustomDialog } from './utils/dialog.js';
 import { HistoryManager } from './services/history.js';
 import { UnifiedPrinter } from './services/printer.js';
-import { ShopifyParser, cleanItemNameForMapping, cleanName, fixHungarianAccents } from './services/shopify.js?v=185';
-import { PannonXPService } from './services/pannonxp.js?v=185';
-import { PannonXPView } from './views/pannonxpView.js?v=185';
+import { ShopifyParser, cleanItemNameForMapping, cleanName, fixHungarianAccents } from './services/shopify.js?v=186';
+import { PannonXPService } from './services/pannonxp.js?v=186';
+import { PannonXPView } from './views/pannonxpView.js?v=186';
 import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js?v=173';
 import { Store } from './store/state.js';
 import { OrdersView } from './views/ordersView.js?v=172';

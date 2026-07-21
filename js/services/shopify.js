@@ -1,5 +1,5 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { PannonXPService } from './pannonxp.js?v=185';
+import { PannonXPService } from './pannonxp.js?v=186';
 
 export function fixHungarianAccents(str) {
     if (!str) return '';
@@ -76,45 +76,20 @@ export function checkAddressValidity(order) {
     if (!order) return true;
     
     let zip = (order.zip || '').trim();
-    let city = (order.city || '').trim();
-    let street = (order.address1 || '').trim().toLowerCase();
     
-    // On-the-fly felbontás ha az adatbázisban meglévő/korábbi rendelésekből hiányoznának ezek a mezők
-    if (!zip || !city || !street) {
+    // On-the-fly felbontás ha az adatbázisban meglévő/korábbi rendelésekből hiányozna ez a mező
+    if (!zip) {
         const fullAddr = order.fullAddress || order.address || '';
         if (fullAddr) {
             const parsed = parseHungarianAddress(fullAddr);
             zip = zip || parsed.zip;
-            city = city || parsed.city;
-            street = street || parsed.street.toLowerCase();
             
             // Mutáljuk a bejövő objektumot is, hogy a felület lássa a változást
             order.zip = zip;
-            order.city = city;
-            order.address1 = parsed.street;
         }
     }
     
-    if (!zip || !city || !street) return true; // Bármelyik hiányzik, az hiba
-    
-    // Ha az utca csak számokból és alapvető jelekből áll (pl. "4" vagy "12/a")
-    const justNumbersAndSymbols = /^[\d\s\/\.,\-–—a-fA-F]*$/.test(street) && street.length <= 6;
-    
-    // Ha egyáltalán nincs benne szám (hiányzó házszám)
-    const hasDigits = /\d/.test(street);
-    
-    console.log("Address Validation Debug:", {
-        id: order.id,
-        zip: zip,
-        city: city,
-        street: street,
-        justNumbersAndSymbols: justNumbersAndSymbols,
-        hasDigits: hasDigits,
-        isInvalid: (justNumbersAndSymbols || !hasDigits)
-    });
-    
-    if (justNumbersAndSymbols) return true;
-    if (!hasDigits) return true;
+    if (!zip) return true; // Ha nincs irányítószám, az hiba
     
     return false;
 }
