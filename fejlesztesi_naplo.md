@@ -37,8 +37,8 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ### 2026. július 21. - Termék Mennyiség Szerkesztés & Cég név megtisztítása
 - **Szerkeszthető termékmennyiségek**: A PannonXP táblázat Címzett Név oszlopában megjelenő termékek darabszámai ezentúl szerkeszthető input mezők. A darabszám módosításakor a rendszer valós időben újraszámolja a referenciaszámokat, a csomagszámokat és az összsúlyt. Ha a mennyiséget 0-ra állítja a felhasználó, a termék automatikusan törlődik a címkéből.
-- **Cég név megtisztítása**: Ha a szállítási cég neve megegyezik a megrendelő (vevő) nevével, a rendszer ezen a mezőn is automatikusan lefuttatja a név-tisztítási szabályokat (accent javítás, zárójelek/számok eltávolítása, 4. névtag levágása stb.).
-- **Cache-Busting és verziókezelés**: Megemeltük az érintett fájlok importálási cache verzióit `v184`-re a böngészők frissítésének kikényszerítéséhez.
+- **Cég név megtisztítása**: Ha a szállítási cég neve megegyezik a megrendelő (vevő) nevével, a rendszer ezen a mezőn is automatikusan lefuttatja a név-tisztítási szabályokat (accent javítás, zárójelek/számok eltávolítása, 4. névtag levágása stb.). Ezen felül a cégneveken mostantól függetlenül is **mindig lefut a magyar ékezet-javító eljárás (`fixHungarianAccents`)**, így pl. a `Lányi lorànd` vagy `Bànhidai` típusú, rossz irányba álló ékezetek automatikusan javításra kerülnek.
+- **Cache-Busting és verziókezelés**: Megemeltük az érintett fájlok importálási cache verzióit `v185`-re a böngészők frissítésének kikényszerítéséhez.
 
 ### 2026. július 20. - Ragasztó Csomagolás Szabály Módosítása, Névtisztító & Címtisztító Rendszer
 - **Külön csomag ragasztóknak 7 db felett**: Módosítottuk a PannonXP csomagolási algoritmusát (`js/services/pannonxp.js`). Ezentúl, ha egy megrendelésben 7 vagy annál több ragasztó szerepel, a rendszer nem teszi be őket az akusztikus panelek mellé doboz nélkül, hanem mindenképp külön dobozba (csomagba) helyezi el őket a beállított csomagolási szabályoknak megfelelően.

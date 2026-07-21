@@ -1,5 +1,5 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { PannonXPService } from './pannonxp.js?v=184';
+import { PannonXPService } from './pannonxp.js?v=185';
 
 export function fixHungarianAccents(str) {
     if (!str) return '';
@@ -428,7 +428,7 @@ export const ShopifyParser = {
                     }
                 }
 
-                let shippingCompany = row['Shipping Company'] || '';
+                let shippingCompany = fixHungarianAccents(row['Shipping Company'] || '');
                 if (shippingCompany && (shippingCompany.trim().toLowerCase() === (row['Shipping Name'] || '').trim().toLowerCase())) {
                     shippingCompany = cleanName(shippingCompany);
                 }
