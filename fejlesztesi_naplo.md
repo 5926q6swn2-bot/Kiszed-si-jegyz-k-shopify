@@ -35,6 +35,10 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
+### 2026. július 22. - PannonXP Elszámolás Függő Összegek Javítása
+- **Szállítócég függő követelések kalkulációjának korrekciója**: Kijavítottuk az elszámolás nézetben (`js/views/historyView.js`) a szállítócégek (futárok) csoportosításánál megjelenő „Függőben” összeget. Korábban a rendszer a még le nem zárt körök esetén vakon hozzáadta az összes utánvétes rendelés teljes értékét, figyelmen kívül hagyva, hogy az egyes rendelések már beérkezettnek (`received`) vagy kiesettnek/meghiúsultnak (`uncollected`) voltak jelölve. Ezentúl a futár függő összege pontosan megegyezik a még ténylegesen átvételre vagy utalásra váró (függő státuszú) tételek összegével.
+- **Cache-Busting és verziókezelés**: Megemeltük az érintett fájlok importálási cache verzióit `v188`-re a böngészők frissítésének kikényszerítéséhez.
+
 ### 2026. július 21. - Termék Mennyiség Szerkesztés & Cég név megtisztítása
 - **Szerkeszthető termékmennyiségek**: A PannonXP táblázat Címzett Név oszlopában megjelenő termékek darabszámai ezentúl szerkeszthető input mezők. A darabszám módosításakor a rendszer valós időben újraszámolja a referenciaszámokat, a csomagszámokat és az összsúlyt. Ha a mennyiséget 0-ra állítja a felhasználó, a termék automatikusan törlődik a címkéből.
 - **Cég név megtisztítása**: Ha a szállítási cég neve megegyezik a megrendelő (vevő) nevével, a rendszer ezen a mezőn is automatikusan lefuttatja a név-tisztítási szabályokat (accent javítás, zárójelek/számok eltávolítása, 4. névtag levágása stb.). Ezen felül a cégneveken mostantól függetlenül is **mindig lefut a magyar ékezet-javító eljárás (`fixHungarianAccents`)**, így pl. a `Lányi lorànd` vagy `Bànhidai` típusú, rossz irányba álló ékezetek automatikusan javításra kerülnek.

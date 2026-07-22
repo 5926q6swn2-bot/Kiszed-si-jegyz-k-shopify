@@ -1300,7 +1300,40 @@ export function initHistoryView(context) {
             let companyTotalCOD = 0;
             companyRuns.forEach(r => {
                 if (!r.isSettled) {
-                    r.orders.forEach(o => { if(o.isCOD) companyTotalCOD += o.codAmount; });
+                    const uncollected = r.uncollectedOrderIds || [];
+                    const paymentStatusMap = r.paymentStatusMap || {};
+                    const paymentMethods = r.paymentMethods || {};
+                    const partialOrders = r.partialOrders || {};
+                    const isNeverSettled = !r.isSettled && typeof r.settledAt === 'undefined' && !(r.settledAmount > 0) && (!r.uncollectedOrderIds || r.uncollectedOrderIds.length === 0);
+
+                    r.orders.forEach(o => {
+                        if (o.isCOD) {
+                            if (isNeverSettled) {
+                                companyTotalCOD += o.codAmount;
+                            } else if (!uncollected.includes(o.id)) {
+                                const status = paymentStatusMap[o.id] || 'received';
+                                const method = paymentMethods[o.id] || 'cash';
+                                
+                                if (typeof status === 'object' && status !== null) {
+                                    if (status.cash === 'pending' && method.cash > 0) {
+                                        companyTotalCOD += method.cash;
+                                    }
+                                    if (status.card === 'pending' && method.card > 0) {
+                                        companyTotalCOD += method.card;
+                                    }
+                                    if (status.bank === 'pending' && method.bank > 0) {
+                                        companyTotalCOD += method.bank;
+                                    }
+                                } else if (status === 'pending') {
+                                    let amt = o.codAmount;
+                                    if (partialOrders[o.id]) {
+                                        amt = partialOrders[o.id].amount || 0;
+                                    }
+                                    companyTotalCOD += amt;
+                                }
+                            }
+                        }
+                    });
                 }
             });
 
