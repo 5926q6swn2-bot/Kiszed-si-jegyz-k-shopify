@@ -3,10 +3,10 @@
  * Kezeli a PannonXP Címkekonvertáló felületét.
  */
 
-import { PannonXPService } from '../services/pannonxp.js?v=190';
+import { PannonXPService } from '../services/pannonxp.js?v=191';
 import { CustomDialog } from '../utils/dialog.js';
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { ShopifyParser, cleanItemNameForMapping, fixHungarianAccents, cleanName, cleanAddress, checkAddressValidity, parseHungarianAddress } from '../services/shopify.js?v=190';
+import { ShopifyParser, cleanItemNameForMapping, fixHungarianAccents, cleanName, cleanAddress, checkAddressValidity, parseHungarianAddress } from '../services/shopify.js?v=191';
 
 export const PannonXPView = {
     render(container, orders, onExport) {

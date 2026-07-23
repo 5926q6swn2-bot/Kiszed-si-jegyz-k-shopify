@@ -914,9 +914,9 @@ export const PannonXPService = {
             rowData.push(''); // szl_koltseghely
             const refVal = (order.pxp_referencia || order.id || '').replace(/^#/, '');
             rowData.push(refVal); // szl_referenciaszam (Shopify order name or formatted reference)
-            rowData.push(''); // szl_koltsegviselo (üresen hagyjuk, a PannonXP a fiók alapértelmezettét használja)
-            rowData.push(''); // szl_adoszam (üresen hagyjuk)
-            rowData.push(''); // szl_maganszemely (üresen hagyjuk)
+            rowData.push('0'); // szl_koltsegviselo (0 = feladó fizet)
+            rowData.push(senderSettings.uc_ceg_adoszam || ''); // szl_adoszam (feladó adószáma)
+            rowData.push('0'); // szl_maganszemely (0 = cég fizet)
             
             // 4. Harmadik fél adatok (ucch_...) - mind üres
             for (let i = 0; i < 11; i++) {
@@ -933,10 +933,8 @@ export const PannonXPService = {
     escapeCsvValue(val) {
         if (val === null || val === undefined) return '';
         let str = String(val);
-        // A pontosvesszőket és sortöréseket kicseréljük szóközre, hogy a gyengébb CSV importőrök se csússzanak el
-        str = str.replace(/;/g, ' ').replace(/[\r\n]+/g, ' ');
-        // Ha tartalmaz idézőjelet, akkor idézőjelbe tesszük és duplázzuk az idézőjeleket
-        if (/["]/.test(str)) {
+        // Ha tartalmaz pontosvesszőt, idézőjelet vagy sortörést, akkor idézőjelbe tesszük
+        if (/[;"\r\n]/.test(str)) {
             str = '"' + str.replace(/"/g, '""') + '"';
         }
         return str;

@@ -2,10 +2,10 @@ import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, coll
 import { CustomDialog } from './utils/dialog.js';
 import { HistoryManager } from './services/history.js';
 import { UnifiedPrinter } from './services/printer.js';
-import { ShopifyParser, cleanItemNameForMapping, cleanName, fixHungarianAccents } from './services/shopify.js?v=190';
-import { PannonXPService } from './services/pannonxp.js?v=190';
-import { PannonXPView } from './views/pannonxpView.js?v=190';
-import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js?v=190';
+import { ShopifyParser, cleanItemNameForMapping, cleanName, fixHungarianAccents } from './services/shopify.js?v=191';
+import { PannonXPService } from './services/pannonxp.js?v=191';
+import { PannonXPView } from './views/pannonxpView.js?v=191';
+import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js?v=191';
 import { Store } from './store/state.js';
 import { OrdersView } from './views/ordersView.js?v=172';
 import { initManualOrderController } from './controllers/manualOrderController.js?v=150';
