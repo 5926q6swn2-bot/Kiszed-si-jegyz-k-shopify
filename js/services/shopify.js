@@ -1,5 +1,5 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { PannonXPService } from './pannonxp.js?v=187';
+import { PannonXPService } from './pannonxp.js?v=189';
 
 export function fixHungarianAccents(str) {
     if (!str) return '';
@@ -79,20 +79,31 @@ export function checkAddressValidity(order) {
     if (!order) return true;
     
     let zip = (order.zip || '').trim();
+    let city = (order.city || '').trim();
+    let street = (order.address1 || '').trim().toLowerCase();
     
-    // On-the-fly felbontás ha az adatbázisban meglévő/korábbi rendelésekből hiányozna ez a mező
-    if (!zip) {
+    // On-the-fly felbontás ha az adatbázisban meglévő/korábbi rendelésekből hiányoznának ezek a mezők
+    if (!zip || !city || !street) {
         const fullAddr = order.fullAddress || order.address || '';
         if (fullAddr) {
             const parsed = parseHungarianAddress(fullAddr);
             zip = zip || parsed.zip;
+            city = city || parsed.city;
+            street = street || parsed.street.toLowerCase();
             
             // Mutáljuk a bejövő objektumot is, hogy a felület lássa a változást
             order.zip = zip;
+            order.city = city;
+            order.address1 = parsed.street;
         }
     }
     
-    if (!zip) return true; // Ha nincs irányítószám, az hiba
+    if (!zip || !city || !street) return true; // Ha bármelyik hiányzik, az hiba
+    
+    // Ha az utca csak számokból és alapvető jelekből áll (pl. "24" vagy "38")
+    // Ez azt jelenti, hogy az utcanév hiányzik és csak a házszám van megadva
+    const justNumbersAndSymbols = /^[\d\s\/\.,\-–—a-fA-F]*$/.test(street) && street.length <= 6;
+    if (justNumbersAndSymbols) return true;
     
     return false;
 }

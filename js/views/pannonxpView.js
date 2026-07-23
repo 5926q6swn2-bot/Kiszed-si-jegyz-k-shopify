@@ -3,10 +3,10 @@
  * Kezeli a PannonXP Címkekonvertáló felületét.
  */
 
-import { PannonXPService } from '../services/pannonxp.js?v=187';
+import { PannonXPService } from '../services/pannonxp.js?v=189';
 import { CustomDialog } from '../utils/dialog.js';
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { ShopifyParser, cleanItemNameForMapping, fixHungarianAccents, cleanName, cleanAddress, checkAddressValidity, parseHungarianAddress } from '../services/shopify.js?v=187';
+import { ShopifyParser, cleanItemNameForMapping, fixHungarianAccents, cleanName, cleanAddress, checkAddressValidity, parseHungarianAddress } from '../services/shopify.js?v=189';
 
 export const PannonXPView = {
     render(container, orders, onExport) {
@@ -266,7 +266,7 @@ export const PannonXPView = {
                     <td style="padding: 10px; color: #334155;">
                         <input type="text" class="pxp-input-address" data-index="${index}" value="${(order.fullAddress || order.address || '').replace(/"/g, '&quot;')}" style="width: 100%; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 11px;">
                         ${!hasZip ? '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;">⚠️ Hiányzó irányítószám!</span>' : ''}
-                        ${hasZip && isAddrInvalid ? '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;">⚠️ Hibás vagy hiányos szállítási cím!</span>' : ''}
+                        ${hasZip && isAddrInvalid ? '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;">⚠️ Hiányos szállítási cím! (Hívni kell a vásárlót)</span>' : ''}
                     </td>
                     <td style="padding: 10px;">
                         <input type="text" class="pxp-input-phone" data-index="${index}" value="${order.shippingPhone || ''}" style="width: 100%; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 11px;">

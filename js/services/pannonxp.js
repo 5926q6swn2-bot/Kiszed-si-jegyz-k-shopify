@@ -914,9 +914,9 @@ export const PannonXPService = {
             rowData.push(''); // szl_koltseghely
             const refVal = (order.pxp_referencia || order.id || '').replace(/^#/, '');
             rowData.push(refVal); // szl_referenciaszam (Shopify order name or formatted reference)
-            rowData.push('0'); // szl_koltsegviselo (0 = feladó fizet)
-            rowData.push(senderSettings.uc_ceg_adoszam || ''); // szl_adoszam (feladó adószáma)
-            rowData.push('0'); // szl_maganszemely (0 = cég fizet)
+            rowData.push(''); // szl_koltsegviselo (üresen hagyjuk, a PannonXP a fiók alapértelmezettét használja)
+            rowData.push(''); // szl_adoszam (üresen hagyjuk)
+            rowData.push(''); // szl_maganszemely (üresen hagyjuk)
             
             // 4. Harmadik fél adatok (ucch_...) - mind üres
             for (let i = 0; i < 11; i++) {
