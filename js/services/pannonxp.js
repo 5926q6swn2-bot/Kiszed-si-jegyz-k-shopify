@@ -933,8 +933,10 @@ export const PannonXPService = {
     escapeCsvValue(val) {
         if (val === null || val === undefined) return '';
         let str = String(val);
-        // Ha tartalmaz pontosvesszőt, idézőjelet vagy sortörést, akkor idézőjelbe tesszük
-        if (/[;"\r\n]/.test(str)) {
+        // A pontosvesszőket és sortöréseket kicseréljük szóközre, hogy a gyengébb CSV importőrök se csússzanak el
+        str = str.replace(/;/g, ' ').replace(/[\r\n]+/g, ' ');
+        // Ha tartalmaz idézőjelet, akkor idézőjelbe tesszük és duplázzuk az idézőjeleket
+        if (/["]/.test(str)) {
             str = '"' + str.replace(/"/g, '""') + '"';
         }
         return str;
