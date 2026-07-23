@@ -607,30 +607,52 @@ export const PannonXPService = {
         const pkg = {};
         const sulyPerCsomag = (parseFloat(totalWeight) / parseInt(count)).toFixed(2);
         
-        for (let i = 1; i <= count; i++) {
-            pkg[i.toString()] = {
-                db: 1,
-                suly: sulyPerCsomag.toString(),
-                hosszusag: 30,
-                szelesseg: 20,
-                magassag: 10,
-                tipus: "doboz"
-            };
-        }
+        // Csoportosítjuk az azonos csomagokat a 1024 karakteres CSV sor limit elkerülése érdekében
+        pkg["1"] = {
+            db: parseInt(count),
+            suly: sulyPerCsomag.toString(),
+            hosszusag: 30,
+            szelesseg: 20,
+            magassag: 10,
+            tipus: "doboz"
+        };
         return JSON.stringify(pkg);
     },
 
     generateCsomagokJsonFromDetail(packages) {
+        const grouped = [];
+        packages.forEach(p => {
+            const suly = parseFloat(p.suly).toFixed(2);
+            const hosszusag = parseInt(p.hosszusag) || 30;
+            const szelesseg = parseInt(p.szelesseg) || 20;
+            const magassag = parseInt(p.magassag) || 10;
+            const tipus = p.tipus || "doboz";
+            
+            // Keressünk már meglévő egyező csomagcsoportot
+            const match = grouped.find(g => 
+                g.suly === suly &&
+                g.hosszusag === hosszusag &&
+                g.szelesseg === szelesseg &&
+                g.magassag === magassag &&
+                g.tipus === tipus
+            );
+            if (match) {
+                match.db += 1;
+            } else {
+                grouped.push({
+                    db: 1,
+                    suly: suly,
+                    hosszusag: hosszusag,
+                    szelesseg: szelesseg,
+                    magassag: magassag,
+                    tipus: tipus
+                });
+            }
+        });
+        
         const pkg = {};
-        packages.forEach((p, idx) => {
-            pkg[(idx + 1).toString()] = {
-                db: 1,
-                suly: parseFloat(p.suly).toFixed(2),
-                hosszusag: parseInt(p.hosszusag) || 30,
-                szelesseg: parseInt(p.szelesseg) || 20,
-                magassag: parseInt(p.magassag) || 10,
-                tipus: p.tipus || "doboz"
-            };
+        grouped.forEach((g, idx) => {
+            pkg[(idx + 1).toString()] = g;
         });
         return JSON.stringify(pkg);
     },
