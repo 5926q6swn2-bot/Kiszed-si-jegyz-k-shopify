@@ -796,4 +796,20 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
   - Ha egy bontott fizetésben a kártyás rész még nincs utalva, a kör kék színűvé válik, kiírja a pontos várakozó kártyás összeget („Utalásra vár: X Ft”), és a fejlécben megjelenik a **Kártya utalva** jóváhagyó gomb.
   - A rendelés-szintű kis jelvény (badge) is kékké változik és mutatja a még be nem érkezett összeget (pl. *„Vár: 241 000 Ft”*), valamint a részletes nézetben külön zöld pipával (`✓`) vagy sárga homokórával (`⏳`) jelezzük az egyes fizetési módok (KP, Kártya, Utalás) egyéni státuszát (pl. *Bontott: 100 000 Ft KP ✓ + 241 000 Ft Kártya ⏳*).
 
+### 2026. július 29. - PannonXP Termék Rövidítések Mentés Gomb & Validáció
+- **Termék Rövidítések Szerkesztésének Mentéshez Kötése**: A PannonXP Beállítások **Termék Rövidítések** fülén megszűnt az azonnali, automatikus mentés gépelés/változtatás közben. A felületre bekerült egy dedikált **"Termék Rövidítések Mentése"** gomb (`#pxp-settings-abbreviations-form`).
+- **Módosítások mentése és újraszámolás**: A rövidítések és kategóriák átírása csak a mentés gombra kattintás után rögzül az adatbázisban és lép életbe a megrendelések referenciaszámainak és csomagolási adatainak újraszámolásánál.
+### 2026. július 31. - Gyors Utánvét-Szerkesztő Felület & Utánvéthiba Gyors-Akciók (UI Kezelhetőség)
+- **Gyors Utánvét-Javítás a Hiba Boxokban**: Az Utánvét eltérés, Lappangó utánvét és Fizetési anomália hibajelzéseknél közvetlenül a piros hiba boxban megjelentek az 1-kattintásos gyorsbeállító gombok (pl. `[ 12 000 Ft (Notes) ]`, `[ 15 000 Ft (Shopify) ]`, `[ 0 Ft (Nincs UV) ]`), valamint egy egyedi Ft összeg beviteli mező `[ Mentés ]` gombbal.
+- **Kattintható Utánvét Badge**: A Szedőlista rendeléskártyáinak fejlécében lévő utánvét badge-ek (`UTÁNVÉT: X Ft`, `UTALÁST VÁRUNK`, `Fizetve / Nincs Utánvét`) mostantól kattinthatóvá váltak (kis ceruza ikonnal `✏️`). Rákattintva egy gyors felugró ablakban azonnal felülírható az utánvét összege a teljes szerkesztő modal megnyitása nélkül.
+- **Cache-Busting és verziókezelés**: Megemeltük a hivatkozott modulok cache verzióját `v195`-re (`app.js?v=195`, `ordersView.js?v=195`, `shopify.js?v=195`).
+
+### 2026. július 31. (2. session) - Görgetési Elakadás Fix Drag & Drop Kártyamozgatásnál
+- **CSS Grid Layout váltás (`column-count: 2` leváltása)**: Megszüntettük a böngészők elavult multi-column motorja miatti görgetési beragadási hibát. Az `.order-list` átállt tiszta, reszponzív CSS Grid elrendezésre (`grid-template-columns: repeat(2, 1fr)`). Ez garantálja, hogy a böngésző a kártyák átrendezésekor azonnal és tökéletesen újraszámolja a görgetési magasságot (`scrollHeight`), elkerülve a lefele görgetés elakadását.
+- **Automata Görgetés és Drag State Tisztítás**: A `Sortable.js` konfigurációt kibővítettük automatikus görgetési beállításokkal (`bubbleScroll: true`, `scrollSensitivity: 100`, `scrollSpeed: 20`), valamint az `onUnchoose`, `onSpill`, `mouseup` és `touchend` eseményekre regisztráltunk egy automatikus állapot-takarítót (`cleanupDragState`), ami a húzás befejeztével azonnal visszaállítja a normál görgetést és kijelölést.
+- **Cache-Busting és verziókezelés**: Frissítettük a modulok verzióit `v196`-ra (`app.js?v=196`, `style.css?v=41`).
+
+
+
+
 

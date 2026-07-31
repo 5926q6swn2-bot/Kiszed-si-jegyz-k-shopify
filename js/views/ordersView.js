@@ -37,29 +37,68 @@ export const OrdersView = {
                 codHtml = `<span class="badge" style="background: #faf5ff; color: #6b21a8; border: 1px solid #d8b4fe; display: inline-flex; align-items: center; gap: 4px; font-weight: 700;" data-internal-id="${order.internalId}"><i class="ph-bold ph-arrow-counter-clockwise"></i>VISSZASZÁLLÍTÁS</span>`;
             } else if (order.isBankDeposit) {
                 if (order.isPaid) {
-                    codHtml = `<span class="badge badge-paid" data-internal-id="${order.internalId}">UTALVA (FIZETVE)</span>`;
+                    codHtml = `<span class="badge badge-paid clickable-cod-badge" data-internal-id="${order.internalId}" title="Kattints az utánvét gyors átírásához" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">UTALVA (FIZETVE) <i class="ph-bold ph-pencil-simple" style="font-size: 11px;"></i></span>`;
                 } else {
-                    codHtml = `<span class="badge badge-warning" data-internal-id="${order.internalId}">UTALÁST VÁRUNK</span>`;
+                    codHtml = `<span class="badge badge-warning clickable-cod-badge" data-internal-id="${order.internalId}" title="Kattints az utánvét gyors átírásához" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">UTALÁST VÁRUNK <i class="ph-bold ph-pencil-simple" style="font-size: 11px;"></i></span>`;
                 }
             } else if (order.isCOD) {
                 const formattedAmount = new Intl.NumberFormat('hu-HU').format(order.codAmount);
-                codHtml = `<span class="badge badge-cod" data-internal-id="${order.internalId}">UTÁNVÉT: ${formattedAmount} Ft</span>`;
+                codHtml = `<span class="badge badge-cod clickable-cod-badge" data-internal-id="${order.internalId}" title="Kattints az utánvét gyors átírásához" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">UTÁNVÉT: ${formattedAmount} Ft <i class="ph-bold ph-pencil-simple" style="font-size: 11px;"></i></span>`;
             } else {
-                codHtml = `<span class="badge badge-paid" data-internal-id="${order.internalId}">Fizetve / Nincs Utánvét</span>`;
+                codHtml = `<span class="badge badge-paid clickable-cod-badge" data-internal-id="${order.internalId}" title="Kattints az utánvét gyors átírásához" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">Fizetve / Nincs Utánvét <i class="ph-bold ph-pencil-simple" style="font-size: 11px;"></i></span>`;
             }
 
             let errorsHtml = '';
             if (order.errors.length > 0) {
-                errorsHtml = order.errors.map((err) => `
-                    <div class="error-box no-print" id="err-${err.id}">
-                        <div class="error-title">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                            ${err.title}
+                errorsHtml = order.errors.map((err) => {
+                    const isCodError = err.type === 'cod' || /utánvét|anomália/i.test(err.title);
+                    
+                    let quickActionsHtml = '';
+                    if (isCodError) {
+                        const noteAmt = err.noteAmount !== undefined ? err.noteAmount : null;
+                        const shopifyAmt = err.shopifyAmount !== undefined ? err.shopifyAmount : null;
+                        
+                        let buttons = '';
+                        if (noteAmt !== null && noteAmt > 0) {
+                            buttons += `<button type="button" class="btn-quick-set-cod btn-sm" data-order-internal-id="${order.internalId}" data-err-id="${err.id}" data-amount="${noteAmt}" style="background: #0284c7; color: white; border: none; padding: 3px 8px; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                                <i class="ph-bold ph-check"></i> ${new Intl.NumberFormat('hu-HU').format(noteAmt)} Ft (Notes)
+                            </button>`;
+                        }
+                        if (shopifyAmt !== null && shopifyAmt > 0 && shopifyAmt !== noteAmt) {
+                            buttons += `<button type="button" class="btn-quick-set-cod btn-sm" data-order-internal-id="${order.internalId}" data-err-id="${err.id}" data-amount="${shopifyAmt}" style="background: #475569; color: white; border: none; padding: 3px 8px; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                                <i class="ph-bold ph-check"></i> ${new Intl.NumberFormat('hu-HU').format(shopifyAmt)} Ft (Shopify)
+                            </button>`;
+                        }
+                        buttons += `<button type="button" class="btn-quick-set-cod btn-sm" data-order-internal-id="${order.internalId}" data-err-id="${err.id}" data-amount="0" style="background: #94a3b8; color: white; border: none; padding: 3px 8px; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                            0 Ft (Nincs UV)
+                        </button>`;
+                        
+                        quickActionsHtml = `
+                            <div class="quick-cod-actions" style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed rgba(0,0,0,0.1); display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+                                <span style="font-size: 11px; font-weight: 600; color: #334155;">Gyors javítás:</span>
+                                ${buttons}
+                                <div style="display: inline-flex; align-items: center; gap: 4px; margin-left: auto;">
+                                    <input type="number" class="quick-cod-custom-input" data-order-internal-id="${order.internalId}" value="${order.codAmount || ''}" placeholder="Egyedi Ft" style="width: 85px; padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 11px; font-weight: 700;">
+                                    <button type="button" class="btn-quick-save-custom-cod btn-sm" data-order-internal-id="${order.internalId}" data-err-id="${err.id}" style="background: #16a34a; color: white; border: none; padding: 3px 8px; border-radius: 5px; font-size: 11px; font-weight: 700; cursor: pointer;">Mentés</button>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    return `
+                        <div class="error-box no-print" id="err-${err.id}">
+                            <div class="error-title">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                                ${err.title}
+                            </div>
+                            <div class="error-desc">${err.desc}</div>
+                            ${quickActionsHtml}
+                            <div style="display: flex; justify-content: flex-end; margin-top: 6px;">
+                                <button class="btn-ack" data-order-internal-id="${order.internalId}" data-err-id="${err.id}">Ellenőrizve</button>
+                            </div>
                         </div>
-                        <div class="error-desc">${err.desc}</div>
-                        <button class="btn-ack" data-order-internal-id="${order.internalId}" data-err-id="${err.id}">Ellenőrizve</button>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
             }
 
             const sortedItems = [...order.items].sort((a, b) => {

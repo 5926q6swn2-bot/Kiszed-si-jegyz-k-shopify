@@ -372,6 +372,9 @@ export const ShopifyParser = {
                         if (!/ut[aá]nv[eé]t|\buv/i.test(notes) && noteCodAmount === null) {
                             errors.push({
                                 id: Math.random().toString(36).substr(2, 9),
+                                type: 'cod',
+                                shopifyAmount: outstandingBalance,
+                                noteAmount: 0,
                                 title: "Lappangó Utánvét!",
                                 desc: `Shopify szerint van utánvét, de a Notes üres. Kérdéses összeg: ${outstandingBalance} Ft`
                             });
@@ -400,6 +403,9 @@ export const ShopifyParser = {
                                 } else {
                                     errors.push({
                                         id: Math.random().toString(36).substr(2, 9),
+                                        type: 'cod',
+                                        shopifyAmount: outstandingBalance,
+                                        noteAmount: noteCodAmount,
                                         title: "Utánvét Eltérés",
                                         desc: `Utánvét a shopifyban: ${outstandingBalance} Ft, a Notes-ban ${noteCodAmount} Ft kérlek ellenőrizd!`
                                     });
@@ -411,6 +417,9 @@ export const ShopifyParser = {
                         codAmount = noteCodAmount;
                         errors.push({
                             id: Math.random().toString(36).substr(2, 9),
+                            type: 'cod',
+                            shopifyAmount: 0,
+                            noteAmount: noteCodAmount,
                             title: "Fizetési Anomália",
                             desc: `A shopify szerint nincs utánvét, de a Notes-ban szerepel egy összeg: ${noteCodAmount} Ft`
                         });

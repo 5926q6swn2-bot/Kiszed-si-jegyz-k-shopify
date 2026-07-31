@@ -2,12 +2,12 @@ import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, coll
 import { CustomDialog } from './utils/dialog.js';
 import { HistoryManager } from './services/history.js';
 import { UnifiedPrinter } from './services/printer.js';
-import { ShopifyParser, cleanItemNameForMapping, cleanName, fixHungarianAccents } from './services/shopify.js?v=193';
+import { ShopifyParser, cleanItemNameForMapping, cleanName, fixHungarianAccents } from './services/shopify.js?v=195';
 import { PannonXPService } from './services/pannonxp.js?v=193';
-import { PannonXPView } from './views/pannonxpView.js?v=193';
+import { PannonXPView } from './views/pannonxpView.js?v=194';
 import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js?v=193';
 import { Store } from './store/state.js';
-import { OrdersView } from './views/ordersView.js?v=172';
+import { OrdersView } from './views/ordersView.js?v=195';
 import { initManualOrderController } from './controllers/manualOrderController.js?v=150';
 import { renderStatistics } from './views/stats.js';
 import { ExporterService } from './services/exporter.js';
@@ -432,15 +432,26 @@ function initApp() {
             sortableInstance.destroy();
         }
         const scrollContainer = document.querySelector('.content-body');
+
+        const cleanupDragState = () => {
+            if (orderList) orderList.classList.remove('dragging-active');
+            document.body.style.userSelect = '';
+            document.body.style.webkitUserSelect = '';
+            if (scrollContainer) {
+                scrollContainer.style.overflowY = 'auto';
+            }
+        };
+
         sortableInstance = new Sortable(orderList, {
-            animation: 80,
-            easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+            animation: 120,
+            easing: "cubic-bezier(0.2, 0, 0, 1)",
             handle: sortModeActive ? '.order-card' : '.drag-handle',
             ghostClass: 'sortable-ghost',
             chosenClass: 'sortable-chosen',
             scroll: scrollContainer || true,
-            scrollSensitivity: 80,
-            scrollSpeed: 12,
+            scrollSensitivity: 100,
+            scrollSpeed: 20,
+            bubbleScroll: true,
             onStart: function() {
                 orderList.classList.add('dragging-active');
                 document.body.style.userSelect = 'none';
@@ -459,14 +470,20 @@ function initApp() {
                 }
             },
             onEnd: function(evt) {
-                orderList.classList.remove('dragging-active');
-                document.body.style.userSelect = '';
-                document.body.style.webkitUserSelect = '';
+                cleanupDragState();
                 const movedItem = Store.orders.splice(evt.oldIndex, 1)[0];
                 Store.orders.splice(evt.newIndex, 0, movedItem);
                 updateIndexes();
-            }
+            },
+            onUnchoose: cleanupDragState,
+            onSpill: cleanupDragState
         });
+
+        // Biztonsági eseménykezelők, ha a húzás váratlanul megszakadna
+        window.removeEventListener('mouseup', cleanupDragState);
+        window.removeEventListener('touchend', cleanupDragState);
+        window.addEventListener('mouseup', cleanupDragState);
+        window.addEventListener('touchend', cleanupDragState);
 
         // Compact custom drag image via native setDragImage (runs after Sortable binds dragstart, so overrides it)
         if (!orderList.dataset.dragImgListenerSet) {
@@ -554,6 +571,82 @@ function initApp() {
                             updatePrintButtonState();
                         }, 400); 
                     }
+                }
+            });
+        });
+
+        // Gyors Utánvét Beállítása Gombok az Hiba Boxban
+        document.querySelectorAll('.btn-quick-set-cod').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const orderInternalId = btn.getAttribute('data-order-internal-id');
+                const errId = btn.getAttribute('data-err-id');
+                const newAmount = parseFloat(btn.getAttribute('data-amount')) || 0;
+                
+                const order = Store.orders.find(o => o.internalId === orderInternalId);
+                if (order) {
+                    order.codAmount = newAmount;
+                    order.isCOD = newAmount > 0;
+                    if (newAmount > 0) order.isBankDeposit = false;
+                    
+                    order.errors = order.errors.filter(err => err.id !== errId);
+                    renderOrders();
+                }
+            });
+        });
+
+        // Gyors Egyedi Utánvét Mentése Gomb az Hiba Boxban
+        document.querySelectorAll('.btn-quick-save-custom-cod').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const orderInternalId = btn.getAttribute('data-order-internal-id');
+                const errId = btn.getAttribute('data-err-id');
+                const errorBox = btn.closest('.error-box');
+                const input = errorBox ? errorBox.querySelector('.quick-cod-custom-input') : null;
+                if (!input) return;
+                
+                let val = parseFloat(input.value);
+                if (isNaN(val) || val < 0) val = 0;
+                
+                const order = Store.orders.find(o => o.internalId === orderInternalId);
+                if (order) {
+                    order.codAmount = val;
+                    order.isCOD = val > 0;
+                    if (val > 0) order.isBankDeposit = false;
+                    
+                    order.errors = order.errors.filter(err => err.id !== errId);
+                    renderOrders();
+                }
+            });
+        });
+
+        // Gyors Utánvét Szerkesztés a Badge-re Kattintva
+        document.querySelectorAll('.clickable-cod-badge').forEach(badge => {
+            badge.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const internalId = badge.getAttribute('data-internal-id');
+                const order = Store.orders.find(o => o.internalId === internalId);
+                if (!order) return;
+                
+                const currentVal = order.isCOD ? Math.round(order.codAmount) : 0;
+                const result = await CustomDialog.prompt(
+                    `Add meg a megrendelés (${order.id}) új utánvét összegét Ft-ban (0 Ft ha kifizetett / nincs utánvét):`,
+                    currentVal,
+                    'Utánvét Összeg Módosítása'
+                );
+                
+                if (result !== null && result !== undefined) {
+                    let val = parseFloat(result);
+                    if (isNaN(val) || val < 0) val = 0;
+                    
+                    order.codAmount = val;
+                    order.isCOD = val > 0;
+                    if (val > 0) order.isBankDeposit = false;
+                    
+                    // Szűrjük ki az utánvéttel kapcsolatos hibákat, mivel a felhasználó kézzel felülírta
+                    order.errors = order.errors.filter(err => err.type !== 'cod' && !/utánvét|anomália/i.test(err.title));
+                    
+                    renderOrders();
                 }
             });
         });

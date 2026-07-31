@@ -1369,7 +1369,7 @@ export const PannonXPView = {
             });
             
             let html = `
-                <div style="display:flex; flex-direction:column; gap:15px; height: 100%;">
+                <form id="pxp-settings-abbreviations-form" style="display:flex; flex-direction:column; gap:15px; height: 100%;">
                     <!-- Shopify Termék CSV Import szekció -->
                     <div style="background: #f8fafc; padding: 14px; border-radius: 12px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; gap: 8px;">
                         <h4 style="margin: 0; font-size: 13px; color: #1e293b;">Shopify Termék Export CSV Beolvasása</h4>
@@ -1411,7 +1411,7 @@ export const PannonXPView = {
                                     const mappingObj = mappings[k] || { abbrev: '', categoryId: '' };
                                     const hasCat = !!mappingObj.categoryId;
                                     return `
-                                    <tr style="border-bottom: 1px solid #f1f5f9; ${hasCat ? '' : 'background: #fff5f5;'}">
+                                    <tr class="pxp-mapping-row" data-key="${k.replace(/"/g, '&quot;')}" style="border-bottom: 1px solid #f1f5f9; ${hasCat ? '' : 'background: #fff5f5;'}">
                                         <td style="padding: 8px 10px; color: #1e293b; font-weight: 500;">
                                             <div>${k}</div>
                                             ${mappingObj.linkedTo ? `
@@ -1422,10 +1422,10 @@ export const PannonXPView = {
                                             ` : ''}
                                         </td>
                                         <td style="padding: 4px 10px;">
-                                            <input type="text" class="pxp-input-abbrev" data-key="${k.replace(/"/g, '&quot;')}" value="${(mappingObj.abbrev || '').replace(/"/g, '&quot;')}" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 12px; outline: none; font-weight: 600; color: #0f172a; box-sizing: border-box;">
+                                            <input type="text" class="pxp-input-abbrev" value="${(mappingObj.abbrev || '').replace(/"/g, '&quot;')}" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 12px; outline: none; font-weight: 600; color: #0f172a; box-sizing: border-box;">
                                         </td>
                                         <td style="padding: 4px 10px;">
-                                            <select class="pxp-select-mapping-category" data-key="${k.replace(/"/g, '&quot;')}" style="width: 100%; border: 1.5px solid ${hasCat ? '#cbd5e1' : '#ef4444'}; background: ${hasCat ? '#fff' : '#fef2f2'}; border-radius: 6px; padding: 4px; font-size: 12px; outline: none; cursor: pointer; font-weight: ${hasCat ? 'normal' : 'bold'}; color: ${hasCat ? '#0f172a' : '#b91c1c'}; box-sizing: border-box;">
+                                            <select class="pxp-select-mapping-category" style="width: 100%; border: 1.5px solid ${hasCat ? '#cbd5e1' : '#ef4444'}; background: ${hasCat ? '#fff' : '#fef2f2'}; border-radius: 6px; padding: 4px; font-size: 12px; outline: none; cursor: pointer; font-weight: ${hasCat ? 'normal' : 'bold'}; color: ${hasCat ? '#0f172a' : '#b91c1c'}; box-sizing: border-box;">
                                                 <option value="" ${!hasCat ? 'selected' : ''}>⚠️ Nincs kategória! ⚠️</option>
                                                 ${categories.map(cat => `<option value="${cat.id}" ${cat.id === mappingObj.categoryId ? 'selected' : ''}>${cat.name}</option>`).join('')}
                                             </select>
@@ -1441,77 +1441,66 @@ export const PannonXPView = {
                             </tbody>
                         </table>
                     </div>
-                </div>
+
+                    <div style="display:flex; justify-content:flex-end; margin-top: 15px; border-top:1px solid #cbd5e1; padding-top:15px;">
+                        <button type="submit" class="btn btn-primary" style="padding: 10px 20px;">Termék Rövidítések Mentése</button>
+                    </div>
+                </form>
             `;
             
             container.innerHTML = html;
-            
-            // Bind listeners for inline abbreviation editing
-            container.querySelectorAll('.pxp-input-abbrev').forEach(input => {
-                input.addEventListener('change', () => {
-                    const key = input.dataset.key;
-                    const newValue = input.value.trim();
-                    if (!newValue) return;
-                    
-                    const activeMappings = PannonXPService.getProductMappings();
-                    if (!activeMappings[key]) {
-                        activeMappings[key] = { abbrev: '', categoryId: '' };
-                    }
-                    activeMappings[key].abbrev = newValue;
-                    PannonXPService.saveProductMappings(activeMappings);
-                    
-                    // Recalculate references and unmatched flags for current orders
-                    if (orders && Array.isArray(orders)) {
-                        orders.forEach(order => {
-                            order.pxp_referencia = ShopifyParser.generateDefaultReference ? ShopifyParser.generateDefaultReference(order, 40) : order.pxp_referencia;
-                            const calc = PannonXPService.calculateWeightAndPackages(order.items);
-                            order.pxp_csomagszam = calc.packages;
-                            order.pxp_suly = calc.weight;
-                            order.pxp_packages = calc.packagesDetail;
-                            order.pxp_has_unmatched = calc.hasUnmatched || order.items.some(item => {
-                                const activeM = PannonXPService.getNormalizedProductMappings();
-                                return !activeM[cleanItemNameForMapping(item.name)];
-                            });
-                        });
-                    }
-                    
-                    // Refresh the main view
-                    PannonXPView.render(mainContainer, orders, onExport);
-                });
-            });
 
-            // Bind listeners for inline category editing
-            container.querySelectorAll('.pxp-select-mapping-category').forEach(select => {
-                select.addEventListener('change', () => {
-                    const key = select.dataset.key;
-                    const newCatId = select.value;
-                    
-                    const activeMappings = PannonXPService.getProductMappings();
-                    if (!activeMappings[key]) {
-                        activeMappings[key] = { abbrev: '', categoryId: '' };
-                    }
-                    activeMappings[key].categoryId = newCatId;
-                    PannonXPService.saveProductMappings(activeMappings);
-                    
-                    // Recalculate references and unmatched flags for current orders
-                    if (orders && Array.isArray(orders)) {
-                        orders.forEach(order => {
-                            order.pxp_referencia = ShopifyParser.generateDefaultReference ? ShopifyParser.generateDefaultReference(order, 40) : order.pxp_referencia;
-                            const calc = PannonXPService.calculateWeightAndPackages(order.items);
-                            order.pxp_csomagszam = calc.packages;
-                            order.pxp_suly = calc.weight;
-                            order.pxp_packages = calc.packagesDetail;
-                            order.pxp_has_unmatched = calc.hasUnmatched || order.items.some(item => {
-                                const activeM = PannonXPService.getNormalizedProductMappings();
-                                return !activeM[cleanItemNameForMapping(item.name)];
-                            });
+            // Form submit event handler for saving abbreviation changes
+            const form = container.querySelector('#pxp-settings-abbreviations-form');
+            if (form) {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    try {
+                        const activeMappings = PannonXPService.getProductMappings();
+                        
+                        container.querySelectorAll('.pxp-mapping-row').forEach(row => {
+                            const key = row.dataset.key;
+                            const abbrevInput = row.querySelector('.pxp-input-abbrev');
+                            const catSelect = row.querySelector('.pxp-select-mapping-category');
+                            
+                            if (key && abbrevInput && catSelect) {
+                                const abbrevVal = abbrevInput.value.trim();
+                                const catVal = catSelect.value;
+                                
+                                if (!activeMappings[key]) {
+                                    activeMappings[key] = { abbrev: '', categoryId: '' };
+                                }
+                                activeMappings[key].abbrev = abbrevVal;
+                                activeMappings[key].categoryId = catVal;
+                            }
                         });
+                        
+                        await PannonXPService.saveProductMappings(activeMappings);
+                        
+                        // Recalculate references and unmatched flags for current orders
+                        if (orders && Array.isArray(orders)) {
+                            orders.forEach(order => {
+                                order.pxp_referencia = ShopifyParser.generateDefaultReference ? ShopifyParser.generateDefaultReference(order, 40) : order.pxp_referencia;
+                                const calc = PannonXPService.calculateWeightAndPackages(order.items);
+                                order.pxp_csomagszam = calc.packages;
+                                order.pxp_suly = calc.weight;
+                                order.pxp_packages = calc.packagesDetail;
+                                order.pxp_has_unmatched = calc.hasUnmatched || order.items.some(item => {
+                                    const activeM = PannonXPService.getNormalizedProductMappings();
+                                    return !activeM[cleanItemNameForMapping(item.name)];
+                                });
+                            });
+                        }
+                        
+                        await CustomDialog.alert('Termék rövidítések sikeresen elmentve!', 'Mentés sikeres', 'info');
+                        overlay.remove();
+                        this.render(mainContainer, orders, onExport);
+                    } catch (err) {
+                        console.error("Hiba a rövidítések mentésekor:", err);
+                        await CustomDialog.alert('Hiba történt a mentés során: ' + err.message, 'Mentési hiba', 'error');
                     }
-                    
-                    // Refresh the main view
-                    PannonXPView.render(mainContainer, orders, onExport);
                 });
-            });
+            }
             
             // Bind listeners for Shopify Product Export CSV file input
             const csvInput = container.querySelector('#pxp-product-csv-input');
