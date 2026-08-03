@@ -35,6 +35,13 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
+### 2026. augusztus 3. - Rendszer Architektúra Refaktorálás & Kód Optimalizálás (1. Fázis)
+- **Gyökérkönyvtár megtisztítása**: Az átmeneti refaktoráló scriptek és diff fájlok (`clean_index.js`, `cleanup_merge.js`, `fix_app_js.js`, `fix_events.js`, `app_diff.txt`, `replace_step1.ps1`, `replace_step2.ps1`, `replace_step3.ps1`) elcsomagolásra és átmozgatásra kerültek a `scratch/legacy/` mappába.
+- **Központi konfiguráció & Szerver No-Cache**: Létrejött a `js/config.js` központi verziókezelő modul (`APP_CONFIG.VERSION = 'v3.0.1'`), a `server.js` pedig automatikus `Cache-Control: no-cache, no-store, must-revalidate` fejléceket kapott, így fejlesztés alatt nem ragadnak be a módosított `.js` modulok a böngésző gyorsítótárában.
+- **Moduláris Auth Szolgáltatás**: Az `index.html` aljáról kiszerveztük az beágyazott inline belépési modult az önálló `js/services/auth.js` ES modulba, kiküszöbölve az HTML kódba égetett scriptet.
+- **Automata Unit Tesztek**: Elkészítettük a `tests/unit_tests.js` tesztkészletet Node.js alá a címtisztítás (`cleanAddress`), névtisztítás (`cleanName`), ékezet-korrekció (`fixHungarianAccents`) és telefonszám-formázás (`formatHungarianPhoneNumber`) azonnali ellenőrzésére (9/9 sikeres teszt).
+- **Nyomtatási Duplikáció Megszüntetése**: A `js/services/printer.js` átállt a `printTemplates.js` központi moduláris nyomtatási sablonjainak használatára, megszüntetve a duplikált HTML generáló kódsorokat.
+
 ### 2026. július 23. - Hiányos Címek Kiszűrése & PannonXP Import Hibák Megoldása
 - **Hiányzó utcanév (hiányos cím) detektálása**: Ha a vásárló elmulasztotta megadni az utcanevet, és csak egy szám (pl. `24` vagy `12`) szerepel a szállítási címnél, a rendszer mostantól felismeri ezt a hiányosságot, letiltja a nyomtatást/exportálást, és feltűnő piros figyelmeztetéssel jelzi: *„⚠️ Hiányos szállítási cím! (Hívni kell a vásárlót)”*.
 - **PannonXP Számlázási és exportőri beállítások visszavonása**: A felhasználó kérésére teljesen visszaállítottuk a PannonXP CSV-generátor működését a korábbi állapotra (visszaálltak a számlázási oszlopok alapértelmezett értékei).
