@@ -78,34 +78,91 @@ export function cleanAddress(address) {
 export function checkAddressValidity(order) {
     if (!order) return true;
     
-    let zip = (order.zip || '').trim();
+    let zip = (order.zip || '').replace(/['"]/g, '').trim();
     let city = (order.city || '').trim();
-    let street = (order.address1 || '').trim().toLowerCase();
+    let street = (order.address1 || '').trim();
     
-    // On-the-fly felbontás ha az adatbázisban meglévő/korábbi rendelésekből hiányoznának ezek a mezők
-    if (!zip || !city || !street) {
-        const fullAddr = order.fullAddress || order.address || '';
+    // Ha az utca/cím üres, vagy az a teljes egybeírt cím ("2120, Dunakeszi, Barátság útja 2/b. 1")
+    const fullAddr = (order.fullAddress || order.address || '').replace(/['"]/g, '').trim();
+    if (!zip || !city || !street || street.includes(',') || street === fullAddr) {
         if (fullAddr) {
             const parsed = parseHungarianAddress(fullAddr);
-            zip = zip || parsed.zip;
-            city = city || parsed.city;
-            street = street || parsed.street.toLowerCase();
+            if (parsed.zip) zip = parsed.zip;
+            if (parsed.city) city = parsed.city;
+            if (parsed.street) street = parsed.street;
             
-            // Mutáljuk a bejövő objektumot is, hogy a felület lássa a változást
+            // Frissítsük az order mezőket is
             order.zip = zip;
             order.city = city;
-            order.address1 = parsed.street;
+            order.address1 = street;
         }
     }
     
-    if (!zip || !city || !street) return true; // Ha bármelyik hiányzik, az hiba
+    if (!zip || !city || !street) return true; // Hiányzó kötelező mező
     
-    // Ha az utca csak számokból és alapvető jelekből áll (pl. "24" vagy "38")
-    // Ez azt jelenti, hogy az utcanév hiányzik és csak a házszám van megadva
-    const justNumbersAndSymbols = /^[\d\s\/\.,\-–—a-fA-F]*$/.test(street) && street.length <= 6;
+    const streetLower = street.toLowerCase();
+    
+    // 1. Csak számok és írásjelek (pl. "24" vagy "38") -> Hiányzó utcanév
+    const justNumbersAndSymbols = /^[\d\s\/\.,\\-–—a-fA-F]*$/.test(streetLower) && streetLower.length <= 6;
     if (justNumbersAndSymbols) return true;
     
+    // 2. HÁZSZÁM ELLENŐRZÉS: Az utcának tartalmaznia kell legalább 1 számjegyet (pl. "166", "2/b", "11\a")
+    const hasHouseNumber = /\d+/.test(streetLower);
+    if (!hasHouseNumber) return true;
+    
+    // 3. HA A CÍM ÉRVÉNYES: Töröljük a címhibákat az order.errors tömbből
+    if (order.errors && Array.isArray(order.errors)) {
+        order.errors = order.errors.filter(err => err.type !== 'address' && !/cím|házszám/i.test(err.title));
+    }
+    
     return false;
+}
+
+export function parseHungarianAddress(addressStr) {
+    const res = { zip: '', city: '', street: '' };
+    if (!addressStr) return res;
+
+    let cleanStr = addressStr.replace(/['"]/g, '').trim();
+
+    // Ha van benne legalább egy vessző, ellenőrizzük a komponenseket (pl. "2120, Dunakeszi, Barátság útja 2/b. 1" vagy "222, Örményes, Dózsa György út 166")
+    const parts = cleanStr.split(',').map(p => p.replace(/['"]/g, '').trim()).filter(Boolean);
+    if (parts.length >= 2) {
+        // Ellenőrizzük az 1. elemet, hogy irányítószám-e (pl. 2120 vagy 222)
+        const firstPartZip = parts[0].match(/^\d{3,5}$/);
+        if (firstPartZip) {
+            res.zip = parts[0];
+            res.city = parts[1] || '';
+            res.street = parts.slice(2).join(', ');
+            return res;
+        }
+    }
+
+    // Általános fall-back: ZIP keresése (3-5 számjegy)
+    const zipMatch = cleanStr.match(/\b(\d{3,5})\b/);
+    if (zipMatch) {
+        res.zip = zipMatch[1];
+        cleanStr = cleanStr.replace(zipMatch[0], '').trim();
+    }
+
+    cleanStr = cleanStr.replace(/^[,\s]+/, '');
+
+    const commaIndex = cleanStr.indexOf(',');
+    if (commaIndex !== -1) {
+        res.city = cleanStr.substring(0, commaIndex).trim();
+        res.street = cleanStr.substring(commaIndex + 1).trim();
+    } else {
+        const spaceIndex = cleanStr.indexOf(' ');
+        if (spaceIndex !== -1) {
+            res.city = cleanStr.substring(0, spaceIndex).trim();
+            res.street = cleanStr.substring(spaceIndex + 1).trim();
+        } else {
+            res.city = cleanStr;
+            res.street = '';
+        }
+    }
+
+    res.street = res.street.replace(/^[,\s]+/, '').trim();
+    return res;
 }
 
 export function cleanItemNameForMapping(name) {
@@ -271,16 +328,19 @@ export const ShopifyParser = {
             const itemPrice = parseFloat(itemPriceStr) || 0;
             
             if (!orderMap.has(orderNum)) {
+                const cleanZip = (row['Shipping Zip'] || '').replace(/['"]/g, '').trim();
+                const cleanCity = cleanName(row['Shipping City'] || '').trim();
                 let shippingAddress = [
-                    row['Shipping Zip'], 
-                    row['Shipping City']
+                    cleanZip, 
+                    cleanCity
                 ].filter(Boolean);
 
-                let street = cleanAddress(row['Shipping Street'] || [row['Shipping Address1'], row['Shipping Address2']].filter(Boolean).join(' '));
+                const rawAddressLines = [row['Shipping Address1'], row['Shipping Address2']].filter(Boolean).join(' ') || row['Shipping Street'] || '';
+                let street = cleanAddress(rawAddressLines);
                 street = street.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
                 let fullShippingAddress = cleanAddress([
-                    row['Shipping Zip'],
-                    row['Shipping City'],
+                    cleanZip,
+                    cleanCity,
                     street
                 ].filter(Boolean).join(', '));
                 
@@ -438,8 +498,8 @@ export const ShopifyParser = {
                     billingName: billingName,
                     address: cleanAddress(shippingAddress.join(', ')),
                     fullAddress: fullShippingAddress,
-                    zip: row['Shipping Zip'] || '',
-                    city: row['Shipping City'] || '',
+                    zip: cleanZip,
+                    city: cleanCity,
                     address1: street,
                     address2: row['Shipping Address2'] || '',
                     countryCode: row['Shipping Country'] || 'HU',
@@ -457,6 +517,21 @@ export const ShopifyParser = {
                     errors: errors,
                     items: []
                 });
+
+                const createdOrder = orderMap.get(orderNum);
+                if (createdOrder && checkAddressValidity(createdOrder)) {
+                    const parsedStreet = createdOrder.address1 || street || '';
+                    let reasonDesc = `A szállítási cím hiányos ("${parsedStreet || 'Üres'}"). Kérlek ellenőrizd!`;
+                    if (!parsedStreet || !/\d+/.test(parsedStreet)) {
+                        reasonDesc = `A szállítási címből hiányzik a házszám ("${parsedStreet || 'Üres utca'}"). Kérlek hívd fel a vevőt a házszámért!`;
+                    }
+                    createdOrder.errors.push({
+                        id: Math.random().toString(36).substr(2, 9),
+                        type: 'address',
+                        title: "Hiányos Szállítási Cím (Házszám)!",
+                        desc: reasonDesc
+                    });
+                }
             }
 
             const lineFulfillmentStatus = (row['Lineitem fulfillment status'] || '').toLowerCase();
@@ -515,42 +590,3 @@ export const ShopifyParser = {
         };
     }
 };
-
-export function parseHungarianAddress(addressStr) {
-    const res = { zip: '', city: '', street: '' };
-    if (!addressStr) return res;
-
-    let cleanStr = addressStr.trim();
-
-    const zipMatch = cleanStr.match(/^(\d{4})/);
-    if (zipMatch) {
-        res.zip = zipMatch[1];
-        cleanStr = cleanStr.substring(4).trim();
-    } else {
-        const anyZipMatch = cleanStr.match(/\b(\d{4})\b/);
-        if (anyZipMatch) {
-            res.zip = anyZipMatch[1];
-            cleanStr = cleanStr.replace(anyZipMatch[0], '').trim();
-        }
-    }
-
-    cleanStr = cleanStr.replace(/^[,\s]+/, '');
-
-    const commaIndex = cleanStr.indexOf(',');
-    if (commaIndex !== -1) {
-        res.city = cleanStr.substring(0, commaIndex).trim();
-        res.street = cleanStr.substring(commaIndex + 1).trim();
-    } else {
-        const spaceIndex = cleanStr.indexOf(' ');
-        if (spaceIndex !== -1) {
-            res.city = cleanStr.substring(0, spaceIndex).trim();
-            res.street = cleanStr.substring(spaceIndex + 1).trim();
-        } else {
-            res.city = cleanStr;
-            res.street = '';
-        }
-    }
-
-    res.street = res.street.replace(/^[,\s]+/, '').trim();
-    return res;
-}

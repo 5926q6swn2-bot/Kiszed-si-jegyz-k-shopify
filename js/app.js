@@ -2,9 +2,9 @@ import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, coll
 import { CustomDialog } from './utils/dialog.js';
 import { HistoryManager } from './services/history.js';
 import { UnifiedPrinter } from './services/printer.js';
-import { ShopifyParser, cleanItemNameForMapping, cleanName, fixHungarianAccents } from './services/shopify.js?v=195';
-import { PannonXPService } from './services/pannonxp.js?v=193';
-import { PannonXPView } from './views/pannonxpView.js?v=194';
+import { ShopifyParser, cleanItemNameForMapping, cleanName, cleanAddress, fixHungarianAccents } from './services/shopify.js?v=206';
+import { PannonXPService } from './services/pannonxp.js?v=206';
+import { PannonXPView } from './views/pannonxpView.js?v=206';
 import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js?v=193';
 import { Store } from './store/state.js';
 import { OrdersView } from './views/ordersView.js?v=195';
@@ -321,9 +321,12 @@ function initApp() {
             result.newOrders.forEach(order => {
                 const matchingRow = rows.find(r => r['Name'] === order.id);
                 if (matchingRow) {
-                    order.zip = matchingRow['Shipping Zip'] || order.zip || '';
-                    order.city = matchingRow['Shipping City'] || order.city || '';
-                    order.address1 = matchingRow['Shipping Address1'] || matchingRow['Shipping Street'] || order.address1 || '';
+                    order.zip = (matchingRow['Shipping Zip'] || order.zip || '').replace(/['"]/g, '').trim();
+                    order.city = (matchingRow['Shipping City'] || order.city || '').trim();
+                    const rawAddrLines = [matchingRow['Shipping Address1'], matchingRow['Shipping Address2']].filter(Boolean).join(' ') || matchingRow['Shipping Street'] || '';
+                    if (rawAddrLines) {
+                        order.address1 = cleanAddress(rawAddrLines).replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+                    }
                     order.address2 = matchingRow['Shipping Address2'] || order.address2 || '';
                     order.countryCode = matchingRow['Shipping Country'] || order.countryCode || 'HU';
                     let companyName = fixHungarianAccents(matchingRow['Shipping Company'] || order.shippingCompany || '');

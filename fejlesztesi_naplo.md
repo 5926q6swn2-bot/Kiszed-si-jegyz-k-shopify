@@ -809,6 +809,47 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Automata Görgetés és Drag State Tisztítás**: A `Sortable.js` konfigurációt kibővítettük automatikus görgetési beállításokkal (`bubbleScroll: true`, `scrollSensitivity: 100`, `scrollSpeed: 20`), valamint az `onUnchoose`, `onSpill`, `mouseup` és `touchend` eseményekre regisztráltunk egy automatikus állapot-takarítót (`cleanupDragState`), ami a húzás befejeztével azonnal visszaállítja a normál görgetést és kijelölést.
 - **Cache-Busting és verziókezelés**: Frissítettük a modulok verzióit `v196`-ra (`app.js?v=196`, `style.css?v=41`).
 
+### 2026. augusztus 3. - Házszám Hiány Validáció, Shopify CSV Idézőjel-Hámozás, `app.js` Address2 Fix & PannonXP Export Duplikáció Fix
+- **Gyökeres Fix: `app.js` Címösszefűzés (`v206`)**: Megtaláltuk a hibajelzések valódi okát a feltöltött `orders_export - 2026-08-03T111423.826.csv` elemzésével: a Shopify a házszámokat a `Shipping Address2` oszlopba teszi (pl. `Address1: Barátság útja`, `Address2: 2/b. 1/19.`). Az `app.js`-ben a `processShopifyData` tévesen felülírta a címet csak az `Address1` értékével. Kijavítottuk: az `app.js` összefűzi az `Address1` + `Address2` mezőket (`"Barátság útja 2/b. 1/19."`), beimportáltuk a `cleanAddress` függvényt.
+- **PannonXP Export Cím-Duplikálás Fix (`pannonxp.js`)**: A PannonXP CSV generálásakor megszüntettük a házszámok kétszeri hozzáfűzését (pl. `Barátság útja 2/b. 19. 2/b. 1/19.` $\rightarrow$ `Barátság útja 2/b. 19.`).
+- **PannonXP Nézet Import Cache Fix**: A `pannonxpView.js`, `pannonxp.js` és `manualOrderController.js` belső importjait megemeltük a legújabb verzióra (`v206`).
+- **Shopify CSV Irányítószám Idézőjel-Takarítás (`cleanZip`)**: Automatikusan letakarítjuk a Shopify által berakott egyes-idézőjelet (pl. `'1132` $\rightarrow$ `1132`).
+- **Cache-Busting és verziókezelés**: Frissítettük az összes modul hivatkozási verzióját `v206`-ra (`app.js?v=206`, `shopify.js?v=206`, `pannonxpView.js?v=206`, `pannonxp.js?v=206`).
+
+
+---
+
+## 📌 Jövőbeli Tervek & Roadmap (Előkészített Fejlesztések)
+
+### 1. 🔄 Shopify Admin API & Élő Szinkronizáció (Élő adatok CSV helyett)
+- **Cél**: A manuális CSV fájlok letöltésének és behúzásának kiváltása 1-kattintásos felhős élő adatszinkronizációra.
+- **Funkciók**:
+  - Élő adatszinkronizálás a Shopify-ból (gombra vagy háttérben).
+  - Tétel módosítások, megjegyzések, fizetési státuszok automatikus frissítése a felületen.
+  - A meglévő CSV beolvasó megmarad B-tervként (Fail-safe backup).
+  - **Terv dokumentum**: Az elkészített teljes architektúra terv elmentve az `implementation_plan.md` fájlban.
+
+### 2. 🏬 Több Webshop Egyidejű Összekötése (Multi-Store Support)
+- **Cél**: Több különálló Shopify webáruház (pl. magyar, szlovák, külön márkák) nyitott rendeléseinek lekérése egyetlen összevont raktári kiszedőlistára.
+- **Funkciók**:
+  - Webshop forrásjelvények (`[ Webshop HU ]`, `[ Webshop SK ]`) a kártyákon és a PannonXP exportban.
+  - Központi szedés és címkenyomtatás mindegyik áruházhoz egyszerre.
+
+### 3. 📦 Központi Készletkezelés (WMS / ERP modul piacterekkel)
+- **Cél**: Központi SKU alapú készletnyilvántartás és visszaszinkronizálás több értékesítési csatornára.
+- **Funkciók**:
+  - Shopify + Amazon + Temu + Allegro piacterek központi készletszinkronizációja.
+  - Automatizált készletlevonás rendelés lezárásakor és túladás-védelem (overselling prevention).
+
+### 4. 📧 E-mail Értesítési Modul (Vevői Csomagfeladás & Napi Riportok)
+- **Cél**: Automata vagy 1-kattintásos e-mail értesítők kiküldése a vevőknek a csomag feladásáról, illetve napi elszámolási jelentések a vezetőségnek.
+- **Funkciók**:
+  - Resend.com API (havi 3000 e-mailig ingyenes) vagy saját céges SMTP csatlakozás.
+  - Automatikus csomagszám és futár értesítő e-mail a vevőnek a PannonXP címkegyártáskor.
+  - 1-kattintásos hibajelző / probléma-értesítő e-mail a kártyákról.
+
+
+
 
 
 

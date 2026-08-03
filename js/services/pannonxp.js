@@ -1,5 +1,5 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { cleanItemNameForMapping } from './shopify.js?v=145';
+import { cleanItemNameForMapping } from './shopify.js?v=203';
 import { db, doc, getDoc, setDoc } from '../firebase-config.js?v=42';
 import { CustomDialog } from '../utils/dialog.js';
 
@@ -893,10 +893,7 @@ export const PannonXPService = {
             rowData.push(order.countryCode === 'HU' || !order.countryCode ? '36' : order.countryCode);
             
             // Közterület (utca, házszám, emelet, ajtó)
-            let addressParts = [];
-            if (order.address1) addressParts.push(order.address1);
-            if (order.address2) addressParts.push(order.address2);
-            let exportedStreet = addressParts.join(' ').replace(/,/g, ' ').replace(/\s+/g, ' ').trim() || (order.address || '').replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+            let exportedStreet = cleanAddress(order.address1 || order.fullAddress || order.address || '').replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
             rowData.push(exportedStreet);
             
             // Címzett megjegyzés
