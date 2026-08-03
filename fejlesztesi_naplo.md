@@ -27,9 +27,12 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
-- **Utolsó aktív modell**: Gemini 3.5 Flash (Low)
-- **Státusz**: A rendszer stabil. Bevezetve a kétlépcsős elszámolás (logisztikai + kártyás/KP fizetési bontás) és a kártyás utalások nyomon követése.
-- **Folytatás**: Tesztelés után további funkciók fejlesztése vagy a statisztikák finomhangolása az új fizetési módok alapján.
+- **Utolsó aktív modell**: Gemini 3.6 Flash (High)
+- **Státusz**: A rendszer stabil. Az 1. Fázisú refaktorálás és optimalizálás elkészült és élesítve lett (gyökér megtisztítva, no-cache dev szerver, moduláris auth szolgáltatás, automata unit tesztek 9/9 sikeres).
+- **Következő Lépés / Aktuális TODO List (2. Fázis)**:
+  - [ ] **Moduláris Nézet-szétbontás (`historyView.js`)**: A 139 KB-os `historyView.js` szétbontása al-modulokra (`js/views/history/historyList.js`, `historyAccounting.js`, `historyTrash.js`).
+  - [ ] **Moduláris Nézet-szétbontás (`pannonxpView.js`)**: A 122 KB-os `pannonxpView.js` szétbontása al-modulokra (`js/views/pannonxp/pannonxpTable.js`, `pannonxpSettings.js`).
+  - [ ] **Store Állapotkezelés Egységesítése**: A nézetfájlokban lévő rejtett `let` változók átmozgatása a centralizált `js/store/state.js` Store objektumba.
 
 ---
 
