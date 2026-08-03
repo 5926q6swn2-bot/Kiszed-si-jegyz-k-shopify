@@ -939,21 +939,27 @@ function initApp() {
                             ...changes.added.map(o => o.id),
                             ...changes.modified.map(m => m.order.id)
                         ];
-                        const run = await HistoryManager.getRunById(currentLoadedRunId);
-                        if (run) {
-                            UnifiedPrinter.clear();
-                            // Mindig kinyomtatjuk az összesítőt és a korrekciós lapot (összesítő pakk), mivel az adatok változhattak
-                            const summaryHtml = UnifiedPrinter.generateSummaryHtml(run, false);
-                            const correctionHtml = UnifiedPrinter.generateCorrectionHtml(run);
-                            
-                            let deliveryHtml = '';
-                            if (targetOrderIds.length > 0) {
-                                deliveryHtml = UnifiedPrinter.generateDeliveryNotesHtml(run, true, targetOrderIds);
-                            }
-                            
-                            UnifiedPrinter.area.innerHTML = summaryHtml + correctionHtml + deliveryHtml;
-                            UnifiedPrinter.execute();
+                        const runToPrint = {
+                            id: currentLoadedRunId,
+                            date: date,
+                            pickupDate: pickupDate,
+                            courier: courier,
+                            company: company,
+                            sender: sender,
+                            orders: cleanOrders
+                        };
+                        UnifiedPrinter.clear();
+                        // Mindig kinyomtatjuk az összesítőt és a korrekciós lapot (összesítő pakk), mivel az adatok változhattak
+                        const summaryHtml = UnifiedPrinter.generateSummaryHtml(runToPrint, false);
+                        const correctionHtml = UnifiedPrinter.generateCorrectionHtml(runToPrint);
+                        
+                        let deliveryHtml = '';
+                        if (targetOrderIds.length > 0) {
+                            deliveryHtml = UnifiedPrinter.generateDeliveryNotesHtml(runToPrint, true, targetOrderIds);
                         }
+                        
+                        UnifiedPrinter.area.innerHTML = summaryHtml + correctionHtml + deliveryHtml;
+                        UnifiedPrinter.execute();
                         return; // Kilépés, ne nyomtasson teljeset
                     } else if (printChoice === 2) {
                         // Folytatás teljes nyomtatással a megszokott módon
@@ -975,10 +981,17 @@ function initApp() {
 
         if (printNone || (!printPicking && !printSummary && !printDelivery)) return;
 
-        const run = await HistoryManager.getRunById(currentLoadedRunId);
-        if (!run) return;
+        const runToPrint = {
+            id: currentLoadedRunId,
+            date: date,
+            pickupDate: pickupDate,
+            courier: courier,
+            company: company,
+            sender: sender,
+            orders: cleanOrders
+        };
 
-        await UnifiedPrinter.printCustom(run, { picking: printPicking, summary: printSummary, delivery: printDelivery });
+        await UnifiedPrinter.printCustom(runToPrint, { picking: printPicking, summary: printSummary, delivery: printDelivery });
     });
 
     // --- Előzmények (History) ---
