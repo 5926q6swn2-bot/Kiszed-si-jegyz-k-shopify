@@ -382,19 +382,18 @@ body {
 .cd-btn-danger { background: var(--danger); color: white; }
 .cd-btn-danger:hover { background: var(--danger-hover); }
 
-/* Rendelések Listája (Kompakt Grid) */
+/* Rendelések Listája (Függőleges Oszlopfolyam) */
 .order-list {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 24px;
-    align-items: start;
+    display: block;
+    column-count: 2;
+    column-gap: 24px;
     position: relative;
     width: 100%;
 }
 
 @media (max-width: 850px) {
     .order-list {
-        grid-template-columns: 1fr;
+        column-count: 1;
     }
 }
 
@@ -407,9 +406,12 @@ body {
     border-radius: 24px; 
     padding: 24px;
     box-shadow: var(--glass-shadow);
-    display: flex;
+    display: inline-flex;
     flex-direction: column;
     width: 100%;
+    margin-bottom: 24px;
+    break-inside: avoid-column;
+    page-break-inside: avoid;
     gap: 16px;
     cursor: grab;
     transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
@@ -782,12 +784,7 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
     }
     .print-document-footer strong { font-size: 11px; font-weight: 800; display: inline; margin-left: 3px; }
     
-    .order-list { 
-        display: grid !important; 
-        grid-template-columns: repeat(2, 1fr) !important; 
-        gap: 8px !important; 
-        padding: 0; 
-    }
+    .order-list { display: block; column-count: 2; column-gap: 8px; padding: 0; }
     .order-card { 
         background: none !important; 
         border: 1px solid #999 !important; 
@@ -795,11 +792,11 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
         box-shadow: none !important; 
         backdrop-filter: none !important; 
         padding: 10px !important; 
-        break-inside: avoid;
+        break-inside: avoid-column;
         page-break-inside: avoid; 
-        display: block;
+        display: inline-block;
         width: 100%;
-        margin: 0 !important; 
+        margin: 0 0 8px 0 !important; 
         transform: none !important; 
     }
     

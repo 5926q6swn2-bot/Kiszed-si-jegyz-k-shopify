@@ -437,7 +437,14 @@ function initApp() {
         const scrollContainer = document.querySelector('.content-body');
 
         const cleanupDragState = () => {
-            if (orderList) orderList.classList.remove('dragging-active');
+            if (orderList) {
+                orderList.classList.remove('dragging-active');
+                // Force a browser reflow to fix scrollHeight/columns layout recalculation bug
+                const originalDisplay = orderList.style.display;
+                orderList.style.display = 'none';
+                orderList.offsetHeight; // force reflow
+                orderList.style.display = originalDisplay || 'block';
+            }
             document.body.style.userSelect = '';
             document.body.style.webkitUserSelect = '';
             if (scrollContainer) {
@@ -477,6 +484,14 @@ function initApp() {
                 const movedItem = Store.orders.splice(evt.oldIndex, 1)[0];
                 Store.orders.splice(evt.newIndex, 0, movedItem);
                 updateIndexes();
+                
+                // Extra layout recalculation safety
+                if (orderList) {
+                    const originalDisplay = orderList.style.display;
+                    orderList.style.display = 'none';
+                    orderList.offsetHeight; // force reflow
+                    orderList.style.display = originalDisplay || 'block';
+                }
             },
             onUnchoose: cleanupDragState,
             onSpill: cleanupDragState
