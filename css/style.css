@@ -782,7 +782,12 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
     }
     .print-document-footer strong { font-size: 11px; font-weight: 800; display: inline; margin-left: 3px; }
     
-    .order-list { display: block; column-count: 2; column-gap: 8px; padding: 0; }
+    .order-list { 
+        display: grid !important; 
+        grid-template-columns: repeat(2, 1fr) !important; 
+        gap: 8px !important; 
+        padding: 0; 
+    }
     .order-card { 
         background: none !important; 
         border: 1px solid #999 !important; 
@@ -790,11 +795,11 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
         box-shadow: none !important; 
         backdrop-filter: none !important; 
         padding: 10px !important; 
-        break-inside: avoid-column;
+        break-inside: avoid;
         page-break-inside: avoid; 
-        display: inline-block;
+        display: block;
         width: 100%;
-        margin: 0 0 8px 0 !important; 
+        margin: 0 !important; 
         transform: none !important; 
     }
     

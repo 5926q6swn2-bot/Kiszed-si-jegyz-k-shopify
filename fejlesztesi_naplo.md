@@ -815,7 +815,8 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **PannonXP cleanAddress ReferenceError Fix**: Kijavítottuk a hiányzó `cleanAddress` importot a [js/services/pannonxp.js](file:///c:/Users/CH_001/Desktop/Projektek/kiszedesi/js/services/pannonxp.js) fájlban, ami exportáláskor hibát okozott.
 - **PannonXP Nézet Import Cache Fix**: A `pannonxpView.js`, `pannonxp.js` és `manualOrderController.js` belső importjait megemeltük a legújabb verzióra (`v206`).
 - **Shopify CSV Irányítószám Idézőjel-Takarítás (`cleanZip`)**: Automatikusan letakarítjuk a Shopify által berakott egyes-idézőjelet (pl. `'1132` $\rightarrow$ `1132`).
-- **Cache-Busting és verziókezelés**: Frissítettük az összes modul hivatkozási verzióját `v206`-ra (`app.js?v=206`, `shopify.js?v=206`, `pannonxpView.js?v=206`, `pannonxp.js?v=206`).
+- **Nyomtatási Sorrend & Terítés Elrendezés Fix**: A képernyőn beállított egyéni rendezés (drag & drop) a nyomtatáskor teljesen összekeveredett, mivel a nyomtatási nézet (`@media print` a `style.css`-ben) még az elavult `column-count: 2` (oszlop-alapú függőleges folyatás) elrendezést használta, míg a képernyős nézet korábban átállt modern CSS Grid-re (`grid-template-columns: repeat(2, 1fr)`). Kijavítottuk: a nyomtatási nézet is tiszta CSS Grid-et használ, így a kinyomtatott papíron a rendelések pontosan abban a sorrendben és elrendezésben jelennek meg, ahogy a képernyőn rendezték őket (sorfolytonosan: 1-bal, 2-jobb, 3-bal, 4-jobb).
+- **Cache-Busting és verziókezelés**: Frissítettük az összes modul hivatkozási verzióját `v206`-ra (`app.js?v=206`, `shopify.js?v=206`, `pannonxpView.js?v=206`, `pannonxp.js?v=206`), a stílusfájlt pedig `style.css?v=42`-re emeltük.
 
 
 ---
