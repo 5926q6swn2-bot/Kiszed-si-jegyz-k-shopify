@@ -3,6 +3,8 @@
 
 const state = {
     orders: [],
+    pxpOrders: [],
+    activeMainTab: 'picking', // 'picking' | 'pannonxp'
     sortableInstance: null,
     sortModeActive: false,
     currentLoadedRunId: null,
@@ -16,6 +18,8 @@ const state = {
 export const Store = {
     // --- Getters ---
     get orders() { return state.orders; },
+    get pxpOrders() { return state.pxpOrders; },
+    get activeMainTab() { return state.activeMainTab; },
     get sortableInstance() { return state.sortableInstance; },
     get sortModeActive() { return state.sortModeActive; },
     get currentLoadedRunId() { return state.currentLoadedRunId; },
@@ -36,6 +40,22 @@ export const Store = {
 
     clearOrders() {
         state.orders = [];
+    },
+
+    setPxpOrders(newPxpOrders) {
+        state.pxpOrders = newPxpOrders;
+    },
+
+    addPxpOrder(pxpOrder) {
+        state.pxpOrders.push(pxpOrder);
+    },
+
+    clearPxpOrders() {
+        state.pxpOrders = [];
+    },
+
+    setActiveMainTab(tabName) {
+        state.activeMainTab = tabName;
     },
 
     setSortableInstance(instance) {
@@ -70,3 +90,4 @@ export const Store = {
         localStorage.setItem('hu_zip_geocache_v1', JSON.stringify(state.geoCache));
     }
 };
+

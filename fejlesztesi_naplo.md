@@ -28,15 +28,28 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.6 Flash (High)
-- **Státusz**: A rendszer stabil. Az 1. Fázisú refaktorálás és optimalizálás elkészült és élesítve lett (gyökér megtisztítva, no-cache dev szerver, moduláris auth szolgáltatás, automata unit tesztek 9/9 sikeres).
-- **Következő Lépés / Aktuális TODO List (2. Fázis)**:
-  - [ ] **Moduláris Nézet-szétbontás (`historyView.js`)**: A 139 KB-os `historyView.js` szétbontása al-modulokra (`js/views/history/historyList.js`, `historyAccounting.js`, `historyTrash.js`).
-  - [ ] **Moduláris Nézet-szétbontás (`pannonxpView.js`)**: A 122 KB-os `pannonxpView.js` szétbontása al-modulokra (`js/views/pannonxp/pannonxpTable.js`, `pannonxpSettings.js`).
-  - [ ] **Store Állapotkezelés Egységesítése**: A nézetfájlokban lévő rejtett `let` változók átmozgatása a centralizált `js/store/state.js` Store objektumba.
+- **Státusz**: A rendszer 100%-ban moduláris és stabil. Az 1. és 2. Fázisú architekturális refaktorálás és nagytakarítás elkészült (store állapotkezelés központosítva `v3.1.0`, `historyView.js` és `pannonxpView.js` szétbontva modulokra, unit tesztek 9/9 sikeres).
+- **Következő Lépés / Aktuális TODO List (3. Fázis / Jövőbeli feladatok)**:
+  - [x] **Store Állapotkezelés Egységesítése**: Nézetfájlok modul-szintű változóinak átmozgatása a centralizált `js/store/state.js` Store objektumba.
+  - [x] **Moduláris Nézet-szétbontás (`historyView.js`)**: A 139 KB-os `historyView.js` szétbontása al-modulokra (`js/views/history/historyList.js`, `historyOrders.js`, `historyAccounting.js`, `historyTrash.js`).
+  - [x] **Moduláris Nézet-szétbontás (`pannonxpView.js`)**: A 122 KB-os `pannonxpView.js` szétbontása al-modulokra (`js/views/pannonxp/pannonxpTable.js`, `pannonxpSettings.js`).
 
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. augusztus 3. (2. session) - Architektúra & Moduláris Nézet-szétbontás (2. Fázis)
+- **Store Állapotkezelés Központosítása**: Bővítettük a `js/store/state.js` központi Store objektumot (`activeMainTab`, `pxpOrders` állapotokkal, getterekkel és setterekkel).
+- **`historyView.js` Moduláris Szétbontása (139 KB)**: A korábbi 2084 soros monolitikus nézetfájlt 4 tiszta, független al-modulra bontottuk szét a `js/views/history/` könyvtárban:
+  - `historyList.js`: Szedések fül, kártyák és nyomtatás.
+  - `historyOrders.js`: Rendelések fül és keresési találatok.
+  - `historyAccounting.js`: Elszámolások fül és a részletes `showSettlementDialog` elszámoló modal.
+  - `historyTrash.js`: Szemetes fül és 90 napos visszaállítási műveletek.
+- **`pannonxpView.js` Moduláris Szétbontása (122 KB)**: A korábbi 1867 soros nézetfájlt 2 al-modulra bontottuk a `js/views/pannonxp/` könyvtárban:
+  - `pannonxpTable.js`: Címzettek és csomagok táblázata, inline szerkesztők és csomagkalkulációk.
+  - `pannonxpSettings.js`: Rendszerbeállítások modal, feladó profilok, termékrövidítések és csomagolási kategória modalok.
+- **Verziófrissítés & Cache-Busting**: Emeltük az `APP_CONFIG.VERSION` verziószámot `v3.1.0`-ra a `js/config.js` fájlban.
+- **Automata Unit Tesztek**: 9/9 sikeres teszt a `node tests/unit_tests.js` lefuttatásával.
 
 ### 2026. augusztus 3. - Rendszer Architektúra Refaktorálás & Kód Optimalizálás (1. Fázis)
 - **Gyökérkönyvtár megtisztítása**: Az átmeneti refaktoráló scriptek és diff fájlok (`clean_index.js`, `cleanup_merge.js`, `fix_app_js.js`, `fix_events.js`, `app_diff.txt`, `replace_step1.ps1`, `replace_step2.ps1`, `replace_step3.ps1`) elcsomagolásra és átmozgatásra kerültek a `scratch/legacy/` mappába.
