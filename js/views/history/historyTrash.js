@@ -3,7 +3,7 @@
  * Törölt szállítási körök megjelenítése, 90 napos visszaállítás és végleges törlés.
  */
 
-import { HistoryManager } from '../../services/history.js?v=173';
+import { HistoryManager } from '../../services/history.js';
 import { CustomDialog } from '../../utils/dialog.js';
 
 export async function renderTrashRuns(ctx) {

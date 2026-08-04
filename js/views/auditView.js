@@ -1,4 +1,4 @@
-import { HistoryManager } from '../services/history.js?v=158';
+import { HistoryManager } from '../services/history.js';
 import { CustomDialog } from '../utils/dialog.js';
 
 export const AuditView = {

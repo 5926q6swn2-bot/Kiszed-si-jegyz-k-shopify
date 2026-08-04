@@ -1,6 +1,6 @@
-import { HistoryManager } from '../services/history.js?v=43';
-import { CustomDialog } from '../utils/dialog.js?v=43';
-import { db, doc, updateDoc } from '../firebase-config.js?v=42';
+import { HistoryManager } from '../services/history.js';
+import { CustomDialog } from '../utils/dialog.js';
+import { db, doc, updateDoc } from '../firebase-config.js';
 
 let statsLeafletMap = null;
 let activeStatsTab = 'charts';

@@ -3,7 +3,7 @@
  * Rendelések keresése, szűrése és kártyáinak megjelenítése.
  */
 
-import { HistoryManager } from '../../services/history.js?v=173';
+import { HistoryManager } from '../../services/history.js';
 import { showSettlementDialog } from './historyAccounting.js';
 
 export async function renderOrdersTab(ctx) {

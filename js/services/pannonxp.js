@@ -1,6 +1,6 @@
-import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { cleanItemNameForMapping, cleanAddress } from './shopify.js?v=206';
-import { db, doc, getDoc, setDoc } from '../firebase-config.js?v=42';
+import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
+import { cleanItemNameForMapping, cleanAddress } from './shopify.js';
+import { db, doc, getDoc, setDoc } from '../firebase-config.js';
 import { CustomDialog } from '../utils/dialog.js';
 
 let mappingsCache = null;

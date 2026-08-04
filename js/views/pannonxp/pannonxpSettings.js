@@ -3,10 +3,10 @@
  * Kezeli a PannonXP beállítások modalt, feladó profilokat, termékrövidítéseket és kategóriabeállító ablakokat.
  */
 
-import { PannonXPService } from '../../services/pannonxp.js?v=206';
+import { PannonXPService } from '../../services/pannonxp.js';
 import { CustomDialog } from '../../utils/dialog.js';
-import { formatHungarianPhoneNumber } from '../../utils/phoneFormatter.js?v=150';
-import { ShopifyParser, cleanItemNameForMapping, cleanName } from '../../services/shopify.js?v=206';
+import { formatHungarianPhoneNumber } from '../../utils/phoneFormatter.js';
+import { ShopifyParser, cleanItemNameForMapping, cleanName } from '../../services/shopify.js';
 
 export function showDetailedPackagesModal(order, onSave) {
     const overlay = document.createElement('div');

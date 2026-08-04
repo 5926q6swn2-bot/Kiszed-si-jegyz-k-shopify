@@ -1,17 +1,17 @@
-import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, query, orderBy, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from './firebase-config.js?v=40';
+import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, query, orderBy, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from './firebase-config.js';
 import { CustomDialog } from './utils/dialog.js';
 import { HistoryManager } from './services/history.js';
 import { UnifiedPrinter } from './services/printer.js';
-import { ShopifyParser, cleanItemNameForMapping, cleanName, cleanAddress, fixHungarianAccents } from './services/shopify.js?v=206';
-import { PannonXPService } from './services/pannonxp.js?v=206';
-import { PannonXPView } from './views/pannonxpView.js?v=206';
-import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js?v=193';
+import { ShopifyParser, cleanItemNameForMapping, cleanName, cleanAddress, fixHungarianAccents } from './services/shopify.js';
+import { PannonXPService } from './services/pannonxp.js';
+import { PannonXPView } from './views/pannonxpView.js';
+import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js';
 import { Store } from './store/state.js';
-import { OrdersView } from './views/ordersView.js?v=195';
-import { initManualOrderController } from './controllers/manualOrderController.js?v=150';
+import { OrdersView } from './views/ordersView.js';
+import { initManualOrderController } from './controllers/manualOrderController.js';
 import { renderStatistics } from './views/stats.js';
 import { ExporterService } from './services/exporter.js';
-import { AuditView } from './views/auditView.js?v=171';
+import { AuditView } from './views/auditView.js';
 
 import { generatePdfHtml, openPdfView, generateDeliveryNotesHtml } from './utils/printTemplates.js';
 function initApp() {
@@ -161,6 +161,34 @@ function initApp() {
     // Kezdeti üres állapot renderelése
     renderOrders();
 
+    function syncPxpOrdersFromStore() {
+        if (!Store.orders || Store.orders.length === 0) return;
+        const activeM = PannonXPService.getNormalizedProductMappings();
+        
+        Store.orders.forEach(order => {
+            if (!pxpOrders.some(p => p.id === order.id)) {
+                const pxpOrder = { ...order };
+                if (!pxpOrder.pxp_referencia) {
+                    pxpOrder.pxp_referencia = ShopifyParser.generateDefaultReference(pxpOrder, 40);
+                }
+                const calc = PannonXPService.calculateWeightAndPackages(pxpOrder.items);
+                pxpOrder.pxp_csomagszam = calc.packages;
+                pxpOrder.pxp_suly = calc.weight;
+                pxpOrder.pxp_packages = calc.packagesDetail;
+                if (pxpOrder.pxp_selected === undefined) pxpOrder.pxp_selected = true;
+
+                const hasUnmapped = pxpOrder.items.some(item => !activeM[cleanItemNameForMapping(item.name)]);
+                const hasUnassignedCategory = pxpOrder.items.some(item => {
+                    const m = activeM[cleanItemNameForMapping(item.name)];
+                    return !m || !m.categoryId;
+                });
+                pxpOrder.pxp_has_unmatched = calc.hasUnmatched || hasUnmapped || hasUnassignedCategory;
+
+                pxpOrders.push(pxpOrder);
+            }
+        });
+    }
+
     // --- MAIN TAB TOGGLE (Picking vs PannonXP) ---
     if (tabMainPicking && tabMainPannonXP) {
         tabMainPicking.addEventListener('click', () => {
@@ -208,6 +236,9 @@ function initApp() {
             if (emptyState) emptyState.style.display = 'none';
             if (dynamicIsland) dynamicIsland.style.display = 'none';
             if (historyIsland) historyIsland.style.display = 'none';
+            
+            syncPxpOrdersFromStore();
+
             if (pannonXPContainer) {
                 pannonXPContainer.style.display = 'block';
                 PannonXPView.render(pannonXPContainer, pxpOrders, handlePxpExport);
@@ -253,16 +284,20 @@ function initApp() {
 
     // --- Reset ---
     btnReset.addEventListener('click', async () => {
-        if(Store.orders.length === 0) return;
+        if (Store.orders.length === 0 && pxpOrders.length === 0) return;
         const isConfirmed = await CustomDialog.confirm('Biztosan törlöd az összes eddigi rendelést a listából?', 'Lista Törlése', 'warning', true);
-        if(isConfirmed) {
+        if (isConfirmed) {
             Store.setOrders([]);
+            pxpOrders = [];
             currentLoadedRunId = null;
             originalLoadedRun = null;
             sortModeActive = false;
             orderList.classList.remove('sort-mode-active');
             if (btnSortMode) btnSortMode.classList.remove('sort-mode-btn-active');
             renderOrders();
+            if (pannonXPContainer) {
+                PannonXPView.render(pannonXPContainer, pxpOrders, handlePxpExport);
+            }
         }
     });
 
@@ -312,74 +347,55 @@ function initApp() {
 
     // --- Üzleti Logika ---
     async function processShopifyData(rows) {
-        if (activeMainTab === 'pannonxp') {
-            const result = ShopifyParser.parse(rows, pxpOrders);
-            
-            // Register missing products to Firestore/memory
-            await PannonXPService.registerMissingProducts(result.newOrders);
-            
-            result.newOrders.forEach(order => {
-                const matchingRow = rows.find(r => r['Name'] === order.id);
-                if (matchingRow) {
-                    order.zip = (matchingRow['Shipping Zip'] || order.zip || '').replace(/['"]/g, '').trim();
-                    order.city = (matchingRow['Shipping City'] || order.city || '').trim();
-                    const rawAddrLines = [matchingRow['Shipping Address1'], matchingRow['Shipping Address2']].filter(Boolean).join(' ') || matchingRow['Shipping Street'] || '';
-                    if (rawAddrLines) {
-                        order.address1 = cleanAddress(rawAddrLines).replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
-                    }
-                    order.address2 = matchingRow['Shipping Address2'] || order.address2 || '';
-                    order.countryCode = matchingRow['Shipping Country'] || order.countryCode || 'HU';
-                    let companyName = fixHungarianAccents(matchingRow['Shipping Company'] || order.shippingCompany || '');
-                    const shName = matchingRow['Shipping Name'] || order.shippingName || '';
-                    if (companyName && shName && companyName.trim().toLowerCase() === shName.trim().toLowerCase()) {
-                        companyName = cleanName(companyName);
-                    }
-                    order.shippingCompany = companyName;
-                }
-                
-                // Recalculate reference after fuzzy matching/abbreviation registration is done
-                order.pxp_referencia = ShopifyParser.generateDefaultReference(order, 40);
-
-                const calc = PannonXPService.calculateWeightAndPackages(order.items);
-                order.pxp_csomagszam = calc.packages;
-                order.pxp_suly = calc.weight;
-                order.pxp_packages = calc.packagesDetail;
-                
-                // Recalculate unmatched checks after registration
-                const activeM = PannonXPService.getNormalizedProductMappings();
-                const hasUnmapped = order.items.some(item => !activeM[cleanItemNameForMapping(item.name)]);
-                const hasUnassignedCategory = order.items.some(item => {
-                    const m = activeM[cleanItemNameForMapping(item.name)];
-                    return !m || !m.categoryId;
-                });
-                order.pxp_has_unmatched = calc.hasUnmatched || hasUnmapped || hasUnassignedCategory;
-                
-                pxpOrders.push(order);
-            });
-            
-            if (result.skippedOrderIds.size > 0) {
-                CustomDialog.alert(`${result.skippedOrderIds.size} db ismétlődő rendelést automatikusan kihagytunk.`, 'Duplikáció szűrve');
-            }
-            
-            PannonXPView.renderOrders(pxpOrders);
-            
-            const tbody = document.getElementById('pxp-table-body');
-            if (tbody) {
-                if (pxpOrders.length === 0) {
-                    tbody.style.cursor = 'pointer';
-                    tbody.onclick = () => fileInput.click();
-                } else {
-                    tbody.onclick = null;
-                    tbody.style.cursor = '';
-                }
-            }
-            return;
-        }
-
+        // Parse orders for Szedőlista
         const result = ShopifyParser.parse(rows, Store.orders);
         
         result.newOrders.forEach(order => {
             Store.addOrder(order);
+        });
+
+        // Register missing products to Firestore/memory
+        await PannonXPService.registerMissingProducts(result.newOrders);
+
+        // Populate PannonXP order fields for each new order
+        result.newOrders.forEach(order => {
+            const matchingRow = rows.find(r => r['Name'] === order.id);
+            if (matchingRow) {
+                order.zip = (matchingRow['Shipping Zip'] || order.zip || '').replace(/['"]/g, '').trim();
+                order.city = (matchingRow['Shipping City'] || order.city || '').trim();
+                const rawAddrLines = [matchingRow['Shipping Address1'], matchingRow['Shipping Address2']].filter(Boolean).join(' ') || matchingRow['Shipping Street'] || '';
+                if (rawAddrLines) {
+                    order.address1 = cleanAddress(rawAddrLines).replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+                }
+                order.address2 = matchingRow['Shipping Address2'] || order.address2 || '';
+                order.countryCode = matchingRow['Shipping Country'] || order.countryCode || 'HU';
+                let companyName = fixHungarianAccents(matchingRow['Shipping Company'] || order.shippingCompany || '');
+                const shName = matchingRow['Shipping Name'] || order.shippingName || '';
+                if (companyName && shName && companyName.trim().toLowerCase() === shName.trim().toLowerCase()) {
+                    companyName = cleanName(companyName);
+                }
+                order.shippingCompany = companyName;
+            }
+            
+            order.pxp_referencia = ShopifyParser.generateDefaultReference(order, 40);
+
+            const calc = PannonXPService.calculateWeightAndPackages(order.items);
+            order.pxp_csomagszam = calc.packages;
+            order.pxp_suly = calc.weight;
+            order.pxp_packages = calc.packagesDetail;
+            order.pxp_selected = true;
+            
+            const activeM = PannonXPService.getNormalizedProductMappings();
+            const hasUnmapped = order.items.some(item => !activeM[cleanItemNameForMapping(item.name)]);
+            const hasUnassignedCategory = order.items.some(item => {
+                const m = activeM[cleanItemNameForMapping(item.name)];
+                return !m || !m.categoryId;
+            });
+            order.pxp_has_unmatched = calc.hasUnmatched || hasUnmapped || hasUnassignedCategory;
+            
+            if (!pxpOrders.some(p => p.id === order.id)) {
+                pxpOrders.push(order);
+            }
         });
 
         if (result.skippedOrderIds.size > 0) {
@@ -388,6 +404,10 @@ function initApp() {
 
         renderOrders();
         
+        if (pannonXPContainer) {
+            PannonXPView.render(pannonXPContainer, pxpOrders, handlePxpExport);
+        }
+
         const now = new Date();
         printDateDisplay.textContent = `Készült: ${now.toLocaleDateString('hu-HU')} ${now.toLocaleTimeString('hu-HU')}`;
     }

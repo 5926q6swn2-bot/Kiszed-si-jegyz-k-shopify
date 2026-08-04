@@ -1,5 +1,5 @@
-import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js?v=150';
-import { PannonXPService } from './pannonxp.js?v=193';
+import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
+import { PannonXPService } from './pannonxp.js';
 
 export function fixHungarianAccents(str) {
     if (!str) return '';

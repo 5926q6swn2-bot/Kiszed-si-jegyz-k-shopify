@@ -3,8 +3,8 @@
  * A megrendelések táblázatának kirajzolása, inline mezőszerkesztők és csomagkalkulációs események.
  */
 
-import { PannonXPService } from '../../services/pannonxp.js?v=206';
-import { ShopifyParser, cleanItemNameForMapping, cleanName, cleanAddress, checkAddressValidity, parseHungarianAddress } from '../../services/shopify.js?v=206';
+import { PannonXPService } from '../../services/pannonxp.js';
+import { ShopifyParser, cleanItemNameForMapping, cleanName, cleanAddress, checkAddressValidity, parseHungarianAddress } from '../../services/shopify.js';
 import { showDetailedPackagesModal, showConfigureProductModal } from './pannonxpSettings.js';
 
 export function renderOrdersTable(container, orders, onExport, mainViewContext) {

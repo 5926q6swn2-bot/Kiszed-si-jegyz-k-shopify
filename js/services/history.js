@@ -1,4 +1,4 @@
-import { db, auth, collection, query, orderBy, getDocs, addDoc, getDoc, setDoc, deleteDoc, updateDoc, doc, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from '../firebase-config.js?v=42';
+import { db, auth, collection, query, orderBy, getDocs, addDoc, getDoc, setDoc, deleteDoc, updateDoc, doc, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from '../firebase-config.js';
 
 export const HistoryManager = {
         COLLECTION_NAME: 'szedolista_history',

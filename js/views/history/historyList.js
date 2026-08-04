@@ -3,7 +3,7 @@
  * A mentett szállítási körök listázása, előnézeti kártyák és nyomtatási események.
  */
 
-import { HistoryManager } from '../../services/history.js?v=173';
+import { HistoryManager } from '../../services/history.js';
 import { UnifiedPrinter } from '../../services/printer.js';
 
 export async function renderHistoryRuns(ctx) {

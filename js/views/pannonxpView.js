@@ -3,7 +3,7 @@
  * Kezeli a PannonXP Címkekonvertáló felületét és delegálja a feladatokat az al-moduloknak.
  */
 
-import { PannonXPService } from '../services/pannonxp.js?v=206';
+import { PannonXPService } from '../services/pannonxp.js';
 import { renderOrdersTable } from './pannonxp/pannonxpTable.js';
 import { showSettingsModal, showDetailedPackagesModal, showConfigureProductModal } from './pannonxp/pannonxpSettings.js';
 
