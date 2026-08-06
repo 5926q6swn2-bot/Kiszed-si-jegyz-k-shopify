@@ -721,12 +721,12 @@ export async function renderAccountingRuns(ctx) {
     });
 
     runs.forEach(run => {
-        if (!run.paymentStatusMap || Object.keys(run.paymentStatusMap).length === 0) {
+        const hasSettled = (run.settledAmount !== undefined && run.settledAmount !== null) || run.isSettled === true || typeof run.settledAt !== 'undefined';
+        if (hasSettled && (!run.paymentStatusMap || Object.keys(run.paymentStatusMap).length === 0)) {
             const map = {};
             const uncollected = run.uncollectedOrderIds || [];
             const bankTransferred = run.bankTransferredOrderIds || [];
             const paymentMethods = run.paymentMethods || {};
-            const hasSettled = (run.settledAmount || 0) > 0 || run.isSettled;
             const isTransferSettled = run.isTransferSettled === true;
             
             run.orders.forEach(o => {
