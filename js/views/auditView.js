@@ -5,6 +5,7 @@ export const AuditView = {
     container: null,
     resultsContainer: null,
     allRuns: [],
+    filterMode: 'all', // 'all' (default: mind a szállító hibás), 'multi' (csak többszöri kiszállítás)
 
     async render(container) {
         this.container = container;
@@ -14,7 +15,7 @@ export const AuditView = {
         this.container.style.gap = '15px';
         this.container.style.padding = '15px 0';
 
-        // 1. Render Header Area (Info and Export CSV button)
+        // 1. Render Header Area (Info, Filter Toggles and Export CSV button)
         this.renderHeader();
 
         // 2. Render Results container
@@ -42,15 +43,48 @@ export const AuditView = {
         headerBar.style.padding = '12px 16px';
         headerBar.style.borderRadius = '12px';
         headerBar.style.border = '1px solid #e2e8f0';
+        headerBar.style.gap = '15px';
+        headerBar.style.flexWrap = 'wrap';
 
         const infoText = document.createElement('div');
-        infoText.innerHTML = '<span style="font-size: 13px; font-weight: 600; color: #475569;"><i class="ph-bold ph-info" style="margin-right: 5px;"></i>Csak a szállító hibás és többször kiszállított rendelések számlaellenőrzése</span>';
+        infoText.innerHTML = '<span style="font-size: 13.5px; font-weight: 700; color: #0f172a;"><i class="ph-bold ph-truck" style="margin-right: 6px; color: #0284c7; font-size: 16px;"></i>Szállító hibás rendelések számlaellenőrzése</span>';
         headerBar.appendChild(infoText);
+
+        const filterGroup = document.createElement('div');
+        filterGroup.style.display = 'flex';
+        filterGroup.style.alignItems = 'center';
+        filterGroup.style.gap = '8px';
+
+        const btnAll = document.createElement('button');
+        btnAll.type = 'button';
+        btnAll.id = 'audit-btn-filter-all';
+        btnAll.style.cssText = `padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.2s; border: 1.5px solid ${this.filterMode === 'all' ? '#0284c7' : '#cbd5e1'}; background: ${this.filterMode === 'all' ? '#e0f2fe' : '#fff'}; color: ${this.filterMode === 'all' ? '#0369a1' : '#64748b'};`;
+        btnAll.innerHTML = '<i class="ph-bold ph-list-checks" style="margin-right: 4px;"></i>Összes szállítói hiba';
+        btnAll.addEventListener('click', () => {
+            this.filterMode = 'all';
+            this.updateFilterButtons();
+            this.updateAudit();
+        });
+
+        const btnMulti = document.createElement('button');
+        btnMulti.type = 'button';
+        btnMulti.id = 'audit-btn-filter-multi';
+        btnMulti.style.cssText = `padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.2s; border: 1.5px solid ${this.filterMode === 'multi' ? '#ea580c' : '#cbd5e1'}; background: ${this.filterMode === 'multi' ? '#ffedd5' : '#fff'}; color: ${this.filterMode === 'multi' ? '#c2410c' : '#64748b'};`;
+        btnMulti.innerHTML = '<i class="ph-bold ph-arrows-clockwise" style="margin-right: 4px;"></i>Csak többszöri kiszállítás (2x+)';
+        btnMulti.addEventListener('click', () => {
+            this.filterMode = 'multi';
+            this.updateFilterButtons();
+            this.updateAudit();
+        });
+
+        filterGroup.appendChild(btnAll);
+        filterGroup.appendChild(btnMulti);
+        headerBar.appendChild(filterGroup);
 
         // Export button
         const btnExport = document.createElement('button');
         btnExport.type = 'button';
-        btnExport.style.padding = '8px 12px';
+        btnExport.style.padding = '8px 14px';
         btnExport.style.borderRadius = '8px';
         btnExport.style.border = '1.5px solid #10b981';
         btnExport.style.background = '#10b981';
@@ -67,6 +101,21 @@ export const AuditView = {
         headerBar.appendChild(btnExport);
 
         this.container.appendChild(headerBar);
+    },
+
+    updateFilterButtons() {
+        const btnAll = document.getElementById('audit-btn-filter-all');
+        const btnMulti = document.getElementById('audit-btn-filter-multi');
+        if (btnAll) {
+            btnAll.style.border = `1.5px solid ${this.filterMode === 'all' ? '#0284c7' : '#cbd5e1'}`;
+            btnAll.style.background = this.filterMode === 'all' ? '#e0f2fe' : '#fff';
+            btnAll.style.color = this.filterMode === 'all' ? '#0369a1' : '#64748b';
+        }
+        if (btnMulti) {
+            btnMulti.style.border = `1.5px solid ${this.filterMode === 'multi' ? '#ea580c' : '#cbd5e1'}`;
+            btnMulti.style.background = this.filterMode === 'multi' ? '#ffedd5' : '#fff';
+            btnMulti.style.color = this.filterMode === 'multi' ? '#c2410c' : '#64748b';
+        }
     },
 
     async updateAudit() {
@@ -147,12 +196,11 @@ export const AuditView = {
             });
         });
 
-        // Filter to show only orders that have at least one attempt in filtered runs with carrier fault (szallito)
+        // Filter to show carrier fault orders
         const filteredDocIds = new Set(filteredRuns.map(r => r.docId));
         const eligibleOrders = [];
         
         for (const [id, orderData] of orderAttemptsMap.entries()) {
-            // Sort attempts chronologically
             orderData.attempts.sort((a, b) => a.date.localeCompare(b.date));
             
             const hasCarrierFaultInFilteredRuns = orderData.attempts.some(att => 
@@ -160,6 +208,9 @@ export const AuditView = {
             );
             
             if (hasCarrierFaultInFilteredRuns) {
+                if (this.filterMode === 'multi' && orderData.attempts.length < 2) {
+                    continue; // Skip single attempts in multi mode
+                }
                 eligibleOrders.push(orderData);
             }
         }
@@ -440,6 +491,9 @@ export const AuditView = {
                 filteredDocIds.has(att.docId) && att.responsibility === 'szallito'
             );
             if (hasCarrierFaultInFilteredRuns) {
+                if (this.filterMode === 'multi' && orderData.attempts.length < 2) {
+                    continue;
+                }
                 eligibleOrders.push(orderData);
             }
         }
