@@ -116,9 +116,9 @@ export function getPaymentDetails(run, order) {
 
     const isTransferSettled = run.isTransferSettled === true;
     
-    // Ellenőrizzük, hogy a futárkör el van-e már számolva (lebuktatva a raktárban)
-    const hasSettledMap = run.paymentStatusMap && Object.keys(run.paymentStatusMap).length > 0;
-    const isRunSettled = run.isSettled === true || typeof run.settledAt !== 'undefined' || (run.settledAmount !== undefined && run.settledAmount !== null) || hasSettledMap;
+    // A futárkör akkor számít elszámoltnak, ha az elszámolási ablakban megerősítették (paymentMethods, paymentStatusMap, isSettled vagy settledAt)
+    const hasSettlementData = (run.paymentMethods && Object.keys(run.paymentMethods).length > 0) || (run.paymentStatusMap && Object.keys(run.paymentStatusMap).length > 0);
+    const isRunSettled = run.isSettled === true || typeof run.settledAt !== 'undefined' || hasSettlementData;
 
     if (!isRunSettled) {
         return {

@@ -3,9 +3,9 @@
  * Futár elszámolások kezelése, osztott fizetés és elszámolási státuszok rögzítése.
  */
 
-import { HistoryManager } from '../../services/history.js?v=3.2.0';
-import { CustomDialog } from '../../utils/dialog.js?v=3.2.0';
-import { getPaymentDetails, getRunPaymentTotals } from '../../utils/paymentUtils.js?v=3.2.0';
+import { HistoryManager } from '../../services/history.js?v=3.2.2';
+import { CustomDialog } from '../../utils/dialog.js?v=3.2.2';
+import { getPaymentDetails, getRunPaymentTotals } from '../../utils/paymentUtils.js?v=3.2.2';
 
 export function showSettlementDialog(run, runCOD, existingState = null) {
     return new Promise((resolve) => {
@@ -721,7 +721,7 @@ export async function renderAccountingRuns(ctx) {
     });
 
     runs.forEach(run => {
-        const hasSettled = (run.settledAmount !== undefined && run.settledAmount !== null) || run.isSettled === true || typeof run.settledAt !== 'undefined';
+        const hasSettled = run.isSettled === true || typeof run.settledAt !== 'undefined';
         if (hasSettled && (!run.paymentStatusMap || Object.keys(run.paymentStatusMap).length === 0)) {
             const map = {};
             const uncollected = run.uncollectedOrderIds || [];

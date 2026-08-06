@@ -3,10 +3,10 @@
  * Koordinálja az Előzmények felületet és delegálja a feladatokat az al-moduloknak.
  */
 
-import { renderHistoryRuns as renderList } from './history/historyList.js?v=3.2.0';
-import { renderOrdersTab as renderOrders, renderSearchResults as renderSearch } from './history/historyOrders.js?v=3.2.0';
-import { renderAccountingRuns as renderAccounting } from './history/historyAccounting.js?v=3.2.0';
-import { renderTrashRuns as renderTrash } from './history/historyTrash.js?v=3.2.0';
+import { renderHistoryRuns as renderList } from './history/historyList.js?v=3.2.2';
+import { renderOrdersTab as renderOrders, renderSearchResults as renderSearch } from './history/historyOrders.js?v=3.2.2';
+import { renderAccountingRuns as renderAccounting } from './history/historyAccounting.js?v=3.2.2';
+import { renderTrashRuns as renderTrash } from './history/historyTrash.js?v=3.2.2';
 
 let ctx = {};
 
