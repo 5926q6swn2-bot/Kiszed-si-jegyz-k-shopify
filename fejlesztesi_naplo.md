@@ -874,38 +874,22 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
-## 📌 Jövőbeli Tervek & Roadmap (Előkészített Fejlesztések)
+## 📌 Jövőbeli Tervek & Roadmap (Rugalmas Általános Irányvonalak)
 
-### 1. 🔄 Shopify Admin API & Élő Szinkronizáció (Élő adatok CSV helyett)
-- **Cél**: A manuális CSV fájlok letöltésének és behúzásának kiváltása 1-kattintásos felhős élő adatszinkronizációra.
-- **Funkciók**:
-  - Élő adatszinkronizálás a Shopify-ból (gombra vagy háttérben).
-  - Tétel módosítások, megjegyzések, fizetési státuszok automatikus frissítése a felületen.
-  - A meglévő CSV beolvasó megmarad B-tervként (Fail-safe backup).
-  - **Terv dokumentum**: Az elkészített teljes architektúra terv elmentve az `implementation_plan.md` fájlban.
+Ez a moduláris felépítésű projekt alapot nyújt a jövőbeli bővítésekhez és másoláshoz/továbbfejlesztéshez. A megvalósítási technológia és architektúra szabadon választható (akár Vercel, Node backend, REST/GraphQL API-k vagy egyedi микро-szolgáltatások):
 
-### 2. 🏬 Több Webshop Egyidejű Összekötése (Multi-Store Support)
-- **Cél**: Több különálló Shopify webáruház (pl. magyar, szlovák, külön márkák) nyitott rendeléseinek lekérése egyetlen összevont raktári kiszedőlistára.
-- **Funkciók**:
-  - Webshop forrásjelvények (`[ Webshop HU ]`, `[ Webshop SK ]`) a kártyákon és a PannonXP exportban.
-  - Központi szedés és címkenyomtatás mindegyik áruházhoz egyszerre.
+### 1. 🔄 Élő Adatszinkronizáció (Shopify API & Webhooks)
+- A manuális CSV beolvasás mellett vagy helyett élő API adatszinkronizáció bevezetése.
+- Fail-safe tartalékként a CSV import megőrzése.
 
-### 3. 📦 Központi Készletkezelés (WMS / ERP modul piacterekkel)
-- **Cél**: Központi SKU alapú készletnyilvántartás és visszaszinkronizálás több értékesítési csatornára.
-- **Funkciók**:
-  - Shopify + Amazon + Temu + Allegro piacterek központi készletszinkronizációja.
-  - Automatizált készletlevonás rendelés lezárásakor és túladás-védelem (overselling prevention).
+### 2. 🏬 Több Webshop & Piactér Kezelése (Multi-Store & Marketplaces)
+- Több különálló Shopify áruház és egyéb piacterek (pl. Amazon, Temu, Allegro) rendeléseinek egyablakos kezelése.
+- Központi szedés, csomagolás és futárcímke-nyomtatás egyetlen felületről.
 
-### 4. 📧 E-mail Értesítési Modul (Vevői Csomagfeladás & Napi Riportok)
-- **Cél**: Automata vagy 1-kattintásos e-mail értesítők kiküldése a vevőknek a csomag feladásáról, illetve napi elszámolási jelentések a vezetőségnek.
-- **Funkciók**:
-  - Resend.com API (havi 3000 e-mailig ingyenes) vagy saját céges SMTP csatlakozás.
-  - Automatikus csomagszám és futár értesítő e-mail a vevőnek a PannonXP címkegyártáskor.
-  - 1-kattintásos hibajelző / probléma-értesítő e-mail a kártyákról.
+### 3. 📦 Központi Készletkezelés & WMS / ERP Funkciók
+- SKU alapú központi készletnyilvántartás és visszaszinkronizálás a csatornák felé.
+- Automatikus készletlevonás rendelés lezárásakor és túladás-védelem.
 
-
-
-
-
-
-
+### 4. 📧 Automata Értesítések & Riportok
+- Vevői e-mail/SMS értesítők csomagfeladáskor és csomagszámmal.
+- Vezetői napi/heti elszámolási és statisztikai riportok.
