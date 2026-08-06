@@ -38,6 +38,17 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
+### 2026. augusztus 6. - Új Terítések Neutrális Státusza (Elszámolásra vár) & Repó Szinkronizáció (`v3.2.2`)
+- **💡 1. TANULSÁG (Üzleti / Elszámolási Szabály)**:
+  - **Probléma**: Amikor a raktárban létrejött egy új terítés (pl. *Bábel Ádám* fuvar), az a futár lebuktatása/elszámolása előtt automatikusan sárga *Függő KP* státuszt és *KP megjött* gombot kapott. Ez téves volt, mert a sofőrnél lévő utánvétes fizetésekről még nem lehet tudni, hogy KP-s vagy Kártyás lesz-e.
+  - **Szabály**: Egy terítés **KIZÁRÓLAG akkor számít elszámoltnak/lebuktatottnak**, ha az elszámolási ablakban explicit megerősítették (`run.isSettled === true` vagy `typeof run.settledAt !== 'undefined'`). SOHA nem szabad feltételezni vagy megelőlegezni a KP fizetési módot a lebuktatás előtt.
+  - **Megoldás**: Új/elszámolatlan fuvarok esetén a felület letisztult **fehér `⏳ Elszámolásra vár: [Összeg] Ft`** státusz badge-et, fehér rendelési chipeket és az elsődleges kék **`📋 Elszámolás`** gombot jeleníti meg. Az elszámolási ablak elmentése után váltanak át a tételek a valós KP (sárga Függő KP) és Kártya (kék Utalásra vár) státuszokra.
+- **💡 2. TANULSÁG (Több Kódbázis / Mappa Szinkronizálási Szabály)**:
+  - **Probléma**: Az éles felhős Vercel alkalmazás a `PABUonSteroid` (`c:\Users\CH_001\Desktop\Projektek\PABUonSteroid`) mappából és GitHub tárolóból (`5926q6swn2-bot/PABUonSteroid.git`) frissül.
+  - **Szabály**: Bármilyen fejlesztésnél a módosításokat **mindkét projektmappába (`PABUonSteroid` és `kiszedesi`) és mindkét GitHub repóba ki kell pusholni**, biztosítva, hogy az élő Vercel felület és a helyi/teszt környezetek mindig 100%-os szinkronban maradjanak!
+
+---
+
 ### 2026. augusztus 5. - Utánvét Elszámolás Export Javítás & Kártyás Utánvétek Kezelése (`v3.1.1`)
 - **A hiba gyökere**:
   1. Az elszámolások CSV exportőrében (`ExporterService.exportAccountingToCsv`) a kártyás utánvétek (`paymentMethods = 'card'` vagy bontott fizetés) és az objektum alapú elszámolási státuszok (`paymentStatusMap`) esetén a kód szigorú string egyenlőséget (`status === 'pending'`) vizsgálott.
