@@ -102,8 +102,6 @@ export function getPaymentDetails(run, order) {
         };
     }
 
-    const isNeverSettled = !run.isSettled && typeof run.settledAt === 'undefined' && !(run.settledAmount > 0) && (!run.uncollectedOrderIds || run.uncollectedOrderIds.length === 0) && (!run.paymentStatusMap || Object.keys(run.paymentStatusMap).length === 0);
-
     const collectedAmount = isPartial ? (partial.amount || 0) : (order.codAmount || 0);
     const pm = paymentMethods[orderId] || paymentMethods[order.id];
     const ps = paymentStatusMap[orderId] || paymentStatusMap[order.id];
@@ -114,9 +112,37 @@ export function getPaymentDetails(run, order) {
     let receivedKp = 0;
     let receivedCard = 0;
     let receivedBank = 0;
-    let methodText = isNeverSettled ? "Utánvét (Elszámolásra vár)" : "Készpénz (KP)";
+    let methodText = "Készpénz (KP)";
 
     const isTransferSettled = run.isTransferSettled === true;
+    
+    // Ellenőrizzük, hogy a futárkör el van-e már számolva (lebuktatva)
+    const hasSettledMap = run.paymentStatusMap && Object.keys(run.paymentStatusMap).length > 0;
+    const hasSettlementData = run.isSettled || typeof run.settledAt !== 'undefined' || (run.settledAmount !== undefined && run.settledAmount !== null) || hasSettledMap;
+    const isRunSettled = hasSettlementData;
+
+    if (!isRunSettled) {
+        return {
+            isCOD: true,
+            isUncollected: false,
+            isBankTransferred: false,
+            isPartial,
+            codAmount: order.codAmount || 0,
+            collectedAmount,
+            pendingKp: 0,
+            pendingCard: 0,
+            pendingBank: 0,
+            pendingUnsettled: collectedAmount,
+            receivedKp: 0,
+            receivedCard: 0,
+            receivedBank: 0,
+            isPending: true,
+            isSettled: false,
+            isUnsettledRun: true,
+            methodText: "Utánvét (Elszámolásra vár)",
+            statusText: "Elszámolásra vár"
+        };
+    }
 
     if (typeof pm === 'object' && pm !== null) {
         const cashAmt = Math.max(0, parseInt(pm.cash) || 0);
@@ -140,7 +166,7 @@ export function getPaymentDetails(run, order) {
         if (bankAmt > 0) parts.push(`Utalás (${bankAmt.toLocaleString('hu-HU')} Ft)`);
         methodText = `Bontott: ${parts.join(' + ')}`;
     } else {
-        const method = pm || (isNeverSettled ? 'unsettled' : 'cash');
+        const method = pm || 'cash';
         let st = 'pending';
         if (typeof ps === 'string') {
             st = ps;
@@ -156,21 +182,16 @@ export function getPaymentDetails(run, order) {
             if (!isTransferSettled) st = 'pending';
             methodText = "Átutalás";
             if (st === 'pending') pendingBank = collectedAmount; else receivedBank = collectedAmount;
-        } else if (method === 'unsettled') {
-            methodText = "Utánvét (Elszámolásra vár)";
-            // pendingKp is kept 0 for unsettled runs until settlement is saved
         } else {
             methodText = "Készpénz (KP)";
             if (st === 'pending') pendingKp = collectedAmount; else receivedKp = collectedAmount;
         }
     }
 
-    const isPending = isNeverSettled || (pendingKp > 0 || pendingCard > 0 || pendingBank > 0);
+    const isPending = (pendingKp > 0 || pendingCard > 0 || pendingBank > 0);
     let statusText = "";
     if (isPartial) {
         statusText = isPending ? "Részlegesen fizetve (Függő)" : "Részlegesen fizetve (Rendezett)";
-    } else if (isNeverSettled) {
-        statusText = "Elszámolásra vár";
     } else {
         statusText = isPending ? (pendingCard > 0 ? "Kártyás utalásra vár" : "Függő kintlévőség") : "Kiegyenlítve";
     }
@@ -180,17 +201,18 @@ export function getPaymentDetails(run, order) {
         isUncollected: false,
         isBankTransferred: false,
         isPartial,
-        isNeverSettled,
         codAmount: order.codAmount || 0,
         collectedAmount,
         pendingKp,
         pendingCard,
         pendingBank,
+        pendingUnsettled: 0,
         receivedKp,
         receivedCard,
         receivedBank,
         isPending,
-        isSettled: !isPending && !isNeverSettled,
+        isSettled: !isPending,
+        isUnsettledRun: false,
         methodText,
         statusText
     };
@@ -199,45 +221,41 @@ export function getPaymentDetails(run, order) {
 export function getRunPaymentTotals(run) {
     let pendingKp = 0;
     let pendingCard = 0;
+    let pendingUnsettled = 0;
     let receivedKp = 0;
     let receivedCard = 0;
     let receivedBank = 0;
     let totalCod = 0;
-    let unsettledCod = 0;
 
     if (!run || !run.orders) {
-        return { pendingKp, pendingCard, receivedKp, receivedCard, receivedBank, totalCod, unsettledCod, hasPending: false, isNeverSettled: true, isFullySettled: true };
+        return { pendingKp, pendingCard, pendingUnsettled, receivedKp, receivedCard, receivedBank, totalCod, hasPending: false, isFullySettled: true };
     }
-
-    const isNeverSettled = !run.isSettled && typeof run.settledAt === 'undefined' && !(run.settledAmount > 0) && (!run.uncollectedOrderIds || run.uncollectedOrderIds.length === 0) && (!run.paymentStatusMap || Object.keys(run.paymentStatusMap).length === 0);
 
     run.orders.forEach(o => {
         const pd = getPaymentDetails(run, o);
         if (pd.isCOD) {
             totalCod += pd.codAmount;
-            if (isNeverSettled) {
-                unsettledCod += pd.codAmount;
-            } else {
-                pendingKp += pd.pendingKp;
-                pendingCard += (pd.pendingCard + pd.pendingBank);
-            }
+            pendingKp += pd.pendingKp;
+            pendingCard += (pd.pendingCard + pd.pendingBank);
+            pendingUnsettled += (pd.pendingUnsettled || 0);
             receivedKp += pd.receivedKp;
             receivedCard += pd.receivedCard;
             receivedBank += pd.receivedBank;
         }
     });
 
-    const hasPending = pendingKp > 0 || pendingCard > 0 || isNeverSettled;
+    const hasPending = pendingKp > 0 || pendingCard > 0 || pendingUnsettled > 0;
+    const isNeverSettled = !run.isSettled && typeof run.settledAt === 'undefined' && !(run.settledAmount > 0) && (!run.uncollectedOrderIds || run.uncollectedOrderIds.length === 0) && (!run.paymentStatusMap || Object.keys(run.paymentStatusMap).length === 0);
     const isFullySettled = !hasPending && !isNeverSettled;
 
     return {
         pendingKp,
         pendingCard,
+        pendingUnsettled,
         receivedKp,
         receivedCard,
         receivedBank,
         totalCod,
-        unsettledCod,
         hasPending,
         isNeverSettled,
         isFullySettled

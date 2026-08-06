@@ -88,7 +88,11 @@ export async function renderOrdersTab(ctx) {
             let badgeColor = '#f59e0b';
             let badgeBg = '#fef3c7';
 
-            if (pd.isBankTransferred) {
+            if (pd.isUnsettledRun) {
+                badgeText = 'Elszámolásra vár';
+                badgeColor = '#64748b';
+                badgeBg = '#f1f5f9';
+            } else if (pd.isBankTransferred) {
                 badgeText = 'Elutalva';
                 badgeColor = '#3b82f6';
                 badgeBg = '#dbeafe';
@@ -101,11 +105,7 @@ export async function renderOrdersTab(ctx) {
                 badgeColor = '#f97316';
                 badgeBg = '#ffedd5';
             } else if (pd.isPending) {
-                if (pd.isNeverSettled) {
-                    badgeText = 'Elszámolásra vár';
-                    badgeColor = '#0284c7';
-                    badgeBg = '#f0f9ff';
-                } else if (pd.pendingCard > 0) {
+                if (pd.pendingCard > 0) {
                     badgeText = 'Utalásra vár';
                     badgeColor = '#2563eb';
                     badgeBg = '#eff6ff';
