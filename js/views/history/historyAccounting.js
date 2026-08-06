@@ -867,9 +867,9 @@ export async function renderAccountingRuns(ctx) {
             const hasUnsettledWait = pendingUnsettledAmount > 0;
             const isFullySettled = totals.isFullySettled;
 
-            const circleColor = isFullySettled ? '#22c55e' : (hasKpWait ? '#eab308' : (hasCardWait ? '#2563eb' : (hasUnsettledWait ? '#0284c7' : (totals.isNeverSettled ? '#ef4444' : '#cbd5e1'))));
-            const circleBg = isFullySettled ? '#22c55e' : (hasKpWait ? '#fef9c3' : (hasCardWait ? '#eff6ff' : (hasUnsettledWait ? '#f0f9ff' : (totals.isNeverSettled ? '#fee2e2' : '#fff'))));
-            const circleTextColor = isFullySettled ? '#fff' : (hasKpWait ? '#ca8a04' : (hasCardWait ? '#2563eb' : (hasUnsettledWait ? '#0284c7' : (totals.isNeverSettled ? '#ef4444' : '#94a3b8'))));
+            const circleColor = isFullySettled ? '#22c55e' : (hasKpWait ? '#eab308' : (hasCardWait ? '#2563eb' : (hasUnsettledWait ? '#94a3b8' : (totals.isNeverSettled ? '#ef4444' : '#cbd5e1'))));
+            const circleBg = isFullySettled ? '#22c55e' : (hasKpWait ? '#fef9c3' : (hasCardWait ? '#eff6ff' : (hasUnsettledWait ? '#ffffff' : (totals.isNeverSettled ? '#fee2e2' : '#fff'))));
+            const circleTextColor = isFullySettled ? '#fff' : (hasKpWait ? '#ca8a04' : (hasCardWait ? '#2563eb' : (hasUnsettledWait ? '#64748b' : (totals.isNeverSettled ? '#ef4444' : '#94a3b8'))));
             const circleTitle = isFullySettled ? 'Elszámolva' : (hasKpWait ? 'Függő készpénz' : (hasCardWait ? 'Kártyás utalásra vár' : (hasUnsettledWait ? 'Elszámolásra vár' : (totals.isNeverSettled ? 'Nincs elszámolva' : 'Elszámolásra vár'))));
             const btnClass = (isFullySettled || isPartial) ? 'btn-unsettle-run' : 'btn-settle-run';
 
@@ -882,7 +882,7 @@ export async function renderAccountingRuns(ctx) {
                 : '';
 
             const unsettledWaitBadge = hasUnsettledWait
-                ? `<span style="font-size:10px;font-weight:700;color:#0284c7;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:1px 7px;display:inline-flex;align-items:center;gap:3px;"><i class="ph-bold ph-hourglass-high" style="font-size:10px;"></i>Elszámolásra vár: ${pendingUnsettledAmount.toLocaleString('hu-HU')} Ft</span>`
+                ? `<span style="font-size:10px;font-weight:700;color:#334155;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:10px;padding:1px 7px;display:inline-flex;align-items:center;gap:3px;box-shadow:0 1px 2px rgba(0,0,0,0.03);"><i class="ph-bold ph-hourglass-high" style="font-size:10px;color:#64748b;"></i>Elszámolásra vár: ${pendingUnsettledAmount.toLocaleString('hu-HU')} Ft</span>`
                 : '';
 
             let statusBadge = '';
@@ -899,7 +899,7 @@ export async function renderAccountingRuns(ctx) {
 
             const codBadges = run.orders.filter(o => o.isCOD || o.isReturn).map(o => {
                 const pd = getPaymentDetails(run, o);
-                let badgeBg = '#f1f5f9';
+                let badgeBg = '#ffffff';
                 let badgeColor = '#475569';
                 let statusLabel = 'Függő';
 
@@ -909,7 +909,7 @@ export async function renderAccountingRuns(ctx) {
                     statusLabel = pd.isUncollected ? 'Meghiúsult visszahozatal' : 'Visszahozva';
                 } else {
                     if (pd.isUnsettledRun) {
-                        badgeBg = '#f1f5f9';
+                        badgeBg = '#ffffff';
                         badgeColor = '#475569';
                         statusLabel = 'Elszámolásra vár';
                     } else if (pd.isUncollected) {
