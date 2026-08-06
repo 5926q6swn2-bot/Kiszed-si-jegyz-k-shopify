@@ -3,9 +3,9 @@
  * Futár elszámolások kezelése, osztott fizetés és elszámolási státuszok rögzítése.
  */
 
-import { HistoryManager } from '../../services/history.js';
-import { CustomDialog } from '../../utils/dialog.js';
-import { getPaymentDetails, getRunPaymentTotals } from '../../utils/paymentUtils.js';
+import { HistoryManager } from '../../services/history.js?v=3.2.0';
+import { CustomDialog } from '../../utils/dialog.js?v=3.2.0';
+import { getPaymentDetails, getRunPaymentTotals } from '../../utils/paymentUtils.js?v=3.2.0';
 
 export function showSettlementDialog(run, runCOD, existingState = null) {
     return new Promise((resolve) => {
