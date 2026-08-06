@@ -101,7 +101,11 @@ export async function renderOrdersTab(ctx) {
                 badgeColor = '#f97316';
                 badgeBg = '#ffedd5';
             } else if (pd.isPending) {
-                if (pd.pendingCard > 0) {
+                if (pd.isNeverSettled) {
+                    badgeText = 'Elszámolásra vár';
+                    badgeColor = '#0284c7';
+                    badgeBg = '#f0f9ff';
+                } else if (pd.pendingCard > 0) {
                     badgeText = 'Utalásra vár';
                     badgeColor = '#2563eb';
                     badgeBg = '#eff6ff';
