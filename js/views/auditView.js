@@ -132,10 +132,32 @@ export const AuditView = {
         const startD = startVal ? new Date(startVal + 'T00:00:00') : null;
         const endD   = endVal   ? new Date(endVal   + 'T23:59:59') : null;
 
-        // Filter runs by date and optionally company
+function parseDate(dateStr) {
+    if (!dateStr) return null;
+    if (typeof dateStr !== 'string') return null;
+    const clean = dateStr.trim().replace(/\./g, '-').replace(/-+/g, '-').replace(/-$/, '');
+    const parts = clean.split('-');
+    if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+            return new Date(y, m, d);
+        }
+    }
+    const dt = new Date(clean);
+    return isNaN(dt.getTime()) ? null : dt;
+}
+
+// ... inside updateAudit ...
+        // Filter runs by date (kiszállítási dátum) and optionally company
         const filteredRuns = this.allRuns.filter(r => {
-            if (!r.date) return true;
-            const d = new Date(r.date + 'T00:00:00');
+            const dateStr = r.date || r.originalDate;
+            if (!dateStr) return true;
+            const d = parseDate(dateStr);
+            if (!d) return true;
+            d.setHours(12, 0, 0, 0);
+
             if (startD && d < startD) return false;
             if (endD   && d > endD)   return false;
             if (selectedCompany && r.company !== selectedCompany) return false;
@@ -419,10 +441,14 @@ export const AuditView = {
         const startD = startVal ? new Date(startVal + 'T00:00:00') : null;
         const endD   = endVal   ? new Date(endVal   + 'T23:59:59') : null;
 
-        // Filter runs by date and optionally company
+        // Filter runs by date (kiszállítási dátum) and optionally company
         const filteredRuns = this.allRuns.filter(r => {
-            if (!r.date) return true;
-            const d = new Date(r.date + 'T00:00:00');
+            const dateStr = r.date || r.originalDate;
+            if (!dateStr) return true;
+            const d = parseDate(dateStr);
+            if (!d) return true;
+            d.setHours(12, 0, 0, 0);
+
             if (startD && d < startD) return false;
             if (endD   && d > endD)   return false;
             if (selectedCompany && r.company !== selectedCompany) return false;
