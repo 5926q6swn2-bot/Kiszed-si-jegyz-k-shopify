@@ -5,6 +5,7 @@
 
 import { HistoryManager } from '../../services/history.js';
 import { CustomDialog } from '../../utils/dialog.js';
+import { getPaymentDetails, getRunPaymentTotals } from '../../utils/paymentUtils.js';
 
 export function showSettlementDialog(run, runCOD, existingState = null) {
     return new Promise((resolve) => {
@@ -79,6 +80,12 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                     currentStatus[pm] = singleStatus;
                 }
             }
+
+            // FORCIBLY ENSURE CARD AND BANK ARE PENDING UNLESS BANK TRANSFER IS CONFIRMED!
+            if (run.isTransferSettled !== true) {
+                currentStatus.card = 'pending';
+                currentStatus.bank = 'pending';
+            }
             
             const showSplitPanel = wasPartial || isSplitSaved;
             const currentResp = existingState?.uncollectedResponsibility?.[o.id] || run.uncollectedResponsibility?.[o.id] || 'vevo';
@@ -105,7 +112,13 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             </div>
             `;
 
-            const isReceived = prevPaymentStatusMap[o.id] ? (prevPaymentStatusMap[o.id] !== 'pending') : false;
+            let isReceived = false;
+            if (pm === 'card' || pm === 'bank') {
+                isReceived = run.isTransferSettled === true;
+            } else {
+                isReceived = prevPaymentStatusMap[o.id] ? (prevPaymentStatusMap[o.id] !== 'pending') : false;
+            }
+
             const paymentStatusSelectorHtml = `
             <div class="sd-paystatus-container" style="${simpleControlsStyle}align-items:center;gap:6px;" data-order-id="${o.id}">
                 <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;font-weight:700;color:#374151;user-select:none;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:5px 8px;transition:all .15s;" class="sd-paystatus-label">
@@ -148,7 +161,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                         <div style="display:flex;align-items:center;gap:8px;">
                             <input class="sd-split-amount-card" type="number" min="0" max="${o.codAmount}" value="${isSplitSaved ? (currentPm.card || '') : ''}" placeholder="0" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;font-family:inherit;">
                             <label style="display:flex;align-items:center;gap:3px;font-size:10px;cursor:pointer;font-weight:700;padding:4px 6px;border-radius:6px;user-select:none;" class="sd-split-status-label-card">
-                                <input type="checkbox" class="sd-split-status-card" ${currentStatus.card === 'received' ? 'checked' : ''} style="accent-color:#2563eb;cursor:pointer;"> Nálunk van
+                                <input type="checkbox" class="sd-split-status-card" ${(run.isTransferSettled === true && currentStatus.card === 'received') ? 'checked' : ''} style="accent-color:#2563eb;cursor:pointer;"> Nálunk van
                             </label>
                         </div>
                     </div>
@@ -160,7 +173,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                         <div style="display:flex;align-items:center;gap:8px;">
                             <input class="sd-split-amount-bank" type="number" min="0" max="${o.codAmount}" value="${isSplitSaved ? (currentPm.bank || '') : ''}" placeholder="0" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;font-family:inherit;">
                             <label style="display:flex;align-items:center;gap:3px;font-size:10px;cursor:pointer;font-weight:700;padding:4px 6px;border-radius:6px;user-select:none;" class="sd-split-status-label-bank">
-                                <input type="checkbox" class="sd-split-status-bank" ${currentStatus.bank === 'received' ? 'checked' : ''} style="accent-color:#0284c7;cursor:pointer;"> Nálunk van
+                                <input type="checkbox" class="sd-split-status-bank" ${(run.isTransferSettled === true && currentStatus.bank === 'received') ? 'checked' : ''} style="accent-color:#0284c7;cursor:pointer;"> Nálunk van
                             </label>
                         </div>
                     </div>
@@ -542,18 +555,24 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             
             btn.classList.add('active');
             const method = btn.getAttribute('data-method');
+            const row = btn.closest('.sd-order-row');
+            const statusCheckbox = row ? row.querySelector('.sd-paystatus-checkbox') : null;
+
             if (method === 'cash') {
                 btn.style.background = '#e2e8f0';
                 btn.style.borderColor = '#cbd5e1';
                 btn.style.color = '#1e293b';
+                if (statusCheckbox) statusCheckbox.checked = true;
             } else if (method === 'card') {
                 btn.style.background = '#eff6ff';
                 btn.style.borderColor = '#93c5fd';
                 btn.style.color = '#1d4ed8';
+                if (statusCheckbox) statusCheckbox.checked = false; // Kártyás fizetésnél alapértelmezés szerint "Utalásra vár" (pending)
             } else {
                 btn.style.background = '#f0f9ff';
                 btn.style.borderColor = '#bae6fd';
                 btn.style.color = '#0284c7';
+                if (statusCheckbox) statusCheckbox.checked = false; // Utalásnál is alapértelmezés szerint pending
             }
             updateTotal();
         });
@@ -708,34 +727,29 @@ export async function renderAccountingRuns(ctx) {
             const bankTransferred = run.bankTransferredOrderIds || [];
             const paymentMethods = run.paymentMethods || {};
             const hasSettled = (run.settledAmount || 0) > 0 || run.isSettled;
+            const isTransferSettled = run.isTransferSettled === true;
             
             run.orders.forEach(o => {
                 if (o.isCOD) {
                     if (uncollected.includes(o.id) || bankTransferred.includes(o.id)) {
                         map[o.id] = 'received';
-                    } else if (!hasSettled) {
-                        map[o.id] = 'pending';
                     } else {
                         const method = paymentMethods[o.id] || 'cash';
-                        if (method === 'card') {
-                            const isTransferSettled = run.isTransferSettled !== false;
+                        if (typeof method === 'object' && method !== null) {
+                            const statusObj = {};
+                            if (method.cash > 0) statusObj.cash = hasSettled ? 'received' : 'pending';
+                            if (method.card > 0) statusObj.card = isTransferSettled ? 'received' : 'pending';
+                            if (method.bank > 0) statusObj.bank = isTransferSettled ? 'received' : 'pending';
+                            map[o.id] = statusObj;
+                        } else if (method === 'card' || method === 'bank') {
                             map[o.id] = isTransferSettled ? 'received' : 'pending';
                         } else {
-                            map[o.id] = 'received';
+                            map[o.id] = hasSettled ? 'received' : 'pending';
                         }
                     }
                 }
             });
             run.paymentStatusMap = map;
-            
-            const hasPending = run.orders.some(o => {
-                if (!o.isCOD || uncollected.includes(o.id)) return false;
-                const status = map[o.id];
-                return typeof status === 'object' && status !== null ? Object.values(status).includes('pending') : status === 'pending';
-            });
-            if (!hasPending && hasSettled) {
-                run.isSettled = true;
-            }
         }
     });
 
@@ -743,14 +757,8 @@ export async function renderAccountingRuns(ctx) {
     runs = runs.filter(r => isFiltered(r));
     if (onlyPending) {
         runs = runs.filter(r => {
-            const uncollected = r.uncollectedOrderIds || [];
-            const paymentStatusMap = r.paymentStatusMap || {};
-            const hasPending = r.orders.some(o => {
-                if (!o.isCOD || uncollected.includes(o.id)) return false;
-                const status = paymentStatusMap[o.id];
-                return typeof status === 'object' && status !== null ? Object.values(status).includes('pending') : status === 'pending';
-            });
-            return !r.isSettled || hasPending;
+            const totals = getRunPaymentTotals(r);
+            return totals.hasPending || !totals.isFullySettled;
         });
     }
 
@@ -765,27 +773,9 @@ export async function renderAccountingRuns(ctx) {
     let totalFilteredPendingCard = 0;
 
     runs.forEach(r => {
-        const uncollected = r.uncollectedOrderIds || [];
-        const paymentStatusMap = r.paymentStatusMap || {};
-        const paymentMethods = r.paymentMethods || {};
-        const partialOrders = r.partialOrders || {};
-
-        r.orders.forEach(o => {
-            if (o.isCOD && !uncollected.includes(o.id)) {
-                if (paymentStatusMap[o.id] === 'pending') {
-                    const method = paymentMethods[o.id] || 'cash';
-                    let amt = o.codAmount;
-                    if (partialOrders[o.id]) {
-                        amt = partialOrders[o.id].amount || 0;
-                    }
-                    if (method === 'card') {
-                        totalFilteredPendingCard += amt;
-                    } else if (method === 'cash') {
-                        totalFilteredPendingKp += amt;
-                    }
-                }
-            }
-        });
+        const totals = getRunPaymentTotals(r);
+        totalFilteredPendingKp += totals.pendingKp;
+        totalFilteredPendingCard += totals.pendingCard;
     });
 
     const summaryCard = document.createElement('div');
@@ -830,41 +820,9 @@ export async function renderAccountingRuns(ctx) {
         const companyRuns = groups[companyName];
         let companyTotalCOD = 0;
         companyRuns.forEach(r => {
-            if (!r.isSettled) {
-                const uncollected = r.uncollectedOrderIds || [];
-                const paymentStatusMap = r.paymentStatusMap || {};
-                const paymentMethods = r.paymentMethods || {};
-                const partialOrders = r.partialOrders || {};
-                const isNeverSettled = !r.isSettled && typeof r.settledAt === 'undefined' && !(r.settledAmount > 0) && (!r.uncollectedOrderIds || r.uncollectedOrderIds.length === 0);
-
-                r.orders.forEach(o => {
-                    if (o.isCOD) {
-                        if (isNeverSettled) {
-                            companyTotalCOD += o.codAmount;
-                        } else if (!uncollected.includes(o.id)) {
-                            const status = paymentStatusMap[o.id] || 'received';
-                            const method = paymentMethods[o.id] || 'cash';
-                            
-                            if (typeof status === 'object' && status !== null) {
-                                if (status.cash === 'pending' && method.cash > 0) {
-                                    companyTotalCOD += method.cash;
-                                }
-                                if (status.card === 'pending' && method.card > 0) {
-                                    companyTotalCOD += method.card;
-                                }
-                                if (status.bank === 'pending' && method.bank > 0) {
-                                    companyTotalCOD += method.bank;
-                                }
-                            } else if (status === 'pending') {
-                                let amt = o.codAmount;
-                                if (partialOrders[o.id]) {
-                                    amt = partialOrders[o.id].amount || 0;
-                                }
-                                companyTotalCOD += amt;
-                            }
-                        }
-                    }
-                });
+            const totals = getRunPaymentTotals(r);
+            if (!totals.isFullySettled) {
+                companyTotalCOD += (totals.pendingKp + totals.pendingCard);
             }
         });
 
@@ -887,8 +845,8 @@ export async function renderAccountingRuns(ctx) {
             el.className = 'unified-card acc-run-card';
             el.style.cssText = 'margin:0;overflow:hidden;';
 
-            let runCOD = 0;
-            run.orders.forEach(o => { if(o.isCOD) runCOD += o.codAmount; });
+            const totals = getRunPaymentTotals(run);
+            const runCOD = totals.totalCod;
             el.setAttribute('data-total-cod', runCOD);
             el.setAttribute('data-run-id', run.id);
 
@@ -899,52 +857,19 @@ export async function renderAccountingRuns(ctx) {
             const paymentMethods = run.paymentMethods || {};
             const paymentStatusMap = run.paymentStatusMap || {};
 
-            const isNeverSettled = !run.isSettled && typeof run.settledAt === 'undefined' && !(run.settledAmount > 0) && (!run.uncollectedOrderIds || run.uncollectedOrderIds.length === 0);
+            const pendingKpAmount = totals.pendingKp;
+            const pendingCardAmount = totals.pendingCard;
 
-            let pendingKpAmount = 0;
-            let pendingCardAmount = 0;
-            
-            if (!isNeverSettled) {
-                run.orders.forEach(o => {
-                    if (o.isCOD && !uncollected.includes(o.id)) {
-                        const status = paymentStatusMap[o.id] || 'received';
-                        const method = paymentMethods[o.id] || 'cash';
-                        
-                        if (typeof status === 'object' && status !== null) {
-                            if (status.cash === 'pending' && method.cash > 0) {
-                                pendingKpAmount += method.cash;
-                            }
-                            if (status.card === 'pending' && method.card > 0) {
-                                pendingCardAmount += method.card;
-                            }
-                            if (status.bank === 'pending' && method.bank > 0) {
-                                pendingCardAmount += method.bank;
-                            }
-                        } else if (status === 'pending') {
-                            let amt = o.codAmount;
-                            if (partialOrders[o.id]) {
-                                amt = partialOrders[o.id].amount || 0;
-                            }
-                            
-                            if (method === 'card' || method === 'bank') {
-                                pendingCardAmount += amt;
-                            } else if (method === 'cash') {
-                                pendingKpAmount += amt;
-                            }
-                        }
-                    }
-                });
-            }
-
-            const isPartial = !run.isSettled && run.settledAmount > 0;
+            const isPartial = !totals.isFullySettled && run.settledAmount > 0;
             const hasCardWait = pendingCardAmount > 0;
             const hasKpWait = pendingKpAmount > 0;
+            const isFullySettled = totals.isFullySettled;
 
-            const circleColor = run.isSettled ? '#22c55e' : (hasKpWait ? '#eab308' : (hasCardWait ? '#2563eb' : (isNeverSettled ? '#ef4444' : '#cbd5e1')));
-            const circleBg = run.isSettled ? '#22c55e' : (hasKpWait ? '#fef9c3' : (hasCardWait ? '#eff6ff' : (isNeverSettled ? '#fee2e2' : '#fff')));
-            const circleTextColor = run.isSettled ? '#fff' : (hasKpWait ? '#ca8a04' : (hasCardWait ? '#2563eb' : (isNeverSettled ? '#ef4444' : '#94a3b8')));
-            const circleTitle = run.isSettled ? 'Elszámolva' : (hasKpWait ? 'Függő készpénz' : (hasCardWait ? 'Kártyás utalásra vár' : (isNeverSettled ? 'Nincs elszámolva' : 'Elszámolásra vár')));
-            const btnClass = (run.isSettled || isPartial) ? 'btn-unsettle-run' : 'btn-settle-run';
+            const circleColor = isFullySettled ? '#22c55e' : (hasKpWait ? '#eab308' : (hasCardWait ? '#2563eb' : (totals.isNeverSettled ? '#ef4444' : '#cbd5e1')));
+            const circleBg = isFullySettled ? '#22c55e' : (hasKpWait ? '#fef9c3' : (hasCardWait ? '#eff6ff' : (totals.isNeverSettled ? '#fee2e2' : '#fff')));
+            const circleTextColor = isFullySettled ? '#fff' : (hasKpWait ? '#ca8a04' : (hasCardWait ? '#2563eb' : (totals.isNeverSettled ? '#ef4444' : '#94a3b8')));
+            const circleTitle = isFullySettled ? 'Elszámolva' : (hasKpWait ? 'Függő készpénz' : (hasCardWait ? 'Kártyás utalásra vár' : (totals.isNeverSettled ? 'Nincs elszámolva' : 'Elszámolásra vár')));
+            const btnClass = (isFullySettled || isPartial) ? 'btn-unsettle-run' : 'btn-settle-run';
 
             const kpWaitBadge = hasKpWait
                 ? `<span style="font-size:10px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:1px 7px;display:inline-flex;align-items:center;gap:3px;"><i class="ph-bold ph-hand-coins" style="font-size:10px;"></i>Függő KP: ${pendingKpAmount.toLocaleString('hu-HU')} Ft</span>`
@@ -955,7 +880,7 @@ export async function renderAccountingRuns(ctx) {
                 : '';
 
             let statusBadge = '';
-            if (run.isSettled && !hasKpWait && !hasCardWait) {
+            if (isFullySettled) {
                 statusBadge = `<span class="hac-badge hac-badge-green" style="font-size:10px;"><i class="ph-bold ph-check-circle" style="font-size:10px;"></i>Elszámolva</span>`;
             } else {
                 if (hasKpWait) statusBadge += kpWaitBadge + ' ';
@@ -966,88 +891,42 @@ export async function renderAccountingRuns(ctx) {
             }
 
             const codBadges = run.orders.filter(o => o.isCOD || o.isReturn).map(o => {
-                const isUncollected = uncollected.includes(o.id);
-                const isBankTransferred = bankTransferred.includes(o.id);
-                const isPartialOrder = !isUncollected && !isBankTransferred && !!partialOrders[o.id];
-                const method = paymentMethods[o.id] || 'cash';
-                
+                const pd = getPaymentDetails(run, o);
                 let badgeBg = '#f1f5f9';
                 let badgeColor = '#475569';
                 let statusLabel = 'Függő';
-                
-                if (o.isReturn) {
-                    badgeBg = isUncollected ? '#fee2e2' : '#f5f3ff';
-                    badgeColor = isUncollected ? '#ef4444' : '#6b21a8';
-                    statusLabel = isUncollected ? 'Meghiúsult visszahozatal' : 'Visszahozva';
-                } else {
-                    const isSplit = typeof method === 'object' && method !== null;
-                    let isOrderSettled = false;
-                    let isCardPending = false;
-                    let isKpPending = false;
-                    let splitPendingCardVal = 0;
-                    let splitPendingKpVal = 0;
 
-                    if (isSplit) {
-                        const sObj = typeof paymentStatusMap[o.id] === 'object' && paymentStatusMap[o.id] !== null ? paymentStatusMap[o.id] : {};
-                        isKpPending = (method.cash > 0 && sObj.cash === 'pending');
-                        isCardPending = (method.card > 0 && sObj.card === 'pending') || (method.bank > 0 && sObj.bank === 'pending');
-                        isOrderSettled = !isKpPending && !isCardPending;
-                        
-                        if (isCardPending) {
-                            if (sObj.card === 'pending') splitPendingCardVal += (method.card || 0);
-                            if (sObj.bank === 'pending') splitPendingCardVal += (method.bank || 0);
-                        }
-                        if (isKpPending) {
-                            splitPendingKpVal += (method.cash || 0);
-                        }
-                    } else {
-                        const statusVal = paymentStatusMap[o.id] || 'received';
-                        isOrderSettled = statusVal === 'received';
-                        if (!isOrderSettled) {
-                            if (method === 'card' || method === 'bank') {
-                                isCardPending = true;
-                            } else {
-                                isKpPending = true;
-                            }
-                        }
-                    }
-                    
-                    if (isUncollected) {
+                if (o.isReturn) {
+                    badgeBg = pd.isUncollected ? '#fee2e2' : '#f5f3ff';
+                    badgeColor = pd.isUncollected ? '#ef4444' : '#6b21a8';
+                    statusLabel = pd.isUncollected ? 'Meghiúsult visszahozatal' : 'Visszahozva';
+                } else {
+                    if (pd.isUncollected) {
                         badgeBg = '#fee2e2';
                         badgeColor = '#ef4444';
                         statusLabel = 'Kiesett';
-                    } else if (isBankTransferred && !isSplit) {
+                    } else if (pd.isBankTransferred) {
                         badgeBg = '#dbeafe';
                         badgeColor = '#3b82f6';
                         statusLabel = 'Utalva';
-                    } else if (isPartialOrder) {
+                    } else if (pd.isPartial) {
                         badgeBg = '#ffedd5';
                         badgeColor = '#f97316';
-                        statusLabel = 'Részleges';
-                    } else if (isSplit && (isCardPending || isKpPending)) {
-                        if (isCardPending) {
+                        statusLabel = pd.isPending ? `Részleges (Vár: ${(pd.pendingKp + pd.pendingCard).toLocaleString('hu-HU')} Ft)` : 'Részleges';
+                    } else if (pd.isPending) {
+                        if (pd.pendingCard > 0) {
                             badgeBg = '#eff6ff';
                             badgeColor = '#2563eb';
-                            statusLabel = `Vár: ${splitPendingCardVal.toLocaleString('hu-HU')} Ft`;
+                            statusLabel = `Vár: ${pd.pendingCard.toLocaleString('hu-HU')} Ft`;
                         } else {
                             badgeBg = '#fff7ed';
                             badgeColor = '#c2410c';
-                            statusLabel = `Vár: ${splitPendingKpVal.toLocaleString('hu-HU')} Ft`;
+                            statusLabel = `Vár: ${pd.pendingKp.toLocaleString('hu-HU')} Ft`;
                         }
-                    } else if (isOrderSettled) {
-                        if (isSplit) {
-                            badgeBg = '#d1fae5';
-                            badgeColor = '#10b981';
-                            statusLabel = 'Bontott KP+Kártya';
-                        } else if (method === 'card') {
-                            badgeBg = '#eff6ff';
-                            badgeColor = '#2563eb';
-                            statusLabel = 'Kártya';
-                        } else {
-                            badgeBg = '#d1fae5';
-                            badgeColor = '#10b981';
-                            statusLabel = 'KP';
-                        }
+                    } else {
+                        badgeBg = '#d1fae5';
+                        badgeColor = '#10b981';
+                        statusLabel = pd.methodText;
                     }
                 }
                 return `<span class="acc-order-badge" style="font-size:10px; font-weight:700; background:${badgeBg}; color:${badgeColor}; border:1px solid ${badgeColor}33; padding:2px 6px; border-radius:6px; display:inline-flex; align-items:center; gap:3px;" title="${o.shippingName || ''} · ${statusLabel}">

@@ -1,7 +1,8 @@
 // tests/unit_tests.js
-// Standalone Node.js unit tesztek a címtisztításra, névtisztításra és telefonszám formázásra
+// Standalone Node.js unit tesztek a címtisztításra, névtisztításra, telefonszám formázásra és fizetési státuszokra
 
 import { formatHungarianPhoneNumber } from '../js/utils/phoneFormatter.js';
+import { getPaymentDetails, getRunPaymentTotals } from '../js/utils/paymentUtils.js';
 
 function fixHungarianAccents(str) {
     if (!str) return '';
@@ -92,6 +93,59 @@ assertEqual("cleanAddress - perjel ismétlődés", cleanAddress("Fő utca 38/38/
 assertEqual("formatHungarianPhoneNumber - 0630", formatHungarianPhoneNumber("06301234567"), "+36301234567");
 assertEqual("formatHungarianPhoneNumber - 0036", formatHungarianPhoneNumber("0036301234567"), "+36301234567");
 assertEqual("formatHungarianPhoneNumber - spaces", formatHungarianPhoneNumber("+36 30 123 4567"), "+36301234567");
+
+// 5. Kártyás és Függő Utánvét Elszámolási Tesztek (#3010 & #3058)
+const testRun = {
+    id: "run_test_1",
+    date: "2026-07-05",
+    paymentMethods: {
+        "3010": "card",
+        "3058": { cash: 10000, card: 35000 }
+    },
+    paymentStatusMap: {
+        "3010": "pending",
+        "3058": { cash: "received", card: "pending" }
+    },
+    orders: [
+        { id: "3010", isCOD: true, codAmount: 25000, shippingName: "Teszt Vevő 1" },
+        { id: "3058", isCOD: true, codAmount: 45000, shippingName: "Teszt Vevő 2" }
+    ]
+};
+
+const pd3010 = getPaymentDetails(testRun, testRun.orders[0]);
+assertEqual("#3010 - pendingCard", pd3010.pendingCard, 25000);
+assertEqual("#3010 - isPending", pd3010.isPending, true);
+assertEqual("#3010 - isSettled", pd3010.isSettled, false);
+assertEqual("#3010 - statusText", pd3010.statusText, "Kártyás utalásra vár");
+
+const pd3058 = getPaymentDetails(testRun, testRun.orders[1]);
+assertEqual("#3058 - pendingKp", pd3058.pendingKp, 0);
+assertEqual("#3058 - pendingCard", pd3058.pendingCard, 35000);
+assertEqual("#3058 - isPending", pd3058.isPending, true);
+assertEqual("#3058 - isSettled", pd3058.isSettled, false);
+assertEqual("#3058 - statusText", pd3058.statusText, "Kártyás utalásra vár");
+
+const runTotals = getRunPaymentTotals(testRun);
+assertEqual("runTotals - pendingCard", runTotals.pendingCard, 60000);
+assertEqual("runTotals - hasPending", runTotals.hasPending, true);
+assertEqual("runTotals - isFullySettled", runTotals.isFullySettled, false);
+
+// 6. Legacy Firestore document test where statusMap was saved as 'received' but card transfer not settled
+const legacyRun = {
+    id: "run_legacy_1",
+    date: "2026-07-03",
+    isSettled: true,
+    paymentMethods: { "3010": "card" },
+    paymentStatusMap: { "3010": "received" },
+    orders: [
+        { id: "3010", isCOD: true, codAmount: 25000, shippingName: "Sipos Attila" }
+    ]
+};
+
+const pdLegacy = getPaymentDetails(legacyRun, legacyRun.orders[0]);
+assertEqual("legacyRun #3010 - forced pendingCard", pdLegacy.pendingCard, 25000);
+assertEqual("legacyRun #3010 - forced isPending", pdLegacy.isPending, true);
+assertEqual("legacyRun #3010 - statusText", pdLegacy.statusText, "Kártyás utalásra vár");
 
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 

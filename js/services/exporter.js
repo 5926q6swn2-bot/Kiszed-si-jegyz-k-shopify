@@ -1,6 +1,7 @@
 // js/services/exporter.js
 // Exportáló szolgáltatás a terítések és elszámolások CSV-be mentéséhez
 import { CustomDialog } from '../utils/dialog.js';
+import { getPaymentDetails } from '../utils/paymentUtils.js';
 
 export const ExporterService = {
     exportAccountingToCsv: async function(runs, onlyPending = false) {
@@ -27,93 +28,33 @@ export const ExporterService = {
         const rows = [];
 
         runs.forEach(run => {
-            const uncollected = run.uncollectedOrderIds || [];
-            const bankTransferred = run.bankTransferredOrderIds || [];
-            const partialOrders = run.partialOrders || {};
             const reasons = run.uncollectedReasons || {};
-            const paymentStatusMap = run.paymentStatusMap || {};
-            const paymentMethods = run.paymentMethods || {};
+            const partialOrders = run.partialOrders || {};
 
             run.orders.forEach(o => {
-                const isUnc = uncollected.includes(o.id);
-                const isBank = bankTransferred.includes(o.id);
-                const status = paymentStatusMap[o.id] || 'received';
+                const pd = getPaymentDetails(run, o);
 
-                if (onlyPending) {
-                    const isPendingCOD = o.isCOD && !isUnc && !isBank && status === 'pending';
-                    if (!isPendingCOD) return;
+                if (onlyPending && !pd.isPending) {
+                    return;
                 }
 
-                const isPart = !isUnc && !isBank && !!partialOrders[o.id];
-
-                // Fizetés módja
-                let paymentMethodText = "Nem utánvétes";
-                let method = "none";
-                if (o.isCOD) {
-                    if (isBank) {
-                        paymentMethodText = "Átutalás";
-                        method = "bank";
-                    } else {
-                        const m = paymentMethods[o.id] || 'cash';
-                        if (m === 'card') {
-                            paymentMethodText = "Bankkártya";
-                            method = "card";
-                        } else if (m === 'bank') {
-                            paymentMethodText = "Átutalás";
-                            method = "bank";
-                        } else {
-                            paymentMethodText = "Készpénz (KP)";
-                            method = "cash";
-                        }
-                    }
-                }
-
-                // Rendelés státusza
-                let orderStatus = "";
-                if (!o.isCOD) {
-                    orderStatus = isUnc ? "Nem lett átadva" : "Átadva";
-                } else {
-                    if (isUnc) {
-                        orderStatus = "Sikertelen (Kiesett)";
-                    } else if (isPart) {
-                        orderStatus = status === 'pending' ? "Részlegesen fizetve (Függő)" : "Részlegesen fizetve (Rendezett)";
-                    } else {
-                        orderStatus = status === 'pending' ? "Függő kintlévőség" : "Kiegyenlítve";
-                    }
-                }
-
-                // Függő kintlévőségek összegeinek bontása (csak ha még PENDING)
-                let collectedAmount = 0;
-                if (o.isCOD && !isUnc) {
-                    if (isPart) {
-                        collectedAmount = partialOrders[o.id].amount || 0;
-                    } else {
-                        collectedAmount = o.codAmount || 0;
-                    }
-                }
-
-                const isPending = status === 'pending';
-                const pendingKp = (method === 'cash' && isPending) ? collectedAmount : 0;
-                const pendingCard = (method === 'card' && isPending) ? collectedAmount : 0;
-
-                // Megjegyzés
                 let failReason = "";
-                if (isUnc) {
+                if (pd.isUncollected) {
                     failReason = reasons[o.id] || "";
-                } else if (isPart) {
+                } else if (pd.isPartial && partialOrders[o.id]) {
                     failReason = partialOrders[o.id].comment || "";
                 }
 
                 rows.push({
                     date: run.date,
                     company: run.company || "-",
-                    courier: run.courier,
+                    courier: run.courier || "-",
                     orderId: o.id,
-                    customerName: o.shippingName,
-                    paymentMethodText: paymentMethodText,
-                    pendingKp: pendingKp,
-                    pendingCard: pendingCard,
-                    orderStatus: orderStatus,
+                    customerName: o.shippingName || "—",
+                    paymentMethodText: pd.methodText,
+                    pendingKp: pd.pendingKp,
+                    pendingCard: pd.pendingCard + pd.pendingBank,
+                    orderStatus: pd.statusText,
                     failReason: failReason
                 });
             });

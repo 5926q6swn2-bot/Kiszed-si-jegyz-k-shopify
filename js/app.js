@@ -12,6 +12,7 @@ import { initManualOrderController } from './controllers/manualOrderController.j
 import { renderStatistics } from './views/stats.js';
 import { ExporterService } from './services/exporter.js';
 import { AuditView } from './views/auditView.js';
+import { getPaymentDetails, getRunPaymentTotals } from './utils/paymentUtils.js';
 
 import { generatePdfHtml, openPdfView, generateDeliveryNotesHtml } from './utils/printTemplates.js';
 function initApp() {
@@ -1202,34 +1203,29 @@ function initApp() {
                     const bankTransferred = run.bankTransferredOrderIds || [];
                     const paymentMethods = run.paymentMethods || {};
                     const hasSettled = (run.settledAmount || 0) > 0 || run.isSettled;
+                    const isTransferSettled = run.isTransferSettled === true;
                     
                     run.orders.forEach(o => {
                         if (o.isCOD) {
                             if (uncollected.includes(o.id) || bankTransferred.includes(o.id)) {
                                 map[o.id] = 'received';
-                            } else if (!hasSettled) {
-                                map[o.id] = 'pending';
                             } else {
                                 const method = paymentMethods[o.id] || 'cash';
-                                if (method === 'card') {
-                                    const isTransferSettled = run.isTransferSettled !== false;
+                                if (typeof method === 'object' && method !== null) {
+                                    const statusObj = {};
+                                    if (method.cash > 0) statusObj.cash = hasSettled ? 'received' : 'pending';
+                                    if (method.card > 0) statusObj.card = isTransferSettled ? 'received' : 'pending';
+                                    if (method.bank > 0) statusObj.bank = isTransferSettled ? 'received' : 'pending';
+                                    map[o.id] = statusObj;
+                                } else if (method === 'card' || method === 'bank') {
                                     map[o.id] = isTransferSettled ? 'received' : 'pending';
                                 } else {
-                                    map[o.id] = 'received';
+                                    map[o.id] = hasSettled ? 'received' : 'pending';
                                 }
                             }
                         }
                     });
                     run.paymentStatusMap = map;
-                    
-                    const hasPending = run.orders.some(o => {
-                        if (!o.isCOD || uncollected.includes(o.id)) return false;
-                        const status = map[o.id];
-                        return typeof status === 'object' && status !== null ? Object.values(status).includes('pending') : status === 'pending';
-                    });
-                    if (!hasPending && hasSettled) {
-                        run.isSettled = true;
-                    }
                 }
             });
 
@@ -1238,14 +1234,8 @@ function initApp() {
             
             if (onlyPending) {
                 filteredRuns = filteredRuns.filter(r => {
-                    const uncollected = r.uncollectedOrderIds || [];
-                    const paymentStatusMap = r.paymentStatusMap || {};
-                    const hasPending = r.orders.some(o => {
-                        if (!o.isCOD || uncollected.includes(o.id)) return false;
-                        const status = paymentStatusMap[o.id];
-                        return typeof status === 'object' && status !== null ? Object.values(status).includes('pending') : status === 'pending';
-                    });
-                    return !r.isSettled || hasPending;
+                    const totals = getRunPaymentTotals(r);
+                    return totals.hasPending || !totals.isFullySettled;
                 });
             }
             
@@ -1279,29 +1269,65 @@ function initApp() {
         return true;
     }
 
+    function parseDate(dateStr) {
+        if (!dateStr) return null;
+        let clean = String(dateStr).trim().replace(/\./g, '-').replace(/\s+/g, '');
+        if (clean.endsWith('-')) clean = clean.slice(0, -1);
+        const d = new Date(clean);
+        return isNaN(d.getTime()) ? null : d;
+    }
+
     function isFiltered(run, isTrash = false) {
-        // 1. Dátum szűrés — mindig az eredeti kiszállítási dátum alapján
+        // 1. Dátum szűrés — a kiszállítási dátum (run.date) alapján
         const startD = isTrash ? trashDateStart.value : historyDateStart.value;
         const endD = isTrash ? trashDateEnd.value : historyDateEnd.value;
-        const filterDate = run.originalDate || run.date;
-        const runD = new Date(filterDate);
-        runD.setHours(12, 0, 0, 0);
         
-        if (startD) {
-            const s = new Date(startD);
-            s.setHours(0, 0, 0, 0);
-            if (runD < s) return false;
-        }
-        if (endD) {
-            const e = new Date(endD);
-            e.setHours(23, 59, 59, 999);
-            if (runD > e) return false;
+        const filterDateStr = run.date || run.originalDate;
+        const runD = parseDate(filterDateStr);
+        if (runD) {
+            runD.setHours(12, 0, 0, 0);
+            
+            if (startD) {
+                const s = parseDate(startD);
+                if (s) {
+                    s.setHours(0, 0, 0, 0);
+                    if (runD < s) return false;
+                }
+            }
+            if (endD) {
+                const e = parseDate(endD);
+                if (e) {
+                    e.setHours(23, 59, 59, 999);
+                    if (runD > e) return false;
+                }
+            }
         }
 
-        // 2. Cég szűrés
+        // 2. Cég szűrés (case-insensitive & trimmed)
         const companyFilter = isTrash ? trashCompanyFilter.value : historyCompanyFilter.value;
-        if (companyFilter && run.company !== companyFilter) {
-            return false;
+        if (companyFilter) {
+            const runComp = (run.company || '').trim().toLowerCase();
+            const filterComp = companyFilter.trim().toLowerCase();
+            if (runComp !== filterComp) {
+                return false;
+            }
+        }
+
+        // 3. Kereső mező szűrés (pl: #3078, Vevő neve, Cím stb.)
+        const searchQ = (historySearchInput ? historySearchInput.value : '').trim().toLowerCase();
+        if (searchQ && !isTrash) {
+            const courierMatch = (run.courier || '').toLowerCase().includes(searchQ);
+            const companyMatch = (run.company || '').toLowerCase().includes(searchQ);
+            const orderMatch = (run.orders || []).some(o => {
+                const idMatch = (o.id || '').toLowerCase().includes(searchQ);
+                const nameMatch = (o.shippingName || '').toLowerCase().includes(searchQ);
+                const phoneMatch = (o.shippingPhone || '').includes(searchQ);
+                const itemsMatch = (o.items || []).some(it => (it.name || '').toLowerCase().includes(searchQ));
+                return idMatch || nameMatch || phoneMatch || itemsMatch;
+            });
+            if (!courierMatch && !companyMatch && !orderMatch) {
+                return false;
+            }
         }
 
         return true;
@@ -1312,6 +1338,8 @@ function initApp() {
             await renderHistoryRuns();
         } else if (tabContentOrders.style.display !== 'none') {
             await renderOrdersTab();
+        } else if (tabContentAccounting && tabContentAccounting.style.display !== 'none') {
+            await renderAccountingRuns();
         } else if (tabContentAudit && tabContentAudit.style.display !== 'none') {
             await AuditView.updateAudit();
         }
@@ -1428,6 +1456,33 @@ function initApp() {
         handleHistorySearch,
         historySearchInput
     });
+
+    window.auditAllPayments = async function() {
+        const runs = await HistoryManager.getAllRuns();
+        const list = [];
+        runs.forEach(run => {
+            (run.orders || []).forEach(o => {
+                const pd = getPaymentDetails(run, o);
+                if (pd.pendingCard > 0 || pd.pendingBank > 0 || pd.receivedCard > 0 || pd.receivedBank > 0 || (run.paymentMethods && run.paymentMethods[o.id])) {
+                    list.push({
+                        runDate: run.date,
+                        company: run.company || '-',
+                        courier: run.courier || '-',
+                        orderId: o.id,
+                        customer: o.shippingName,
+                        codAmount: o.codAmount,
+                        methodText: pd.methodText,
+                        statusText: pd.statusText,
+                        pendingCard: pd.pendingCard,
+                        pendingKp: pd.pendingKp,
+                        isTransferSettled: run.isTransferSettled === true
+                    });
+                }
+            });
+        });
+        console.table(list);
+        return list;
+    };
 
 }
 

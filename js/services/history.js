@@ -1,4 +1,5 @@
 import { db, auth, collection, query, orderBy, getDocs, addDoc, getDoc, setDoc, deleteDoc, updateDoc, doc, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from '../firebase-config.js';
+import { getPaymentDetails } from '../utils/paymentUtils.js';
 
 export const HistoryManager = {
         COLLECTION_NAME: 'szedolista_history',
@@ -178,29 +179,25 @@ export const HistoryManager = {
             try {
                 const docRef = doc(db, this.COLLECTION_NAME, docId);
                 const docSnap = await getDoc(docRef);
-                let isSettled = false;
+                
+                const tempRun = {
+                    uncollectedOrderIds,
+                    bankTransferredOrderIds,
+                    partialOrders,
+                    paymentMethods,
+                    paymentStatusMap
+                };
+
+                let hasPendingCOD = false;
                 if (docSnap.exists()) {
                     const runData = docSnap.data();
                     const ordersList = runData.orders || [];
-                    
-                    let hasPendingCOD = false;
-                    ordersList.forEach(o => {
-                        if (o.isCOD && !uncollectedOrderIds.includes(o.id)) {
-                            const status = paymentStatusMap[o.id] || 'received';
-                            if (typeof status === 'object' && status !== null) {
-                                if (Object.values(status).includes('pending')) {
-                                    hasPendingCOD = true;
-                                }
-                            } else if (status === 'pending') {
-                                hasPendingCOD = true;
-                            }
-                        }
-                    });
-                    
-                    isSettled = !hasPendingCOD;
+                    hasPendingCOD = ordersList.some(o => getPaymentDetails(tempRun, o).isPending);
                 } else {
-                    isSettled = settledAmount >= totalCOD;
+                    hasPendingCOD = settledAmount < totalCOD;
                 }
+
+                const isSettled = !hasPendingCOD;
 
                 const updateData = {
                     isSettled: isSettled,
@@ -217,22 +214,6 @@ export const HistoryManager = {
                 if (settledKpAmount !== null) updateData.settledKpAmount = settledKpAmount;
                 if (settledCardAmount !== null) updateData.settledCardAmount = settledCardAmount;
                 if (paymentMethods) updateData.paymentMethods = paymentMethods;
-                
-                let allTransferSettled = true;
-                Object.keys(paymentStatusMap).forEach(orderId => {
-                    const status = paymentStatusMap[orderId];
-                    const method = paymentMethods[orderId];
-                    if (typeof status === 'object' && status !== null) {
-                        if (status.card === 'pending') {
-                            allTransferSettled = false;
-                        }
-                    } else {
-                        if (method === 'card' && status === 'pending') {
-                            allTransferSettled = false;
-                        }
-                    }
-                });
-                updateData.isTransferSettled = allTransferSettled;
 
                 await updateDoc(docRef, updateData);
                 return true;
@@ -280,39 +261,21 @@ export const HistoryManager = {
                     }
                 });
                 
-                let hasPendingCOD = false;
-                ordersList.forEach(o => {
-                    if (o.isCOD && !uncollectedOrderIds.includes(o.id)) {
-                        const status = paymentStatusMap[o.id] || 'received';
-                        if (typeof status === 'object' && status !== null) {
-                            if (Object.values(status).includes('pending')) {
-                                hasPendingCOD = true;
-                            }
-                        } else if (status === 'pending') {
-                            hasPendingCOD = true;
-                        }
-                    }
-                });
-                
+                const tempRun = {
+                    ...runData,
+                    paymentStatusMap
+                };
+
+                const hasPendingCOD = ordersList.some(o => getPaymentDetails(tempRun, o).isPending);
                 const isSettled = !hasPendingCOD;
                 const updateData = {
                     paymentStatusMap: paymentStatusMap,
                     isSettled: isSettled
                 };
                 
-                let allTransferSettled = true;
-                Object.keys(paymentStatusMap).forEach(orderId => {
-                    const status = paymentStatusMap[orderId];
-                    const method = paymentMethods[orderId];
-                    if (typeof status === 'object' && status !== null) {
-                        if (status.card === 'pending') {
-                            allTransferSettled = false;
-                        }
-                    } else {
-                        if (method === 'card' && status === 'pending') {
-                            allTransferSettled = false;
-                        }
-                    }
+                const allTransferSettled = !ordersList.some(o => {
+                    const pd = getPaymentDetails(tempRun, o);
+                    return pd.pendingCard > 0 || pd.pendingBank > 0;
                 });
                 updateData.isTransferSettled = allTransferSettled;
                 

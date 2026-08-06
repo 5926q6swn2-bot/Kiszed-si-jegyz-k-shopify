@@ -5,6 +5,7 @@
 
 import { HistoryManager } from '../../services/history.js';
 import { showSettlementDialog } from './historyAccounting.js';
+import { getPaymentDetails } from '../../utils/paymentUtils.js';
 
 export async function renderOrdersTab(ctx) {
     const { 
@@ -78,72 +79,38 @@ export async function renderOrdersTab(ctx) {
         el.style.borderLeft = m.isReturn ? '4px solid #a855f7' : '4px solid #3b82f6';
 
         const itemsSummary = m.items.map(it => `${it.qty}× ${it.name}`).join(', ');
+        const pd = getPaymentDetails(m.runData, m);
 
         let accountingBadgeHtml = '';
-        const uncollected = m.runData?.uncollectedOrderIds || [];
-        const isUncollected = uncollected.some(id => String(id) === String(m.id));
 
         if (m.isCOD) {
             let badgeText = 'Függőben';
             let badgeColor = '#f59e0b';
             let badgeBg = '#fef3c7';
 
-            let dynamicIsSettled = false;
-            let splitReceivedCount = 0;
-            let splitPendingCount = 0;
-            const hasStatusMap = m.runData && m.runData.paymentStatusMap && Object.keys(m.runData.paymentStatusMap).length > 0;
-            if (hasStatusMap) {
-                const orderStatus = m.runData.paymentStatusMap[m.id] || m.runData.paymentStatusMap[String(m.id)] || 'received';
-                if (typeof orderStatus === 'object' && orderStatus !== null) {
-                    const vals = Object.values(orderStatus);
-                    splitReceivedCount = vals.filter(v => v === 'received').length;
-                    splitPendingCount = vals.filter(v => v === 'pending').length;
-                    dynamicIsSettled = !vals.includes('pending');
-                } else {
-                    dynamicIsSettled = (orderStatus === 'received');
-                }
-            } else {
-                let dynamicIsSettledOld = m.runData && m.runData.isSettled;
-                if (m.runData && !dynamicIsSettledOld && typeof m.runData.settledAmount !== 'undefined') {
-                    let bankTransferredSum = 0;
-                    let uncollectedSum = 0;
-                    let partialDiffs = 0;
-                    (m.runData.orders || []).forEach(o => {
-                        if (o.isCOD) {
-                            if (m.runData.bankTransferredOrderIds && m.runData.bankTransferredOrderIds.some(id => String(id) === String(o.id))) {
-                                bankTransferredSum += o.codAmount;
-                            } else if (m.runData.uncollectedOrderIds && m.runData.uncollectedOrderIds.some(id => String(id) === String(o.id))) {
-                                uncollectedSum += o.codAmount;
-                            } else if (m.runData.partialOrders && (m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)])) {
-                                const partialVal = m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)];
-                                partialDiffs += (o.codAmount - (partialVal.amount || 0));
-                            }
-                        }
-                    });
-                    const expectedAmount = (m.runData.totalCOD || 0) - bankTransferredSum - uncollectedSum - partialDiffs;
-                    dynamicIsSettled = m.runData.settledAmount >= expectedAmount;
-                } else {
-                    dynamicIsSettled = dynamicIsSettledOld;
-                }
-            }
-
-            if (m.runData && m.runData.bankTransferredOrderIds && m.runData.bankTransferredOrderIds.some(id => String(id) === String(m.id))) {
+            if (pd.isBankTransferred) {
                 badgeText = 'Elutalva';
                 badgeColor = '#3b82f6';
                 badgeBg = '#dbeafe';
-            } else if (isUncollected) {
+            } else if (pd.isUncollected) {
                 badgeText = 'Nincs beszedve';
                 badgeColor = '#ef4444';
                 badgeBg = '#fee2e2';
-            } else if (m.runData && m.runData.partialOrders && (m.runData.partialOrders[m.id] || m.runData.partialOrders[String(m.id)])) {
-                badgeText = 'Részleges';
+            } else if (pd.isPartial) {
+                badgeText = pd.isPending ? 'Részleges (Függő)' : 'Részleges';
                 badgeColor = '#f97316';
                 badgeBg = '#ffedd5';
-            } else if (!dynamicIsSettled && splitReceivedCount > 0) {
-                badgeText = 'Részben nálunk';
-                badgeColor = '#d97706';
-                badgeBg = '#fef3c7';
-            } else if (dynamicIsSettled) {
+            } else if (pd.isPending) {
+                if (pd.pendingCard > 0) {
+                    badgeText = 'Utalásra vár';
+                    badgeColor = '#2563eb';
+                    badgeBg = '#eff6ff';
+                } else {
+                    badgeText = 'Függő KP';
+                    badgeColor = '#f59e0b';
+                    badgeBg = '#fef3c7';
+                }
+            } else if (pd.isSettled) {
                 badgeText = 'Elszámolva';
                 badgeColor = '#10b981';
                 badgeBg = '#d1fae5';
@@ -151,13 +118,13 @@ export async function renderOrdersTab(ctx) {
 
             accountingBadgeHtml = `<span style="font-size: 10px; background: ${badgeBg}; color: ${badgeColor}; padding: 1px 6px; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px;"><i class="ph-bold ph-currency-circle-dollar" style="font-size: 11px;"></i> ${badgeText}</span>`;
         } else if (m.isReturn) {
-            const badgeText = isUncollected ? 'Meghiúsult visszahozatal' : 'Visszahozva';
-            const badgeColor = isUncollected ? '#ef4444' : '#6b21a8';
-            const badgeBg = isUncollected ? '#fee2e2' : '#f5f3ff';
-            const iconClass = isUncollected ? 'ph-x-circle' : 'ph-arrow-counter-clockwise';
+            const badgeText = pd.isUncollected ? 'Meghiúsult visszahozatal' : 'Visszahozva';
+            const badgeColor = pd.isUncollected ? '#ef4444' : '#6b21a8';
+            const badgeBg = pd.isUncollected ? '#fee2e2' : '#f5f3ff';
+            const iconClass = pd.isUncollected ? 'ph-x-circle' : 'ph-arrow-counter-clockwise';
             accountingBadgeHtml = `<span style="font-size: 10px; background: ${badgeBg}; color: ${badgeColor}; padding: 1px 6px; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px;"><i class="ph-bold ${iconClass}" style="font-size: 11px;"></i> ${badgeText}</span>`;
         } else {
-            if (isUncollected) {
+            if (pd.isUncollected) {
                 accountingBadgeHtml = `<span style="font-size: 10px; background: #fee2e2; color: #ef4444; padding: 1px 6px; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px;"><i class="ph-bold ph-x-circle" style="font-size: 11px;"></i> Nem átadva</span>`;
             } else {
                 accountingBadgeHtml = `<span style="font-size: 10px; background: #f1f5f9; color: #64748b; padding: 1px 6px; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px;"><i class="ph-bold ph-prohibit" style="font-size: 11px;"></i> Nincs UV</span>`;
@@ -165,7 +132,7 @@ export async function renderOrdersTab(ctx) {
         }
 
         let failureInfoHtml = '';
-        if (isUncollected && m.runData) {
+        if (pd.isUncollected && m.runData) {
             const reasons = m.runData.uncollectedReasons || {};
             const responsibilities = m.runData.uncollectedResponsibility || {};
             const rawId = String(m.id);
@@ -285,66 +252,50 @@ export function renderSearchResults(ctx, matches) {
         
         const itemsSummary = m.items.map(it => `${it.qty}× ${it.name}`).join(', ');
         
-        let accountingBadgeHtml = '';
-        const uncollected = m.runData?.uncollectedOrderIds || [];
-        const isUncollected = uncollected.some(id => String(id) === String(m.id));
+        const pd = getPaymentDetails(m.runData, m);
         
         if (m.isCOD) {
             let badgeText = 'Függőben lévő elszámolás';
             let badgeColor = '#f59e0b';
             let badgeBg = '#fef3c7';
 
-            let dynamicIsSettled = false;
-            const hasStatusMap = m.runData && m.runData.paymentStatusMap && Object.keys(m.runData.paymentStatusMap).length > 0;
-            if (hasStatusMap) {
-                const orderStatus = m.runData.paymentStatusMap[m.id] || m.runData.paymentStatusMap[String(m.id)] || 'received';
-                dynamicIsSettled = (orderStatus === 'received');
-            } else {
-                let dynamicIsSettledOld = m.runData && m.runData.isSettled;
-                if (m.runData && !dynamicIsSettledOld && typeof m.runData.settledAmount !== 'undefined') {
-                    let bankTransferredSum = 0;
-                    let uncollectedSum = 0;
-                    let partialDiffs = 0;
-                    (m.runData.orders || []).forEach(o => {
-                        if (o.isCOD) {
-                            if (m.runData.bankTransferredOrderIds && m.runData.bankTransferredOrderIds.some(id => String(id) === String(o.id))) {
-                                bankTransferredSum += o.codAmount;
-                            } else if (m.runData.uncollectedOrderIds && m.runData.uncollectedOrderIds.some(id => String(id) === String(o.id))) {
-                                uncollectedSum += o.codAmount;
-                            } else if (m.runData.partialOrders && (m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)])) {
-                                const partialVal = m.runData.partialOrders[o.id] || m.runData.partialOrders[String(o.id)];
-                                partialDiffs += (o.codAmount - (partialVal.amount || 0));
-                            }
-                        }
-                    });
-                    const expectedAmount = (m.runData.totalCOD || 0) - bankTransferredSum - uncollectedSum - partialDiffs;
-                    dynamicIsSettled = m.runData.settledAmount >= expectedAmount;
-                } else {
-                    dynamicIsSettled = dynamicIsSettledOld;
-                }
-            }
-
-            if (m.runData && m.runData.bankTransferredOrderIds && m.runData.bankTransferredOrderIds.some(id => String(id) === String(m.id))) {
+            if (pd.isBankTransferred) {
                 badgeText = 'Utólag elutalva';
                 badgeColor = '#3b82f6';
                 badgeBg = '#dbeafe';
-            } else if (isUncollected) {
+            } else if (pd.isUncollected) {
                 badgeText = 'Nincs beszedve';
                 badgeColor = '#ef4444';
                 badgeBg = '#fee2e2';
-            } else if (m.runData && m.runData.partialOrders && (m.runData.partialOrders[m.id] || m.runData.partialOrders[String(m.id)])) {
-                badgeText = 'Részlegesen beszedve';
+            } else if (pd.isPartial) {
+                badgeText = pd.isPending ? 'Részlegesen beszedve (Függő)' : 'Részlegesen beszedve';
                 badgeColor = '#f97316';
                 badgeBg = '#ffedd5';
-            } else if (dynamicIsSettled) {
-                badgeText = 'Készpénzben elszámolva';
+            } else if (pd.isPending) {
+                if (pd.pendingCard > 0) {
+                    badgeText = 'Kártyás utalásra vár';
+                    badgeColor = '#2563eb';
+                    badgeBg = '#eff6ff';
+                } else {
+                    badgeText = 'Függő készpénz';
+                    badgeColor = '#f59e0b';
+                    badgeBg = '#fef3c7';
+                }
+            } else if (pd.isSettled) {
+                badgeText = 'Készpénzben / Kártyán elszámolva';
                 badgeColor = '#10b981';
                 badgeBg = '#d1fae5';
             }
 
             accountingBadgeHtml = `<span style="font-size: 11px; background: ${badgeBg}; color: ${badgeColor}; padding: 2px 8px; border-radius: 4px; font-weight: 700; margin-left: 5px; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ph-currency-circle-dollar" style="font-size: 13px;"></i> ${badgeText}</span>`;
+        } else if (m.isReturn) {
+            const badgeText = pd.isUncollected ? 'Meghiúsult visszahozatal' : 'Visszahozva';
+            const badgeColor = pd.isUncollected ? '#ef4444' : '#6b21a8';
+            const badgeBg = pd.isUncollected ? '#fee2e2' : '#f5f3ff';
+            const iconClass = pd.isUncollected ? 'ph-x-circle' : 'ph-arrow-counter-clockwise';
+            accountingBadgeHtml = `<span style="font-size: 11px; background: ${badgeBg}; color: ${badgeColor}; padding: 2px 8px; border-radius: 4px; font-weight: 700; margin-left: 5px; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ${iconClass}" style="font-size: 13px;"></i> ${badgeText}</span>`;
         } else {
-            if (isUncollected) {
+            if (pd.isUncollected) {
                 accountingBadgeHtml = `<span style="font-size: 11px; background: #fee2e2; color: #ef4444; padding: 2px 8px; border-radius: 4px; font-weight: 700; margin-left: 5px; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ph-x-circle" style="font-size: 13px;"></i> Nem lett átadva</span>`;
             } else {
                 accountingBadgeHtml = `<span style="font-size: 11px; background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 4px; font-weight: 700; margin-left: 5px; display: flex; align-items: center; gap: 4px;"><i class="ph-bold ph-prohibit" style="font-size: 13px;"></i> Nincs utánvét</span>`;
@@ -352,7 +303,7 @@ export function renderSearchResults(ctx, matches) {
         }
         
         let failureInfoHtml = '';
-        if (isUncollected && m.runData) {
+        if (pd.isUncollected && m.runData) {
             const reasons = m.runData.uncollectedReasons || {};
             const responsibilities = m.runData.uncollectedResponsibility || {};
             const rawId = String(m.id);
