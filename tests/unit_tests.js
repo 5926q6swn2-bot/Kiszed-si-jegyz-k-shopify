@@ -147,6 +147,126 @@ assertEqual("legacyRun #3010 - forced pendingCard", pdLegacy.pendingCard, 25000)
 assertEqual("legacyRun #3010 - forced isPending", pdLegacy.isPending, true);
 assertEqual("legacyRun #3010 - statusText", pdLegacy.statusText, "Kártyás utalásra vár");
 
+// 7. Csomagolási Algoritmus Unit Tesztek (Család-alapú összevonás & Ragasztó korlátok)
+function testCalcPackages(categories, items) {
+    const qtyMap = {};
+    categories.forEach(c => qtyMap[c.id] = 0);
+    let otherQty = 0;
+    
+    items.forEach(item => {
+        const name = item.name.toLowerCase();
+        let matchedCat = categories.find(c => name.includes(c.keyword || c.id));
+        if (matchedCat) {
+            qtyMap[matchedCat.id] += item.qty;
+        } else {
+            otherQty += item.qty;
+        }
+    });
+
+    const packagesDetail = [];
+    const groups = {};
+    categories.forEach(cat => {
+        if (cat.type === 'adhesive') return;
+        const groupKey = cat.packagingGroup || cat.id;
+        if (!groups[groupKey]) groups[groupKey] = [];
+        groups[groupKey].push(cat);
+    });
+
+    for (const groupKey in groups) {
+        const groupCats = groups[groupKey];
+        const activeGroupCats = groupCats.filter(cat => (qtyMap[cat.id] || 0) > 0);
+        if (activeGroupCats.length === 0) continue;
+
+        const totalGroupQty = activeGroupCats.reduce((sum, cat) => sum + qtyMap[cat.id], 0);
+        const maxPerPkg = Math.max(...activeGroupCats.map(cat => cat.maxQty || 5));
+        const pkgsCount = Math.ceil(totalGroupQty / maxPerPkg);
+
+        let totalGroupWeight = 0;
+        activeGroupCats.forEach(cat => {
+            const q = qtyMap[cat.id];
+            if (cat.type === 'cards') {
+                const r = cat.rules || {};
+                const ruleW = r[q] ? r[q].weight : (q * (r[1] ? r[1].weight : 6.5));
+                totalGroupWeight += ruleW;
+            }
+        });
+
+        for (let i = 0; i < pkgsCount; i++) {
+            packagesDetail.push({
+                suly: parseFloat((totalGroupWeight / pkgsCount).toFixed(2)),
+                description: "Panelburkolatok és kiegészítők"
+            });
+        }
+    }
+
+    const hasPanelWithGlueAllowed = categories.some(cat => {
+        const qty = qtyMap[cat.id] || 0;
+        if (qty === 0) return false;
+        if (cat.type === 'adhesive') return false;
+        return cat.allowAdhesiveInside === true;
+    });
+
+    const adhesiveCat = categories.find(c => c.type === 'adhesive') || { maxQty: 15, itemWeight: 0.5, boxWeight: 0.8 };
+    const adhesiveQty = qtyMap['cat_adhesive'] || 0;
+    const shouldGlueBeSeparate = !hasPanelWithGlueAllowed || adhesiveQty >= 7;
+
+    if (!shouldGlueBeSeparate && packagesDetail.length > 0) {
+        // Absorbed in panel box
+    } else if (adhesiveQty > 0) {
+        const maxPerPkg = adhesiveCat.maxQty || 15;
+        const pkgsCount = Math.ceil(adhesiveQty / maxPerPkg);
+        for (let i = 0; i < pkgsCount; i++) {
+            packagesDetail.push({
+                suly: parseFloat((adhesiveCat.boxWeight + (adhesiveQty / pkgsCount) * adhesiveCat.itemWeight).toFixed(2)),
+                description: "Panelburkolatok és kiegészítők"
+            });
+        }
+    }
+
+    const totalWeight = packagesDetail.reduce((sum, p) => sum + p.suly, 0);
+    return { packages: packagesDetail.length, weight: parseFloat(totalWeight.toFixed(2)) };
+}
+
+const testCats = [
+    { id: 'cat_acoustic', type: 'cards', keyword: 'sima akusztikus', maxQty: 5, allowAdhesiveInside: true, packagingGroup: 'acoustic_family', rules: { 2: { weight: 13 } } },
+    { id: 'cat_wide_acoustic', type: 'cards', keyword: 'wide akusztikus', maxQty: 5, allowAdhesiveInside: true, packagingGroup: 'acoustic_family', rules: { 2: { weight: 18 } } },
+    { id: 'cat_spcwood', type: 'cards', keyword: 'spc wood', maxQty: 8, allowAdhesiveInside: false, packagingGroup: 'spc_family', rules: { 2: { weight: 36 } } },
+    { id: 'cat_adhesive', type: 'adhesive', keyword: 'ragasztó', maxQty: 15, allowAdhesiveInside: false, itemWeight: 0.5, boxWeight: 0.8 }
+];
+
+// Test 1: Vegyes akupanel (2 sima + 2 wide + 1 ragasztó) -> 1 csomag (31kg)
+const calcMixed = testCalcPackages(testCats, [
+    { name: '2db sima akusztikus', qty: 2 },
+    { name: '2db wide akusztikus', qty: 2 },
+    { name: '1db ragasztó', qty: 1 }
+]);
+assertEqual("Mixed Akupanels - package count", calcMixed.packages, 1);
+assertEqual("Mixed Akupanels - total weight", calcMixed.weight, 31);
+
+// Test 2: SPC Padló + 1 ragasztó -> 2 csomag (SPC + külön ragasztó 1.3kg)
+const calcSpc = testCalcPackages(testCats, [
+    { name: '2db spc wood padló', qty: 2 },
+    { name: '1db ragasztó', qty: 1 }
+]);
+assertEqual("SPC Padló + Glue - package count", calcSpc.packages, 2);
+assertEqual("SPC Padló + Glue - total weight", calcSpc.weight, 37.3);
+
+// Test 3: Akupanel + 8 db ragasztó -> 2 csomag (7-15 db külön doboz)
+const calcGlue8 = testCalcPackages(testCats, [
+    { name: '2db sima akusztikus', qty: 2 },
+    { name: '8db ragasztó', qty: 8 }
+]);
+assertEqual("Akupanel + 8 Glues - package count", calcGlue8.packages, 2);
+assertEqual("Akupanel + 8 Glues - total weight", calcGlue8.weight, 17.8);
+
+// Test 4: Akupanel + 16 db ragasztó -> 3 csomag (16+ db 2 külön doboz)
+const calcGlue16 = testCalcPackages(testCats, [
+    { name: '2db sima akusztikus', qty: 2 },
+    { name: '16db ragasztó', qty: 16 }
+]);
+assertEqual("Akupanel + 16 Glues - package count", calcGlue16.packages, 3);
+assertEqual("Akupanel + 16 Glues - total weight", calcGlue16.weight, 22.6);
+
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 
 if (failed > 0) {

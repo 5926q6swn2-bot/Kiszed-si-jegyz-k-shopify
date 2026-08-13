@@ -38,7 +38,23 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
-### 2026. augusztus 6. - Új Terítések Neutrális Státusza (Elszámolásra vár) & Repó Szinkronizáció (`v3.2.2`)
+### 2026. augusztus 13. - Rendszerszintű Csomagolási Architektúra & Vegyes Panelek Kombinálása (`v3.3.0`)
+- **💡 1. Ragasztó-elnyelés Explicit Szabály (`allowAdhesiveInside`)**:
+  - Megszüntettük a merev kategóriafüggést. Minden kategória kapott egy explicit `allowAdhesiveInside` tulajdonságot, amely a **Beállítások -> Termék & Csomagolási Szabályok** fülön felületen is ki-be pipálható (`[x] Ragasztó / segédanyag bepakolható a dobozba (<7 db esetén)`).
+  - **Akusztikus panelek (`cat_acoustic`, `cat_wide_acoustic`)**: `allowAdhesiveInside: true` (1-6 db ragasztó automatikusan bekerül a panel dobozába extra csomag nyitása nélkül).
+  - **SPC padlók (`cat_spcwood`, `cat_spcstone`)**: `allowAdhesiveInside: false` (A ragasztó nem kerül az SPC dobozba, mindenképp külön 2. dobozt kap).
+- **💡 2. Ragasztó Kapacitási és Dobozolási Szabályok (`cat_adhesive`)**:
+  - Egy különálló ragasztó doboz kapacitása **15 db** flakonig terjed (`maxQty: 15`).
+  - **1-6 db ragasztó**: Akupanel esetén elnyelve a panel dobozban. SPC esetén 1 külön doboz (1.3 kg).
+  - **7-15 db ragasztó**: Akupanel és SPC esetén is 1 külön dobozba kerül.
+  - **16-30 db ragasztó**: Akupanel és SPC esetén is 2 külön dobozba kerül.
+- **💡 3. Vegyes Panelek Összevont Csomagolása (`packagingGroup`)**:
+  - Bevezettük a `packagingGroup` mezőt (pl. `acoustic_family`). Amennyiben a vásárló többféle akusztikus panelt rendel (pl. 2 db Sima Akusztikus + 2 db Wide Akusztikus), a rendszer az azonos családba tartozó tételeket összeadja (4 db panel).
+  - **Csomagszám**: Mivel a 4 db panel belefér az 5 db-os maximális dobozkapacitásba, a rendszer **1 közös dobozba** sorolja őket 2 külön csomag helyett.
+  - **Méret**: A csomag méretét a családban lévő legszélesebb/legnagyobb panel (Wide panel) méretkártyájából veszi át.
+  - **Összsúly**: A csomag súlya a benne lévő egyedi tételek pontos összsúlya (pl. 2×6.5 kg + 2×9.0 kg = 31,0 kg).
+- **Automata Unit Tesztek**: 32/32 sikeres teszt (`node tests/unit_tests.js`).
+
 - **💡 1. TANULSÁG (Üzleti / Elszámolási Szabály)**:
   - **Probléma**: Amikor a raktárban létrejött egy új terítés (pl. *Bábel Ádám* fuvar), az a futár lebuktatása/elszámolása előtt automatikusan sárga *Függő KP* státuszt és *KP megjött* gombot kapott. Ez téves volt, mert a sofőrnél lévő utánvétes fizetésekről még nem lehet tudni, hogy KP-s vagy Kártyás lesz-e.
   - **Szabály**: Egy terítés **KIZÁRÓLAG akkor számít elszámoltnak/lebuktatottnak**, ha az elszámolási ablakban explicit megerősítették (`run.isSettled === true` vagy `typeof run.settledAt !== 'undefined'`). SOHA nem szabad feltételezni vagy megelőlegezni a KP fizetési módot a lebuktatás előtt.

@@ -538,10 +538,16 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
                         if (nameInput) cat.name = nameInput.value.trim();
                         
                         const maxQtyInput = tabContainer.querySelector(`.cat-input-maxqty[data-cat-id="${cat.id}"]`);
-                        if (maxQtyInput) cat.maxQty = parseInt(maxQtyInput.value) || (cat.type === 'cards' ? 5 : cat.type === 'adhesive' ? 12 : 50);
+                        if (maxQtyInput) cat.maxQty = parseInt(maxQtyInput.value) || (cat.type === 'cards' ? 5 : cat.type === 'adhesive' ? 15 : 50);
                         
                         const lengthInput = tabContainer.querySelector(`.cat-input-maxlength[data-cat-id="${cat.id}"]`);
                         if (lengthInput) cat.maxLength = parseInt(lengthInput.value) || (cat.type === 'adhesive' ? 30 : 278);
+                        
+                        const groupInput = tabContainer.querySelector(`.cat-input-group[data-cat-id="${cat.id}"]`);
+                        if (groupInput) cat.packagingGroup = groupInput.value.trim();
+                        
+                        const glueChk = tabContainer.querySelector(`.cat-input-allow-glue[data-cat-id="${cat.id}"]`);
+                        if (glueChk) cat.allowAdhesiveInside = glueChk.checked;
                         
                         if (cat.type === 'cards') {
                             const oldRules = cat.rules || {};
@@ -650,15 +656,26 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
                         </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 12px; margin-bottom: 8px;">
                         <div class="form-group" style="margin-bottom:0;">
                             <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Max db egy csomagban</label>
-                            <input type="number" class="cat-input-maxqty" data-cat-id="${cat.id}" value="${cat.maxQty || (cat.type === 'cards' ? 5 : cat.type === 'adhesive' ? 12 : 50)}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            <input type="number" class="cat-input-maxqty" data-cat-id="${cat.id}" value="${cat.maxQty || (cat.type === 'cards' ? 5 : cat.type === 'adhesive' ? 15 : 50)}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
                         </div>
                         <div class="form-group" style="margin-bottom:0;">
                             <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Hossz (cm)</label>
                             <input type="number" class="cat-input-maxlength" data-cat-id="${cat.id}" value="${cat.maxLength || (cat.type === 'adhesive' ? 30 : 278)}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
                         </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Csomagolási Család ID</label>
+                            <input type="text" class="cat-input-group" data-cat-id="${cat.id}" value="${cat.packagingGroup || ''}" placeholder="pl. acoustic_family" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" class="cat-input-allow-glue" data-cat-id="${cat.id}" id="chk-glue-${cat.id}" ${cat.allowAdhesiveInside !== false ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer;">
+                        <label for="chk-glue-${cat.id}" style="font-size: 12px; font-weight: 600; color: #334155; cursor:pointer;">
+                            Ragasztó / segédanyag bepakolható a dobozba (&lt;7 db esetén)
+                        </label>
                     </div>
                     
                     ${cat.type === 'weight' ? `

@@ -463,6 +463,8 @@ export const PannonXPService = {
                 maxLength: 278,
                 maxQty: 5,
                 type: 'cards',
+                allowAdhesiveInside: true,
+                packagingGroup: 'acoustic_family',
                 rules: {
                     1: { weight: 6.5, width: 10, height: 10 },
                     2: { weight: 13, width: 12, height: 15 },
@@ -472,12 +474,31 @@ export const PannonXPService = {
                 }
             },
             {
+                id: 'cat_wide_acoustic',
+                name: 'Wide Akusztikus Panelek',
+                keywords: 'wide + akusztikus, wide + akupanel',
+                maxLength: 278,
+                maxQty: 5,
+                type: 'cards',
+                allowAdhesiveInside: true,
+                packagingGroup: 'acoustic_family',
+                rules: {
+                    1: { weight: 9.0, width: 12, height: 12 },
+                    2: { weight: 18.0, width: 15, height: 18 },
+                    3: { weight: 27.0, width: 18, height: 18 },
+                    4: { weight: 36.0, width: 25, height: 18 },
+                    5: { weight: 45.0, width: 30, height: 22 }
+                }
+            },
+            {
                 id: 'cat_spcwood',
                 name: 'SPC Wood Padlók',
                 keywords: 'wood + spc',
                 maxLength: 122,
                 maxQty: 8,
                 type: 'cards',
+                allowAdhesiveInside: false,
+                packagingGroup: 'spc_family',
                 rules: {
                     1: { weight: 18, width: 20, height: 5 },
                     2: { weight: 36, width: 20, height: 10 },
@@ -496,6 +517,8 @@ export const PannonXPService = {
                 maxLength: 122,
                 maxQty: 8,
                 type: 'cards',
+                allowAdhesiveInside: false,
+                packagingGroup: 'spc_family',
                 rules: {
                     1: { weight: 18, width: 20, height: 5 },
                     2: { weight: 36, width: 20, height: 10 },
@@ -514,6 +537,8 @@ export const PannonXPService = {
                 maxLength: 278,
                 maxQty: 50,
                 type: 'weight',
+                allowAdhesiveInside: false,
+                packagingGroup: 'profile_family',
                 itemWeight: 1.0,
                 boxWeight: 1.0,
                 width: 5,
@@ -524,9 +549,10 @@ export const PannonXPService = {
                 name: 'Ragasztók & Segédanyagok',
                 keywords: 't-rex, trex, hpr, ragasztó, ragaszto',
                 type: 'adhesive',
+                allowAdhesiveInside: false,
                 itemWeight: 0.5,
-                boxWeight: 0.0,
-                maxQty: 12,
+                boxWeight: 0.8,
+                maxQty: 15,
                 maxLength: 30,
                 width: 20,
                 height: 10
@@ -686,13 +712,14 @@ export const PannonXPService = {
             regex: parseKeywordsToRegex(cat.keywords)
         }));
         
-        // Count quantities for each category
+        // Track item details per category
         const qtyMap = {};
+        const catDetailsMap = {};
         categories.forEach(cat => {
             qtyMap[cat.id] = 0;
+            catDetailsMap[cat.id] = { qty: 0, items: [] };
         });
         let otherQty = 0;
-        let adhesiveWeight = 0;
         
         items.forEach(item => {
             const name = item.name.toLowerCase();
@@ -713,9 +740,8 @@ export const PannonXPService = {
                 
                 if (matchedCat) {
                     qtyMap[matchedCat.id] += itemQty;
-                    if (matchedCat.type === 'adhesive') {
-                        adhesiveWeight += itemQty * (matchedCat.itemWeight || 0.5);
-                    }
+                    catDetailsMap[matchedCat.id].qty += itemQty;
+                    catDetailsMap[matchedCat.id].items.push({ name: originalName || itemName, qty: itemQty });
                 } else {
                     otherQty += itemQty;
                 }
@@ -733,87 +759,120 @@ export const PannonXPService = {
         
         const packagesDetail = [];
         
-        // Generate packages for each category (except adhesives which are handled conditionally)
+        // 1. Group categories by packagingGroup
+        const groups = {};
         categories.forEach(cat => {
             if (cat.type === 'adhesive') return;
-            const qty = qtyMap[cat.id] || 0;
-            if (qty === 0) return;
-            
-            if (cat.type === 'cards') {
-                const maxPerPkg = cat.maxQty || 5;
-                const pkgs = Math.ceil(qty / maxPerPkg);
-                const base = Math.floor(qty / pkgs);
-                const remainder = qty % pkgs;
-                
-                for (let i = 0; i < pkgs; i++) {
-                    const qtyInPkg = i < remainder ? base + 1 : base;
-                    const catRules = cat.rules || {};
-                    const rule = catRules[qtyInPkg] || catRules[cat.maxQty] || { weight: qtyInPkg * 10, width: 20, height: 10 };
-                    
-                    packagesDetail.push({
-                        suly: rule.weight,
-                        hosszusag: cat.maxLength || 278,
-                        szelesseg: rule.width,
-                        magassag: rule.height,
-                        tipus: "doboz",
-                        description: "Panelburkolatok és kiegészítők"
-                    });
-                }
-            } else if (cat.type === 'weight') {
-                const maxPerPkg = cat.maxQty || 50;
-                const pkgs = Math.ceil(qty / maxPerPkg);
-                const base = Math.floor(qty / pkgs);
-                const remainder = qty % pkgs;
-                
-                for (let i = 0; i < pkgs; i++) {
-                    const qtyInPkg = i < remainder ? base + 1 : base;
-                    const weight = (cat.boxWeight || 0) + (qtyInPkg * (cat.itemWeight || 1.0));
-                    packagesDetail.push({
-                        suly: weight,
-                        hosszusag: cat.maxLength || 278,
-                        szelesseg: cat.width || 5,
-                        magassag: cat.height || 5,
-                        tipus: "doboz",
-                        description: "Panelburkolatok és kiegészítők"
-                    });
-                }
+            const groupKey = cat.packagingGroup || cat.id;
+            if (!groups[groupKey]) {
+                groups[groupKey] = [];
             }
+            groups[groupKey].push(cat);
         });
+
+        // 2. Generate packages per packagingGroup
+        for (const groupKey in groups) {
+            const groupCats = groups[groupKey];
+            const activeGroupCats = groupCats.filter(cat => (qtyMap[cat.id] || 0) > 0);
+            if (activeGroupCats.length === 0) continue;
+
+            // Total quantity in this family/group
+            const totalGroupQty = activeGroupCats.reduce((sum, cat) => sum + qtyMap[cat.id], 0);
+
+            // Determine maxQty per package for this group (max of all categories in group)
+            const maxPerPkg = Math.max(...activeGroupCats.map(cat => cat.maxQty || 5));
+            const pkgsCount = Math.ceil(totalGroupQty / maxPerPkg);
+            const baseQty = Math.floor(totalGroupQty / pkgsCount);
+            const remainder = totalGroupQty % pkgsCount;
+
+            // Determine dominant category for dimensions (largest width * height * maxLength)
+            const dominantCat = [...activeGroupCats].sort((a, b) => {
+                const volA = (a.maxLength || 278) * (a.rules ? (a.rules[1]?.width || 20) : (a.width || 20));
+                const volB = (b.maxLength || 278) * (b.rules ? (b.rules[1]?.width || 20) : (b.width || 20));
+                return volB - volA;
+            })[0];
+
+            // Calculate total weight of items in group
+            let totalGroupWeight = 0;
+            activeGroupCats.forEach(cat => {
+                const q = qtyMap[cat.id];
+                if (cat.type === 'cards') {
+                    const r = cat.rules || {};
+                    const ruleW = r[q] ? r[q].weight : (q * (r[1] ? r[1].weight : 6.5));
+                    totalGroupWeight += ruleW;
+                } else if (cat.type === 'weight') {
+                    totalGroupWeight += (cat.boxWeight || 0) + (q * (cat.itemWeight || 1.0));
+                }
+            });
+
+            // Split into packages
+            for (let i = 0; i < pkgsCount; i++) {
+                const qtyInPkg = i < remainder ? baseQty + 1 : baseQty;
+                const pkgWeight = parseFloat((totalGroupWeight / pkgsCount).toFixed(2));
+                const domRules = dominantCat.rules || {};
+                const domRule = domRules[qtyInPkg] || domRules[dominantCat.maxQty] || { width: dominantCat.width || 20, height: dominantCat.height || 15 };
+
+                packagesDetail.push({
+                    suly: pkgWeight,
+                    hosszusag: dominantCat.maxLength || 278,
+                    szelesseg: domRule.width || dominantCat.width || 20,
+                    magassag: domRule.height || dominantCat.height || 15,
+                    tipus: "doboz",
+                    description: "Panelburkolatok és kiegészítők",
+                    groupId: groupKey
+                });
+            }
+        }
         
         // RAGASZTÓ LOGIKA
-        // Ha van akupanel a rendelésben (qtyMap['cat_acoustic'] > 0), a ragasztó bekerülhet a panelek mellé doboz nélkül.
-        // Viszont ha a ragasztók száma 7 vagy annál több, mindenképp külön dobozba (csomagba) kell csomagolni.
-        const hasAcoustic = (qtyMap['cat_acoustic'] || 0) > 0;
+        // Ha van panel/akupanel a rendelésben, amiben az allowAdhesiveInside === true (vagy engedélyezett kártyás kategória):
+        // 1-6 db ragasztó elnyelődik a panelek dobozában.
+        // 7-15 db ragasztó: 1 külön dobozt kap.
+        // 16-30 db ragasztó: 2 külön dobozt kap (max 15db / doboz).
+        const hasPanelWithGlueAllowed = categories.some(cat => {
+            const qty = qtyMap[cat.id] || 0;
+            if (qty === 0) return false;
+            if (cat.type === 'adhesive') return false;
+            return cat.allowAdhesiveInside === true || (cat.type === 'cards' && cat.allowAdhesiveInside !== false);
+        });
+
+        const adhesiveCat = categories.find(c => c.type === 'adhesive') || { maxQty: 15, itemWeight: 0.5, boxWeight: 0.8, maxLength: 30, width: 20, height: 10 };
         const adhesiveQty = qtyMap['cat_adhesive'] || 0;
-        const acousticPkgs = packagesDetail.filter(p => p.description && p.description.includes('Panelburkolatok'));
-        const shouldGlueBeSeparate = !hasAcoustic || adhesiveQty >= 7;
+        const panelPkgs = packagesDetail.filter(p => p.description && p.description.includes('Panelburkolatok'));
+        const shouldGlueBeSeparate = !hasPanelWithGlueAllowed || adhesiveQty >= 7;
         
-        if (!shouldGlueBeSeparate && acousticPkgs.length > 0) {
-            // Nem kell külön csomag, mert bekerül az akupanel mellé doboz nélkül
-        } else {
-            // Ha külön csomagba kell rakni, a ragasztók saját dobozt kapnak a beállított maxQty, boxWeight és itemWeight szerint
-            categories.forEach(cat => {
-                if (cat.type !== 'adhesive') return;
-                const qty = qtyMap[cat.id] || 0;
-                if (qty === 0) return;
-                
-                const maxPerPkg = cat.maxQty || 12;
-                const pkgs = Math.ceil(qty / maxPerPkg);
-                const base = Math.floor(qty / pkgs);
-                const remainder = qty % pkgs;
-                
-                for (let i = 0; i < pkgs; i++) {
-                    const qtyInPkg = i < remainder ? base + 1 : base;
-                    const weight = (cat.boxWeight || 0) + (qtyInPkg * (cat.itemWeight || 0.5));
-                    packagesDetail.push({
-                        suly: parseFloat(weight.toFixed(2)),
-                        hosszusag: cat.maxLength || 30,
-                        szelesseg: cat.width || 20,
-                        magassag: cat.height || 10,
-                        tipus: "doboz",
-                        description: "Panelburkolatok és kiegészítők"
-                    });
-                }
+        if (!shouldGlueBeSeparate && panelPkgs.length > 0) {
+            // 1-6 db ragasztó bekerül a panelek dobozába, nem nyit új csomagot
+        } else if (adhesiveQty > 0) {
+            // Külön csomag(ok) a ragasztóknak (max 15 db / doboz)
+            const maxPerPkg = adhesiveCat.maxQty || 15;
+            const pkgsCount = Math.ceil(adhesiveQty / maxPerPkg);
+            const base = Math.floor(adhesiveQty / pkgsCount);
+            const remainder = adhesiveQty % pkgsCount;
+            
+            for (let i = 0; i < pkgsCount; i++) {
+                const qtyInPkg = i < remainder ? base + 1 : base;
+                const weight = (adhesiveCat.boxWeight || 0.8) + (qtyInPkg * (adhesiveCat.itemWeight || 0.5));
+                packagesDetail.push({
+                    suly: parseFloat(weight.toFixed(2)),
+                    hosszusag: adhesiveCat.maxLength || 30,
+                    szelesseg: adhesiveCat.width || 20,
+                    magassag: adhesiveCat.height || 10,
+                    tipus: "doboz",
+                    description: "Panelburkolatok és kiegészítők"
+                });
+            }
+        }
+        
+        // Egyéb unmatched termékek külön doboza
+        if (otherQty > 0) {
+            packagesDetail.push({
+                suly: Math.max(0.5, otherQty * 1.5),
+                hosszusag: 30,
+                szelesseg: 20,
+                magassag: 10,
+                tipus: "doboz",
+                description: "Panelburkolatok és kiegészítők"
             });
         }
         
