@@ -267,6 +267,46 @@ const calcGlue16 = testCalcPackages(testCats, [
 assertEqual("Akupanel + 16 Glues - package count", calcGlue16.packages, 3);
 assertEqual("Akupanel + 16 Glues - total weight", calcGlue16.weight, 22.6);
 
+// --- Sanitize Abbreviation Tests ---
+function sanitizeAbbreviation(abbrev) {
+    if (!abbrev || typeof abbrev !== 'string') return '';
+    let clean = abbrev.trim();
+    if (!clean) return '';
+    
+    // 1. Vágjuk le a vessző vagy pluszjel utáni másodlagos tételeket (pl. 'Sonoma2, trex5')
+    clean = clean.split(/[,;+]+/)[0].trim();
+    
+    // 2. Ha nem maga a ragasztó a termék, de tartalmaz ragasztó kulcsszót a végén (pl. 'Wson1trex1' vagy 'Wson1 trex1')
+    if (!/^(trex|ragaszto|ragasztó|hpr)\d*$/i.test(clean)) {
+        clean = clean.replace(/[\s\-_/]*(?:trex|ragaszto|ragasztó|hpr)\d*$/i, '').trim();
+    }
+    
+    // 3. Vágjuk le a szóközzel elválasztott csomagosztásokat vagy darabszámokat (pl. 'Chicago 4-4-3', 'Pecan 3-3', 'Sonoma 2')
+    clean = clean.replace(/\s+\d+(?:[\s\-_/]*\d+)*$/i, '').trim();
+    
+    // 4. Vágjuk le a közvetlenül a szó végére tapasztott számokat (pl. 'Wchicago2' -> 'Wchicago', 'Wson1' -> 'Wson', 'trex5' -> 'trex')
+    clean = clean.replace(/[\s\-_/]*\d+(?:[\s\-_/]*\d+)*$/, '').trim();
+    
+    // 5. Záró írásjelek takarítása
+    clean = clean.replace(/[\s\-_/:.,]+$/, '').trim();
+    
+    return clean;
+}
+
+assertEqual("Sanitize - Wson", sanitizeAbbreviation("Wson"), "Wson");
+assertEqual("Sanitize - Wchicago2", sanitizeAbbreviation("Wchicago2"), "Wchicago");
+assertEqual("Sanitize - Wson1trex1", sanitizeAbbreviation("Wson1trex1"), "Wson");
+assertEqual("Sanitize - Wson1 trex1", sanitizeAbbreviation("Wson1 trex1"), "Wson");
+assertEqual("Sanitize - Sonoma2, trex5", sanitizeAbbreviation("Sonoma2, trex5"), "Sonoma");
+assertEqual("Sanitize - Chicago 4-4-3", sanitizeAbbreviation("Chicago 4-4-3"), "Chicago");
+assertEqual("Sanitize - trex", sanitizeAbbreviation("trex"), "trex");
+assertEqual("Sanitize - trex5", sanitizeAbbreviation("trex5"), "trex");
+assertEqual("Sanitize - Vintage Oak", sanitizeAbbreviation("Vintage Oak"), "Vintage Oak");
+assertEqual("Sanitize - Light Grey 2", sanitizeAbbreviation("Light Grey 2"), "Light Grey");
+assertEqual("Sanitize - Wchicago24", sanitizeAbbreviation("Wchicago24"), "Wchicago");
+assertEqual("Sanitize - Empty string", sanitizeAbbreviation(""), "");
+assertEqual("Sanitize - Null", sanitizeAbbreviation(null), "");
+
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 
 if (failed > 0) {

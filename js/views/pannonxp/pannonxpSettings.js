@@ -3,7 +3,7 @@
  * Kezeli a PannonXP beállítások modalt, feladó profilokat, termékrövidítéseket és kategóriabeállító ablakokat.
  */
 
-import { PannonXPService } from '../../services/pannonxp.js';
+import { PannonXPService, sanitizeAbbreviation } from '../../services/pannonxp.js';
 import { CustomDialog } from '../../utils/dialog.js';
 import { formatHungarianPhoneNumber } from '../../utils/phoneFormatter.js';
 import { ShopifyParser, cleanItemNameForMapping, cleanName } from '../../services/shopify.js';
@@ -199,7 +199,8 @@ export function showConfigureProductModal(order, originalName, cleanedName, defa
                 
                 <div style="display: flex; flex-direction: column; gap: 6px;">
                     <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">1. Termékrövidítés (max 15-20 karakter ajánlott):</label>
-                    <input type="text" id="pxp-modal-abbrev-input" value="${defaultAbbrev}" placeholder="pl. Sonoma2, trex5, ezustsorolo" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 13px; font-weight: 600; color: #0f172a; outline: none; background: #fff;">
+                    <input type="text" id="pxp-modal-abbrev-input" value="${defaultAbbrev}" placeholder="pl. Sonoma, Wson, trex, ezustsorolo" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 13px; font-weight: 600; color: #0f172a; outline: none; background: #fff;">
+                    <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Csak a termék betűkódját add meg (pl. <strong>Wson</strong>), a darabszámot a rendszer a rendelés alapján automatikusan fűzi hozzá!</div>
                 </div>
                 
                 <div style="display: flex; flex-direction: column; gap: 6px;">
@@ -232,11 +233,11 @@ export function showConfigureProductModal(order, originalName, cleanedName, defa
     });
     
     saveBtn.addEventListener('click', async () => {
-        const abbrev = abbrevInput.value.trim();
+        const abbrev = sanitizeAbbreviation(abbrevInput.value.trim());
         const selectedCatId = catSelect.value;
         
         if (!abbrev) {
-            CustomDialog.alert('Kérlek, add meg a termék rövidítését!', 'Hiányzó adat', 'warning');
+            CustomDialog.alert('Kérlek, add meg a termék érvényes rövidítését!', 'Hiányzó adat', 'warning');
             return;
         }
         if (!selectedCatId) {
@@ -868,7 +869,7 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
                         const catSelect = row.querySelector('.pxp-select-mapping-category');
                         
                         if (key && abbrevInput && catSelect) {
-                            const abbrevVal = abbrevInput.value.trim();
+                            const abbrevVal = sanitizeAbbreviation(abbrevInput.value.trim());
                             const catVal = catSelect.value;
                             
                             if (!activeMappings[key]) {
@@ -1011,7 +1012,7 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
                                     else if (/(stone|spc\s*stone)/i.test(cleanNameLower)) guessedCategoryId = 'cat_spcstone';
 
                                     activeMappings[cleanedName] = {
-                                        abbrev: autoAbbrev || cleanedName,
+                                        abbrev: sanitizeAbbreviation(autoAbbrev || cleanedName),
                                         categoryId: guessedCategoryId
                                     };
                                     count++;

@@ -42,6 +42,31 @@ function getStringSimilarity(str1, str2) {
     return 1.0 - distance / Math.max(s1.length, s2.length);
 }
 
+export function sanitizeAbbreviation(abbrev) {
+    if (!abbrev || typeof abbrev !== 'string') return '';
+    let clean = abbrev.trim();
+    if (!clean) return '';
+    
+    // 1. Vágjuk le a vessző vagy pluszjel utáni másodlagos tételeket (pl. 'Sonoma2, trex5')
+    clean = clean.split(/[,;+]+/)[0].trim();
+    
+    // 2. Ha nem maga a ragasztó a termék, de tartalmaz ragasztó kulcsszót a végén (pl. 'Wson1trex1' vagy 'Wson1 trex1')
+    if (!/^(trex|ragaszto|ragasztó|hpr)\d*$/i.test(clean)) {
+        clean = clean.replace(/[\s\-_/]*(?:trex|ragaszto|ragasztó|hpr)\d*$/i, '').trim();
+    }
+    
+    // 3. Vágjuk le a szóközzel elválasztott csomagosztásokat vagy darabszámokat (pl. 'Chicago 4-4-3', 'Pecan 3-3', 'Sonoma 2')
+    clean = clean.replace(/\s+\d+(?:[\s\-_/]*\d+)*$/i, '').trim();
+    
+    // 4. Vágjuk le a közvetlenül a szó végére tapasztott számokat (pl. 'Wchicago2' -> 'Wchicago', 'Wson1' -> 'Wson', 'trex5' -> 'trex')
+    clean = clean.replace(/[\s\-_/]*\d+(?:[\s\-_/]*\d+)*$/, '').trim();
+    
+    // 5. Záró írásjelek takarítása
+    clean = clean.replace(/[\s\-_/:.,]+$/, '').trim();
+    
+    return clean;
+}
+
 function normalizeMappings(mappings) {
     const cleaned = {};
     for (const key in mappings) {
@@ -59,12 +84,12 @@ function normalizeMappings(mappings) {
             else if (/(stone|spc\s*stone)/i.test(cleanNameLower)) guessedCategoryId = 'cat_spcstone';
             
             val = {
-                abbrev: val,
+                abbrev: sanitizeAbbreviation(val),
                 categoryId: guessedCategoryId
             };
         } else if (val && typeof val === 'object') {
             val = {
-                abbrev: val.abbrev || '',
+                abbrev: sanitizeAbbreviation(val.abbrev || ''),
                 categoryId: val.categoryId || '',
                 linkedTo: val.linkedTo || undefined
             };
@@ -75,6 +100,7 @@ function normalizeMappings(mappings) {
 }
 
 export const PannonXPService = {
+    sanitizeAbbreviation: sanitizeAbbreviation,
     async initializeAllSettings() {
         try {
             await Promise.all([
@@ -125,7 +151,16 @@ export const PannonXPService = {
                 const cleanedKey = cleanItemNameForMapping(key);
                 if (!cleanedKey) continue;
                 
-                const val = mappings[key] || {};
+                let val = mappings[key] || {};
+                if (typeof val === 'string') {
+                    val = { abbrev: sanitizeAbbreviation(val), categoryId: '' };
+                } else if (val && typeof val === 'object') {
+                    val = {
+                        ...val,
+                        abbrev: sanitizeAbbreviation(val.abbrev || '')
+                    };
+                }
+                
                 // Skip empty mappings (no abbreviation and no category)
                 if (!val.abbrev && !val.categoryId) {
                     continue;
@@ -215,6 +250,18 @@ export const PannonXPService = {
     },
 
     async saveProductMappings(mappings) {
+        if (mappings) {
+            for (const key in mappings) {
+                if (mappings[key]) {
+                    if (typeof mappings[key] === 'string') {
+                        mappings[key] = { abbrev: sanitizeAbbreviation(mappings[key]), categoryId: '' };
+                    } else if (typeof mappings[key] === 'object') {
+                        mappings[key].abbrev = sanitizeAbbreviation(mappings[key].abbrev || '');
+                    }
+                }
+            }
+        }
+
         // Consolidate abbreviations before saving
         this.consolidateMappings(mappings);
         

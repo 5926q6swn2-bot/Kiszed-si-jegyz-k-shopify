@@ -887,6 +887,15 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Scroll-Height Beragadási Hiba Javítása (Reflow trigger)**: A `column-count: 2` elrendezésnél fellépő görgetési elakadást (amikor a kártyák átrendezése után a böngésző nem számolta újra a magasságot) szoftveresen orvosoltuk: a drag & drop elengedésekor (`onEnd` és `cleanupDragState` a [js/app.js](file:///c:/Users/CH_001/Desktop/Projektek/kiszedesi/js/app.js) fájlban) kényszerítettünk egy azonnali böngésző-reflow-t a `.order-list` elem rövid elrejtésével és megjelenítésével. Ez a görgetést tökéletesen fluidan tartja.
 - **Cache-Busting és verziókezelés**: Frissítettük az összes modul hivatkozási verzióját `v206`-ra (`app.js?v=206`, `shopify.js?v=206`, `pannonxpView.js?v=206`, `pannonxp.js?v=206`), a stílusfájlt pedig `style.css?v=43`-ra emeltük.
 
+### 2026. augusztus 17. - PannonXP Termékrövidítés Sanitizer & Referenciaszám Generálás Védelem (v3.3.1)
+- **Termékrövidítés Tisztító Függvény (`sanitizeAbbreviation`)**: Létrehoztunk egy központi sanitizert a `js/services/pannonxp.js`-ben, amely automatikusan levágja a termékrövidítésekből a véletlenül odakerült záró számokat, csomagosztásokat és másodlagos ragasztó-kulcsszavakat (pl. `Wson1trex1` $\rightarrow$ `Wson`, `Wchicago2` $\rightarrow$ `Wchicago`, `Sonoma2` $\rightarrow$ `Sonoma`, `Chicago 4-4-3` $\rightarrow$ `Chicago`).
+- **Memória és Betöltési Szintű Védelem**: A `normalizeMappings` és `initializeMappings` függvényekben beépítettük az automatikus tisztítást, így a korábban felhőbe (Firestore) vagy localStorage-ba mentett számmal terhelt rövidítések is a betöltés pillanatában azonnal tiszta formára alakulnak.
+- **Mentési és CSV Import Védelem**: A `saveProductMappings` és a Shopify termék CSV importáló is szigorúan szűri az összes mentendő rövidítést, megakadályozva, hogy a jövőben számmal vagy összetett szöveggel mentődjön el termék.
+- **Generátor Futásidejű Védelem (`generateDefaultReference`)**: A `shopify.js`-ben a referenciaszám generálásakor runtime védelemként a rövidítést átfuttatjuk a `sanitizeAbbreviation`-ön, garantálva, hogy a hivatkozásokban a darabszám soha ne duplázódjon (pl. `#6164` $\rightarrow$ `6164 Wson1 trex1`, `#6229` $\rightarrow$ `6229 Wchicago4 trex4`).
+- **UI és Felugró Ablak Finomhangolás**: A termékbeállító modalban a félrevezető placeholdert megtisztítottuk (`pl. Sonoma, Wson, trex, ezustsorolo`), és egy tájékoztató szöveget helyeztünk el, jelezve, hogy csak a tiszta betűkódot kell megadni, a darabszámot a rendszer automatikusan kezeli.
+- **Unit Tesztek Bővítése**: 13 új unit teszttel bővítettük a `tests/unit_tests.js` tesztcsomagot az összes létező rövidítés és edge-case validálására (45 sikeres teszt).
+- **Cache-Busting és verziókezelés**: `index.html`-ben a verziót `app.js?v=3.3.1`-re emeltük.
+
 
 ---
 

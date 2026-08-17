@@ -1,5 +1,5 @@
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
-import { PannonXPService } from './pannonxp.js';
+import { PannonXPService, sanitizeAbbreviation } from './pannonxp.js';
 
 export function fixHungarianAccents(str) {
     if (!str) return '';
@@ -210,7 +210,8 @@ export function generateDefaultReference(order, maxLen = 50) {
     (order.items || []).forEach(item => {
         const cleanedName = cleanItemNameForMapping(item.name);
         const mapping = mappings[cleanedName];
-        const abbrev = mapping ? (typeof mapping === 'object' ? mapping.abbrev : mapping) : null;
+        const rawAbbrev = mapping ? (typeof mapping === 'object' ? mapping.abbrev : mapping) : null;
+        const abbrev = sanitizeAbbreviation(rawAbbrev);
         const categoryId = mapping ? (typeof mapping === 'object' ? mapping.categoryId : null) : null;
         
         if (abbrev) {
