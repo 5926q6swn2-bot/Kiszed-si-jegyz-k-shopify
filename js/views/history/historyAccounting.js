@@ -1056,15 +1056,22 @@ export async function renderAccountingRuns(ctx) {
                         ${settleInitialBtn}
                         ${settleKpBtn}
                         ${settleTransferBtn}
-                        <button class="hac-btn-action hac-btn-ghost btn-print-summary" data-id="${run.id}" style="font-size:12px;">
-                            <i class="ph-bold ph-printer" style="font-size:12px;"></i>
-                        </button>
+
                         ${(run.isSettled || isPartial) ? `<button class="hac-btn-action hac-btn-ghost btn-modify-settlement" data-doc-id="${run.docId}" data-run-id="${run.id}" title="Elszámolás módosítása" style="font-size:12px;">
                             <i class="ph-bold ph-pencil-simple" style="font-size:12px;"></i>
                         </button>` : ''}
                         ${(run.isSettled || isPartial || uncollected.length > 0) ? `<button class="hac-btn-action btn-nullify-settlement" data-doc-id="${run.docId}" data-run-id="${run.id}" title="Visszavonás" style="font-size:11px;font-weight:700;color:#dc2626;background:#fee2e2;border:1.5px solid #fca5a5;border-radius:8px;padding:4px 9px;cursor:pointer;font-family:inherit;flex-shrink:0;">
                             <i class="ph-bold ph-x-circle" style="font-size:11px;"></i> Visszavonás
                         </button>` : ''}
+                        <div style="display:flex; align-items:center; background:#f1f5f9; border-radius:8px; padding:2px; gap:2px; border:1px solid #e2e8f0; margin-left: 4px;">
+                            <button class="hac-print-btn btn-print-picking" data-id="${run.id}" title="Szedőlista nyomtatása" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#64748b;border-radius:6px;transition:all .2s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#64748b'"><i class="ph-bold ph-clipboard-text"></i></button>
+                            <button class="hac-print-btn btn-print-delivery" data-id="${run.id}" title="Szállítólevelek nyomtatása" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#64748b;border-radius:6px;transition:all .2s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#64748b'"><i class="ph-bold ph-truck"></i></button>
+                            <button class="hac-print-btn btn-print-summary" data-id="${run.id}" title="Összesítő nyomtatása" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#64748b;border-radius:6px;transition:all .2s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#64748b'"><i class="ph-bold ph-file-text"></i></button>
+                            <button class="hac-print-btn btn-print-bundle" data-id="${run.id}" title="Teljes csomag nyomtatása" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#3b82f6;border-radius:6px;transition:all .2s;" onmouseover="this.style.background='#dbeafe';this.style.color='#1d4ed8'" onmouseout="this.style.background='none';this.style.color='#3b82f6'"><i class="ph-bold ph-printer"></i></button>
+                            <div style="width:1px;height:16px;background:#cbd5e1;margin:0 2px;"></div>
+                            <button class="hac-btn-load btn-load-run" data-id="${run.id}" title="Kör betöltése" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#334155;border-radius:6px;transition:all .2s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#334155'"><i class="ph-bold ph-download-simple"></i></button>
+                            <button class="hac-btn-del btn-delete-run" data-id="${run.id}" title="Kör törlése" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#ef4444;border-radius:6px;transition:all .2s;" onmouseover="this.style.background='#fee2e2';this.style.color='#b91c1c'" onmouseout="this.style.background='none';this.style.color='#ef4444'"><i class="ph-bold ph-trash"></i></button>
+                        </div>
                         <button class="acc-expand-btn" style="background:none;border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 8px;cursor:pointer;color:#64748b;display:flex;align-items:center;transition:all .2s;" title="Rendelések mutatása">
                             <i class="ph-bold ph-caret-down" style="font-size:13px;transition:transform .2s;"></i>
                         </button>
@@ -1080,12 +1087,7 @@ export async function renderAccountingRuns(ctx) {
         accountingRunsContainer.appendChild(groupEl);
     });
 
-    accountingRunsContainer.querySelectorAll('.btn-print-summary').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const runId = e.target.closest('button').getAttribute('data-id');
-            if (runId && typeof generateDeliveryNotesHtml === 'function') generateDeliveryNotesHtml(runId);
-        });
-    });
+
 
     accountingRunsContainer.querySelectorAll('.btn-settle-run').forEach(btn => {
         btn.addEventListener('click', async (e) => {
@@ -1134,7 +1136,7 @@ export async function renderAccountingRuns(ctx) {
                     alert("Hiba történt a Firebase visszaállítás közben. Ellenőrizd a konzolt!");
                 }
             } catch (err) {
-                alert("Hiba a visszaállításkor: " + err.message);
+                alert("Hiba az elszámolás elküldésekor: " + err.message);
             }
         });
     });
@@ -1235,4 +1237,7 @@ export async function renderAccountingRuns(ctx) {
             icon.style.transform = isOpen ? '' : 'rotate(180deg)';
         });
     });
+    if (typeof ctx.attachHistoryEvents === 'function') {
+        ctx.attachHistoryEvents();
+    }
 }

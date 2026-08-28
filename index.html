@@ -252,9 +252,8 @@
                 </div>
             </div>
             <div class="modal-tabs" style="display: flex; border-bottom: 1px solid #e2e8f0; margin-bottom: 15px;">
-                <button id="tab-btn-history" class="tab-btn active" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid var(--primary-color); font-weight: 600; color: var(--primary-color); cursor: pointer;">Szedések</button>
-                <button id="tab-btn-orders" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Rendelések</button>
-                <button id="tab-btn-accounting" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Elszámolások</button>
+                <button id="tab-btn-accounting" class="tab-btn active" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid var(--primary-color); font-weight: 600; color: var(--primary-color); cursor: pointer;">Elszámolások</button>
+
                 <button id="tab-btn-stats" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Statisztika</button>
                 <button id="tab-btn-audit" class="tab-btn" style="flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; cursor: pointer;">Számlaellenőrzés</button>
             </div>
@@ -302,32 +301,7 @@
                     </div>
                 </div>
 
-                <!-- Tab 1: Szedések -->
-                <div id="tab-content-history" style="display: block; flex: 1;">
 
-                <!-- Keresési Eredmények -->
-                <div id="history-search-results" style="display: none; margin-bottom: 20px;">
-                    <h3 style="font-size: 14px; margin-bottom: 10px; color: var(--text-primary);">Találatok:</h3>
-                    <div id="hs-results-container" style="display: flex; flex-direction: column; gap: 8px;"></div>
-                </div>
-
-                <!-- Korábbi Szállítási Körök -->
-                <div id="history-runs-view" style="flex: 1;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-                        <h3 style="font-size: 14px; margin: 0; color: var(--text-primary);">Korábbi Szállítási Körök</h3>
-                    </div>
-                    <div id="history-runs-container" style="display: flex; flex-direction: column; gap: 10px;">
-                        <!-- JS generálja ide a köröket -->
-                    </div>
-                </div>
-                </div> <!-- /#tab-content-history -->
-
-                <!-- Tab: Rendelések -->
-                <div id="tab-content-orders" style="display: none; flex: 1;">
-                    <div id="orders-tab-container" style="display: flex; flex-direction: column; gap: 8px;">
-                        <!-- JS generálja -->
-                    </div>
-                </div>
 
                 <!-- Tab 3: Elszámolások -->
                 <div id="tab-content-accounting" style="display: none; flex: 1;">

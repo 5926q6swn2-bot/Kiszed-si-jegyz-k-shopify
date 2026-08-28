@@ -38,6 +38,17 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
+### 2026. augusztus 28. (2. session) - Előzmények és Elszámolás Felület Tisztítása & Konszolidáció
+- **Redundáns Fülek Megszüntetése**: Eltávolítottuk a felesleges "Szedések" és "Rendelések" füleket a History (Előzmények) felugró ablakból. Az Előzmények immár közvetlenül az "Elszámolások" felületet jeleníti meg.
+- **Kompakt Kártya Akciógombok**: Az elszámolás kártyák fejléceibe és soraiba beépítettük a kompakt, helytakarékos akciógombokat: Nyomtatások (Szedőlista, Szállítólevél, Összesítő, Csomag), Kör visszatöltése és Kör törlése (Szemetesbe küldés).
+- **Kör Betöltése Hibajavítás**: Kijavítottuk a `btn-load-run` eseménykezelőjét a `js/app.js`-ben (`e.target.closest('button')`), biztosítva a megbízható működést az ikonos gomboknál is.
+- **Modultakarítás**: Töröltük a szükségtelenné vált `js/views/history/historyList.js` és `historyOrders.js` fájlokat, megtisztítottuk a `historyView.js` és `js/app.js` importjait.
+
+### 2026. augusztus 28. - Független Importálás és Lista Törlése
+- **Importálás Szétválasztása**: A Shopify CSV beolvasása mostantól az éppen aktív fül alapján történik. Ha a "Szedőlista" fülön történik az importálás, az adatok kizárólag a szedőlistába kerülnek bele (`Store.orders`). Ha a "PannonXP Címkék" fülön, akkor kizárólag a PannonXP táblázatba.
+- **Automatikus Szinkronizáció Eltávolítása**: Eltávolítottuk a `syncPxpOrdersFromStore` funkciót, így a fülek között való átkattintáskor már nem húzódnak át automatikusan a rendelések. A két modul immár 100%-ban függetlenül működik.
+- **Lista Törlése (Kuka) Gomb Optimalizálása**: A piros kuka ikonnal elindított lista ürítése immár nem mindkét listát törli, hanem intelligensen csak annak a fülnek a listáját, amelyen éppen áll a felhasználó.
+
 ### 2026. augusztus 13. - Rendszerszintű Csomagolási Architektúra & Vegyes Panelek Kombinálása (`v3.3.0`)
 - **💡 1. Ragasztó-elnyelés Explicit Szabály (`allowAdhesiveInside`)**:
   - Megszüntettük a merev kategóriafüggést. Minden kategória kapott egy explicit `allowAdhesiveInside` tulajdonságot, amely a **Beállítások -> Termék & Csomagolási Szabályok** fülön felületen is ki-be pipálható (`[x] Ragasztó / segédanyag bepakolható a dobozba (<7 db esetén)`).

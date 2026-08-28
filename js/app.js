@@ -5,7 +5,7 @@ import { UnifiedPrinter } from './services/printer.js';
 import { ShopifyParser, cleanItemNameForMapping, cleanName, cleanAddress, fixHungarianAccents } from './services/shopify.js';
 import { PannonXPService } from './services/pannonxp.js';
 import { PannonXPView } from './views/pannonxpView.js';
-import { initHistoryView, renderHistoryRuns, renderOrdersTab, renderAccountingRuns, renderTrashRuns, renderSearchResults } from './views/historyView.js';
+import { initHistoryView, renderAccountingRuns, renderTrashRuns } from './views/historyView.js';
 import { Store } from './store/state.js';
 import { OrdersView } from './views/ordersView.js';
 import { initManualOrderController } from './controllers/manualOrderController.js';
@@ -105,13 +105,9 @@ function initApp() {
     const historySearchResults = document.getElementById('history-search-results');
     const hsResultsContainer = document.getElementById('hs-results-container');
     const historyRunsView = document.getElementById('history-runs-view');
-    const tabBtnHistory = document.getElementById('tab-btn-history');
-    const tabBtnOrders = document.getElementById('tab-btn-orders');
     const tabBtnAccounting = document.getElementById('tab-btn-accounting');
     const tabBtnStats = document.getElementById('tab-btn-stats');
     const tabBtnAudit = document.getElementById('tab-btn-audit');
-    const tabContentHistory = document.getElementById('tab-content-history');
-    const tabContentOrders = document.getElementById('tab-content-orders');
     const tabContentAccounting = document.getElementById('tab-content-accounting');
     const tabContentStats = document.getElementById('tab-content-stats');
     const tabContentAudit = document.getElementById('tab-content-audit');
@@ -162,33 +158,7 @@ function initApp() {
     // Kezdeti üres állapot renderelése
     renderOrders();
 
-    function syncPxpOrdersFromStore() {
-        if (!Store.orders || Store.orders.length === 0) return;
-        const activeM = PannonXPService.getNormalizedProductMappings();
-        
-        Store.orders.forEach(order => {
-            if (!pxpOrders.some(p => p.id === order.id)) {
-                const pxpOrder = { ...order };
-                if (!pxpOrder.pxp_referencia) {
-                    pxpOrder.pxp_referencia = ShopifyParser.generateDefaultReference(pxpOrder, 40);
-                }
-                const calc = PannonXPService.calculateWeightAndPackages(pxpOrder.items);
-                pxpOrder.pxp_csomagszam = calc.packages;
-                pxpOrder.pxp_suly = calc.weight;
-                pxpOrder.pxp_packages = calc.packagesDetail;
-                if (pxpOrder.pxp_selected === undefined) pxpOrder.pxp_selected = true;
 
-                const hasUnmapped = pxpOrder.items.some(item => !activeM[cleanItemNameForMapping(item.name)]);
-                const hasUnassignedCategory = pxpOrder.items.some(item => {
-                    const m = activeM[cleanItemNameForMapping(item.name)];
-                    return !m || !m.categoryId;
-                });
-                pxpOrder.pxp_has_unmatched = calc.hasUnmatched || hasUnmapped || hasUnassignedCategory;
-
-                pxpOrders.push(pxpOrder);
-            }
-        });
-    }
 
     // --- MAIN TAB TOGGLE (Picking vs PannonXP) ---
     if (tabMainPicking && tabMainPannonXP) {
@@ -208,7 +178,17 @@ function initApp() {
             
             if (pannonXPContainer) pannonXPContainer.style.display = 'none';
             if (mainContent) mainContent.style.display = 'block';
-            if (dynamicIsland) dynamicIsland.style.display = 'flex';
+            if (dynamicIsland) {
+                dynamicIsland.style.display = 'flex';
+                const btnSortMode = document.getElementById('btn-sort-mode');
+                const btnPrint = document.getElementById('btn-print');
+                const btnAddManual = document.getElementById('btn-add-manual');
+                const islandDivider = document.querySelector('.island-divider');
+                if (btnSortMode) btnSortMode.style.display = 'flex';
+                if (btnPrint) btnPrint.style.display = 'flex';
+                if (btnAddManual) btnAddManual.style.display = 'flex';
+                if (islandDivider) islandDivider.style.display = 'block';
+            }
             if (historyIsland) historyIsland.style.display = 'block';
             
             // Ha nincsenek rendelések a szedőlistában, mutassuk az üres állapotot
@@ -235,11 +215,19 @@ function initApp() {
             
             if (mainContent) mainContent.style.display = 'none';
             if (emptyState) emptyState.style.display = 'none';
-            if (dynamicIsland) dynamicIsland.style.display = 'none';
+            if (dynamicIsland) {
+                dynamicIsland.style.display = 'flex';
+                const btnSortMode = document.getElementById('btn-sort-mode');
+                const btnPrint = document.getElementById('btn-print');
+                const btnAddManual = document.getElementById('btn-add-manual');
+                const islandDivider = document.querySelector('.island-divider');
+                if (btnSortMode) btnSortMode.style.display = 'none';
+                if (btnPrint) btnPrint.style.display = 'none';
+                if (btnAddManual) btnAddManual.style.display = 'none';
+                if (islandDivider) islandDivider.style.display = 'none';
+            }
             if (historyIsland) historyIsland.style.display = 'none';
             
-            syncPxpOrdersFromStore();
-
             if (pannonXPContainer) {
                 pannonXPContainer.style.display = 'block';
                 PannonXPView.render(pannonXPContainer, pxpOrders, handlePxpExport);
@@ -285,19 +273,26 @@ function initApp() {
 
     // --- Reset ---
     btnReset.addEventListener('click', async () => {
-        if (Store.orders.length === 0 && pxpOrders.length === 0) return;
-        const isConfirmed = await CustomDialog.confirm('Biztosan törlöd az összes eddigi rendelést a listából?', 'Lista Törlése', 'warning', true);
-        if (isConfirmed) {
-            Store.setOrders([]);
-            pxpOrders = [];
-            currentLoadedRunId = null;
-            originalLoadedRun = null;
-            sortModeActive = false;
-            orderList.classList.remove('sort-mode-active');
-            if (btnSortMode) btnSortMode.classList.remove('sort-mode-btn-active');
-            renderOrders();
-            if (pannonXPContainer) {
-                PannonXPView.render(pannonXPContainer, pxpOrders, handlePxpExport);
+        if (activeMainTab === 'picking') {
+            if (Store.orders.length === 0) return;
+            const isConfirmed = await CustomDialog.confirm('Biztosan törlöd az összes eddigi rendelést a Szedőlistából?', 'Szedőlista Törlése', 'warning', true);
+            if (isConfirmed) {
+                Store.setOrders([]);
+                currentLoadedRunId = null;
+                originalLoadedRun = null;
+                sortModeActive = false;
+                orderList.classList.remove('sort-mode-active');
+                if (btnSortMode) btnSortMode.classList.remove('sort-mode-btn-active');
+                renderOrders();
+            }
+        } else if (activeMainTab === 'pannonxp') {
+            if (pxpOrders.length === 0) return;
+            const isConfirmed = await CustomDialog.confirm('Biztosan törlöd az összes rendelést a PannonXP listából?', 'PannonXP Törlése', 'warning', true);
+            if (isConfirmed) {
+                pxpOrders = [];
+                if (pannonXPContainer) {
+                    PannonXPView.render(pannonXPContainer, pxpOrders, handlePxpExport);
+                }
             }
         }
     });
@@ -348,65 +343,74 @@ function initApp() {
 
     // --- Üzleti Logika ---
     async function processShopifyData(rows) {
-        // Parse orders for Szedőlista
-        const result = ShopifyParser.parse(rows, Store.orders);
-        
-        result.newOrders.forEach(order => {
-            Store.addOrder(order);
-        });
-
-        // Register missing products to Firestore/memory
-        await PannonXPService.registerMissingProducts(result.newOrders);
-
-        // Populate PannonXP order fields for each new order
-        result.newOrders.forEach(order => {
-            const matchingRow = rows.find(r => r['Name'] === order.id);
-            if (matchingRow) {
-                order.zip = (matchingRow['Shipping Zip'] || order.zip || '').replace(/['"]/g, '').trim();
-                order.city = (matchingRow['Shipping City'] || order.city || '').trim();
-                const rawAddrLines = [matchingRow['Shipping Address1'], matchingRow['Shipping Address2']].filter(Boolean).join(' ') || matchingRow['Shipping Street'] || '';
-                if (rawAddrLines) {
-                    order.address1 = cleanAddress(rawAddrLines).replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
-                }
-                order.address2 = matchingRow['Shipping Address2'] || order.address2 || '';
-                order.countryCode = matchingRow['Shipping Country'] || order.countryCode || 'HU';
-                let companyName = fixHungarianAccents(matchingRow['Shipping Company'] || order.shippingCompany || '');
-                const shName = matchingRow['Shipping Name'] || order.shippingName || '';
-                if (companyName && shName && companyName.trim().toLowerCase() === shName.trim().toLowerCase()) {
-                    companyName = cleanName(companyName);
-                }
-                order.shippingCompany = companyName;
-            }
+        if (activeMainTab === 'picking') {
+            // Parse orders for Szedőlista
+            const result = ShopifyParser.parse(rows, Store.orders);
             
-            order.pxp_referencia = ShopifyParser.generateDefaultReference(order, 40);
-
-            const calc = PannonXPService.calculateWeightAndPackages(order.items);
-            order.pxp_csomagszam = calc.packages;
-            order.pxp_suly = calc.weight;
-            order.pxp_packages = calc.packagesDetail;
-            order.pxp_selected = true;
-            
-            const activeM = PannonXPService.getNormalizedProductMappings();
-            const hasUnmapped = order.items.some(item => !activeM[cleanItemNameForMapping(item.name)]);
-            const hasUnassignedCategory = order.items.some(item => {
-                const m = activeM[cleanItemNameForMapping(item.name)];
-                return !m || !m.categoryId;
+            result.newOrders.forEach(order => {
+                Store.addOrder(order);
             });
-            order.pxp_has_unmatched = calc.hasUnmatched || hasUnmapped || hasUnassignedCategory;
-            
-            if (!pxpOrders.some(p => p.id === order.id)) {
-                pxpOrders.push(order);
+
+            if (result.skippedOrderIds.size > 0) {
+                CustomDialog.alert(`${result.skippedOrderIds.size} db ismétlődő rendelést automatikusan kihagytunk a betöltésből.`, 'Duplikáció szűrve');
             }
-        });
 
-        if (result.skippedOrderIds.size > 0) {
-            CustomDialog.alert(`${result.skippedOrderIds.size} db ismétlődő rendelést automatikusan kihagytunk a betöltésből.`, 'Duplikáció szűrve');
-        }
+            renderOrders();
+        } else if (activeMainTab === 'pannonxp') {
+            // Itt csak a PannonXP-be kerülnek be
+            const result = ShopifyParser.parse(rows, pxpOrders);
+            
+            // Register missing products to Firestore/memory
+            await PannonXPService.registerMissingProducts(result.newOrders);
 
-        renderOrders();
-        
-        if (pannonXPContainer) {
-            PannonXPView.render(pannonXPContainer, pxpOrders, handlePxpExport);
+            // Populate PannonXP order fields for each new order
+            result.newOrders.forEach(order => {
+                const matchingRow = rows.find(r => r['Name'] === order.id);
+                if (matchingRow) {
+                    order.zip = (matchingRow['Shipping Zip'] || order.zip || '').replace(/['"]/g, '').trim();
+                    order.city = (matchingRow['Shipping City'] || order.city || '').trim();
+                    const rawAddrLines = [matchingRow['Shipping Address1'], matchingRow['Shipping Address2']].filter(Boolean).join(' ') || matchingRow['Shipping Street'] || '';
+                    if (rawAddrLines) {
+                        order.address1 = cleanAddress(rawAddrLines).replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+                    }
+                    order.address2 = matchingRow['Shipping Address2'] || order.address2 || '';
+                    order.countryCode = matchingRow['Shipping Country'] || order.countryCode || 'HU';
+                    let companyName = fixHungarianAccents(matchingRow['Shipping Company'] || order.shippingCompany || '');
+                    const shName = matchingRow['Shipping Name'] || order.shippingName || '';
+                    if (companyName && shName && companyName.trim().toLowerCase() === shName.trim().toLowerCase()) {
+                        companyName = cleanName(companyName);
+                    }
+                    order.shippingCompany = companyName;
+                }
+                
+                order.pxp_referencia = ShopifyParser.generateDefaultReference(order, 40);
+
+                const calc = PannonXPService.calculateWeightAndPackages(order.items);
+                order.pxp_csomagszam = calc.packages;
+                order.pxp_suly = calc.weight;
+                order.pxp_packages = calc.packagesDetail;
+                order.pxp_selected = true;
+                
+                const activeM = PannonXPService.getNormalizedProductMappings();
+                const hasUnmapped = order.items.some(item => !activeM[cleanItemNameForMapping(item.name)]);
+                const hasUnassignedCategory = order.items.some(item => {
+                    const m = activeM[cleanItemNameForMapping(item.name)];
+                    return !m || !m.categoryId;
+                });
+                order.pxp_has_unmatched = calc.hasUnmatched || hasUnmapped || hasUnassignedCategory;
+                
+                if (!pxpOrders.some(p => p.id === order.id)) {
+                    pxpOrders.push(order);
+                }
+            });
+
+            if (result.skippedOrderIds.size > 0) {
+                CustomDialog.alert(`${result.skippedOrderIds.size} db ismétlődő rendelést automatikusan kihagytunk a betöltésből.`, 'Duplikáció szűrve');
+            }
+
+            if (pannonXPContainer) {
+                PannonXPView.render(pannonXPContainer, pxpOrders, handlePxpExport);
+            }
         }
 
         const now = new Date();
@@ -1026,7 +1030,7 @@ function initApp() {
         trashView.style.display = 'none';
         if (modalTabsBar) modalTabsBar.style.display = 'flex';
         if (modalSearchBar) modalSearchBar.style.display = 'flex';
-        switchHistoryTab('history');
+        switchHistoryTab('accounting');
         historyModal.classList.add('active');
         historySearchInput.focus();
     });
@@ -1058,9 +1062,7 @@ function initApp() {
         });
     }
 
-    tabBtnHistory.addEventListener('click', () => switchHistoryTab('history'));
-    tabBtnOrders.addEventListener('click', () => switchHistoryTab('orders'));
-    tabBtnAccounting.addEventListener('click', () => switchHistoryTab('accounting'));
+    if (tabBtnAccounting) tabBtnAccounting.addEventListener('click', () => switchHistoryTab('accounting'));
     tabBtnStats.addEventListener('click', () => switchHistoryTab('stats'));
     if (tabBtnAudit) {
         tabBtnAudit.addEventListener('click', () => switchHistoryTab('audit'));
@@ -1079,7 +1081,7 @@ function initApp() {
     });
 
     function showTrashView() {
-        [tabContentHistory, tabContentOrders, tabContentAccounting, tabContentStats, tabContentAudit].forEach(c => { if (c) c.style.display = 'none'; });
+        [tabContentAccounting, tabContentStats, tabContentAudit].forEach(c => { if (c) c.style.display = 'none'; });
         if (modalTabsBar) modalTabsBar.style.display = 'none';
         if (modalSearchBar) modalSearchBar.style.display = 'none';
         trashView.style.display = 'flex';
@@ -1091,12 +1093,12 @@ function initApp() {
         trashView.style.display = 'none';
         if (modalTabsBar) modalTabsBar.style.display = 'flex';
         if (modalSearchBar) modalSearchBar.style.display = 'flex';
-        switchHistoryTab('history');
+        switchHistoryTab('accounting');
     }
 
     async function switchHistoryTab(tab) {
         // Reset all tabs
-        [tabBtnHistory, tabBtnOrders, tabBtnAccounting, tabBtnStats, tabBtnAudit].forEach(btn => {
+        [tabBtnAccounting, tabBtnStats, tabBtnAudit].forEach(btn => {
             if (btn) {
                 btn.classList.remove('active');
                 btn.style.borderBottomColor = 'transparent';
@@ -1104,25 +1106,11 @@ function initApp() {
                 btn.style.fontWeight = '500';
             }
         });
-        [tabContentHistory, tabContentOrders, tabContentAccounting, tabContentStats, tabContentAudit].forEach(content => {
+        [tabContentAccounting, tabContentStats, tabContentAudit].forEach(content => {
             if (content) content.style.display = 'none';
         });
 
-        if (tab === 'history') {
-            tabBtnHistory.classList.add('active');
-            tabBtnHistory.style.borderBottomColor = 'var(--primary-color)';
-            tabBtnHistory.style.color = 'var(--primary-color)';
-            tabBtnHistory.style.fontWeight = '600';
-            tabContentHistory.style.display = 'block';
-            renderHistoryRuns();
-        } else if (tab === 'orders') {
-            tabBtnOrders.classList.add('active');
-            tabBtnOrders.style.borderBottomColor = 'var(--primary-color)';
-            tabBtnOrders.style.color = 'var(--primary-color)';
-            tabBtnOrders.style.fontWeight = '600';
-            tabContentOrders.style.display = 'block';
-            renderOrdersTab();
-        } else if (tab === 'accounting') {
+        if (tab === 'accounting') {
             tabBtnAccounting.classList.add('active');
             tabBtnAccounting.style.borderBottomColor = 'var(--primary-color)';
             tabBtnAccounting.style.color = 'var(--primary-color)';
@@ -1151,11 +1139,7 @@ function initApp() {
     historySearchInput.addEventListener('input', handleHistorySearch);
 
     const onDateChange = () => {
-        if (tabContentHistory.style.display !== 'none') {
-            renderHistoryRuns();
-        } else if (tabContentOrders.style.display !== 'none') {
-            renderOrdersTab();
-        } else if (tabContentAccounting.style.display !== 'none') {
+        if (tabContentAccounting && tabContentAccounting.style.display !== 'none') {
             renderAccountingRuns();
         } else if (tabContentAudit && tabContentAudit.style.display !== 'none') {
             AuditView.updateAudit();
@@ -1246,10 +1230,8 @@ function initApp() {
     // Cég szűrő: frissíti a gombot + újraindítja a keresést ha van aktív szöveg
     historyCompanyFilter.addEventListener('change', () => {
         updateFilterButtonState();
-        if (tabContentHistory.style.display !== 'none') {
-            renderHistoryRuns();
-        } else if (tabContentOrders.style.display !== 'none') {
-            renderOrdersTab();
+        if (tabContentAccounting && tabContentAccounting.style.display !== 'none') {
+            renderAccountingRuns();
         }
     });
     if (accountingFilterPending) {
@@ -1334,11 +1316,7 @@ function initApp() {
     }
 
     async function handleHistorySearch() {
-        if (tabContentHistory.style.display !== 'none') {
-            await renderHistoryRuns();
-        } else if (tabContentOrders.style.display !== 'none') {
-            await renderOrdersTab();
-        } else if (tabContentAccounting && tabContentAccounting.style.display !== 'none') {
+        if (tabContentAccounting && tabContentAccounting.style.display !== 'none') {
             await renderAccountingRuns();
         } else if (tabContentAudit && tabContentAudit.style.display !== 'none') {
             await AuditView.updateAudit();
@@ -1349,7 +1327,7 @@ function initApp() {
     function attachHistoryEvents() {
         document.querySelectorAll('.btn-load-run').forEach(btn => {
             btn.addEventListener('click', async (e) => {
-                const runId = e.target.getAttribute('data-id');
+                const runId = e.target.closest('button').getAttribute('data-id');
                 const run = await HistoryManager.getRunById(runId);
                 if(!run) return;
                 
@@ -1419,7 +1397,7 @@ function initApp() {
                 const confirm = await CustomDialog.confirm('Biztosan törlöd ezt a szállítási kört az előzményekből?', 'Kör Törlése', 'warning', true);
                 if(confirm) {
                     await HistoryManager.deleteRun(runId);
-                    renderHistoryRuns();
+                    renderAccountingRuns();
                 }
             });
         });
