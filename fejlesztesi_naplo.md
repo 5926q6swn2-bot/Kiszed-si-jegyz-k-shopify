@@ -32,6 +32,17 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+## 📌 Holnapi Teendők (TODO Lista)
+
+1. ☁️ **Felhős Telepítés (Cloud Deployment - Render.com / Vercel)**:
+   - Összekötni a GitHub repót a Render.com-mal (vagy Vercellel).
+   - Beállítani az Environment Variables (`SHOPIFY_ACCESS_TOKEN`, `SHOPIFY_SHOP`, stb.) értékeket.
+   - Biztosítani az állandó, bárhonnan és bármilyen gépről/telefonról elérhető HTTPS webcímet.
+2. 🚚 **Szállítói Egyedi Export Formátum**:
+   - A kijelölt rendelések exportálása a szállítóknak a felhasználó által megadott oszlopokkal és formátumban.
+
+---
+
 ## 📝 Fejlesztési Napló (Changelog)
 
 ### 2026. augusztus 29. (18. frissítés) - Közvetlen Shopify Rendelés Teljesítés (Egyedi & Csoportos Fulfill) (`v3.6.4`)
