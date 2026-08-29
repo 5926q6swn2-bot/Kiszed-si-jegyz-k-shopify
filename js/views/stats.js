@@ -277,8 +277,8 @@ export async function renderStatistics() {
                         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
                             <span style="font-size:12px;font-weight:700;color:#374151;min-width:68px;">${y}. ${mo}.</span>
                             <span style="font-size:13px;font-weight:800;color:#0f172a;">${d.total.toLocaleString('hu-HU')} Ft</span>
-                            ${d.received    > 0 ? `<span style="font-size:11px;font-weight:700;color:#22c55e;">✓ ${d.received.toLocaleString('hu-HU')} Ft KP</span>` : ''}
-                            ${d.bankTransferred > 0 ? `<span style="font-size:11px;font-weight:700;color:#3b82f6;">🏦 ${d.bankTransferred.toLocaleString('hu-HU')} Ft utalva</span>` : ''}
+                            ${d.received    > 0 ? `<span style="font-size:11px;font-weight:700;color:#22c55e;">${d.received.toLocaleString('hu-HU')} Ft KP</span>` : ''}
+                            ${d.bankTransferred > 0 ? `<span style="font-size:11px;font-weight:700;color:#3b82f6;">${d.bankTransferred.toLocaleString('hu-HU')} Ft utalva</span>` : ''}
                             ${d.uncollected > 0 ? `<span style="font-size:11px;font-weight:700;color:#f97316;">~ ${d.uncollected.toLocaleString('hu-HU')} Ft kiesett</span>` : ''}
                             ${d.recovered   > 0 ? `<span style="font-size:11px;color:#64748b;">↩ ${d.recovered.toLocaleString('hu-HU')} Ft utólag</span>` : ''}
                             ${d.pending     > 0 ? `<span style="font-size:11px;color:#94a3b8;">${d.pending.toLocaleString('hu-HU')} Ft függőben</span>` : ''}
@@ -740,7 +740,7 @@ export async function renderStatistics() {
                 const outcome = last.isUncollected
                     ? `<span style="font-size:10px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;padding:1px 6px;">ismét kiesett</span>`
                     : last.wasReceived || last.wasPartialReceived
-                        ? `<span style="font-size:10px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:1px 6px;">átvéve ✓</span>`
+                        ? `<span style="font-size:10px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:1px 6px;">átvéve</span>`
                         : `<span style="font-size:10px;color:#94a3b8;background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;">függőben</span>`;
                 return `<div style="margin-top:4px;padding-left:14px;border-left:2px solid #e2e8f0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                     <span style="font-size:11px;color:#94a3b8;">↳</span>

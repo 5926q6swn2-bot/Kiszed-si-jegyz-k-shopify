@@ -12,8 +12,8 @@ import { initManualOrderController } from './controllers/manualOrderController.j
 import { renderStatistics } from './views/stats.js';
 import { ExporterService } from './services/exporter.js';
 import { AuditView } from './views/auditView.js';
-import { getPaymentDetails, getRunPaymentTotals } from './utils/paymentUtils.js';
-
+import { OrderOverviewView } from './views/orderOverviewView.js';
+import { ShopifyApiService } from './services/shopifyApiService.js';
 import { generatePdfHtml, openPdfView, generateDeliveryNotesHtml } from './utils/printTemplates.js';
 function initApp() {
     console.log("KOPJ Rendszer: app.js elindult");
@@ -49,6 +49,10 @@ function initApp() {
             
             // Mappings és egyéb beállítások inicializálása felhőből
             await PannonXPService.initializeAllSettings();
+
+            // Kezdeti állapot: Rendelésáttekintő fül aktiválása és élő rendelések lekérése
+            switchMainTab('overview');
+            loadLiveShopifyOrders();
         } else {
             // Kijelentkezve
             loginOverlay.classList.add('active');
@@ -137,13 +141,13 @@ function initApp() {
     let activeStatsTab = 'charts';
     const geoCache = JSON.parse(localStorage.getItem('hu_zip_geocache_v1') || '{}');
 
-    // PannonXP Állapot és Elemek
-    let activeMainTab = 'picking'; // 'picking' | 'pannonxp'
-    let pxpOrders = [];
+    // Fő Fülek és Konténerek
+    const tabMainOverview = document.getElementById('tab-main-overview');
     const tabMainPicking = document.getElementById('tab-main-picking');
     const tabMainPannonXP = document.getElementById('tab-main-pannonxp');
+    const orderOverviewContainer = document.getElementById('order-overview-container');
+    const pickingWrapper = document.getElementById('picking-wrapper');
     const pannonXPContainer = document.getElementById('pannonxp-container');
-    const mainContent = document.querySelector('.main-content');
     const dynamicIsland = document.getElementById('dynamic-island');
     const historyIsland = document.getElementById('history-island');
 
@@ -152,33 +156,42 @@ function initApp() {
         updatePrintButtonState
     });
 
-    // --- HistoryManager ---
-    // A HistoryManager modulárisan van beimportálva a fájl tetején.
+    // --- MAIN TAB SWITCHER (Overview vs Picking vs PannonXP) ---
+    function switchMainTab(tabName) {
+        Store.setActiveMainTab(tabName);
 
-    // Kezdeti üres állapot renderelése
-    renderOrders();
+        // Fül gombok stílusának frissítése
+        const tabs = [
+            { name: 'overview', btn: tabMainOverview },
+            { name: 'picking', btn: tabMainPicking },
+            { name: 'pannonxp', btn: tabMainPannonXP }
+        ];
 
+        tabs.forEach(t => {
+            if (!t.btn) return;
+            if (t.name === tabName) {
+                t.btn.classList.add('active');
+                t.btn.style.background = '#fff';
+                t.btn.style.color = '#0f172a';
+                t.btn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                t.btn.style.fontWeight = '600';
+            } else {
+                t.btn.classList.remove('active');
+                t.btn.style.background = 'transparent';
+                t.btn.style.color = '#64748b';
+                t.btn.style.boxShadow = 'none';
+                t.btn.style.fontWeight = '500';
+            }
+        });
 
+        // Konténerek láthatóságának kezelése
+        if (orderOverviewContainer) orderOverviewContainer.style.display = (tabName === 'overview') ? 'block' : 'none';
+        if (pickingWrapper) pickingWrapper.style.display = (tabName === 'picking') ? 'flex' : 'none';
+        if (pannonXPContainer) pannonXPContainer.style.display = (tabName === 'pannonxp') ? 'block' : 'none';
 
-    // --- MAIN TAB TOGGLE (Picking vs PannonXP) ---
-    if (tabMainPicking && tabMainPannonXP) {
-        tabMainPicking.addEventListener('click', () => {
-            activeMainTab = 'picking';
-            tabMainPicking.classList.add('active');
-            tabMainPicking.style.background = '#fff';
-            tabMainPicking.style.color = '#0f172a';
-            tabMainPicking.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-            tabMainPicking.style.fontWeight = '600';
-            
-            tabMainPannonXP.classList.remove('active');
-            tabMainPannonXP.style.background = 'transparent';
-            tabMainPannonXP.style.color = '#64748b';
-            tabMainPannonXP.style.boxShadow = 'none';
-            tabMainPannonXP.style.fontWeight = '500';
-            
-            if (pannonXPContainer) pannonXPContainer.style.display = 'none';
-            if (mainContent) mainContent.style.display = 'block';
-            if (dynamicIsland) {
+        // Lebegő panelek láthatósága
+        if (dynamicIsland) {
+            if (tabName === 'picking') {
                 dynamicIsland.style.display = 'flex';
                 const btnSortMode = document.getElementById('btn-sort-mode');
                 const btnPrint = document.getElementById('btn-print');
@@ -188,51 +201,404 @@ function initApp() {
                 if (btnPrint) btnPrint.style.display = 'flex';
                 if (btnAddManual) btnAddManual.style.display = 'flex';
                 if (islandDivider) islandDivider.style.display = 'block';
-            }
-            if (historyIsland) historyIsland.style.display = 'block';
-            
-            // Ha nincsenek rendelések a szedőlistában, mutassuk az üres állapotot
-            if (Store.orders.length === 0) {
-                if (emptyState) emptyState.style.display = 'flex';
             } else {
-                if (emptyState) emptyState.style.display = 'none';
+                dynamicIsland.style.display = 'none';
             }
+        }
+
+        if (historyIsland) {
+            historyIsland.style.display = (tabName === 'pannonxp') ? 'none' : 'block';
+        }
+
+        // Nézetek renderelése
+        if (tabName === 'overview') {
+            renderOverview();
+        } else if (tabName === 'picking') {
+            renderOrders();
+        } else if (tabName === 'pannonxp') {
+            PannonXPView.render(pannonXPContainer, Store.pxpOrders, handlePxpExport);
+        }
+    }
+
+    if (tabMainOverview) tabMainOverview.addEventListener('click', () => switchMainTab('overview'));
+    if (tabMainPicking) tabMainPicking.addEventListener('click', () => switchMainTab('picking'));
+    if (tabMainPannonXP) tabMainPannonXP.addEventListener('click', () => switchMainTab('pannonxp'));
+
+    // --- SHOPIFY ÉLŐ RENDELÉSEK ÉS KISZÁLLÍTÁSI JÁRATOK ÖSSZEKÖTÉSE (HUB) ---
+    async function loadLiveShopifyOrders(isManual = false) {
+        const refreshIcon = document.getElementById('hub-refresh-icon');
+        if (refreshIcon) refreshIcon.style.animation = 'spin 1s linear infinite';
+
+        try {
+            // Párhuzamosan lekérjük a Shopify élő rendeléseket és a Firebase-ben lévő kiszállítási járatokat
+            const [res, savedRuns] = await Promise.all([
+                ShopifyApiService.fetchLiveOrders({ limit: 250 }),
+                HistoryManager.getAllRuns().catch(err => {
+                    console.warn('[HistoryManager getAllRuns error]', err);
+                    return [];
+                })
+            ]);
+
+            if (res.success && res.rawOrders) {
+                // 1. Járatok feltérképezése (4 jegyű ID-k alapján)
+                const deliveryMap = new Map();
+                (savedRuns || []).forEach(run => {
+                    (run.orders || []).forEach(o => {
+                        if (!o || !o.id) return;
+                        const cleanId = String(o.id).replace(/^#/, '').replace(/\/.*$/, '').trim();
+                        if (!cleanId) return;
+
+                        const isUncollected = (run.uncollectedOrderIds || []).map(String).includes(String(o.id));
+                        const uncollectedReason = (run.uncollectedReasons || {})[o.id] || '';
+                        const uncollectedResp = (run.uncollectedResponsibility || {})[o.id] || '';
+                        const paymentMethod = (run.paymentMethods || {})[o.id] || '';
+                        const paymentStatus = (run.paymentStatusMap || {})[o.id] || '';
+
+                        // Ha már van bent újabb dátumú járat, a legfrissebbet tartjuk meg
+                        deliveryMap.set(cleanId, {
+                            runId: run.id,
+                            docId: run.docId,
+                            runDate: run.date || run.pickupDate || '',
+                            pickupDate: run.pickupDate || '',
+                            courier: run.courier || 'Futár',
+                            company: run.company || '',
+                            sender: run.sender || 'capsula',
+                            isUncollected: isUncollected,
+                            uncollectedReason: uncollectedReason,
+                            uncollectedResp: uncollectedResp,
+                            paymentMethod: paymentMethod,
+                            paymentStatus: paymentStatus,
+                            isSettled: !!run.isSettled
+                        });
+                    });
+                });
+
+                // 2. Shopify rendelések átalakítása és terítési adatok csatolása
+                const converted = ShopifyApiService.convertApiOrders(res.rawOrders);
+                converted.forEach(order => {
+                    const cleanId = String(order.id || '').replace(/^#/, '').replace(/\/.*$/, '').trim();
+                    const dInfo = deliveryMap.get(cleanId);
+                    if (dInfo) {
+                        order.deliveryInfo = dInfo;
+                        order.isInDelivery = true;
+                    } else {
+                        order.deliveryInfo = null;
+                        order.isInDelivery = false;
+                    }
+                });
+
+                Store.setShopifyHubOrders(converted);
+                if (Store.activeMainTab === 'overview') {
+                    renderOverview();
+                }
+                if (isManual) {
+                    CustomDialog.alert(`Sikeresen betöltve ${converted.length} db élő rendelés a Shopify-ból!`, 'Shopify Szinkron', 'success');
+                }
+            } else {
+                if (isManual) {
+                    CustomDialog.alert(res.error || 'Nem sikerült lekérni a rendeléseket a Shopify-ból.', 'Szinkron Hiba', 'danger');
+                }
+            }
+        } catch (err) {
+            console.error('[loadLiveShopifyOrders error]', err);
+            if (isManual) {
+                CustomDialog.alert(err.message, 'Hiba', 'danger');
+            }
+        } finally {
+            if (refreshIcon) refreshIcon.style.animation = 'none';
+        }
+    }
+
+    // --- AUTOMATIKUS VALÓS IDEJŰ SZINKRONIZÁCIÓ (FÓKUSZ & IDŐZÍTŐ) ---
+    // 1. Amikor a felhasználó visszakattint a Shopify fülről a Kiszedési Jegyzékre -> Azonnali csendes frissítés!
+    let lastFocusRefreshTime = 0;
+    const triggerQuietRefresh = () => {
+        const now = Date.now();
+        // Maximum 3 másodpercenként egyszer frissít fókuszváltáskor
+        if (now - lastFocusRefreshTime > 3000) {
+            lastFocusRefreshTime = now;
+            loadLiveShopifyOrders(false);
+        }
+    };
+
+    window.addEventListener('focus', triggerQuietRefresh);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            triggerQuietRefresh();
+        }
+    });
+
+    // 2. Rendszeres 15 másodperces háttér-szinkronizáció (Heartbeat polling)
+    setInterval(() => {
+        if (document.visibilityState === 'visible') {
+            loadLiveShopifyOrders(false);
+        }
+    }, 15000);
+
+    // --- RENDELÉSÁTTEKINTŐ RENDERELŐ & ESEMÉNYKEZELŐ ---
+    function renderOverview() {
+        if (!orderOverviewContainer) return;
+        OrderOverviewView.renderOrderOverview(orderOverviewContainer);
+        attachOverviewEvents();
+    }
+
+    function attachOverviewEvents() {
+        // Keresőmező
+        const searchInput = document.getElementById('hub-search-input');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const cursorPosition = e.target.selectionStart;
+                Store.setHubFilters({ search: e.target.value });
+                renderOverview();
+                const updatedInput = document.getElementById('hub-search-input');
+                if (updatedInput) {
+                    updatedInput.focus();
+                    updatedInput.setSelectionRange(cursorPosition, cursorPosition);
+                }
+            });
+        }
+
+        // Szűrők
+        const filterFulfillment = document.getElementById('hub-filter-fulfillment');
+        if (filterFulfillment) {
+            filterFulfillment.addEventListener('change', (e) => {
+                Store.setHubFilters({ fulfillment: e.target.value });
+                renderOverview();
+            });
+        }
+
+        // Fő Állapot Fülek (Segmented Tabs)
+        document.querySelectorAll('.hub-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.getAttribute('data-tab');
+                Store.setHubFilters({ tab: tab });
+                renderOverview();
+            });
         });
-        
-        tabMainPannonXP.addEventListener('click', () => {
-            activeMainTab = 'pannonxp';
-            tabMainPannonXP.classList.add('active');
-            tabMainPannonXP.style.background = '#fff';
-            tabMainPannonXP.style.color = '#0f172a';
-            tabMainPannonXP.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-            tabMainPannonXP.style.fontWeight = '600';
-            
-            tabMainPicking.classList.remove('active');
-            tabMainPicking.style.background = 'transparent';
-            tabMainPicking.style.color = '#64748b';
-            tabMainPicking.style.boxShadow = 'none';
-            tabMainPicking.style.fontWeight = '500';
-            
-            if (mainContent) mainContent.style.display = 'none';
-            if (emptyState) emptyState.style.display = 'none';
-            if (dynamicIsland) {
-                dynamicIsland.style.display = 'flex';
-                const btnSortMode = document.getElementById('btn-sort-mode');
-                const btnPrint = document.getElementById('btn-print');
-                const btnAddManual = document.getElementById('btn-add-manual');
-                const islandDivider = document.querySelector('.island-divider');
-                if (btnSortMode) btnSortMode.style.display = 'none';
-                if (btnPrint) btnPrint.style.display = 'none';
-                if (btnAddManual) btnAddManual.style.display = 'none';
-                if (islandDivider) islandDivider.style.display = 'none';
-            }
-            if (historyIsland) historyIsland.style.display = 'none';
-            
-            if (pannonXPContainer) {
-                pannonXPContainer.style.display = 'block';
-                PannonXPView.render(pannonXPContainer, pxpOrders, handlePxpExport);
-            }
+
+        // Gyors-Akció Chipek (Action Chips)
+        document.querySelectorAll('.hub-chip-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const chip = btn.getAttribute('data-chip');
+                const currentChip = (Store.hubFilters && Store.hubFilters.chip) || 'all';
+                // Ha ugyanarra kattint, kikapcsoljuk 'all'-ra
+                const nextChip = (currentChip === chip && chip !== 'all') ? 'all' : chip;
+                Store.setHubFilters({ chip: nextChip });
+                renderOverview();
+            });
         });
+
+        // Szűrők törlése gomb
+        const btnResetFilters = document.getElementById('btn-reset-all-filters');
+        if (btnResetFilters) {
+            btnResetFilters.addEventListener('click', () => {
+                Store.setHubFilters({ chip: 'all', search: '', tag: 'all', dateRange: 'all' });
+                renderOverview();
+            });
+        }
+
+        // Termékkép Lightbox Nagyítás
+        document.querySelectorAll('.hub-product-thumb-container').forEach(thumb => {
+            thumb.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const imgUrl = thumb.getAttribute('data-img-url');
+                const title = thumb.getAttribute('data-item-title');
+                if (imgUrl) {
+                    OrderOverviewView.openImageModal(imgUrl, title);
+                }
+            });
+        });
+
+        // Frissítés gomb
+        const btnRefresh = document.getElementById('btn-refresh-hub');
+        if (btnRefresh) {
+            btnRefresh.addEventListener('click', () => {
+                loadLiveShopifyOrders(true);
+            });
+        }
+
+        // Összes kijelölése checkbox
+        const selectAllCheckbox = document.getElementById('hub-select-all');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    const visibleRows = document.querySelectorAll('.hub-order-row');
+                    const visibleIds = Array.from(visibleRows).map(r => r.getAttribute('data-order-id')).filter(Boolean);
+                    Store.selectAllHubOrders(visibleIds);
+                } else {
+                    Store.clearHubOrderSelection();
+                }
+                renderOverview();
+            });
+        }
+
+        // Sor lenyitás (chevron vagy sor kattintás)
+        document.querySelectorAll('.btn-toggle-row-expand').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const orderId = btn.getAttribute('data-order-id');
+                OrderOverviewView.toggleExpand(orderId);
+                renderOverview();
+            });
+        });
+
+        document.querySelectorAll('.hub-order-row').forEach(row => {
+            row.addEventListener('click', (e) => {
+                // Ha konkrétan a checkboxra kattintott, a checkbox event kezeli
+                if (e.target.tagName === 'INPUT' || e.target.classList.contains('hub-order-checkbox')) {
+                    return;
+                }
+                const orderId = row.getAttribute('data-order-id');
+                OrderOverviewView.toggleExpand(orderId);
+                renderOverview();
+            });
+        });
+
+        // Checkbox kijelölés
+        document.querySelectorAll('.hub-order-checkbox').forEach(cb => {
+            cb.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            cb.addEventListener('change', (e) => {
+                const orderId = e.target.getAttribute('data-order-id');
+                Store.toggleHubOrderSelection(orderId);
+                renderOverview();
+            });
+        });
+
+        // Egyedi Rendelés Teljesítése a Shopify-ban (Fulfill)
+        document.querySelectorAll('.btn-fulfill-single-order').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const orderId = btn.getAttribute('data-order-id');
+                const shopifyId = btn.getAttribute('data-shopify-id');
+
+                const ok = await CustomDialog.confirm(
+                    `Biztosan le akarod teljesíteni ezt a rendelést (${orderId}) a Shopify-ban?\n\nA státusza azonnal "Fulfilled" lesz és a vásárló megkapja az értesítést.`,
+                    'Shopify Teljesítés (Fulfill)',
+                    'Igen, Teljesítés',
+                    'Mégse'
+                );
+                if (!ok) return;
+
+                btn.disabled = true;
+                btn.innerHTML = '<i class="ph-bold ph-spinner" style="animation: spin 1s linear infinite;"></i> Folyamatban...';
+
+                try {
+                    const res = await ShopifyApiService.fulfillOrder({ orderId, shopifyId, notifyCustomer: true });
+                    if (res.success) {
+                        const target = Store.shopifyHubOrders.find(o => o.id === orderId || String(o.shopifyId) === String(shopifyId));
+                        if (target) {
+                            target.isFulfilled = true;
+                            target.fulfillmentStatus = 'fulfilled';
+                        }
+                        renderOverview();
+                        CustomDialog.alert(`A(z) ${orderId} rendelés sikeresen le lett teljesítve a Shopify-ban! 🎉`, 'Sikeres Teljesítés', 'success');
+                    }
+                } catch (err) {
+                    CustomDialog.alert(`Hiba történt a teljesítés során:\n${err.message}`, 'Teljesítési Hiba', 'danger');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="ph-bold ph-package"></i> <span>Teljesítés a Shopify-ban (Fulfill)</span>';
+                }
+            });
+        });
+
+        // Csoportos Teljesítés a Shopify-ban (Bulk Fulfill)
+        const btnBulkFulfill = document.getElementById('btn-hub-bulk-fulfill');
+        if (btnBulkFulfill) {
+            btnBulkFulfill.addEventListener('click', async () => {
+                const selectedIds = Store.selectedHubOrderIds;
+                if (selectedIds.size === 0) return;
+
+                const selectedOrders = Store.shopifyHubOrders.filter(o => selectedIds.has(o.id) && !o.isFulfilled && !o.isCancelled);
+                if (selectedOrders.length === 0) {
+                    CustomDialog.alert('A kijelölt rendelések között nincs nyitott (Unfulfilled) teljesíthető rendelés.', 'Figyelmeztetés', 'warning');
+                    return;
+                }
+
+                const ok = await CustomDialog.confirm(
+                    `Biztosan le akarod teljesíteni mind a ${selectedOrders.length} db kijelölt rendelést a Shopify-ban?`,
+                    'Csoportos Shopify Teljesítés',
+                    'Igen, Teljesítés',
+                    'Mégse'
+                );
+                if (!ok) return;
+
+                btnBulkFulfill.disabled = true;
+                btnBulkFulfill.innerHTML = '<i class="ph-bold ph-spinner" style="animation: spin 1s linear infinite;"></i> Teljesítés folyamatban...';
+
+                try {
+                    const ordersPayload = selectedOrders.map(o => ({ orderId: o.id, shopifyId: o.shopifyId }));
+                    const res = await ShopifyApiService.bulkFulfillOrders({ orders: ordersPayload, notifyCustomer: true });
+
+                    const successfulIdSet = new Set((res.successfulIds || []).map(String));
+                    Store.shopifyHubOrders.forEach(o => {
+                        if (successfulIdSet.has(String(o.id)) || successfulIdSet.has(String(o.shopifyId))) {
+                            o.isFulfilled = true;
+                            o.fulfillmentStatus = 'fulfilled';
+                        }
+                    });
+                    Store.clearHubOrderSelection();
+                    renderOverview();
+
+                    if (res.failedCount > 0) {
+                        CustomDialog.alert(`Teljesítve: ${res.successCount} db rendelés.\nHibás / Már lezárt: ${res.failedCount} db.`, 'Részleges Eredmény', 'warning');
+                    } else {
+                        CustomDialog.alert(`Mind a ${res.successCount} db rendelés sikeresen le lett teljesítve a Shopify-ban! 🎉`, 'Csoportos Teljesítés Kész', 'success');
+                    }
+                } catch (err) {
+                    CustomDialog.alert(`Hiba a csoportos teljesítésnél:\n${err.message}`, 'Hiba', 'danger');
+                } finally {
+                    if (btnBulkFulfill) {
+                        btnBulkFulfill.disabled = false;
+                        btnBulkFulfill.innerHTML = `<i class="ph-bold ph-package"></i> <span>Teljesítés Shopify-ban (${Store.selectedHubOrderIds.size})</span>`;
+                    }
+                }
+            });
+        }
+
+        // Lebegő Akciógombok
+        const btnSendToPicking = document.getElementById('btn-hub-send-to-picking');
+        if (btnSendToPicking) {
+            btnSendToPicking.addEventListener('click', () => {
+                const selectedIds = Store.selectedHubOrderIds;
+                if (selectedIds.size === 0) return;
+
+                const selectedOrders = Store.shopifyHubOrders.filter(o => selectedIds.has(o.id));
+                // Klónozzuk a rendeléseket, hogy a szedőlistán függetlenül módosíthatóak legyenek
+                const clonedOrders = JSON.parse(JSON.stringify(selectedOrders));
+                
+                Store.setOrders(clonedOrders);
+                CustomDialog.alert(`${clonedOrders.length} db rendelés sikeresen átkerült a Szedőlistába!`, 'Áthelyezés Sikeres', 'success');
+                switchMainTab('picking');
+            });
+        }
+
+        const btnSendToPxp = document.getElementById('btn-hub-send-to-pxp');
+        if (btnSendToPxp) {
+            btnSendToPxp.addEventListener('click', () => {
+                const selectedIds = Store.selectedHubOrderIds;
+                if (selectedIds.size === 0) return;
+
+                const selectedOrders = Store.shopifyHubOrders.filter(o => selectedIds.has(o.id));
+                const clonedPxpOrders = JSON.parse(JSON.stringify(selectedOrders)).map(o => ({
+                    ...o,
+                    pxp_selected: true
+                }));
+
+                Store.setPxpOrders(clonedPxpOrders);
+                CustomDialog.alert(`${clonedPxpOrders.length} db rendelés sikeresen átkerült a PannonXP Címkekészítőbe!`, 'Áthelyezés Sikeres', 'success');
+                switchMainTab('pannonxp');
+            });
+        }
+
+        const btnClearSelection = document.getElementById('btn-hub-clear-selection');
+        if (btnClearSelection) {
+            btnClearSelection.addEventListener('click', () => {
+                Store.clearHubOrderSelection();
+                renderOverview();
+            });
+        }
     }
 
     function handlePxpExport() {

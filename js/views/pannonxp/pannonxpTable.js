@@ -113,14 +113,14 @@ export function renderOrdersTable(container, orders, onExport, mainViewContext) 
         if (isPendingDeposit) {
             warningMessage += `
             <span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;" class="pxp-pending-deposit-span">
-                ⚠️ Függő utalás (Bank Deposit) - Nincs fizetve!
+                <i class="ph-bold ph-warning" style="margin-right: 4px;"></i>Függő utalás (Bank Deposit) - Nincs fizetve!
             </span>
             `;
         }
         if (hasRemovedError) {
             warningMessage += `
             <span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;" class="pxp-removed-error-span">
-                ⚠️ Törölt tétel van a megrendelésben, kérlek ellenőrizd a Shopifyban!
+                <i class="ph-bold ph-warning" style="margin-right: 4px;"></i>Törölt tétel van a megrendelésben, kérlek ellenőrizd a Shopifyban!
                 <button type="button" class="btn-ack-pxp-removed btn-sm" data-order-index="${index}" data-err-id="${removedError.id}" style="margin-left: 6px; padding: 2px 6px; font-size: 9px; font-weight: 700; background: #dc2626; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: all 0.15s; vertical-align: middle;" onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">Ellenőrizve</button>
             </span>
             `;
@@ -130,7 +130,7 @@ export function renderOrdersTable(container, orders, onExport, mainViewContext) 
                 const cleanedName = cleanItemNameForMapping(item.name);
                 return `
                 <span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:2px;" class="pxp-unmapped-span">
-                    ⚠️ Rövidítés hiányzik: ${cleanedName}
+                    <i class="ph-bold ph-warning" style="margin-right: 4px;"></i>Rövidítés hiányzik: ${cleanedName}
                     <button type="button" class="btn-quick-add-mapping btn-sm" data-order-index="${index}" data-original-name="${item.name}" data-name="${cleanedName}" style="margin-left: 6px; padding: 2px 6px; font-size: 9px; font-weight: 700; background: #dc2626; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: all 0.15s; vertical-align: middle;" onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">Hozzáadás</button>
                 </span>
                 `;
@@ -141,14 +141,14 @@ export function renderOrdersTable(container, orders, onExport, mainViewContext) 
                 const cleanedName = cleanItemNameForMapping(item.name);
                 return `
                 <span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:2px;" class="pxp-unassigned-cat-span">
-                    ⚠️ Nincs kategória rendelve: ${cleanedName}
+                    <i class="ph-bold ph-warning" style="margin-right: 4px;"></i>Nincs kategória rendelve: ${cleanedName}
                     <button type="button" class="btn-quick-assign-cat btn-sm" data-order-index="${index}" data-original-name="${item.name}" data-name="${cleanedName}" style="margin-left: 6px; padding: 2px 6px; font-size: 9px; font-weight: 700; background: #ea580c; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: all 0.15s; vertical-align: middle;" onmouseover="this.style.background='#c2410c'" onmouseout="this.style.background='#ea580c'">Hozzárendelés</button>
                 </span>
                 `;
             }).join('');
         }
         if (order.pxp_has_unmatched && !hasUnmappedProduct && !hasUnassignedCategory) {
-            warningMessage += '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;">⚠️ Ismeretlen termékcsalád!</span>';
+            warningMessage += '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;"><i class="ph-bold ph-warning" style="margin-right: 4px;"></i>Ismeretlen termékcsalád!</span>';
         }
         
         return `
@@ -164,8 +164,8 @@ export function renderOrdersTable(container, orders, onExport, mainViewContext) 
                 </td>
                 <td style="padding: 10px; color: #334155;">
                     <input type="text" class="pxp-input-address" data-index="${index}" value="${(order.fullAddress || order.address || '').replace(/"/g, '&quot;')}" style="width: 100%; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 11px;">
-                    ${!hasZip ? '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;">⚠️ Hiányzó irányítószám!</span>' : ''}
-                    ${hasZip && isAddrInvalid ? '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;">⚠️ Hiányos szállítási cím (Házszám hiányzik, hívni kell a vásárlót)!</span>' : ''}
+                    ${!hasZip ? '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;"><i class="ph-bold ph-warning" style="margin-right: 4px;"></i>Hiányzó irányítószám!</span>' : ''}
+                    ${hasZip && isAddrInvalid ? '<span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:4px;"><i class="ph-bold ph-warning" style="margin-right: 4px;"></i>Hiányos szállítási cím (Házszám hiányzik, hívni kell a vásárlót)!</span>' : ''}
                 </td>
                 <td style="padding: 10px;">
                     <input type="text" class="pxp-input-phone" data-index="${index}" value="${order.shippingPhone || ''}" style="width: 100%; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 11px;">

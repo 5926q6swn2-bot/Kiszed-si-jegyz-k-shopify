@@ -832,7 +832,7 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
                                     </td>
                                     <td style="padding: 4px 10px;">
                                         <select class="pxp-select-mapping-category" style="width: 100%; border: 1.5px solid ${hasCat ? '#cbd5e1' : '#ef4444'}; background: ${hasCat ? '#fff' : '#fef2f2'}; border-radius: 6px; padding: 4px; font-size: 12px; outline: none; cursor: pointer; font-weight: ${hasCat ? 'normal' : 'bold'}; color: ${hasCat ? '#0f172a' : '#b91c1c'}; box-sizing: border-box;">
-                                            <option value="" ${!hasCat ? 'selected' : ''}>⚠️ Nincs kategória! ⚠️</option>
+                                            <option value="" ${!hasCat ? 'selected' : ''}>[Nincs kategória!]</option>
                                             ${categories.map(cat => `<option value="${cat.id}" ${cat.id === mappingObj.categoryId ? 'selected' : ''}>${cat.name}</option>`).join('')}
                                         </select>
                                     </td>

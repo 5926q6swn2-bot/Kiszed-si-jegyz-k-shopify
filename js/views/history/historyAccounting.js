@@ -101,13 +101,13 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             const paymentMethodSelectorHtml = `
             <div class="sd-paymethod-selector" style="${simpleControlsStyle}align-items:center;gap:4px;" data-order-id="${o.id}">
                 <button type="button" class="sd-paymethod-btn cash ${(!isSplitSaved && pm === 'cash') ? 'active' : ''}" data-method="cash" style="font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${(!isSplitSaved && pm === 'cash') ? '#cbd5e1' : '#e2e8f0'};background:${(!isSplitSaved && pm === 'cash') ? '#e2e8f0' : '#f8fafc'};color:${(!isSplitSaved && pm === 'cash') ? '#1e293b' : '#64748b'};transition:all .15s;">
-                    💵 KP
+                    KP
                 </button>
                 <button type="button" class="sd-paymethod-btn card ${(!isSplitSaved && pm === 'card') ? 'active' : ''}" data-method="card" style="font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${(!isSplitSaved && pm === 'card') ? '#93c5fd' : '#e2e8f0'};background:${(!isSplitSaved && pm === 'card') ? '#eff6ff' : '#f8fafc'};color:${(!isSplitSaved && pm === 'card') ? '#1d4ed8' : '#64748b'};transition:all .15s;">
-                    💳 Kártya
+                    Kártya
                 </button>
                 <button type="button" class="sd-paymethod-btn bank ${(!isSplitSaved && pm === 'bank') ? 'active' : ''}" data-method="bank" style="font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${(!isSplitSaved && pm === 'bank') ? '#bae6fd' : '#e2e8f0'};background:${(!isSplitSaved && pm === 'bank') ? '#f0f9ff' : '#f8fafc'};color:${(!isSplitSaved && pm === 'bank') ? '#0284c7' : '#64748b'};transition:all .15s;">
-                    🏦 Utalás
+                    Utalás
                 </button>
             </div>
             `;
@@ -123,7 +123,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             <div class="sd-paystatus-container" style="${simpleControlsStyle}align-items:center;gap:6px;" data-order-id="${o.id}">
                 <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;font-weight:700;color:#374151;user-select:none;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:5px 8px;transition:all .15s;" class="sd-paystatus-label">
                     <input type="checkbox" class="sd-paystatus-checkbox" ${(!isSplitSaved && isReceived) ? 'checked' : ''} style="cursor:pointer;accent-color:#16a34a;width:14px;height:14px;">
-                    <span>💵 Nálunk van</span>
+                    <span>Nálunk van</span>
                 </label>
             </div>
             `;
@@ -144,7 +144,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                 <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
                     <div style="display:flex;flex-direction:column;gap:4px;background:#fff;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;">
                         <label style="font-size:11px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:4px;">
-                            💵 KP (készpénz)
+                            KP (készpénz)
                         </label>
                         <div style="display:flex;align-items:center;gap:8px;">
                             <input class="sd-split-amount-kp" type="number" min="0" max="${o.codAmount}" value="${isSplitSaved ? (currentPm.cash || '') : ''}" placeholder="0" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;font-family:inherit;">
@@ -156,7 +156,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                     
                     <div style="display:flex;flex-direction:column;gap:4px;background:#fff;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;">
                         <label style="font-size:11px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:4px;">
-                            💳 Kártya
+                            Kártya
                         </label>
                         <div style="display:flex;align-items:center;gap:8px;">
                             <input class="sd-split-amount-card" type="number" min="0" max="${o.codAmount}" value="${isSplitSaved ? (currentPm.card || '') : ''}" placeholder="0" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;font-family:inherit;">
@@ -168,7 +168,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
 
                     <div style="display:flex;flex-direction:column;gap:4px;background:#fff;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;">
                         <label style="font-size:11px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:4px;">
-                            🏦 Közvetlen utalás
+                            Közvetlen utalás
                         </label>
                         <div style="display:flex;align-items:center;gap:8px;">
                             <input class="sd-split-amount-bank" type="number" min="0" max="${o.codAmount}" value="${isSplitSaved ? (currentPm.bank || '') : ''}" placeholder="0" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;font-family:inherit;">
@@ -181,7 +181,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                 
                 <div class="sd-split-partial-row" style="display:none;background:#eff6ff;border:1px dashed #93c5fd;border-radius:8px;padding:12px;margin-top:8px;">
                     <div style="font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:8px;">
-                        ⚠️ Részleges fizetés történt! Hiányzó összeg: <span class="sd-split-diff-amount">0</span> Ft
+                        Részleges fizetés történt! Hiányzó összeg: <span class="sd-split-diff-amount">0</span> Ft
                     </div>
                     <input class="sd-split-partial-comment" type="text" placeholder="Miért volt részleges? (pl. 1 db termék sérült, visszahozta)..." value="${wasPartial ? (prevPartial.comment||'').replace(/"/g,'&quot;') : ''}" style="width:100%;box-sizing:border-box;font-size:13px;border:2px solid #93c5fd;border-radius:8px;padding:8px 12px;outline:none;background:#fff;margin-bottom:12px;font-family:inherit;">
                     
@@ -960,7 +960,7 @@ export async function renderAccountingRuns(ctx) {
                 const reasonText    = isUncollected && reasons[o.id] ? ` · ${reasons[o.id]}` : '';
                 const method        = paymentMethods[o.id] || 'cash';
                 const status        = paymentStatusMap[o.id] || 'received';
-                const statusText    = status === 'pending' ? ' ⏳' : ' ✓';
+                const statusText    = status === 'pending' ? ' (Függő)' : ' (Rendben)';
                 const statusColor   = status === 'pending' ? '#d97706' : '#16a34a';
 
                 const isSplit = typeof method === 'object' && method !== null;
@@ -970,15 +970,15 @@ export async function renderAccountingRuns(ctx) {
                     const parts = [];
                     if (method.cash > 0) {
                         const got = sObj.cash !== 'pending';
-                        parts.push(`<span style="color:${got?'#10b981':'#d97706'}; font-weight:700;">${method.cash.toLocaleString('hu-HU')} Ft KP ${got?'✓':'⏳'}</span>`);
+                        parts.push(`<span style="color:${got?'#10b981':'#d97706'}; font-weight:700;">${method.cash.toLocaleString('hu-HU')} Ft KP ${got?'(Rendben)':'(Függő)'}</span>`);
                     }
                     if (method.card > 0) {
                         const got = sObj.card !== 'pending';
-                        parts.push(`<span style="color:${got?'#10b981':'#2563eb'}; font-weight:700;">${method.card.toLocaleString('hu-HU')} Ft Kártya ${got?'✓':'⏳'}</span>`);
+                        parts.push(`<span style="color:${got?'#10b981':'#2563eb'}; font-weight:700;">${method.card.toLocaleString('hu-HU')} Ft Kártya ${got?'(Rendben)':'(Függő)'}</span>`);
                     }
                     if (method.bank > 0) {
                         const got = sObj.bank !== 'pending';
-                        parts.push(`<span style="color:${got?'#10b981':'#0284c7'}; font-weight:700;">${method.bank.toLocaleString('hu-HU')} Ft Utalás ${got?'✓':'⏳'}</span>`);
+                        parts.push(`<span style="color:${got?'#10b981':'#0284c7'}; font-weight:700;">${method.bank.toLocaleString('hu-HU')} Ft Utalás ${got?'(Rendben)':'(Függő)'}</span>`);
                     }
                     paymentBreakdownHtml = `<span style="font-size:11px;font-weight:700;color:#1e293b; display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap;">Bontott: ${parts.join(' + ')} <span style="font-weight:400;color:#94a3b8;">/ ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`;
                 }
@@ -992,7 +992,7 @@ export async function renderAccountingRuns(ctx) {
                             : `<span style="font-size:11px;font-weight:700;color:#6b21a8;">visszahozva</span>`
                         : o.isCOD
                             ? pd.isUnsettledRun
-                                ? `<span style="font-size:11px;font-weight:700;color:#64748b;">📦 Utánvét <span style="font-weight:400;color:#94a3b8;">(Elszámolásra vár) / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
+                                ? `<span style="font-size:11px;font-weight:700;color:#64748b;">Utánvét <span style="font-weight:400;color:#94a3b8;">(Elszámolásra vár) / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
                                 : isUncollected
                                     ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem érkezett<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
                                     : isBankTransferred && !isSplit
@@ -1000,12 +1000,12 @@ export async function renderAccountingRuns(ctx) {
                                         : isSplit
                                             ? paymentBreakdownHtml
                                             : partialInfo
-                                                ? `<span style="font-size:11px;font-weight:700;color:#1d4ed8;">~${partialInfo.amount.toLocaleString('hu-HU')} Ft ${method === 'card' ? '💳' : method === 'bank' ? '🏦' : '💵'}<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft${partialInfo.comment ? ' · ' + partialInfo.comment : ''}</span></span>`
+                                                ? `<span style="font-size:11px;font-weight:700;color:#1d4ed8;">~${partialInfo.amount.toLocaleString('hu-HU')} Ft ${method === 'card' ? 'Kártya' : method === 'bank' ? 'Utalás' : 'KP'}<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft${partialInfo.comment ? ' · ' + partialInfo.comment : ''}</span></span>`
                                                 : (method === 'card'
-                                                    ? `<span style="font-size:11px;font-weight:700;color:#2563eb;">💳 Kártya<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
+                                                    ? `<span style="font-size:11px;font-weight:700;color:#2563eb;">Kártya<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
                                                     : method === 'bank'
-                                                        ? `<span style="font-size:11px;font-weight:700;color:#0284c7;">🏦 Utalás<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
-                                                        : `<span style="font-size:11px;font-weight:700;color:#10b981;">💵 KP<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`)
+                                                        ? `<span style="font-size:11px;font-weight:700;color:#0284c7;">Utalás<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
+                                                        : `<span style="font-size:11px;font-weight:700;color:#10b981;">KP<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`)
                             : isUncollected
                                 ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem lett átadva<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
                                 : '<span style="font-size:11px;color:#94a3b8;">átadva</span>'}

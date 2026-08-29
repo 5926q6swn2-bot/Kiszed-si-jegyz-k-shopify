@@ -145,9 +145,13 @@ export const OrdersView = {
                 orderDateHtml = `<div style="font-size: 11px; color: #64748b; margin-top: 2px;">Rendelés: ${formattedOrderDate}</div>`;
 
                 if (businessDays > 6 && !order.isPlannedDelay) {
-                    delayBadge = `<span class="badge" style="background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; margin-left: 8px; font-size: 10px; padding: 2px 8px;">⚠️ ${businessDays} munkanap késés</span>`;
+                    delayBadge = `<span class="badge" style="background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; margin-left: 8px; font-size: 10px; padding: 2px 8px;"><i class="ph-bold ph-warning" style="margin-right: 3px;"></i>${businessDays} munkanap késés</span>`;
                 }
             }
+
+            const pickupBadge = order.isPickup 
+                ? `<span class="badge" style="background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; margin-left: 6px; font-size: 10px; padding: 2px 8px; font-weight: 700;"><i class="ph-bold ph-storefront" style="margin-right: 3px;"></i>Személyes átvétel</span>`
+                : '';
 
             card.innerHTML = `
                 <div class="drag-handle no-print" title="Húzd át az átrendezéshez">
@@ -160,6 +164,7 @@ export const OrdersView = {
                             <div class="order-id" data-field="id">
                                 ${order.id}
                                 ${delayBadge}
+                                ${pickupBadge}
                             </div>
                             <div class="order-customer" data-field="shippingName">${order.shippingName}</div>
                             <div class="order-address" data-field="address">${order.address}</div>

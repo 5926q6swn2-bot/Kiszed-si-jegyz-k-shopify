@@ -4,7 +4,16 @@
 const state = {
     orders: [],
     pxpOrders: [],
-    activeMainTab: 'picking', // 'picking' | 'pannonxp'
+    shopifyHubOrders: [],
+    selectedHubOrderIds: new Set(),
+    hubFilters: {
+        search: '',
+        fulfillment: 'all',
+        financial: 'all',
+        tag: 'all',
+        dateRange: 'all'
+    },
+    activeMainTab: 'overview', // 'overview' | 'picking' | 'pannonxp'
     sortableInstance: null,
     sortModeActive: false,
     currentLoadedRunId: null,
@@ -19,6 +28,9 @@ export const Store = {
     // --- Getters ---
     get orders() { return state.orders; },
     get pxpOrders() { return state.pxpOrders; },
+    get shopifyHubOrders() { return state.shopifyHubOrders; },
+    get selectedHubOrderIds() { return state.selectedHubOrderIds; },
+    get hubFilters() { return state.hubFilters; },
     get activeMainTab() { return state.activeMainTab; },
     get sortableInstance() { return state.sortableInstance; },
     get sortModeActive() { return state.sortModeActive; },
@@ -52,6 +64,34 @@ export const Store = {
 
     clearPxpOrders() {
         state.pxpOrders = [];
+    },
+
+    setShopifyHubOrders(orders) {
+        state.shopifyHubOrders = orders;
+    },
+
+    setSelectedHubOrderIds(idSet) {
+        state.selectedHubOrderIds = idSet;
+    },
+
+    toggleHubOrderSelection(orderId) {
+        if (state.selectedHubOrderIds.has(orderId)) {
+            state.selectedHubOrderIds.delete(orderId);
+        } else {
+            state.selectedHubOrderIds.add(orderId);
+        }
+    },
+
+    selectAllHubOrders(orderIds) {
+        state.selectedHubOrderIds = new Set(orderIds);
+    },
+
+    clearHubOrderSelection() {
+        state.selectedHubOrderIds.clear();
+    },
+
+    setHubFilters(filters) {
+        state.hubFilters = { ...state.hubFilters, ...filters };
     },
 
     setActiveMainTab(tabName) {

@@ -27,16 +27,69 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
-- **Utolsó aktív modell**: Gemini 3.6 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris és stabil. Az 1. és 2. Fázisú architekturális refaktorálás és nagytakarítás elkészült (store állapotkezelés központosítva `v3.1.0`, `historyView.js` és `pannonxpView.js` szétbontva modulokra, unit tesztek 9/9 sikeres).
-- **Következő Lépés / Aktuális TODO List (3. Fázis / Jövőbeli feladatok)**:
-  - [x] **Store Állapotkezelés Egységesítése**: Nézetfájlok modul-szintű változóinak átmozgatása a centralizált `js/store/state.js` Store objektumba.
-  - [x] **Moduláris Nézet-szétbontás (`historyView.js`)**: A 139 KB-os `historyView.js` szétbontása al-modulokra (`js/views/history/historyList.js`, `historyOrders.js`, `historyAccounting.js`, `historyTrash.js`).
-  - [x] **Moduláris Nézet-szétbontás (`pannonxpView.js`)**: A 122 KB-os `pannonxpView.js` szétbontása al-modulokra (`js/views/pannonxp/pannonxpTable.js`, `pannonxpSettings.js`).
+- **Utolsó aktív modell**: Gemini 3.7 Flash (High)
+- **Státusz**: A rendszer 100%-ban moduláris és stabil. A Rossz szállítási díj (vidéki cím 2.300 Ft-os budapesti díjjal) intelligens kiszűrése és automata feloldási logikája elkészült (`v3.4.4`, 48/48 zöld unit teszt).
 
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. augusztus 29. (18. frissítés) - Közvetlen Shopify Rendelés Teljesítés (Egyedi & Csoportos Fulfill) (`v3.6.4`)
+- **Közvetlen Shopify Teljesítés (Fulfillment)**:
+  - Elkészült a `/api/shopify/fulfill` és a `/api/shopify/bulk-fulfill` végpont.
+  - **Egyedi Teljesítés**: A rendelést lenyitva a tételek felett megjelenik a **`[📦 Teljesítés a Shopify-ban (Fulfill)]`** gomb.
+  - **Csoportos Teljesítés**: Az alsó lebegő akciósávban kijelölt rendelések egyszerre teljesíthetők a **`[📦 Teljesítés Shopify-ban (X)]`** gombbal.
+- **Valós Idejű Állapotfrissítés**:
+  - A teljesített rendelések azonnal átváltanak szürke `● Fulfilled` státuszra, és átkerülnek a `Fulfilled` fül alá a Shopify és a vevők azonnali értesítésével.
+- **Új Terítési Szűrő Chipek**:
+  - 🚚 **`Terítésben (X)`**: Egyetlen kattintással leszűri az összes járatra kiosztott rendelést.
+  - 📦 **`Járatra vár (Y)`**: Kigyűjti azokat a rendeléseket, amelyek még nincsenek beosztva egyetlen kiszállítási körbe sem.
+- **Részletes Kiszállítási Kártya a Lenyitható Panelben**:
+  - Megjeleníti a kiszállítás tervezett napját, a futár és cég nevét, a fizetés és elszámolás állapotát, valamint a járat azonosítóját.
+- **Interaktív Akció-Chipek (Action Chips)**:
+  - 🔴 `Rossz szállítás (4)`, 🔵 `Díjbekérő kell (16)`, 🟡 `Számlázni! (46)`, 🟣 `Személyes Átvétel (44)`, `Csak Kiszállítás (82)`, 💵 `Utánvét (127)`, 🏦 `Függő Utalás (1)`.
+  - Intelligens kapcsoló: egyetlen kattintással szűr, ismételt kattintásra visszaáll `Mind`-re.
+- **Shopify Eredeti Szürke Fulfilled & Cancelled Badge-ek**:
+  - A `Fulfilled` státusz natív szürke hátteret (`#e4e5e7`), sötétszürke szöveget (`#303030`) és szürke pontot kapott, a `Cancelled` szintén szürke.
+
+### 2026. augusztus 29. (3. frissítés) - Személyes Átvétel Elkülönítése & Nagyfelbontású Kép Lightbox (`v3.4.2`)
+- **Személyes Átvétel Intelligens Kezelése**:
+  - A rendszer a `tags` (`személyes`, `pickup`) és a `shipping_lines` alapján automatikusan azonosítja a személyes/raktári átvételt (`order.isPickup`).
+  - **Külön Szűrő & Statisztika**: A Rendelésáttekintő tetején külön gomb és számláló jelenik meg: `Személyes Átvétel (X)`, valamint a `Kiszállításra vár` gomb csak a valós kiszállítós rendeléseket listázza.
+  - **Szállítás Módja Szűrő**: Legördülő szűrő: `Szállítás: Mind`, `Csak Kiszállítás`, `Csak Személyes Átvétel`.
+  - **Vizuális Megkülönböztetés**: Lila bal oldali szegély és `Személyes átvétel` jelvény a sorban.
+  - **Átjárhatóság**: Ha nem jönnek érte és mégis ki kell szállítani, a checkbox bepipálásával 1 kattintással átküldhető a Szedőlistába (`Átdobás Szedőlistába`), ahol szintén jól látható a `Személyes átvétel` jelvény.
+- **Nagyfelbontású Termékképek & Lightbox**:
+  - A kártyákon megnöveltük a miniatűrök méretét (`74x74px`) kontrasztos, tiszta megjelenítéssel (`image-rendering: -webkit-optimize-contrast`).
+  - **Kattintásra Nagyítás (Lightbox)**: A termékképre kattintva egy elegáns, sötétített hátterű ablakban megjelenik a termék nagy felbontású képe a nevével és variánsával.
+
+### 2026. augusztus 29. (2. frissítés) - Szuper-Kompakt Rendelésáttekintő, Lenyitható Termékképek & Teljes Emoji-mentesítés (`v3.4.1`)
+- **Szuper-Kompakt Sűrű Táblázat**:
+  - Tömör, letisztult sormagasság és professzionális elrendezés (egyszerre 15-20 rendelés látható a képernyőn).
+  - Oszlopok: Kijelölő, Lenyitó Chevron, Rendelésszám, Dátum, Címzett & Település, Tételek gyorsnézet, Összeg & Fizetési mód, Státusz, Címkék.
+- **Lenyitható Termékrészletező Panel KÉPEKKEL**:
+  - A szerver (`server.js`) a Shopify API-ból automatikusan lekéri és a tételekhez csatolja a valós termékképeket (`image_url`).
+  - Sorra kattintva lenyílik a részletező nézet: nagy felbontású thumbnail képek, megnevezés, variáns, SKU, darabszám és egyedi/összesített ár, részletes szállítási cím, telefon és Notes megjegyzések.
+- **0 Emoji Szabály (Teljes Rendszertakarítás)**:
+  - Az egész alkalmazásból (`js/`, `index.html`) eltávolítottuk az összes emojit (📦, ⏳, 💵, 💳, 🏦, ⚠️, ✓, ✏️ stb.).
+  - Helyettük professzionális, egységes Phosphor vektoros SVG ikonokat és tiszta tipográfiát alkalmazunk.
+- **Görgetési Javítás (Flexbox Min-Height)**:
+  - A szülő tárolókon beállítottuk a `min-height: 0; overflow-y: auto;` szabályokat, így a szedőlista és a rendelésáttekintő is folyamatosan és akadálymentesen görgethető.
+
+### 2026. augusztus 29. - Rendelésáttekintő (Shopify Order Hub) & Élő API Integráció (`v3.4.0`)
+- **Shopify OAuth Hitelesítés és API Proxy (`server.js`)**:
+  - Létrehoztuk a közvetlen Shopify Dev Dashboard integrációt (`GET /api/shopify/auth`, `GET /api/auth/callback`, `GET /api/shopify/orders`, `GET /api/shopify/status`).
+  - A szerver automatikusan lekéri és a `.env` fájlban tárolja a végleges, le nem járó `SHOPIFY_ACCESS_TOKEN`-t.
+- **Központi Modell Átalakító (`js/services/shopifyApiService.js`)**:
+  - Elkészítettük az élő API JSON objektumokat a belső app rendelési formátumra alakító modult, megőrizve az összes létező üzleti szabályt (név- és címtisztítás, hibadetektálás, profil összevonás, PannonXP referenciaszám és csomagkalkuláció).
+- **Rendelésáttekintő Nézet Modul (`js/views/orderOverviewView.js`)**:
+  - **Gyors Statisztikai Kártyák**: Összes, Teljesítetlen, Függő Utalás, Utánvétes, Teljesített rendelések számlálói 1-kattintásos szűrőfunkcióval.
+  - **Kereső & Többszörös Szűrőrendszer**: Valós idejű szöveges kereső, Fulfillment státusz, Pénzügyi státusz, Dinamikusan generált Shopify Tag szűrő és Dátumszűrő.
+  - **Táblázat & Kijelölések**: Checkboxos kijelölés soronként vagy egyszerre az összes látható elemre, státusz badge-ekkel és tételelőnézettel.
+  - **Lebegő Csoportos Akciósáv (Floating Action Bar)**: Kijelölés esetén felúszó sáv: `[ 📋 Átdobás Szedőlistába ]`, `[ 🏷️ Átdobás PannonXP-be ]`, `[ 🚚 Szállítói Export ]`.
+- **Központosított Store Állapotkezelés (`js/store/state.js`)**:
+  - Bővítettük a Store-t `shopifyHubOrders`, `selectedHubOrderIds`, `hubFilters` állapotokkal és tiszta setter/getter függvényekkel.
+- **Automata Unit Tesztek Bővítése**: 48/48 sikeres teszt (`node tests/unit_tests.js`).
 
 ### 2026. augusztus 28. (2. session) - Előzmények és Elszámolás Felület Tisztítása & Konszolidáció
 - **Redundáns Fülek Megszüntetése**: Eltávolítottuk a felesleges "Szedések" és "Rendelések" füleket a History (Előzmények) felugró ablakból. Az Előzmények immár közvetlenül az "Elszámolások" felületet jeleníti meg.

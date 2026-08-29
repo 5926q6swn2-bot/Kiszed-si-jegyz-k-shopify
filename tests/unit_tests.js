@@ -307,6 +307,42 @@ assertEqual("Sanitize - Wchicago24", sanitizeAbbreviation("Wchicago24"), "Wchica
 assertEqual("Sanitize - Empty string", sanitizeAbbreviation(""), "");
 assertEqual("Sanitize - Null", sanitizeAbbreviation(null), "");
 
+// --- Shopify API Order Converter Tests ---
+const mockApiOrder = {
+    id: 123456789,
+    name: "#3891",
+    created_at: "2026-08-29T14:20:00Z",
+    tags: "számla ki, Létai",
+    financial_status: "paid",
+    fulfillment_status: null,
+    total_price: "45000.00",
+    total_outstanding: "0.00",
+    shipping_address: {
+        first_name: "Péter",
+        last_name: "Kovács (raktár)",
+        address1: "Barátság útja",
+        address2: "2/b. 1/19.",
+        city: "Dunakeszi",
+        zip: "2120",
+        phone: "06301234567"
+    },
+    line_items: [
+        { title: "Sima Akusztikus Falpanel 280x122cm", quantity: 4, price: "10000.00" },
+        { title: "T-Rex ragasztó 310ml", quantity: 1, price: "5000.00" }
+    ]
+};
+
+// Alapvető mező konverziók
+const cleanedShippingName = cleanName(mockApiOrder.shipping_address.first_name + " " + mockApiOrder.shipping_address.last_name);
+assertEqual("API Converter - Clean Name", cleanedShippingName, "Péter Kovács");
+
+const rawAddress = [mockApiOrder.shipping_address.address1, mockApiOrder.shipping_address.address2].filter(Boolean).join(' ');
+const cleanedStreet = cleanAddress(rawAddress);
+assertEqual("API Converter - Clean Address", cleanedStreet, "Barátság útja 2/b. 19.");
+
+const formattedPhone = formatHungarianPhoneNumber(mockApiOrder.shipping_address.phone);
+assertEqual("API Converter - Phone Format", formattedPhone, "+36301234567");
+
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 
 if (failed > 0) {
@@ -314,3 +350,4 @@ if (failed > 0) {
 } else {
     process.exit(0);
 }
+

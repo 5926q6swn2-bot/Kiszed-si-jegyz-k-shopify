@@ -312,7 +312,7 @@ function parseDate(dateStr) {
                 } else if (att.outcome === 'Részleges') {
                     outcomeHtml = `<span style="font-size:11px;font-weight:700;color:${amtColor};background:#eff6ff;border:1px solid #93c5fd;border-radius:5px;padding:2px 6px;display:inline-block;">Részleges: -${att.codAmount.toLocaleString('hu-HU')} Ft</span>`;
                 } else {
-                    outcomeHtml = `<span style="font-size:11px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:2px 6px;display:inline-block;">Sikeres átvétel ✓</span>`;
+                    outcomeHtml = `<span style="font-size:11px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:2px 6px;display:inline-block;">Sikeres átvétel</span>`;
                 }
 
                 const resp = att.responsibility || 'vevo';
