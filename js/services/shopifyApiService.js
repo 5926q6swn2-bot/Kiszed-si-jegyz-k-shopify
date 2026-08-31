@@ -37,7 +37,11 @@ export const ShopifyApiService = {
             });
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.error || `Szerver hiba (${res.status})`);
+                const isStaticHost = window.location.hostname.includes('github.io');
+                const errMsg = isStaticHost 
+                    ? 'A közvetlen Shopify API szinkronhoz a helyi szerver szükséges: http://localhost:8080/ (GitHub Pages statikus tárhelyen az API proxy nem fut)'
+                    : (errorData.error || `Szerver hiba (${res.status})`);
+                throw new Error(errMsg);
             }
             const data = await res.json();
             return {
@@ -46,7 +50,7 @@ export const ShopifyApiService = {
                 ordersCount: data.ordersCount || 0
             };
         } catch (err) {
-            console.error('[ShopifyApiService fetchLiveOrders]', err);
+            console.warn('[ShopifyApiService fetchLiveOrders]', err.message);
             return {
                 success: false,
                 error: err.message,

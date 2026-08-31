@@ -28,7 +28,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.7 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris és stabil. A Rossz szállítási díj (vidéki cím 2.300 Ft-os budapesti díjjal) intelligens kiszűrése és automata feloldási logikája elkészült (`v3.4.4`, 48/48 zöld unit teszt).
+- **Státusz**: A rendszer 100%-ban moduláris és stabil. Javítva a CSV import és lista-törlés Store állapotkezelése, beépítve az intelligens beérkezési dátum / előrendelés takarítás (`cleanItemNameForMapping`) és emberileg olvasható termékmegjelenítés a PannonXP modalban (`v3.6.5`, 51/51 zöld unit teszt).
 
 ---
 
@@ -44,6 +44,18 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. augusztus 31. - Terméknév Tisztító (Beérkezés & Dátum Szűrés), CSV Import Fix & Favicon (`v3.6.5`)
+- **Intelligens Terméknév & Beérkezési Dátum Szűrés (`cleanItemNameForMapping`)**:
+  - A Shopify terméknevekben szereplő logisztikai megjegyzések (pl. `Beérkezés:08.27`, `(Beérkezés: 08.27)`, `[Várható érkezés: 2026.09.01]`, `Preorder`, `Előrendelés`) korábban szétcsúsztatták a termékfelismerést és ábécébe rendezett furcsa kulcsokat eredményeztek (`"27 akusztikus beérkezés:08..."`).
+  - Beépítettünk egy automatikus szűrőt, amely levágja ezeket a változó dátumokat, így a beérkezéses rendelések automatikusan és hibátlanul összekapcsolódnak a már létező termékbeállításokkal (pl. `Wide Pecan`).
+- **Emberileg Olvasható Terméknév a PannonXP Beállító Modalban**:
+  - A felugró ablakban a technikai kulcs helyett a termék valódi, eredeti neve jelenik meg: `Kiválasztott termék: "Prémium Akusztikus Falpanel - Wide Pecan (278x60cm)"`.
+- **CSV Import & Reset ReferenceError Javítása (`js/app.js`)**:
+  - Megszüntettük az `Uncaught (in promise) ReferenceError: activeMainTab is not defined` és `pxpOrders is not defined` hibákat a központi Store metódusok következetes használatával.
+- **Beágyazott SVG Favicon**:
+  - Az `index.html`-be beépítettünk egy beágyazott SVG raktári ikont, megszüntetve a `favicon.ico 404` hibát.
+- **Automata Unit Tesztek**: 51/51 sikeres teszt (`node tests/unit_tests.js`).
 
 ### 2026. augusztus 29. (18. frissítés) - Közvetlen Shopify Rendelés Teljesítés (Egyedi & Csoportos Fulfill) (`v3.6.4`)
 - **Közvetlen Shopify Teljesítés (Fulfillment)**:

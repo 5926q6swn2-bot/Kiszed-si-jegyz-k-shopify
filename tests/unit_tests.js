@@ -343,6 +343,38 @@ assertEqual("API Converter - Clean Address", cleanedStreet, "Barátság útja 2/
 const formattedPhone = formatHungarianPhoneNumber(mockApiOrder.shipping_address.phone);
 assertEqual("API Converter - Phone Format", formattedPhone, "+36301234567");
 
+// --- cleanItemNameForMapping Tests ---
+function cleanItemNameForMapping(name) {
+    if (!name) return '';
+    let cleaned = name.toLowerCase();
+    cleaned = cleaned.replace(/[\(\[\{][^\)\]\}]*(?:beérkezés|érkezés|erkezes|beerkezes|preorder|előrendelés|elorendeles|kiszállítás|átvehető)[^\)\]\}]*[\)\]\}]/gi, '');
+    cleaned = cleaned
+        .replace(/(?:várható\s+)?(?:beérkezés|érkezés|erkezes|beerkezes|preorder|előrendelés|elorendeles|kiszállítás|átvehető)\s*[:\s\-]*\d{1,4}[.\-\/]\d{1,2}(?:[.\-\/]\d{1,4})?(?:\s*-[tT]ől)?/gi, '')
+        .replace(/(?:várható\s+)?(?:beérkezés|érkezés|erkezes|beerkezes|preorder|előrendelés|elorendeles)\s*[:\s\-]*/gi, '')
+        .replace(/\b\d{1,2}[.\/]\d{1,2}(?:[.\/]\d{2,4})?\b/g, '');
+    cleaned = cleaned
+        .replace(/\([\d\s*xXcm\-+.,/]*\)/g, '')
+        .replace(/\b\d+\s*(x|\*)\s*\d+\s*(cm|m|mm)?\b/g, '')
+        .replace(/\b\d+(\.\d+)?\s*(cm|m|mm)\b/g, '')
+        .replace(/\b(2800|2780|2750|2440|600|280|278|275|244|122|60)\b/g, '');
+    cleaned = cleaned.replace(/[\-\/\u2013\u2014.,()\[\]{}:]/g, ' ');
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    words.sort();
+    return words.join(' ');
+}
+
+assertEqual("Item Mapping - Beérkezés és méret takarítás", 
+    cleanItemNameForMapping("Prémium Akusztikus Falpanel - Wide Pecan (278x60cm) Beérkezés:08.27 - 278x60cm"), 
+    "akusztikus falpanel pecan prémium wide");
+
+assertEqual("Item Mapping - Zárójeles beérkezés", 
+    cleanItemNameForMapping("Prémium Akusztikus Falpanel - Wide Pecan (278x60cm) (Beérkezés: 08.27)"), 
+    "akusztikus falpanel pecan prémium wide");
+
+assertEqual("Item Mapping - T-Rex ragasztó", 
+    cleanItemNameForMapping("T-Rex Gold Panelragasztó"), 
+    "gold panelragasztó rex t");
+
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 
 if (failed > 0) {

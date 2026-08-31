@@ -193,7 +193,7 @@ export function showConfigureProductModal(order, originalName, cleanedName, defa
                     </ul>
                     
                     <p style="margin-bottom: 6px; font-size: 13px; color: #475569;">
-                        Kiválasztott termék: <strong style="color: var(--primary-color); word-break: break-all;">"${cleanedName}"</strong>
+                        Kiválasztott termék: <strong style="color: var(--primary-color); word-break: break-word;">"${originalName || cleanedName}"</strong>
                     </p>
                 </div>
                 

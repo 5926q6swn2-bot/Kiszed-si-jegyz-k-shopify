@@ -171,27 +171,36 @@ export function cleanItemNameForMapping(name) {
     // 1. Kisbetűsítés a konzisztenciához
     let cleaned = name.toLowerCase();
     
-    // 2. Méretek eltávolítása
+    // 2. Zárójeles beérkezések, logisztikai megjegyzések eltávolítása pl. (Beérkezés: 08.27), [Érkezés: 09.01]
+    cleaned = cleaned.replace(/[\(\[\{][^\)\]\}]*(?:beérkezés|érkezés|erkezes|beerkezes|preorder|előrendelés|elorendeles|kiszállítás|átvehető)[^\)\]\}]*[\)\]\}]/gi, '');
+
+    // 3. Beérkezési / előrendelési szöveges minták és dátumok eltávolítása pl. Beérkezés:08.27, Érkezés: 2026.08.27
+    cleaned = cleaned
+        .replace(/(?:várható\s+)?(?:beérkezés|érkezés|erkezes|beerkezes|preorder|előrendelés|elorendeles|kiszállítás|átvehető)\s*[:\s\-]*\d{1,4}[.\-\/]\d{1,2}(?:[.\-\/]\d{1,4})?(?:\s*-[tT]ől)?/gi, '')
+        .replace(/(?:várható\s+)?(?:beérkezés|érkezés|erkezes|beerkezes|preorder|előrendelés|elorendeles)\s*[:\s\-]*/gi, '')
+        .replace(/\b\d{1,2}[.\/]\d{1,2}(?:[.\/]\d{2,4})?\b/g, ''); // Standalone dátumok pl. 08.27, 08/27
+    
+    // 4. Méretek eltávolítása
     cleaned = cleaned
         // Zárójeles méretek eltávolítása, pl. (278x60cm), (280 cm), (280x122)
         .replace(/\([\d\s*xXcm\-+.,/]*\)/g, '')
         // Standalone méretek pl. 278x60cm, 280 x 120 cm, 280x120
         .replace(/\b\d+\s*(x|\*)\s*\d+\s*(cm|m|mm)?\b/g, '')
-        // Standalone mértékegységes számok pl. 280 cm, 60cm
+        // Standalone mértékegységes számok pl. 280 cm, 60cm, 2780mm
         .replace(/\b\d+(\.\d+)?\s*(cm|m|mm)\b/g, '')
         // Konkrét ismert méretek önmagukban
-        .replace(/\b(280|278|244|122|60)\b/g, '');
+        .replace(/\b(2800|2780|2750|2440|600|280|278|275|244|122|60)\b/g, '');
         
-    // 3. Írásjelek, kötőjelek, perjelek cseréje szóközre
-    cleaned = cleaned.replace(/[\-\/\u2013\u2014.,()]/g, ' ');
+    // 5. Írásjelek, kötőjelek, perjelek cseréje szóközre
+    cleaned = cleaned.replace(/[\-\/\u2013\u2014.,()\[\]{}:]/g, ' ');
     
-    // 4. Szavakra bontás, üresek szűrése
+    // 6. Szavakra bontás, üresek szűrése
     const words = cleaned.split(/\s+/).filter(Boolean);
     
-    // 5. Szavak ábécé szerinti rendezése
+    // 7. Szavak ábécé szerinti rendezése a stabil párosításhoz
     words.sort();
     
-    // 6. Összefűzés egyetlen szóközökkel elválasztott stringgé
+    // 8. Összefűzés egyetlen szóközökkel elválasztott stringgé
     return words.join(' ');
 }
 

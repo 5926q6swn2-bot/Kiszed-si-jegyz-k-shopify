@@ -603,7 +603,7 @@ function initApp() {
 
     function handlePxpExport() {
         const senderSettings = PannonXPService.getActiveProfile();
-        const selectedOrders = pxpOrders.filter(o => o.pxp_selected);
+        const selectedOrders = Store.pxpOrders.filter(o => o.pxp_selected);
         if (selectedOrders.length === 0) {
             CustomDialog.alert('Nincs kijelölt rendelés az exportáláshoz!', 'Figyelmeztetés', 'warning');
             return;
@@ -639,7 +639,7 @@ function initApp() {
 
     // --- Reset ---
     btnReset.addEventListener('click', async () => {
-        if (activeMainTab === 'picking') {
+        if (Store.activeMainTab === 'picking') {
             if (Store.orders.length === 0) return;
             const isConfirmed = await CustomDialog.confirm('Biztosan törlöd az összes eddigi rendelést a Szedőlistából?', 'Szedőlista Törlése', 'warning', true);
             if (isConfirmed) {
@@ -651,13 +651,13 @@ function initApp() {
                 if (btnSortMode) btnSortMode.classList.remove('sort-mode-btn-active');
                 renderOrders();
             }
-        } else if (activeMainTab === 'pannonxp') {
-            if (pxpOrders.length === 0) return;
+        } else if (Store.activeMainTab === 'pannonxp') {
+            if (Store.pxpOrders.length === 0) return;
             const isConfirmed = await CustomDialog.confirm('Biztosan törlöd az összes rendelést a PannonXP listából?', 'PannonXP Törlése', 'warning', true);
             if (isConfirmed) {
-                pxpOrders = [];
+                Store.setPxpOrders([]);
                 if (pannonXPContainer) {
-                    PannonXPView.render(pannonXPContainer, pxpOrders, handlePxpExport);
+                    PannonXPView.render(pannonXPContainer, Store.pxpOrders, handlePxpExport);
                 }
             }
         }
@@ -709,7 +709,7 @@ function initApp() {
 
     // --- Üzleti Logika ---
     async function processShopifyData(rows) {
-        if (activeMainTab === 'picking') {
+        if (Store.activeMainTab === 'picking') {
             // Parse orders for Szedőlista
             const result = ShopifyParser.parse(rows, Store.orders);
             
@@ -722,9 +722,9 @@ function initApp() {
             }
 
             renderOrders();
-        } else if (activeMainTab === 'pannonxp') {
+        } else if (Store.activeMainTab === 'pannonxp') {
             // Itt csak a PannonXP-be kerülnek be
-            const result = ShopifyParser.parse(rows, pxpOrders);
+            const result = ShopifyParser.parse(rows, Store.pxpOrders);
             
             // Register missing products to Firestore/memory
             await PannonXPService.registerMissingProducts(result.newOrders);
@@ -765,8 +765,8 @@ function initApp() {
                 });
                 order.pxp_has_unmatched = calc.hasUnmatched || hasUnmapped || hasUnassignedCategory;
                 
-                if (!pxpOrders.some(p => p.id === order.id)) {
-                    pxpOrders.push(order);
+                if (!Store.pxpOrders.some(p => p.id === order.id)) {
+                    Store.addPxpOrder(order);
                 }
             });
 
@@ -775,7 +775,7 @@ function initApp() {
             }
 
             if (pannonXPContainer) {
-                PannonXPView.render(pannonXPContainer, pxpOrders, handlePxpExport);
+                PannonXPView.render(pannonXPContainer, Store.pxpOrders, handlePxpExport);
             }
         }
 

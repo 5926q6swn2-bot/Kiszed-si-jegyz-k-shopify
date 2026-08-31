@@ -130,7 +130,7 @@ export function renderOrdersTable(container, orders, onExport, mainViewContext) 
                 const cleanedName = cleanItemNameForMapping(item.name);
                 return `
                 <span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:2px;" class="pxp-unmapped-span">
-                    <i class="ph-bold ph-warning" style="margin-right: 4px;"></i>Rövidítés hiányzik: ${cleanedName}
+                    <i class="ph-bold ph-warning" style="margin-right: 4px;"></i>Rövidítés hiányzik: ${item.name}
                     <button type="button" class="btn-quick-add-mapping btn-sm" data-order-index="${index}" data-original-name="${item.name}" data-name="${cleanedName}" style="margin-left: 6px; padding: 2px 6px; font-size: 9px; font-weight: 700; background: #dc2626; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: all 0.15s; vertical-align: middle;" onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">Hozzáadás</button>
                 </span>
                 `;
@@ -141,7 +141,7 @@ export function renderOrdersTable(container, orders, onExport, mainViewContext) 
                 const cleanedName = cleanItemNameForMapping(item.name);
                 return `
                 <span style="display:block;font-size:10px;color:#dc2626;font-weight:bold;margin-top:2px;" class="pxp-unassigned-cat-span">
-                    <i class="ph-bold ph-warning" style="margin-right: 4px;"></i>Nincs kategória rendelve: ${cleanedName}
+                    <i class="ph-bold ph-warning" style="margin-right: 4px;"></i>Nincs kategória rendelve: ${item.name}
                     <button type="button" class="btn-quick-assign-cat btn-sm" data-order-index="${index}" data-original-name="${item.name}" data-name="${cleanedName}" style="margin-left: 6px; padding: 2px 6px; font-size: 9px; font-weight: 700; background: #ea580c; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: all 0.15s; vertical-align: middle;" onmouseover="this.style.background='#c2410c'" onmouseout="this.style.background='#ea580c'">Hozzárendelés</button>
                 </span>
                 `;
