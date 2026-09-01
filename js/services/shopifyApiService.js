@@ -107,6 +107,97 @@ export const ShopifyApiService = {
         }
     },
 
+    // 2d. Shopify Címkék (Tags) Frissítése (pl. sela megr. hozzáadása / levétele)
+    async updateOrderTags({ orderId, shopifyId, addTag = '', removeTag = '' } = {}) {
+        try {
+            const res = await fetch('/api/shopify/update-tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    orderId,
+                    shopifyId,
+                    addTag,
+                    removeTag
+                })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Nem sikerült frissíteni a címkéket.');
+            }
+            return data;
+        } catch (err) {
+            console.error('[ShopifyApiService updateOrderTags]', err);
+            throw err;
+        }
+    },
+
+    // 2e. Csoportos Címke Frissítés
+    async bulkUpdateOrderTags({ orders, addTag = '', removeTag = '' } = {}) {
+        try {
+            const res = await fetch('/api/shopify/update-tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    orders,
+                    addTag,
+                    removeTag
+                })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Nem sikerült a csoportos címkefrissítés.');
+            }
+            return data;
+        } catch (err) {
+            console.error('[ShopifyApiService bulkUpdateOrderTags]', err);
+            throw err;
+        }
+    },
+
+    // 2f. Személyes Átvétel (Ready for pickup) Átállítása a Shopify-ban
+    async markReadyForPickup({ orderId, shopifyId, notifyCustomer = true } = {}) {
+        try {
+            const res = await fetch('/api/shopify/ready-for-pickup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    orderId,
+                    shopifyId,
+                    notifyCustomer
+                })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Nem sikerült az átvehető státusz beállítása.');
+            }
+            return data;
+        } catch (err) {
+            console.error('[ShopifyApiService markReadyForPickup]', err);
+            throw err;
+        }
+    },
+
+    async bulkMarkReadyForPickup({ orders, notifyCustomer = true } = {}) {
+        try {
+            const res = await fetch('/api/shopify/ready-for-pickup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    orders,
+                    notifyCustomer
+                })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Nem sikerült a csoportos átvehető státusz beállítása.');
+            }
+            return data;
+        } catch (err) {
+            console.error('[ShopifyApiService bulkMarkReadyForPickup]', err);
+            throw err;
+        }
+    },
+
     // 3. Egyetlen Shopify API rendelési objektum átalakítása az app belső rendelési modelljére
     convertApiOrderToInternalOrder(apiOrder) {
         if (!apiOrder) return null;
@@ -156,6 +247,22 @@ export const ShopifyApiService = {
 
         const tags = apiOrder.tags || '';
         const tagsLower = tags.toLowerCase();
+        const hasSelaOrdered = tagsLower.includes('sela megr') || tagsLower.includes('sela');
+        const hasPxpTag = tagsLower.includes('pannonxp') || tagsLower.includes('pxp');
+
+        // Szállítmányra / Anyagra váró címkék (pl. "spc szállítmányra vár", "profilra vár", "tr szállítmányra vár")
+        const rawTagsList = tags.split(',').map(t => t.trim()).filter(Boolean);
+        const waitingTags = rawTagsList.filter(tag => {
+            const tLower = tag.toLowerCase();
+            return (
+                tLower.includes('vár') ||
+                tLower.includes('var') ||
+                tLower.includes('szállítmány') ||
+                tLower.includes('szallitmany')
+            ) && !tLower.includes('számla') && !tLower.includes('dijbek');
+        });
+        const hasWaitingTag = waitingTags.length > 0;
+
         const shippingLinesRaw = apiOrder.shipping_lines || [];
         const shippingLinesStr = shippingLinesRaw.map(s => ((s.title || '') + ' ' + (s.code || '')).toLowerCase()).join(' ');
         const pickupTitle = shippingLinesRaw[0] ? (shippingLinesRaw[0].title || shippingLinesRaw[0].code || '') : '';
@@ -168,6 +275,18 @@ export const ShopifyApiService = {
                          tagsLower.includes('boltban átvétel') || 
                          /üzlet|bolt|pickup|raktár|személyes|helyszíni|store pickup/i.test(shippingLinesStr) ||
                          (!apiOrder.shipping_address && shippingLinesRaw.length > 0);
+
+        // Ready for pickup felismerése (átvételre kész)
+        const isReadyForPickup = isPickup && (
+            apiOrder.is_ready_for_pickup === true ||
+            tagsLower.includes('ready for pickup') || 
+            tagsLower.includes('ready_for_pickup') || 
+            tagsLower.includes('átvehető') || 
+            tagsLower.includes('atveheto') || 
+            tagsLower.includes('átvételre kész') || 
+            tagsLower.includes('atvetelre kesz') ||
+            (apiOrder.fulfillment_status && apiOrder.fulfillment_status.toLowerCase() === 'ready_for_pickup')
+        );
 
         const financialStatus = (apiOrder.financial_status || '').toLowerCase();
         const fulfillmentStatus = (apiOrder.fulfillment_status || 'unfulfilled').toLowerCase();
@@ -186,15 +305,20 @@ export const ShopifyApiService = {
         const cityLower = cleanCity.toLowerCase();
         const isBudapest = cityLower === 'budapest' || cityLower.includes('budapest') || /^(1\d{3})$/.test(cleanZip);
 
+        // Viszonteladó tag felismerése (nem kell díjbekérő, nem kell számla figyelmeztetés)
+        const isReseller = tagsLower.includes('viszontelad') || tagsLower.includes('viszonterlad');
+
         // Rossz szállítási mód felismerése: Nem törölt, nem teljesített, nem személyes átvétel, nem Budapest, de a szállítási díj pontosan 2300 Ft
         const hasBadShipping = !isCancelled && fulfillmentStatus !== 'fulfilled' && !isPickup && !isBudapest && Math.round(shippingFee) === 2300;
 
-        // Számla ki hiány ellenőrzése (csak ha nem törölt a rendelés)
-        const hasNoInvoice = !isCancelled && !tagsLower.includes('számla ki') && !tagsLower.includes('szamla ki');
+        // Számla ki hiány ellenőrzése (csak ha nem törölt a rendelés ÉS NEM viszonteladó)
+        const hasInvoiceTag = tagsLower.includes('számla ki') || tagsLower.includes('szamla ki');
+        const hasNoInvoice = !isCancelled && !isReseller && !hasInvoiceTag;
 
-        // 250.000 Ft feletti nem fizetett kiszállításos rendelés díjbekérő ellenőrzése (csak ha nem törölt)
+        // 250.000 Ft feletti nem fizetett kiszállításos rendelés díjbekérő ellenőrzése (csak ha nem törölt ÉS NEM viszonteladó)
         const hasProformaTag = tagsLower.includes('dijbek.ki') || tagsLower.includes('díjbek.ki') || tagsLower.includes('dijbekero ki') || tagsLower.includes('díjbekérő ki');
-        const needsProforma = !isCancelled && totalAmount > 250000 && !isPaid && !isPickup && !hasProformaTag;
+        const needsProforma = !isCancelled && !isReseller && totalAmount > 250000 && !isPaid && !isPickup && !hasProformaTag && !hasInvoiceTag;
+        const waitingProforma = !isCancelled && !isReseller && hasProformaTag && !hasInvoiceTag;
 
         // Hibák gyűjtése
         let errors = [];
@@ -215,8 +339,8 @@ export const ShopifyApiService = {
                 errors.push({
                     id: Math.random().toString(36).substr(2, 9),
                     type: 'needs_proforma',
-                    title: "Díjbekérő Szükséges (250e+ Ft)",
-                    desc: `250.000 Ft feletti nem fizetett kiszállításos rendelés (${new Intl.NumberFormat('hu-HU').format(totalAmount)} Ft). Küldd ki a díjbekérőt és add hozzá a "dijbek.ki" taget!`
+                    title: "Díjbek szükséges (250e+ Ft)",
+                    desc: `250.000 Ft feletti nem fizetett kiszállításos rendelés (${new Intl.NumberFormat('hu-HU').format(totalAmount)} Ft). Küldd ki a díjbekérőt és add hozzá a "díjbek.ki" taget!`
                 });
             }
 
@@ -400,11 +524,21 @@ export const ShopifyApiService = {
             shippingPhone: shippingPhone,
             billingPhone: billingPhone,
             tags: tags,
+            isReseller: isReseller,
+            hasSelaOrdered: hasSelaOrdered,
+            hasPxpTag: hasPxpTag,
+            waitingTags: waitingTags,
+            hasWaitingTag: hasWaitingTag,
+            needsSelaDispatch: !isCancelled && fulfillmentStatus !== 'fulfilled' && !isPickup && !hasPxpTag && !hasSelaOrdered,
             isPickup: isPickup,
             pickupTitle: pickupTitle,
+            isReadyForPickup: isReadyForPickup,
             hasBadShipping: !isCancelled && hasBadShipping,
+            hasInvoiceTag: hasInvoiceTag,
+            hasProformaTag: hasProformaTag,
             hasNoInvoice: !isCancelled && hasNoInvoice,
             needsProforma: !isCancelled && needsProforma,
+            waitingProforma: !isCancelled && waitingProforma,
             hasRemovedItems: hasRemovedItems,
             isPartialFulfillment: isPartialFulfillment,
             isCancelled: isCancelled,
@@ -475,5 +609,27 @@ export const ShopifyApiService = {
     convertApiOrders(apiOrders) {
         if (!Array.isArray(apiOrders)) return [];
         return apiOrders.map(o => ShopifyApiService.convertApiOrderToInternalOrder(o)).filter(Boolean);
+    },
+
+    // 5. Shopify Megjegyzés (Note) Frissítése
+    async updateOrderNote({ orderId, shopifyId, note }) {
+        const response = await fetch('/api/shopify/update-note', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                orderId,
+                shopifyId,
+                note
+            })
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Hiba történt a megjegyzés mentése közben.');
+        }
+
+        return data;
     }
 };

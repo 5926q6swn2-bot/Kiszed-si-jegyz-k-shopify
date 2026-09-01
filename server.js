@@ -252,6 +252,83 @@ const server = http.createServer(async (req, res) => {
 
       console.log(`[Shopify API] Összesen összefésülve: ${orders.length} rendelés (Unfulfilled: ${unfulfilledOrders.length}, Partial: ${partialOrders.length})`);
 
+      // Személyes átvételes / Ready for pickup események lekérdezése GraphQL-lel az ÖSSZES nyitott rendeléshez (lapozással)
+      try {
+        const readyOrderNames = new Set();
+        let hasNext = true;
+        let cursor = null;
+        let page = 0;
+
+        while (hasNext && page < 5) {
+          page++;
+          const afterParam = cursor ? `, after: "${cursor}"` : '';
+          const eventsQuery = `
+            query {
+              orders(first: 250, query: "status:open", sortKey: CREATED_AT, reverse: true${afterParam}) {
+                pageInfo {
+                  hasNextPage
+                  endCursor
+                }
+                edges {
+                  node {
+                    id
+                    name
+                    tags
+                    events(first: 10) {
+                      edges {
+                        node {
+                          message
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          `;
+          const gqlRes = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
+            method: 'POST',
+            headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: eventsQuery })
+          });
+          if (gqlRes.ok) {
+            const gqlData = await gqlRes.json();
+            const ordersData = gqlData.data && gqlData.data.orders;
+            const edges = (ordersData && ordersData.edges) || [];
+            
+            for (const edge of edges) {
+              const node = edge.node;
+              const hasReadyEmail = (node.events && node.events.edges || []).some(e => /ready for pickup|átvehető/i.test(e.node.message || ''));
+              const hasReadyTag = (node.tags || []).some(t => /ready for pickup|átvehető|atveheto/i.test(t));
+              if (hasReadyEmail || hasReadyTag) {
+                readyOrderNames.add(node.name);
+                readyOrderNames.add(String(node.id).replace('gid://shopify/Order/', ''));
+              }
+            }
+
+            hasNext = ordersData && ordersData.pageInfo && ordersData.pageInfo.hasNextPage;
+            cursor = ordersData && ordersData.pageInfo && ordersData.pageInfo.endCursor;
+          } else {
+            hasNext = false;
+          }
+        }
+
+        orders.forEach(o => {
+          if (readyOrderNames.has(String(o.name)) || readyOrderNames.has(String(o.id))) {
+            o.is_ready_for_pickup = true;
+            const currentTags = (o.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+            if (!currentTags.some(t => /ready for pickup|átvehető|atveheto/i.test(t))) {
+              currentTags.push('ready for pickup');
+              o.tags = currentTags.join(', ');
+            }
+          }
+        });
+
+        console.log(`🟣 [Ready for pickup Felismerve] Összesen ${readyOrderNames.size} rendelés átvehetőre állítva a boltban.`);
+      } catch (eErr) {
+        console.warn('[Shopify Events ReadyForPickup Warning]', eErr.message);
+      }
+
       // Termékképek feltérképezése
       let productImageMap = {};
       let variantImageMap = {};
@@ -530,6 +607,350 @@ const server = http.createServer(async (req, res) => {
         return;
       } catch (err) {
         console.error('[Shopify Bulk Fulfill Error]', err);
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: err.message }));
+        return;
+      }
+    });
+    return;
+  }
+
+  // 6. Shopify Címkék (Tags) Frissítése (Egyedi & Csoportos)
+  if (pathname === '/api/shopify/update-tags' && req.method === 'POST') {
+    let bodyStr = '';
+    req.on('data', chunk => { bodyStr += chunk; });
+    req.on('end', async () => {
+      try {
+        const token = process.env.SHOPIFY_ACCESS_TOKEN;
+        const shop = process.env.SHOPIFY_SHOP || 'p4q0uj-2m.myshopify.com';
+
+        if (!token) {
+          res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ error: 'Nincs érvényes Shopify Access Token!' }));
+          return;
+        }
+
+        const body = JSON.parse(bodyStr || '{}');
+        const ordersList = body.orders || (body.orderId || body.shopifyId ? [{ orderId: body.orderId, shopifyId: body.shopifyId }] : []);
+        const addTag = body.addTag ? String(body.addTag).trim() : '';
+        const removeTag = body.removeTag ? String(body.removeTag).trim() : '';
+
+        if (!Array.isArray(ordersList) || ordersList.length === 0 || (!addTag && !removeTag)) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ error: 'Érvénytelen kérés: rendelések vagy módosítandó címke hiányzik.' }));
+          return;
+        }
+
+        const results = {
+          total: ordersList.length,
+          successCount: 0,
+          failedCount: 0,
+          updatedOrders: [],
+          errors: []
+        };
+
+        for (const item of ordersList) {
+          let sId = item.shopifyId;
+          const oId = item.orderId || sId;
+
+          try {
+            if (!sId && oId) {
+              const cleanNum = String(oId).replace(/^#/, '').trim();
+              const findUrl = `https://${shop}/admin/api/2024-04/orders.json?name=${encodeURIComponent('#' + cleanNum)}&status=any&limit=1&fields=id,tags`;
+              const findRes = await fetch(findUrl, {
+                headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' }
+              });
+              const findData = await findRes.json();
+              if (findData.orders && findData.orders.length > 0) {
+                sId = findData.orders[0].id;
+                item.currentTags = findData.orders[0].tags;
+              }
+            }
+
+            if (!sId) {
+              results.failedCount++;
+              results.errors.push({ orderId: oId, error: 'Shopify azonosító nem található.' });
+              continue;
+            }
+
+            // Ha nincs meg a jelenlegi tags string, lekérjük
+            let currentTagsStr = item.currentTags;
+            if (currentTagsStr === undefined) {
+              const getUrl = `https://${shop}/admin/api/2024-04/orders/${sId}.json?fields=id,tags`;
+              const getRes = await fetch(getUrl, {
+                headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' }
+              });
+              const getData = await getRes.json();
+              currentTagsStr = (getData.order && getData.order.tags) || '';
+            }
+
+            let tagsArr = currentTagsStr.split(',').map(t => t.trim()).filter(Boolean);
+
+            if (addTag) {
+              const exists = tagsArr.some(t => t.toLowerCase() === addTag.toLowerCase());
+              if (!exists) {
+                tagsArr.push(addTag);
+              }
+            }
+
+            if (removeTag) {
+              tagsArr = tagsArr.filter(t => t.toLowerCase() !== removeTag.toLowerCase());
+            }
+
+            const newTagsStr = tagsArr.join(', ');
+
+            // PUT kérés a Shopify-nak
+            const putUrl = `https://${shop}/admin/api/2024-04/orders/${sId}.json`;
+            const putRes = await fetch(putUrl, {
+              method: 'PUT',
+              headers: {
+                'X-Shopify-Access-Token': token,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                order: {
+                  id: sId,
+                  tags: newTagsStr
+                }
+              })
+            });
+
+            if (putRes.ok) {
+              results.successCount++;
+              results.updatedOrders.push({ orderId: oId, shopifyId: sId, tags: newTagsStr });
+            } else {
+              const errBody = await putRes.json();
+              results.failedCount++;
+              results.errors.push({ orderId: oId, error: errBody.errors ? JSON.stringify(errBody.errors) : 'Tag frissítési hiba' });
+            }
+          } catch (e) {
+            results.failedCount++;
+            results.errors.push({ orderId: oId, error: e.message });
+          }
+        }
+
+        console.log(`🏷️ [Shopify Tags Frissítve] Összes: ${results.total}, Sikeres: ${results.successCount}, Hibás: ${results.failedCount}`);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({
+          success: true,
+          ...results
+        }));
+        return;
+      } catch (err) {
+        console.error('[Shopify Update Tags Error]', err);
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: err.message }));
+        return;
+      }
+    });
+    return;
+  }
+
+  // 7. Shopify Személyes Átvétel (Ready for Pickup / Átvehetőre Állítás)
+  if (pathname === '/api/shopify/ready-for-pickup' && req.method === 'POST') {
+    let bodyStr = '';
+    req.on('data', chunk => { bodyStr += chunk; });
+    req.on('end', async () => {
+      try {
+        const token = process.env.SHOPIFY_ACCESS_TOKEN;
+        const shop = process.env.SHOPIFY_SHOP || 'p4q0uj-2m.myshopify.com';
+
+        if (!token) {
+          res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ error: 'Nincs érvényes Shopify Access Token!' }));
+          return;
+        }
+
+        const body = JSON.parse(bodyStr || '{}');
+        const ordersList = body.orders || (body.orderId || body.shopifyId ? [{ orderId: body.orderId, shopifyId: body.shopifyId }] : []);
+
+        if (!Array.isArray(ordersList) || ordersList.length === 0) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ error: 'Nincs megadva rendelés.' }));
+          return;
+        }
+
+        const results = {
+          total: ordersList.length,
+          successCount: 0,
+          failedCount: 0,
+          updatedOrders: [],
+          errors: []
+        };
+
+        for (const item of ordersList) {
+          let sId = item.shopifyId;
+          const oId = item.orderId || sId;
+
+          try {
+            if (!sId && oId) {
+              const findRes = await fetch(`https://${shop}/admin/api/2024-04/orders.json?name=${encodeURIComponent(oId)}&limit=1`, {
+                headers: { 'X-Shopify-Access-Token': token }
+              });
+              const findData = await findRes.json();
+              if (findData.orders && findData.orders.length > 0) {
+                sId = findData.orders[0].id;
+              }
+            }
+
+            if (!sId) {
+              results.failedCount++;
+              results.errors.push({ orderId: oId, error: 'Shopify ID nem található' });
+              continue;
+            }
+
+            // 1. Megpróbáljuk a natív Shopify Fulfillment Order mark_as_ready_for_pickup végpontot
+            let nativePickupMarked = false;
+            try {
+              const foUrl = `https://${shop}/admin/api/2024-04/orders/${sId}/fulfillment_orders.json`;
+              const foRes = await fetch(foUrl, {
+                headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' }
+              });
+              const foData = await foRes.json();
+
+              if (foData.fulfillment_orders && foData.fulfillment_orders.length > 0) {
+                for (const fo of foData.fulfillment_orders) {
+                  if (fo.status === 'open' || fo.status === 'in_progress') {
+                    const readyRes = await fetch(`https://${shop}/admin/api/2024-04/fulfillment_orders/${fo.id}/mark_as_ready_for_pickup.json`, {
+                      method: 'POST',
+                      headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({})
+                    });
+                    if (readyRes.ok) {
+                      nativePickupMarked = true;
+                    }
+                  }
+                }
+              }
+            } catch (foErr) {
+              console.warn(`[FO Ready For Pickup Warning for ${oId}]:`, foErr.message);
+            }
+
+            // 2. Minden esetben hozzáadjuk a "ready for pickup" címkét is a rendeléshez
+            const getOrderRes = await fetch(`https://${shop}/admin/api/2024-04/orders/${sId}.json?fields=id,tags`, {
+              headers: { 'X-Shopify-Access-Token': token }
+            });
+            const getOrderData = await getOrderRes.json();
+            const currentTags = (getOrderData.order && getOrderData.order.tags) ? getOrderData.order.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+            
+            if (!currentTags.some(t => t.toLowerCase() === 'ready for pickup')) {
+              currentTags.push('ready for pickup');
+            }
+
+            const putRes = await fetch(`https://${shop}/admin/api/2024-04/orders/${sId}.json`, {
+              method: 'PUT',
+              headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                order: {
+                  id: sId,
+                  tags: currentTags.join(', ')
+                }
+              })
+            });
+
+            if (putRes.ok) {
+              results.successCount++;
+              results.updatedOrders.push({ orderId: oId, shopifyId: sId, nativePickupMarked, tags: currentTags.join(', ') });
+            } else {
+              const errBody = await putRes.json();
+              results.failedCount++;
+              results.errors.push({ orderId: oId, error: errBody.errors ? JSON.stringify(errBody.errors) : 'Címke mentési hiba' });
+            }
+          } catch (e) {
+            results.failedCount++;
+            results.errors.push({ orderId: oId, error: e.message });
+          }
+        }
+
+        console.log(`🟣 [Ready for pickup Kész] Összes: ${results.total}, Sikeres: ${results.successCount}, Hibás: ${results.failedCount}`);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({
+          success: true,
+          ...results
+        }));
+        return;
+      } catch (err) {
+        console.error('[Shopify Ready for pickup Error]', err);
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: err.message }));
+        return;
+      }
+    });
+    return;
+  }
+
+  // 8. Shopify Megjegyzés (Note) Frissítése
+  if (pathname === '/api/shopify/update-note' && req.method === 'POST') {
+    let bodyStr = '';
+    req.on('data', chunk => { bodyStr += chunk; });
+    req.on('end', async () => {
+      try {
+        const token = process.env.SHOPIFY_ACCESS_TOKEN;
+        const shop = process.env.SHOPIFY_SHOP || 'p4q0uj-2m.myshopify.com';
+
+        if (!token) {
+          res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ error: 'Nincs érvényes Shopify Access Token!' }));
+          return;
+        }
+
+        const body = JSON.parse(bodyStr || '{}');
+        const orderId = body.orderId;
+        let shopifyId = body.shopifyId;
+        const note = typeof body.note === 'string' ? body.note : '';
+
+        if (!shopifyId && orderId) {
+          const cleanNum = String(orderId).replace(/^#/, '').trim();
+          const findUrl = `https://${shop}/admin/api/2024-04/orders.json?name=${encodeURIComponent('#' + cleanNum)}&status=any&limit=1&fields=id`;
+          const findRes = await fetch(findUrl, {
+            headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' }
+          });
+          const findData = await findRes.json();
+          if (findData.orders && findData.orders.length > 0) {
+            shopifyId = findData.orders[0].id;
+          }
+        }
+
+        if (!shopifyId) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ error: 'Shopify azonosító nem található.' }));
+          return;
+        }
+
+        const putUrl = `https://${shop}/admin/api/2024-04/orders/${shopifyId}.json`;
+        const putRes = await fetch(putUrl, {
+          method: 'PUT',
+          headers: {
+            'X-Shopify-Access-Token': token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            order: {
+              id: shopifyId,
+              note: note
+            }
+          })
+        });
+
+        const putData = await putRes.json();
+        if (putRes.ok && putData.order) {
+          console.log(`📝 [Shopify Note Frissítve] Rendelés: ${orderId || shopifyId}, Megjegyzés hossza: ${note.length} karakter`);
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({
+            success: true,
+            orderId: orderId,
+            shopifyId: shopifyId,
+            note: putData.order.note
+          }));
+          return;
+        } else {
+          const errBody = putData.errors ? JSON.stringify(putData.errors) : 'Megjegyzés mentési hiba';
+          res.writeHead(putRes.status || 400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ error: errBody }));
+          return;
+        }
+      } catch (err) {
+        console.error('[Shopify Update Note Error]', err);
         res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ error: err.message }));
         return;

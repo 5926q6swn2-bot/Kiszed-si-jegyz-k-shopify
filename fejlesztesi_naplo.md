@@ -28,22 +28,56 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.7 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris és stabil. Javítva a CSV import és lista-törlés Store állapotkezelése, beépítve az intelligens beérkezési dátum / előrendelés takarítás (`cleanItemNameForMapping`) és emberileg olvasható termékmegjelenítés a PannonXP modalban (`v3.6.5`, 51/51 zöld unit teszt).
+- **Státusz**: A rendszer 100%-ban moduláris és stabil. Kialakítva a Sela & PannonXP logisztikai állapotfelismerés, az 1-kattintásos gyors-szűrő chipek (`Sela küldendő`, `Sela elküldve`, `PannonXP`), az egyedi sorjelvények és szegélyek, a kézi Shopify tag-váltó gomb, valamint a Szállítói Export alapjai (`v3.7.0`, 59/59 zöld unit teszt).
 
 ---
 
 ## 📌 Holnapi Teendők (TODO Lista)
 
-1. ☁️ **Felhős Telepítés (Cloud Deployment - Render.com / Vercel)**:
+1. 🚚 **Szállítói Egyedi Export Formátum Finomhangolása**:
+   - Véglegesíteni a Sela-nak küldött oszlopok és mezők pontos struktúráját a felhasználó visszajelzései alapján.
+2. ☁️ **Felhős Telepítés (Cloud Deployment - Render.com / Vercel)**:
    - Összekötni a GitHub repót a Render.com-mal (vagy Vercellel).
    - Beállítani az Environment Variables (`SHOPIFY_ACCESS_TOKEN`, `SHOPIFY_SHOP`, stb.) értékeket.
    - Biztosítani az állandó, bárhonnan és bármilyen gépről/telefonról elérhető HTTPS webcímet.
-2. 🚚 **Szállítói Egyedi Export Formátum**:
-   - A kijelölt rendelések exportálása a szállítóknak a felhasználó által megadott oszlopokkal és formátumban.
 
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. szeptember 1. - Sela & PannonXP Logisztikai Állapotkövetés, Gyors-Chipek & Szállítói Export (`v3.7.0`)
+- **Intelligens Logisztikai Állapot-Besorolás**:
+  - A rendszer a Shopify címkék (`tags`) és a szállítási adatok alapján automatikusan megkülönbözteti a rendelések logisztikai státuszát:
+    - 🚚 **`Sela küldendő`**: Kiszállításos rendelés, amin még nincs sem `sela megr.`, sem `PannonXP` címke, nincs belső járaton és nem személyes átvétel. Kiemelt narancssárga badge-et és narancssárga bal szegélyt kap a sorban.
+    - ✓ **`Sela elküldve`**: Már rendelkezik a `sela megr.` címkével. Zöld badge-et és zöld bal szegélyt kap.
+    - 🏷️ **`PannonXP`**: Rendelkezik a `PannonXP` címkével. Kék badge-et és kék szegélyt kap.
+    - 🚚 **`Terítésben (Járaton)`**: Kiosztva a saját járatra. Türkiz badge.
+    - 🟣 **`Személyes Átvétel`**: Boltban/raktárban átveendő rendelés. Lila badge.
+- **1-Kattintásos Gyors-Szűrő Chipek**:
+  - 🔥 **`Sela küldendő (X db)`**: Egyetlen kattintással leszűri kizárólag a még elintézendő, szállítónak küldendő tételeket.
+  - **`Sela elküldve (Y db)`**: Kilistázza a már leadott rendeléseket.
+  - **`PannonXP (Z db)`**: Kilistázza a PannonXP címkés rendeléseket.
+- **Közvetlen Shopify Címke Kezelés (`/api/shopify/update-tags`)**:
+  - Elkészült az egyedi és csoportos Shopify címkefrissítő végpont a helyi szerveren.
+  - **Kézi Átbillentés**: A rendelést lenyitva azonnal elérhető a **`[Sela címke hozzáadása / levétele]`** gomb, amely valós időben frissíti a Shopify API-t és az alkalmazás állapotát.
+- **Lebegő Akciósáv Szállítói Export (`btn-hub-export-sela`)**:
+  - Kijelölés után a **`[ 🚚 Szállítói Export (Sela) ]`** gomb letölti a táblázatot és felajánlja a rendelések automatikus megjelölését a `sela megr.` címkével.
+- **Viszonteladó Tag Kivétel (`viszonteladó` / `viszonterladó`)**:
+  - Ha a rendelés címkéi között szerepel a viszonteladó tag, a rendszer automatikusan kikapcsolja a díjbekérő követelményt (`needsProforma: false`) és a hiányzó számla figyelmeztetést (`hasNoInvoice: false`). Nem jelenik meg felesleges "Számlázni!" vagy "Díjbekérő szükséges" jelzés sem a sorok mellett, sem a statisztikákban.
+- **Szállítmányra Váró Címkék Pontos Kilógó Megjelenítése (pl. `spc szállítmányra vár`, `profilra vár`, `tr szállítmányra vár`)**:
+  - A rendszer kigyűjti a Shopify rendeléshez tartozó összes árura/szállítmányra váró taget, és a sor bal oldalán lévő kilógó címkesávban pontosan a megadott szöveggel jeleníti meg őket elegáns mély rubinvörös (`#be123c`) `[ ⌛ CÍMKE SZÖVEGE ]` jelvényként.
+  - A szűrősávban megjelent a **`⏳ Szállítmányra vár (X db)`** 1-kattintásos gyors-szűrő chip.
+- **Bal Oldali Színes Szegélycsíkok Eltávolítása**:
+  - Eltávolítottuk a zavaró, nehezen értelmezhető zöld, kék, narancssárga és lila oldalsó szegélycsíkokat. A sorok letisztultak, csak a hibás szállítás kapott piros kiemelést, illetve a személyes átvétel a jól látható lila háttérrel emelkedik ki.
+- **Díjbekérő Címkék Finomhangolása ("Díjbek szükséges" & "Díjbeket várjuk")**:
+  - A korábbi "Díjbekérő szükséges" feliratot lerövidítettük a kért **`Díjbek szükséges`** címkére.
+  - Ha a rendeléshez hozzá van adva a `díjbek.ki` címke, de még nincs `számla ki`, a sor bal oldalán automatikusan megjelenik az új indigókék **`[ ⏳ Díjbeket várjuk ]`** címke!
+  - Amint rákerül a `számla ki` címke, mind a számla, mind a díjbekérő figyelmeztetés automatikusan eltűnik.
+- **Közvetlen Shopify Megjegyzés (Notes) Ikon & Élő Szerkesztő Modal**:
+  - Minden egyes rendelési sorban (a rendelésszám mellett) megjelent egy interaktív Notes ikon.
+  - Ha van megjegyzés a rendeléshez, az ikon sárga kiemeléssel jelzi a szöveget, és fölé húzva az egeret azonnal olvasható a megjegyzés.
+  - Az ikonra kattintva megnyílik a modern **Megjegyzés Szerkesztő Ablak**, ahonnan a megjegyzés 1 kattintással közvetlenül menthető a Shopify-ba (`POST /api/shopify/update-note`) és az appban is azonnal frissül!
+- **Automata Unit Tesztek**: 83/83 sikeres teszt (`node tests/unit_tests.js`).
 
 ### 2026. augusztus 31. - Terméknév Tisztító (Beérkezés & Dátum Szűrés), CSV Import Fix & Favicon (`v3.6.5`)
 - **Intelligens Terméknév & Beérkezési Dátum Szűrés (`cleanItemNameForMapping`)**:

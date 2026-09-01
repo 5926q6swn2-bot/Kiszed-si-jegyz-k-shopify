@@ -370,11 +370,13 @@ export const ShopifyParser = {
                     });
                 }
 
-                // 1. Számla ki ellenőrzés
+                // 1. Számla ki ellenőrzés (kivéve ha viszonteladó)
                 const tags = row['Tags'] || '';
+                const tagsLower = tags.toLowerCase();
+                const isReseller = tagsLower.includes('viszontelad') || tagsLower.includes('viszonterlad');
                 const shippingName = cleanName(row['Shipping Name'] || 'Ismeretlen');
                 const billingName = cleanName(row['Billing Name'] || row['Shipping Name'] || 'Ismeretlen');
-                if (!tags.toLowerCase().includes('számla ki')) {
+                if (!isReseller && !tagsLower.includes('számla ki')) {
                     errors.push({
                         id: Math.random().toString(36).substr(2, 9),
                         title: "Hiányzó Számla",
@@ -501,6 +503,24 @@ export const ShopifyParser = {
                     shippingCompany = cleanName(shippingCompany);
                 }
 
+                const hasSelaOrdered = tagsLower.includes('sela megr') || tagsLower.includes('sela');
+                const hasPxpTag = tagsLower.includes('pannonxp') || tagsLower.includes('pxp');
+                const shippingMethodStr = (row['Shipping Method'] || '').toLowerCase();
+                const isPickup = tagsLower.includes('személyes') || tagsLower.includes('szemelyes') || tagsLower.includes('pickup') || /üzlet|bolt|pickup|raktár|személyes/i.test(shippingMethodStr);
+
+                // Szállítmányra / Anyagra váró címkék
+                const rawTagsList = (tags || '').split(',').map(t => t.trim()).filter(Boolean);
+                const waitingTags = rawTagsList.filter(tag => {
+                    const tLower = tag.toLowerCase();
+                    return (
+                        tLower.includes('vár') ||
+                        tLower.includes('var') ||
+                        tLower.includes('szállítmány') ||
+                        tLower.includes('szallitmany')
+                    ) && !tLower.includes('számla') && !tLower.includes('dijbek');
+                });
+                const hasWaitingTag = waitingTags.length > 0;
+
                 orderMap.set(orderNum, {
                     id: orderNum,
                     internalId: Math.random().toString(36).substr(2, 9), 
@@ -517,6 +537,13 @@ export const ShopifyParser = {
                     shippingPhone: shippingPhone,
                     billingPhone: billingPhone,
                     tags: tags,
+                    isReseller: isReseller,
+                    hasSelaOrdered: hasSelaOrdered,
+                    hasPxpTag: hasPxpTag,
+                    waitingTags: waitingTags,
+                    hasWaitingTag: hasWaitingTag,
+                    isPickup: isPickup,
+                    needsSelaDispatch: fulfillmentStatus !== 'fulfilled' && !isPickup && !hasPxpTag && !hasSelaOrdered,
                     isBankDeposit: isBankDeposit,
                     isPaid: isPaid,
                     isCOD: isCOD,

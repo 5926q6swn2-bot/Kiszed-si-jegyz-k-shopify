@@ -143,5 +143,83 @@ export const ExporterService = {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    },
+
+    // Szállítói (Sela) Rendelések Exportálása CSV-be
+    exportSelaOrdersToCsv: async function(orders) {
+        if (!orders || orders.length === 0) {
+            await CustomDialog.alert("Nincs exportálható rendelés kijelölve!", "Figyelmeztetés", "warning");
+            return;
+        }
+
+        const headers = [
+            "Rendelésszám",
+            "Címzett Neve",
+            "Számlázási Név",
+            "Irányítószám",
+            "Település",
+            "Utca, házszám",
+            "Teljes Cím",
+            "Telefonszám",
+            "Megrendelt Tételek",
+            "Fizetés Módja",
+            "Összérték (Ft)",
+            "Utánvét (Ft)",
+            "Megjegyzés",
+            "Rendelés Dátuma"
+        ];
+
+        const clean = (val) => {
+            if (val === undefined || val === null) return "";
+            let str = String(val);
+            if (str.includes(";") || str.includes("\n") || str.includes('"')) {
+                str = str.replace(/"/g, '""');
+                return `"${str}"`;
+            }
+            return str;
+        };
+
+        const csvRows = [];
+        csvRows.push('\ufeff' + headers.join(";"));
+
+        orders.forEach(o => {
+            const itemsSummary = (o.items || []).map(i => `${i.name} (${i.qty}db)`).join(', ');
+            let payMethod = 'Fizetve (Kártya/Online)';
+            if (o.isBankDeposit && !o.isPaid) payMethod = 'Függő Utalás';
+            else if (o.isCOD) payMethod = `Utánvét (${new Intl.NumberFormat('hu-HU').format(o.codAmount || 0)} Ft)`;
+            else if (o.isPaid) payMethod = 'Fizetve';
+
+            const rowData = [
+                clean(o.id),
+                clean(o.shippingName),
+                clean(o.billingName || o.shippingName),
+                clean(o.zip),
+                clean(o.city),
+                clean(o.address1 || o.address),
+                clean(o.fullAddress || o.address),
+                clean(o.shippingPhone),
+                clean(itemsSummary),
+                clean(payMethod),
+                clean(o.totalAmount || 0),
+                clean(o.isCOD ? (o.codAmount || 0) : 0),
+                clean(o.note || ''),
+                clean(o.orderDate ? new Date(o.orderDate).toLocaleString('hu-HU') : '')
+            ];
+
+            csvRows.push(rowData.join(";"));
+        });
+
+        const csvContent = csvRows.join("\r\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        
+        const timestamp = new Date().toISOString().substring(0, 10);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `sela_szallitoi_export_${timestamp}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 };

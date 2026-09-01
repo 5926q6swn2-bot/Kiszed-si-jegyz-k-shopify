@@ -375,6 +375,112 @@ assertEqual("Item Mapping - T-Rex ragasztó",
     cleanItemNameForMapping("T-Rex Gold Panelragasztó"), 
     "gold panelragasztó rex t");
 
+// --- Sela & PannonXP Logistics Tag Tests ---
+function checkLogisticsStatus(tags, isPickup = false, isInDelivery = false, isFulfilled = false, isCancelled = false) {
+    const tagsLower = (tags || '').toLowerCase();
+    const hasSelaOrdered = tagsLower.includes('sela megr') || tagsLower.includes('sela');
+    const hasPxpTag = tagsLower.includes('pannonxp') || tagsLower.includes('pxp');
+    const needsSelaDispatch = !isCancelled && !isFulfilled && !isPickup && !isInDelivery && !hasPxpTag && !hasSelaOrdered;
+    return { hasSelaOrdered, hasPxpTag, needsSelaDispatch };
+}
+
+const statusSela1 = checkLogisticsStatus("sela megr., viszonteladó");
+assertEqual("Sela Tag - sela megr.", statusSela1.hasSelaOrdered, true);
+assertEqual("Sela Tag - needsSelaDispatch false if sela megr.", statusSela1.needsSelaDispatch, false);
+
+const statusPxp = checkLogisticsStatus("számla ki, PannonXP");
+assertEqual("PXP Tag - PannonXP", statusPxp.hasPxpTag, true);
+assertEqual("PXP Tag - needsSelaDispatch false if PannonXP", statusPxp.needsSelaDispatch, false);
+
+const statusPending = checkLogisticsStatus("számla ki, viszonteladó");
+assertEqual("Sela Pending - hasSelaOrdered false", statusPending.hasSelaOrdered, false);
+assertEqual("Sela Pending - hasPxpTag false", statusPending.hasPxpTag, false);
+assertEqual("Sela Pending - needsSelaDispatch true", statusPending.needsSelaDispatch, true);
+
+const statusPickup = checkLogisticsStatus("számla ki", true, false, false, false);
+assertEqual("Pickup - needsSelaDispatch false", statusPickup.needsSelaDispatch, false);
+
+// --- Reseller (Viszonteladó) Invoice & Proforma Tests ---
+function checkResellerFlags(tags, totalAmount = 300000, isPaid = false, isCancelled = false, isPickup = false) {
+    const tagsLower = (tags || '').toLowerCase();
+    const isReseller = tagsLower.includes('viszontelad') || tagsLower.includes('viszonterlad');
+    const hasInvoiceTag = tagsLower.includes('számla ki') || tagsLower.includes('szamla ki');
+    const hasNoInvoice = !isCancelled && !isReseller && !hasInvoiceTag;
+    const hasProformaTag = tagsLower.includes('dijbek.ki') || tagsLower.includes('díjbek.ki') || tagsLower.includes('dijbekero ki') || tagsLower.includes('díjbekérő ki');
+    const needsProforma = !isCancelled && !isReseller && totalAmount > 250000 && !isPaid && !isPickup && !hasProformaTag && !hasInvoiceTag;
+    const waitingProforma = !isCancelled && !isReseller && hasProformaTag && !hasInvoiceTag;
+    return { isReseller, hasNoInvoice, needsProforma, waitingProforma };
+}
+
+const resellerTest1 = checkResellerFlags("viszonteladó");
+assertEqual("Reseller Flag - isReseller true", resellerTest1.isReseller, true);
+assertEqual("Reseller - hasNoInvoice false (no invoice warning needed)", resellerTest1.hasNoInvoice, false);
+assertEqual("Reseller - needsProforma false (no proforma needed)", resellerTest1.needsProforma, false);
+
+const resellerTestTypo = checkResellerFlags("viszonterladó, Létai");
+assertEqual("Reseller Typo - isReseller true", resellerTestTypo.isReseller, true);
+assertEqual("Reseller Typo - hasNoInvoice false", resellerTestTypo.hasNoInvoice, false);
+assertEqual("Reseller Typo - needsProforma false", resellerTestTypo.needsProforma, false);
+
+const normalOrderTest = checkResellerFlags("Létai");
+assertEqual("Normal Order - isReseller false", normalOrderTest.isReseller, false);
+assertEqual("Normal Order - hasNoInvoice true without tag", normalOrderTest.hasNoInvoice, true);
+assertEqual("Normal Order - needsProforma true for 300k unpaid", normalOrderTest.needsProforma, true);
+assertEqual("Normal Order - waitingProforma false without tag", normalOrderTest.waitingProforma, false);
+
+const proformaSentTest = checkResellerFlags("díjbek.ki");
+assertEqual("Proforma Sent - needsProforma false", proformaSentTest.needsProforma, false);
+assertEqual("Proforma Sent - waitingProforma true without szamla ki", proformaSentTest.waitingProforma, true);
+
+const invoiceSentTest = checkResellerFlags("díjbek.ki, számla ki");
+assertEqual("Invoice Sent - waitingProforma false with szamla ki", invoiceSentTest.waitingProforma, false);
+assertEqual("Invoice Sent - hasNoInvoice false", invoiceSentTest.hasNoInvoice, false);
+
+// --- Waiting for Shipment (Szállítmányra vár) Tag Tests ---
+function extractWaitingTags(tags) {
+    const rawTagsList = (tags || '').split(',').map(t => t.trim()).filter(Boolean);
+    return rawTagsList.filter(tag => {
+        const tLower = tag.toLowerCase();
+        return (
+            tLower.includes('vár') ||
+            tLower.includes('var') ||
+            tLower.includes('szállítmány') ||
+            tLower.includes('szallitmany')
+        ) && !tLower.includes('számla') && !tLower.includes('dijbek');
+    });
+}
+
+const waitTags1 = extractWaitingTags("spc szállítmányra vár, számla ki, Létai");
+assertEqual("Waiting Tags - count", waitTags1.length, 1);
+assertEqual("Waiting Tags - exact tag text", waitTags1[0], "spc szállítmányra vár");
+
+const waitTags2 = extractWaitingTags("profilra vár, tr szállítmányra vár");
+assertEqual("Waiting Tags - multiple count", waitTags2.length, 2);
+assertEqual("Waiting Tags - tag 1", waitTags2[0], "profilra vár");
+assertEqual("Waiting Tags - tag 2", waitTags2[1], "tr szállítmányra vár");
+
+const waitTagsNone = extractWaitingTags("számla ki, viszonteladó");
+assertEqual("Waiting Tags - none", waitTagsNone.length, 0);
+
+// --- Ready for Pickup (Személyes Átvétel Átvehető) Tests ---
+function checkReadyForPickup(isPickup, tags, fulfillmentStatus = 'unfulfilled') {
+    const tagsLower = (tags || '').toLowerCase();
+    return isPickup && (
+        tagsLower.includes('ready for pickup') || 
+        tagsLower.includes('ready_for_pickup') || 
+        tagsLower.includes('átvehető') || 
+        tagsLower.includes('atveheto') || 
+        tagsLower.includes('átvételre kész') || 
+        tagsLower.includes('atvetelre kesz') ||
+        (fulfillmentStatus && fulfillmentStatus.toLowerCase() === 'ready_for_pickup')
+    );
+}
+
+assertEqual("Pickup - not ready", checkReadyForPickup(true, "számla ki"), false);
+assertEqual("Pickup - ready via tag 'ready for pickup'", checkReadyForPickup(true, "ready for pickup, számla ki"), true);
+assertEqual("Pickup - ready via tag 'átvehető'", checkReadyForPickup(true, "átvehető"), true);
+assertEqual("Delivery - cannot be pickup ready", checkReadyForPickup(false, "ready for pickup"), false);
+
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 
 if (failed > 0) {
