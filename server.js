@@ -62,7 +62,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/shopify/auth') {
     const shop = process.env.SHOPIFY_SHOP || '';
     const clientId = process.env.SHOPIFY_CLIENT_ID || '';
-    const scopes = process.env.SHOPIFY_SCOPES || 'read_all_orders,read_orders,read_products,read_customers';
+    const scopes = process.env.SHOPIFY_SCOPES || 'read_all_orders,read_orders,write_orders,read_products,read_customers,write_customers,read_fulfillments,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders,read_assigned_fulfillment_orders,write_assigned_fulfillment_orders,read_third_party_fulfillment_orders,write_third_party_fulfillment_orders,read_locations';
     const host = req.headers.host || 'localhost:8080';
     const protocol = req.headers['x-forwarded-proto'] || 'http';
     const redirectUri = `${protocol}://${host}/api/auth/callback`;
@@ -784,12 +784,17 @@ const server = http.createServer(async (req, res) => {
 
           try {
             if (!sId && oId) {
-              const findRes = await fetch(`https://${shop}/admin/api/2024-04/orders.json?name=${encodeURIComponent(oId)}&limit=1`, {
-                headers: { 'X-Shopify-Access-Token': token }
+              const cleanNum = String(oId).replace(/^#/, '').trim();
+              const findUrl = `https://${shop}/admin/api/2024-04/orders.json?name=${encodeURIComponent('#' + cleanNum)}&status=any&limit=1&fields=id,tags`;
+              const findRes = await fetch(findUrl, {
+                headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' }
               });
               const findData = await findRes.json();
               if (findData.orders && findData.orders.length > 0) {
                 sId = findData.orders[0].id;
+                if (item.currentTags === undefined) {
+                  item.currentTags = findData.orders[0].tags;
+                }
               }
             }
 
@@ -799,7 +804,7 @@ const server = http.createServer(async (req, res) => {
               continue;
             }
 
-            // 1. Megpróbáljuk a natív Shopify Fulfillment Order mark_as_ready_for_pickup végpontot
+            // 1. Natív Shopify Fulfillment Order Prepared for Pickup átállítás (GraphQL)
             let nativePickupMarked = false;
             try {
               const foUrl = `https://${shop}/admin/api/2024-04/orders/${sId}/fulfillment_orders.json`;
@@ -810,15 +815,45 @@ const server = http.createServer(async (req, res) => {
 
               if (foData.fulfillment_orders && foData.fulfillment_orders.length > 0) {
                 for (const fo of foData.fulfillment_orders) {
-                  if (fo.status === 'open' || fo.status === 'in_progress') {
-                    const readyRes = await fetch(`https://${shop}/admin/api/2024-04/fulfillment_orders/${fo.id}/mark_as_ready_for_pickup.json`, {
+                  if (fo.status === 'open') {
+                    const pickupGql = `
+                      mutation preparedForPickup($input: FulfillmentOrderLineItemsPreparedForPickupInput!) {
+                        fulfillmentOrderLineItemsPreparedForPickup(input: $input) {
+                          userErrors {
+                            field
+                            message
+                          }
+                        }
+                      }
+                    `;
+                    const gqlRes = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
                       method: 'POST',
-                      headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
-                      body: JSON.stringify({})
+                      headers: {
+                        'X-Shopify-Access-Token': token,
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({
+                        query: pickupGql,
+                        variables: {
+                          input: {
+                            lineItemsByFulfillmentOrder: [
+                              {
+                                fulfillmentOrderId: `gid://shopify/FulfillmentOrder/${fo.id}`
+                              }
+                            ]
+                          }
+                        }
+                      })
                     });
-                    if (readyRes.ok) {
+                    const gqlData = await gqlRes.json();
+                    if (gqlData.data && gqlData.data.fulfillmentOrderLineItemsPreparedForPickup && (!gqlData.data.fulfillmentOrderLineItemsPreparedForPickup.userErrors || gqlData.data.fulfillmentOrderLineItemsPreparedForPickup.userErrors.length === 0)) {
                       nativePickupMarked = true;
+                      console.log(`🟣 [Shopify Ready for Pickup] Fulfillment Order (${fo.id}) sikeresen átállítva átvehetőre!`);
+                    } else {
+                      console.warn(`[FO Ready for Pickup GQL Warning for ${oId}]:`, gqlData.errors || gqlData.data?.fulfillmentOrderLineItemsPreparedForPickup?.userErrors);
                     }
+                  } else if (fo.status === 'in_progress') {
+                    nativePickupMarked = true;
                   }
                 }
               }
@@ -827,11 +862,16 @@ const server = http.createServer(async (req, res) => {
             }
 
             // 2. Minden esetben hozzáadjuk a "ready for pickup" címkét is a rendeléshez
-            const getOrderRes = await fetch(`https://${shop}/admin/api/2024-04/orders/${sId}.json?fields=id,tags`, {
-              headers: { 'X-Shopify-Access-Token': token }
-            });
-            const getOrderData = await getOrderRes.json();
-            const currentTags = (getOrderData.order && getOrderData.order.tags) ? getOrderData.order.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+            let currentTagsStr = item.currentTags;
+            if (currentTagsStr === undefined) {
+              const getOrderRes = await fetch(`https://${shop}/admin/api/2024-04/orders/${sId}.json?fields=id,tags`, {
+                headers: { 'X-Shopify-Access-Token': token }
+              });
+              const getOrderData = await getOrderRes.json();
+              currentTagsStr = (getOrderData.order && getOrderData.order.tags) || '';
+            }
+
+            const currentTags = currentTagsStr ? currentTagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
             
             if (!currentTags.some(t => t.toLowerCase() === 'ready for pickup')) {
               currentTags.push('ready for pickup');

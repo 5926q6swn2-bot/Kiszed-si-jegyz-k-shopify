@@ -45,6 +45,30 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
+### 2026. szeptember 2. - Shopify Bolti Jogosultságok & GraphQL Ready for Pickup Élesítés (`v3.7.1`)
+- **Shopify Bolti Helyszínek & Fulfillment Orders Jogosultságok**:
+  - A Shopify Admin Develop Apps és a [.env](file:///c:/Users/Intel/OneDrive/Asztali%20g%C3%A9p/Projektek/Kiszed%C3%A9si%20jegyz%C3%A9k%20shopify/.env) beállításaiban élesítettük a teljes jogosultsági kört (`read_merchant_managed_fulfillment_orders`, `write_merchant_managed_fulfillment_orders`, `read_locations`, `read_third_party_fulfillment_orders`, `write_third_party_fulfillment_orders`).
+- **Natív Bolti Átvehető Állapot (GraphQL `fulfillmentOrderLineItemsPreparedForPickup`)**:
+  - A `POST /api/shopify/ready-for-pickup` szerver végpontot átállítottuk a Shopify modern GraphQL mutációjára (`fulfillmentOrderLineItemsPreparedForPickup`), amely hivatalosan átbillenti a bolti átvételi (Local Pickup) Fulfillment Ordert a Shopify Adminban, és kiküldi a vásárlónak az átvételi értesítőt.
+- **Személyes Átvétel Számlázási Szabály Pontosítása (Utánvét vs Kártya)**:
+  - Az utánvétes/helyszínen fizetendő személyes átvételes rendeléseknél (`isPickup && !isPaid`) kikapcsoltuk a "Számlázni!" figyelmeztetést (`hasNoInvoice: false`), mivel a számla/nyugtaadás személyesen a bolti átvételkor történik.
+  - Az online/bankkártyával már kifizetett személyes átvételeknél (`isPickup && isPaid`) a "Számlázni!" jelzés továbbra is aktív marad mindaddig, amíg rá nem kerül a `számla ki` címke.
+- **Sela Küldendőből Szállítmányra Várók Kizárása**:
+  - A `Sela küldendő` státusz és gyors-szűrő mostantól automatikusan kiszűri és kihagyja azokat a rendeléseket, amelyek valamilyen anyagra vagy szállítmányra várnak (pl. `spc szállítmányra vár`, `profilra vár`, `tr szállítmányra vár`).
+- **Erőteljes Vizuális Megkülönböztetés (Szállítmányra vár vs. Rossz szállítás)**:
+  - **Szállítmányra váró címkék**: Mély Petrolkék / Cián (`#0e7490`) stílust és ciánkék homokóra ikont kaptak (`ph-hourglass-medium`), a felső szűrő chip is tiszta ciánkék lett.
+  - **Rossz szállítás (2300 Ft)**: Megtartotta a harsány, vibráló Vérvörös (`#dc2626`) stílust nyolcszögű vészjelző ikonnal (`ph-warning-octagon`).
+- **Szedőlista Termék Sorrendezés (7 Kategóriás Intelligens Prioritás)**:
+  - A szedőlista nyomtatásában (`printer.js`), felületi nézetében (`ordersView.js`) és PDF generálásában (`printTemplates.js`) bevezetésre került a 7 szintű termékprioritás:
+    1. **PVC falpanelek & "PB" kezdetű termékek** (`^pb` vagy `pvc falpanel/panel/falburkolat`)
+    2. **SPC falpanelek** (`spc` és `falpanel`)
+    3. **Padlózatok** (`padló` / `padlózat` — fekete háttérrel kiemelve)
+    4. **Akusztikus falpanelek** (`aku` / `akusztikus`)
+    5. **Ragasztók & Segédanyagok** (`ragasztó`, `hpr`, `t-rex`, `trex`)
+    6. **Profilok** (`profil`)
+    7. **Minden egyéb termék**
+- **Automata Unit Tesztek**: 108/108 sikeres teszt (`node tests/unit_tests.js`).
+
 ### 2026. szeptember 1. - Sela & PannonXP Logisztikai Állapotkövetés, Gyors-Chipek, Ready for Pickup, Shopify Note & Címke Szerkesztők (`v3.7.0`)
 - **Intelligens Logisztikai Állapot-Besorolás**:
   - A rendszer a Shopify címkék (`tags`) és a szállítási adatok alapján automatikusan megkülönbözteti a rendelések logisztikai státuszát:

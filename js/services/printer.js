@@ -3,8 +3,48 @@ function highlightItemName(name) {
     return name.replace(regex, `<span style="background: #000; color: #fff; padding: 2px 4px; border-radius: 3px; font-weight: bold; font-size: 0.95em; display: inline-block; line-height: 1;">$1</span>`);
 }
 
+function getItemRank(name) {
+    if (!name) return 7;
+    const cleanName = String(name).trim();
+    const lower = cleanName.toLowerCase();
+    
+    // 1. PVC falpanelek vagy amik úgy kezdődnek, hogy "PB"
+    if (/^pb/i.test(cleanName) || (lower.includes('pvc') && (lower.includes('falpanel') || lower.includes('panel') || lower.includes('falburkolat')))) {
+        return 1;
+    }
+    // 2. SPC falpanelek (tartalmazza: falpanel és SPC)
+    if (lower.includes('spc') && (lower.includes('falpanel') || lower.includes('falburkolat') || (lower.includes('panel') && !lower.includes('padl')))) {
+        return 2;
+    }
+    // 3. Padlózat (padló / padlózat)
+    if (/padl[óo]zat|padl[óo]/i.test(cleanName)) {
+        return 3;
+    }
+    // 4. Akusztikus falpanelek ("aku" vagy "akusztikus")
+    if (/aku|akusztik/i.test(cleanName)) {
+        return 4;
+    }
+    // 5. Ragasztó ("ragasztó", "hpr", "t-rex", "trex")
+    if (/ragaszt[óo]|hpr|t-rex|trex/i.test(cleanName)) {
+        return 5;
+    }
+    // 6. Profilok ("profil")
+    if (/profil/i.test(cleanName)) {
+        return 6;
+    }
+    // 7. Minden más
+    return 7;
+}
 
-
+function sortOrderItems(items) {
+    if (!Array.isArray(items)) return [];
+    return [...items].sort((a, b) => {
+        const rankA = getItemRank(a.name);
+        const rankB = getItemRank(b.name);
+        if (rankA !== rankB) return rankA - rankB;
+        return (a.name || '').localeCompare(b.name || '', 'hu');
+    });
+}
 
 function needsMarkerLabel(name, isCollapsedProfile) {
     if (isCollapsedProfile) return false;
@@ -75,14 +115,7 @@ export const UnifiedPrinter = {
                     codHtml = `<span class="badge badge-paid">Fizetve</span>`;
                 }
 
-                const sortedItems = [...order.items].sort((a, b) => {
-                    const getRank = (name) => {
-                        if (/falpanel/i.test(name)) return 1;
-                        if (/padl[óo]zat/i.test(name)) return 2;
-                        return 3;
-                    };
-                    return getRank(a.name) - getRank(b.name);
-                });
+                const sortedItems = sortOrderItems(order.items);
 
                 const itemsHtml = sortedItems.map(item => {
                     const isCollapsed = item.isCollapsedProfile || item.name === "Összekészített profilok";

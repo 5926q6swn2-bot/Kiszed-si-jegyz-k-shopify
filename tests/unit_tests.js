@@ -380,8 +380,9 @@ function checkLogisticsStatus(tags, isPickup = false, isInDelivery = false, isFu
     const tagsLower = (tags || '').toLowerCase();
     const hasSelaOrdered = tagsLower.includes('sela megr') || tagsLower.includes('sela');
     const hasPxpTag = tagsLower.includes('pannonxp') || tagsLower.includes('pxp');
-    const needsSelaDispatch = !isCancelled && !isFulfilled && !isPickup && !isInDelivery && !hasPxpTag && !hasSelaOrdered;
-    return { hasSelaOrdered, hasPxpTag, needsSelaDispatch };
+    const hasWaitingTag = tagsLower.includes('vár') || tagsLower.includes('var') || tagsLower.includes('szállítmány') || tagsLower.includes('szallitmany');
+    const needsSelaDispatch = !isCancelled && !isFulfilled && !isPickup && !isInDelivery && !hasPxpTag && !hasSelaOrdered && !hasWaitingTag;
+    return { hasSelaOrdered, hasPxpTag, hasWaitingTag, needsSelaDispatch };
 }
 
 const statusSela1 = checkLogisticsStatus("sela megr., viszonteladó");
@@ -397,15 +398,20 @@ assertEqual("Sela Pending - hasSelaOrdered false", statusPending.hasSelaOrdered,
 assertEqual("Sela Pending - hasPxpTag false", statusPending.hasPxpTag, false);
 assertEqual("Sela Pending - needsSelaDispatch true", statusPending.needsSelaDispatch, true);
 
+const statusWaitingShipment = checkLogisticsStatus("spc szállítmányra vár");
+assertEqual("Waiting Shipment - hasWaitingTag true", statusWaitingShipment.hasWaitingTag, true);
+assertEqual("Waiting Shipment - needsSelaDispatch false", statusWaitingShipment.needsSelaDispatch, false);
+
 const statusPickup = checkLogisticsStatus("számla ki", true, false, false, false);
 assertEqual("Pickup - needsSelaDispatch false", statusPickup.needsSelaDispatch, false);
 
-// --- Reseller (Viszonteladó) Invoice & Proforma Tests ---
+// --- Reseller (Viszonteladó) & Personal Pickup Invoice & Proforma Tests ---
 function checkResellerFlags(tags, totalAmount = 300000, isPaid = false, isCancelled = false, isPickup = false) {
     const tagsLower = (tags || '').toLowerCase();
     const isReseller = tagsLower.includes('viszontelad') || tagsLower.includes('viszonterlad');
     const hasInvoiceTag = tagsLower.includes('számla ki') || tagsLower.includes('szamla ki');
-    const hasNoInvoice = !isCancelled && !isReseller && !hasInvoiceTag;
+    const isPickupUnpaid = isPickup && !isPaid;
+    const hasNoInvoice = !isCancelled && !isReseller && !hasInvoiceTag && !isPickupUnpaid;
     const hasProformaTag = tagsLower.includes('dijbek.ki') || tagsLower.includes('díjbek.ki') || tagsLower.includes('dijbekero ki') || tagsLower.includes('díjbekérő ki');
     const needsProforma = !isCancelled && !isReseller && totalAmount > 250000 && !isPaid && !isPickup && !hasProformaTag && !hasInvoiceTag;
     const waitingProforma = !isCancelled && !isReseller && hasProformaTag && !hasInvoiceTag;
@@ -435,6 +441,16 @@ assertEqual("Proforma Sent - waitingProforma true without szamla ki", proformaSe
 const invoiceSentTest = checkResellerFlags("díjbek.ki, számla ki");
 assertEqual("Invoice Sent - waitingProforma false with szamla ki", invoiceSentTest.waitingProforma, false);
 assertEqual("Invoice Sent - hasNoInvoice false", invoiceSentTest.hasNoInvoice, false);
+
+// --- Személyes Átvétel Utánvét vs Kártya Számla Tesztek ---
+const pickupUnpaidTest = checkResellerFlags("személyes", 300000, false, false, true);
+assertEqual("Pickup Unpaid/COD - hasNoInvoice false (no invoice warning needed)", pickupUnpaidTest.hasNoInvoice, false);
+
+const pickupPaidTest = checkResellerFlags("személyes", 300000, true, false, true);
+assertEqual("Pickup Paid/Card - hasNoInvoice true (invoice warning needed)", pickupPaidTest.hasNoInvoice, true);
+
+const pickupPaidWithInvoiceTag = checkResellerFlags("személyes, számla ki", 300000, true, false, true);
+assertEqual("Pickup Paid with számla ki - hasNoInvoice false", pickupPaidWithInvoiceTag.hasNoInvoice, false);
 
 // --- Waiting for Shipment (Szállítmányra vár) Tag Tests ---
 function extractWaitingTags(tags) {
@@ -480,6 +496,83 @@ assertEqual("Pickup - not ready", checkReadyForPickup(true, "számla ki"), false
 assertEqual("Pickup - ready via tag 'ready for pickup'", checkReadyForPickup(true, "ready for pickup, számla ki"), true);
 assertEqual("Pickup - ready via tag 'átvehető'", checkReadyForPickup(true, "átvehető"), true);
 assertEqual("Delivery - cannot be pickup ready", checkReadyForPickup(false, "ready for pickup"), false);
+
+// --- 7-Tier Picking List Item Ranking & Sorting Tests ---
+function getItemRank(name) {
+    if (!name) return 7;
+    const cleanName = String(name).trim();
+    const lower = cleanName.toLowerCase();
+    
+    // 1. PVC falpanelek vagy amik úgy kezdődnek, hogy "PB"
+    if (/^pb/i.test(cleanName) || (lower.includes('pvc') && (lower.includes('falpanel') || lower.includes('panel') || lower.includes('falburkolat')))) {
+        return 1;
+    }
+    // 2. SPC falpanelek (tartalmazza: falpanel és SPC)
+    if (lower.includes('spc') && (lower.includes('falpanel') || lower.includes('falburkolat') || (lower.includes('panel') && !lower.includes('padl')))) {
+        return 2;
+    }
+    // 3. Padlózat (padló / padlózat)
+    if (/padl[óo]zat|padl[óo]/i.test(cleanName)) {
+        return 3;
+    }
+    // 4. Akusztikus falpanelek ("aku" vagy "akusztikus")
+    if (/aku|akusztik/i.test(cleanName)) {
+        return 4;
+    }
+    // 5. Ragasztó ("ragasztó", "hpr", "t-rex", "trex")
+    if (/ragaszt[óo]|hpr|t-rex|trex/i.test(cleanName)) {
+        return 5;
+    }
+    // 6. Profilok ("profil")
+    if (/profil/i.test(cleanName)) {
+        return 6;
+    }
+    // 7. Minden más
+    return 7;
+}
+
+function sortOrderItems(items) {
+    if (!Array.isArray(items)) return [];
+    return [...items].sort((a, b) => {
+        const rankA = getItemRank(a.name);
+        const rankB = getItemRank(b.name);
+        if (rankA !== rankB) return rankA - rankB;
+        return (a.name || '').localeCompare(b.name || '', 'hu');
+    });
+}
+
+assertEqual("Item Rank 1 - PB start", getItemRank("PB-04 Fehér"), 1);
+assertEqual("Item Rank 1 - PB start space", getItemRank("PB 12 Minta"), 1);
+assertEqual("Item Rank 1 - PVC falpanel", getItemRank("PVC Falpanel Márvány"), 1);
+assertEqual("Item Rank 2 - SPC falpanel", getItemRank("SPC Falpanel Beton"), 2);
+assertEqual("Item Rank 3 - Padlózat", getItemRank("SPC Padlózat Natúr Tölgy"), 3);
+assertEqual("Item Rank 3 - Padló", getItemRank("Laminált padló Vörös"), 3);
+assertEqual("Item Rank 4 - Akupanel", getItemRank("Akupanel Dió 240cm"), 4);
+assertEqual("Item Rank 4 - Akusztikus", getItemRank("Akusztikus falpanel Fekete"), 4);
+assertEqual("Item Rank 5 - Ragasztó", getItemRank("HPR Ragasztó 290ml"), 5);
+assertEqual("Item Rank 5 - T-Rex", getItemRank("T-Rex Gold ragasztó"), 5);
+assertEqual("Item Rank 6 - Profil", getItemRank("Belső sarok profil fekete"), 6);
+assertEqual("Item Rank 6 - Összekészített profilok", getItemRank("Összekészített profilok"), 6);
+assertEqual("Item Rank 7 - Minden más", getItemRank("Mélyalapozó 5L"), 7);
+
+const sampleItems = [
+    { name: "Mélyalapozó 5L", qty: 1 },
+    { name: "T-Rex Gold ragasztó", qty: 2 },
+    { name: "Akupanel Dió 240cm", qty: 3 },
+    { name: "SPC Padlózat Natúr Tölgy", qty: 10 },
+    { name: "SPC Falpanel Beton", qty: 5 },
+    { name: "PB-04 Fehér", qty: 8 },
+    { name: "Belső sarok profil fekete", qty: 4 }
+];
+
+const sorted = sortOrderItems(sampleItems);
+assertEqual("Sorting Test - 1st is PB", sorted[0].name, "PB-04 Fehér");
+assertEqual("Sorting Test - 2nd is SPC Falpanel", sorted[1].name, "SPC Falpanel Beton");
+assertEqual("Sorting Test - 3rd is Padlózat", sorted[2].name, "SPC Padlózat Natúr Tölgy");
+assertEqual("Sorting Test - 4th is Akupanel", sorted[3].name, "Akupanel Dió 240cm");
+assertEqual("Sorting Test - 5th is Ragasztó", sorted[4].name, "T-Rex Gold ragasztó");
+assertEqual("Sorting Test - 6th is Profil", sorted[5].name, "Belső sarok profil fekete");
+assertEqual("Sorting Test - 7th is Minden más", sorted[6].name, "Mélyalapozó 5L");
 
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 

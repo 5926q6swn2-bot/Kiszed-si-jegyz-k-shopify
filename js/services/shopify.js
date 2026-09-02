@@ -543,7 +543,7 @@ export const ShopifyParser = {
                     waitingTags: waitingTags,
                     hasWaitingTag: hasWaitingTag,
                     isPickup: isPickup,
-                    needsSelaDispatch: fulfillmentStatus !== 'fulfilled' && !isPickup && !hasPxpTag && !hasSelaOrdered,
+                    needsSelaDispatch: fulfillmentStatus !== 'fulfilled' && !isPickup && !hasPxpTag && !hasSelaOrdered && !hasWaitingTag,
                     isBankDeposit: isBankDeposit,
                     isPaid: isPaid,
                     isCOD: isCOD,

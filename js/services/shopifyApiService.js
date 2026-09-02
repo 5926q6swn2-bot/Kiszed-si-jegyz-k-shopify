@@ -312,8 +312,10 @@ export const ShopifyApiService = {
         const hasBadShipping = !isCancelled && fulfillmentStatus !== 'fulfilled' && !isPickup && !isBudapest && Math.round(shippingFee) === 2300;
 
         // Számla ki hiány ellenőrzése (csak ha nem törölt a rendelés ÉS NEM viszonteladó)
+        // Személyes átvétel esetén CSAK AKKOR kell előre számlázni, ha már kifizette (pl. bankkártya). Ha utánvétes/helyszíni fizetés, nem írjuk ki!
         const hasInvoiceTag = tagsLower.includes('számla ki') || tagsLower.includes('szamla ki');
-        const hasNoInvoice = !isCancelled && !isReseller && !hasInvoiceTag;
+        const isPickupUnpaid = isPickup && !isPaid;
+        const hasNoInvoice = !isCancelled && !isReseller && !hasInvoiceTag && !isPickupUnpaid;
 
         // 250.000 Ft feletti nem fizetett kiszállításos rendelés díjbekérő ellenőrzése (csak ha nem törölt ÉS NEM viszonteladó)
         const hasProformaTag = tagsLower.includes('dijbek.ki') || tagsLower.includes('díjbek.ki') || tagsLower.includes('dijbekero ki') || tagsLower.includes('díjbekérő ki');
@@ -529,7 +531,7 @@ export const ShopifyApiService = {
             hasPxpTag: hasPxpTag,
             waitingTags: waitingTags,
             hasWaitingTag: hasWaitingTag,
-            needsSelaDispatch: !isCancelled && fulfillmentStatus !== 'fulfilled' && !isPickup && !hasPxpTag && !hasSelaOrdered,
+            needsSelaDispatch: !isCancelled && fulfillmentStatus !== 'fulfilled' && !isPickup && !hasPxpTag && !hasSelaOrdered && !hasWaitingTag && !hasBadShipping,
             isPickup: isPickup,
             pickupTitle: pickupTitle,
             isReadyForPickup: isReadyForPickup,
