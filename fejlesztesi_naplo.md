@@ -27,8 +27,8 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
-- **Utolsó aktív modell**: Gemini 3.7 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris és stabil. Kialakítva a Sela & PannonXP logisztikai állapotfelismerés, az 1-kattintásos gyors-szűrő chipek (`Sela küldendő`, `Sela elküldve`, `PannonXP`, `Szállítmányra vár`, `Díjbek szükséges`), a Személyes Átvétel "Ready for pickup" állapota és végpontja, a közvetlen Shopify Megjegyzés (Note) és Címke (Tags) szerkesztők, a Szállítói Export (Sela), valamint a viszonteladói számla-mentesítés (`v3.7.0`, 83/83 zöld unit teszt).
+- **Utolsó aktív modell**: Gemini 3.6 Flash (High)
+- **Státusz**: A rendszer 100%-ban moduláris és stabil. Az Előzmények és Keresés (Elszámolások) felület szűrősávja, összesítő kártyája és terítési kártyái szuper-kompakt elrendezést kapnak (`v3.8.4`, 122/122 zöld unit teszt).
 
 ---
 
@@ -44,6 +44,17 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. szeptember 3. (6. frissítés) - Ultra-Kompakt Előzmények és Elszámolások Felület & CSV Import Fix (`v3.8.4`)
+- **1-Soros Szuper-Kompakt Szűrősáv az Előzmények Modalban**:
+  - Összevontuk az elszórt 2-soros szűrőterületet (Globális kereső, Cégválasztó, Kezdő/Záró dátum, Szűrés, Törlés, `Csak függő fuvarok` opció és `Export CSV` gomb) egyetlen 32px magas, rendkívül tiszta és helytakarékos sorba.
+- **Kompakt Összesítő Sáv ("SZŰRT KÖVETELÉSEK ÖSSZESEN")**:
+  - A korábbi magas, 76px-es sötét kártyát egy 34px-es elegáns glassmorphic összefoglaló sávvá alakítottuk át, így jóval több fuvar fér el a képernyőn görgetés nélkül.
+- **Letisztult, Kompakt Cégcsoport Fejlécek és Terítés Kártyák**:
+  - Csökkentettük a kártyák padding-jait, gombméreteit és ikontávolságait. A nyomtatási és betöltési ikongombok tömör 24x24px méretet kapnak.
+- **Export CSV Import Bug Fix**:
+  - Bekötöttük az [app.js](file:///c:/Users/CH_001/Desktop/Projektek/kiszedesi/js/app.js)-be a hiányzó `getRunPaymentTotals` és `getPaymentDetails` importokat.
+- **122/122 Unit Teszt Zöld** (`node tests/unit_tests.js`).
 
 ### 2026. szeptember 3. (5. frissítés) - Sela + Szállítmányra Várás Kombinált Ikon & Szűrő, Letisztult Oldalsó Szegélyek (`v3.8.3`)
 - **Szállítmányra Váró + Sela Elküldve Kombinált Jelvény**:

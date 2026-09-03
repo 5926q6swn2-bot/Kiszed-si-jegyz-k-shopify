@@ -779,30 +779,22 @@ export async function renderAccountingRuns(ctx) {
     });
 
     const summaryCard = document.createElement('div');
-    summaryCard.style.cssText = 'background: linear-gradient(135deg, #1e293b, #0f172a); color: white; padding: 18px 24px; border-radius: 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);';
+    summaryCard.style.cssText = 'background: linear-gradient(135deg, #0f172a, #1e293b); color: white; padding: 8px 14px; border-radius: 10px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.12);';
     summaryCard.innerHTML = `
-        <div>
-            <div style="font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Szűrt követelések összesen</div>
-            <div style="font-size: 11px; color: #64748b;">A fenti szűrők (Dátum, Szállítócég) alapján számítva</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <i class="ph-bold ph-calculator" style="font-size: 15px; color: #38bdf8;"></i>
+            <span style="font-size: 11.5px; font-weight: 800; color: #f8fafc; text-transform: uppercase; letter-spacing: 0.4px;">Szűrt követelések összesen</span>
         </div>
-        <div style="display: flex; gap: 32px; flex-wrap: wrap;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(249, 115, 22, 0.15); display: flex; align-items: center; justify-content: center; color: #f97316;">
-                    <i class="ph-bold ph-hand-coins" style="font-size: 18px;"></i>
-                </div>
-                <div>
-                    <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">Függő KP (futártól)</div>
-                    <div style="font-size: 18px; font-weight: 800; color: #f97316;">${totalFilteredPendingKp.toLocaleString('hu-HU')} Ft</div>
-                </div>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px; background: rgba(249, 115, 22, 0.15); padding: 3px 10px; border-radius: 6px; border: 1px solid rgba(249, 115, 22, 0.3);">
+                <i class="ph-bold ph-hand-coins" style="font-size: 13px; color: #f97316;"></i>
+                <span style="font-size: 10.5px; color: #cbd5e1; font-weight: 700; text-transform: uppercase;">Függő KP:</span>
+                <strong style="font-size: 13px; font-weight: 800; color: #f97316;">${totalFilteredPendingKp.toLocaleString('hu-HU')} Ft</strong>
             </div>
-            <div style="display: flex; align-items: center; gap: 10px; border-left: 1px solid #334155; padding-left: 24px;">
-                <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(37, 99, 235, 0.15); display: flex; align-items: center; justify-content: center; color: #3b82f6;">
-                    <i class="ph-bold ph-bank" style="font-size: 18px;"></i>
-                </div>
-                <div>
-                    <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">Kártyás utalásra vár</div>
-                    <div style="font-size: 18px; font-weight: 800; color: #3b82f6;">${totalFilteredPendingCard.toLocaleString('hu-HU')} Ft</div>
-                </div>
+            <div style="display: flex; align-items: center; gap: 6px; background: rgba(37, 99, 235, 0.15); padding: 3px 10px; border-radius: 6px; border: 1px solid rgba(37, 99, 235, 0.3);">
+                <i class="ph-bold ph-bank" style="font-size: 13px; color: #38bdf8;"></i>
+                <span style="font-size: 10.5px; color: #cbd5e1; font-weight: 700; text-transform: uppercase;">Kártyás utalásra vár:</span>
+                <strong style="font-size: 13px; font-weight: 800; color: #38bdf8;">${totalFilteredPendingCard.toLocaleString('hu-HU')} Ft</strong>
             </div>
         </div>
     `;
@@ -828,14 +820,14 @@ export async function renderAccountingRuns(ctx) {
 
         const groupEl = document.createElement('div');
         groupEl.className = 'accounting-company-group';
-        groupEl.style.marginBottom = '25px';
+        groupEl.style.marginBottom = '12px';
 
         groupEl.innerHTML = `
-            <div style="background: #0f172a; color: white; padding: 10px 16px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-weight: 700; letter-spacing: 0.5px;">${companyName}</span>
-                <span style="font-size: 13px; background: #334155; padding: 2px 10px; border-radius: 20px;">Függőben: <strong>${companyTotalCOD.toLocaleString('hu-HU')} Ft</strong></span>
+            <div style="background: #0f172a; color: white; padding: 6px 12px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 700; font-size: 12.5px; letter-spacing: 0.4px;">${companyName}</span>
+                <span style="font-size: 11.5px; background: #334155; padding: 1px 8px; border-radius: 12px;">Függőben: <strong>${companyTotalCOD.toLocaleString('hu-HU')} Ft</strong></span>
             </div>
-            <div class="group-runs" style="border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px; padding: 10px; background: #f8fafc; display: flex; flex-direction: column; gap: 8px;">
+            <div class="group-runs" style="border: 1px solid #cbd5e1; border-top: none; border-radius: 0 0 8px 8px; padding: 6px; background: #f8fafc; display: flex; flex-direction: column; gap: 6px;">
             </div>
         `;
 
@@ -946,8 +938,8 @@ export async function renderAccountingRuns(ctx) {
             }).join(' ');
 
             const codBadgeContainer = codBadges 
-                ? `<div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:4px; align-items:center;">
-                    <span style="font-size:10px; font-weight:600; color:#64748b; margin-right:4px;">Utánvétek:</span>
+                ? `<div style="margin-top:4px; display:flex; flex-wrap:wrap; gap:3px; align-items:center;">
+                    <span style="font-size:9.5px; font-weight:600; color:#64748b; margin-right:2px;">Utánvétek:</span>
                     ${codBadges}
                    </div>` 
                 : '';
@@ -983,9 +975,9 @@ export async function renderAccountingRuns(ctx) {
                     paymentBreakdownHtml = `<span style="font-size:11px;font-weight:700;color:#1e293b; display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap;">Bontott: ${parts.join(' + ')} <span style="font-weight:400;color:#94a3b8;">/ ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`;
                 }
                 
-                return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f1f5f9;${isUncollected ? 'opacity:.55;' : ''}">
-                    <span style="font-size:12px;font-weight:700;color:#374151;min-width:95px;${isUncollected ? 'text-decoration:line-through;' : ''}">${o.id}</span>
-                    <span style="font-size:12px;color:#64748b;flex:1;">${o.shippingName || '—'}</span>
+                return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f1f5f9;${isUncollected ? 'opacity:.55;' : ''}">
+                    <span style="font-size:11.5px;font-weight:700;color:#374151;min-width:85px;${isUncollected ? 'text-decoration:line-through;' : ''}">${o.id}</span>
+                    <span style="font-size:11.5px;color:#64748b;flex:1;">${o.shippingName || '—'}</span>
                     ${o.isReturn
                         ? isUncollected
                             ? `<span style="font-size:11px;font-weight:700;color:#ef4444;">meghiúsult visszahozatal<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
@@ -1013,38 +1005,38 @@ export async function renderAccountingRuns(ctx) {
             }).join('');
 
             const settleInitialBtn = hasUnsettledWait
-                ? `<button class="hac-btn-action btn-settle-run" data-doc-id="${run.docId}" title="Elszámolás rögzítése" style="font-size:11px;font-weight:700;color:#fff;background:#2563eb;border:1.5px solid #1d4ed8;border-radius:8px;padding:4px 10px;cursor:pointer;font-family:inherit;flex-shrink:0;">
-                    <i class="ph-bold ph-receipt" style="font-size:11px;"></i> Elszámolás
+                ? `<button class="hac-btn-action btn-settle-run" data-doc-id="${run.docId}" title="Elszámolás rögzítése" style="font-size:10.5px;font-weight:700;color:#fff;background:#2563eb;border:1px solid #1d4ed8;border-radius:6px;padding:3px 8px;cursor:pointer;font-family:inherit;flex-shrink:0;">
+                    <i class="ph-bold ph-receipt" style="font-size:10.5px;"></i> Elszámolás
                    </button>`
                 : '';
 
             const settleKpBtn = hasKpWait
-                ? `<button class="hac-btn-action btn-settle-kp" data-doc-id="${run.docId}" title="KP beérkezett" style="font-size:11px;font-weight:700;color:#f97316;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:8px;padding:4px 9px;cursor:pointer;font-family:inherit;flex-shrink:0;">
-                    <i class="ph-bold ph-hand-coins" style="font-size:11px;"></i> KP megjött
+                ? `<button class="hac-btn-action btn-settle-kp" data-doc-id="${run.docId}" title="KP beérkezett" style="font-size:10.5px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:3px 7px;cursor:pointer;font-family:inherit;flex-shrink:0;">
+                    <i class="ph-bold ph-hand-coins" style="font-size:10.5px;"></i> KP megjött
                    </button>`
                 : '';
 
             const settleTransferBtn = hasCardWait
-                ? `<button class="hac-btn-action btn-settle-transfer" data-doc-id="${run.docId}" title="Utalás beérkezett" style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border:1.5px solid #93c5fd;border-radius:8px;padding:4px 9px;cursor:pointer;font-family:inherit;flex-shrink:0;">
-                    <i class="ph-bold ph-check-square" style="font-size:11px;"></i> Kártya utalva
+                ? `<button class="hac-btn-action btn-settle-transfer" data-doc-id="${run.docId}" title="Utalás beérkezett" style="font-size:10.5px;font-weight:700;color:#2563eb;background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;padding:3px 7px;cursor:pointer;font-family:inherit;flex-shrink:0;">
+                    <i class="ph-bold ph-check-square" style="font-size:10.5px;"></i> Kártya utalva
                    </button>`
                 : '';
 
             el.innerHTML = `
-                <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;">
+                <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;">
                     <button class="${btnClass}" data-doc-id="${run.docId}"
                         title="${circleTitle}"
-                        style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:2px solid ${circleColor};background:${circleBg};color:${circleTextColor};display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;">
-                        <i class="ph-bold ph-check" style="font-size:16px;"></i>
+                        style="flex-shrink:0;width:30px;height:30px;border-radius:50%;border:2px solid ${circleColor};background:${circleBg};color:${circleTextColor};display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;">
+                        <i class="ph-bold ph-check" style="font-size:13px;"></i>
                     </button>
                     <div style="flex:1;min-width:0;">
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap;">
-                            <span style="font-size:14px;font-weight:700;color:#0f172a;">${run.date}</span>
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:1px;flex-wrap:wrap;">
+                            <span style="font-size:13px;font-weight:700;color:#0f172a;">${run.date}</span>
                             ${statusBadge}
-                            ${uncollected.length > 0 ? `<span style="font-size:10px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:1px 7px;"><i class="ph-bold ph-warning" style="font-size:9px;"></i> ${uncollected.length} kiesett</span>` : ''}
+                            ${uncollected.length > 0 ? `<span style="font-size:9.5px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:0 5px;"><i class="ph-bold ph-warning" style="font-size:9px;"></i> ${uncollected.length} kiesett</span>` : ''}
                         </div>
-                        <div class="hac-meta">
-                            <i class="ph-bold ph-user" style="font-size:11px;color:#374151;"></i>
+                        <div class="hac-meta" style="font-size:11px;">
+                            <i class="ph-bold ph-user" style="font-size:10.5px;color:#374151;"></i>
                             <span style="font-weight:600;color:#374151;">${run.courier || '—'}</span>
                             <span style="color:#d1d5db;">·</span>
                             <span style="color:#94a3b8;">${run.orders.length} rendelés</span>
@@ -1052,32 +1044,32 @@ export async function renderAccountingRuns(ctx) {
                         </div>
                         ${codBadgeContainer}
                     </div>
-                    <div style="display:flex;align-items:center;gap:6px;">
+                    <div style="display:flex;align-items:center;gap:4px;">
                         ${settleInitialBtn}
                         ${settleKpBtn}
                         ${settleTransferBtn}
 
-                        ${(run.isSettled || isPartial) ? `<button class="hac-btn-action hac-btn-ghost btn-modify-settlement" data-doc-id="${run.docId}" data-run-id="${run.id}" title="Elszámolás módosítása" style="font-size:12px;">
-                            <i class="ph-bold ph-pencil-simple" style="font-size:12px;"></i>
+                        ${(run.isSettled || isPartial) ? `<button class="hac-btn-action hac-btn-ghost btn-modify-settlement" data-doc-id="${run.docId}" data-run-id="${run.id}" title="Elszámolás módosítása" style="font-size:11px;padding:3px 6px;">
+                            <i class="ph-bold ph-pencil-simple" style="font-size:11px;"></i>
                         </button>` : ''}
-                        ${(run.isSettled || isPartial || uncollected.length > 0) ? `<button class="hac-btn-action btn-nullify-settlement" data-doc-id="${run.docId}" data-run-id="${run.id}" title="Visszavonás" style="font-size:11px;font-weight:700;color:#dc2626;background:#fee2e2;border:1.5px solid #fca5a5;border-radius:8px;padding:4px 9px;cursor:pointer;font-family:inherit;flex-shrink:0;">
-                            <i class="ph-bold ph-x-circle" style="font-size:11px;"></i> Visszavonás
+                        ${(run.isSettled || isPartial || uncollected.length > 0) ? `<button class="hac-btn-action btn-nullify-settlement" data-doc-id="${run.docId}" data-run-id="${run.id}" title="Visszavonás" style="font-size:10.5px;font-weight:700;color:#dc2626;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:3px 7px;cursor:pointer;font-family:inherit;flex-shrink:0;">
+                            <i class="ph-bold ph-x-circle" style="font-size:10.5px;"></i> Visszavonás
                         </button>` : ''}
-                        <div style="display:flex; align-items:center; background:#f1f5f9; border-radius:8px; padding:2px; gap:2px; border:1px solid #e2e8f0; margin-left: 4px;">
-                            <button class="hac-print-btn btn-print-picking" data-id="${run.id}" title="Szedőlista nyomtatása" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#64748b;border-radius:6px;transition:all .2s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#64748b'"><i class="ph-bold ph-clipboard-text"></i></button>
-                            <button class="hac-print-btn btn-print-delivery" data-id="${run.id}" title="Szállítólevelek nyomtatása" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#64748b;border-radius:6px;transition:all .2s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#64748b'"><i class="ph-bold ph-truck"></i></button>
-                            <button class="hac-print-btn btn-print-summary" data-id="${run.id}" title="Összesítő nyomtatása" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#64748b;border-radius:6px;transition:all .2s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#64748b'"><i class="ph-bold ph-file-text"></i></button>
-                            <button class="hac-print-btn btn-print-bundle" data-id="${run.id}" title="Teljes csomag nyomtatása" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#3b82f6;border-radius:6px;transition:all .2s;" onmouseover="this.style.background='#dbeafe';this.style.color='#1d4ed8'" onmouseout="this.style.background='none';this.style.color='#3b82f6'"><i class="ph-bold ph-printer"></i></button>
-                            <div style="width:1px;height:16px;background:#cbd5e1;margin:0 2px;"></div>
-                            <button class="hac-btn-load btn-load-run" data-id="${run.id}" title="Kör betöltése" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#334155;border-radius:6px;transition:all .2s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#334155'"><i class="ph-bold ph-download-simple"></i></button>
-                            <button class="hac-btn-del btn-delete-run" data-id="${run.id}" title="Kör törlése" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#ef4444;border-radius:6px;transition:all .2s;" onmouseover="this.style.background='#fee2e2';this.style.color='#b91c1c'" onmouseout="this.style.background='none';this.style.color='#ef4444'"><i class="ph-bold ph-trash"></i></button>
+                        <div style="display:flex; align-items:center; background:#f1f5f9; border-radius:6px; padding:1px; gap:1px; border:1px solid #e2e8f0; margin-left: 2px;">
+                            <button class="hac-print-btn btn-print-picking" data-id="${run.id}" title="Szedőlista nyomtatása" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#64748b;border-radius:4px;transition:all .15s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#64748b'"><i class="ph-bold ph-clipboard-text" style="font-size:12px;"></i></button>
+                            <button class="hac-print-btn btn-print-delivery" data-id="${run.id}" title="Szállítólevelek nyomtatása" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#64748b;border-radius:4px;transition:all .15s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#64748b'"><i class="ph-bold ph-truck" style="font-size:12px;"></i></button>
+                            <button class="hac-print-btn btn-print-summary" data-id="${run.id}" title="Összesítő nyomtatása" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#64748b;border-radius:4px;transition:all .15s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#64748b'"><i class="ph-bold ph-file-text" style="font-size:12px;"></i></button>
+                            <button class="hac-print-btn btn-print-bundle" data-id="${run.id}" title="Teljes csomag nyomtatása" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#3b82f6;border-radius:4px;transition:all .15s;" onmouseover="this.style.background='#dbeafe';this.style.color='#1d4ed8'" onmouseout="this.style.background='none';this.style.color='#3b82f6'"><i class="ph-bold ph-printer" style="font-size:12px;"></i></button>
+                            <div style="width:1px;height:14px;background:#cbd5e1;margin:0 1px;"></div>
+                            <button class="hac-btn-load btn-load-run" data-id="${run.id}" title="Kör betöltése" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#334155;border-radius:4px;transition:all .15s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#334155'"><i class="ph-bold ph-download-simple" style="font-size:12px;"></i></button>
+                            <button class="hac-btn-del btn-delete-run" data-id="${run.id}" title="Kör törlése" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#ef4444;border-radius:4px;transition:all .15s;" onmouseover="this.style.background='#fee2e2';this.style.color='#b91c1c'" onmouseout="this.style.background='none';this.style.color='#ef4444'"><i class="ph-bold ph-trash" style="font-size:12px;"></i></button>
                         </div>
-                        <button class="acc-expand-btn" style="background:none;border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 8px;cursor:pointer;color:#64748b;display:flex;align-items:center;transition:all .2s;" title="Rendelések mutatása">
-                            <i class="ph-bold ph-caret-down" style="font-size:13px;transition:transform .2s;"></i>
+                        <button class="acc-expand-btn" style="background:none;border:1px solid #cbd5e1;border-radius:6px;padding:4px 6px;cursor:pointer;color:#64748b;display:flex;align-items:center;transition:all .15s;" title="Rendelések mutatása">
+                            <i class="ph-bold ph-caret-down" style="font-size:12px;transition:transform .2s;"></i>
                         </button>
                     </div>
                 </div>
-                <div class="acc-orders-panel" style="display:none;padding:0 14px 12px 62px;border-top:1px solid #f1f5f9;">
+                <div class="acc-orders-panel" style="display:none;padding:0 10px 10px 48px;border-top:1px solid #f1f5f9;">
                     ${orderChips}
                 </div>
             `;
