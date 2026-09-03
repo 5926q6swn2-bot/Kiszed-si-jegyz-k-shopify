@@ -15,6 +15,7 @@ import { AuditView } from './views/auditView.js';
 import { OrderOverviewView } from './views/orderOverviewView.js';
 import { ShopifyApiService } from './services/shopifyApiService.js';
 import { generatePdfHtml, openPdfView, generateDeliveryNotesHtml } from './utils/printTemplates.js';
+import { getPaymentDetails, getRunPaymentTotals } from './utils/paymentUtils.js';
 function initApp() {
     console.log("KOPJ Rendszer: app.js elindult");
 

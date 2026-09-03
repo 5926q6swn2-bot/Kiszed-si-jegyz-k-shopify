@@ -39,10 +39,14 @@ export const ExporterService = {
                 }
 
                 let failReason = "";
+                const orderIdKey = String(o.id);
                 if (pd.isUncollected) {
-                    failReason = reasons[o.id] || "";
-                } else if (pd.isPartial && partialOrders[o.id]) {
-                    failReason = partialOrders[o.id].comment || "";
+                    failReason = reasons[o.id] || reasons[orderIdKey] || "";
+                } else if (pd.isPartial) {
+                    const po = partialOrders[o.id] || partialOrders[orderIdKey];
+                    if (po) {
+                        failReason = po.comment || "";
+                    }
                 }
 
                 rows.push({
@@ -59,6 +63,11 @@ export const ExporterService = {
                 });
             });
         });
+
+        if (rows.length === 0) {
+            await CustomDialog.alert("Nincs exportálható adat a megadott szűrési feltételekkel!", "Nincs adat", "warning");
+            return;
+        }
 
         // Csoportosítás szállítócég szerint ABC sorrendben
         rows.sort((a, b) => a.company.localeCompare(b.company, 'hu'));
