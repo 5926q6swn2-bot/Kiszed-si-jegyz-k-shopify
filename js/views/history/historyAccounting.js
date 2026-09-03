@@ -779,22 +779,22 @@ export async function renderAccountingRuns(ctx) {
     });
 
     const summaryCard = document.createElement('div');
-    summaryCard.style.cssText = 'background: linear-gradient(135deg, #0f172a, #1e293b); color: white; padding: 8px 14px; border-radius: 10px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.12);';
+    summaryCard.style.cssText = 'background: linear-gradient(135deg, #0f172a, #1e293b); color: white; padding: 4px 12px; border-radius: 7px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; gap: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); min-height: 28px; box-sizing: border-box;';
     summaryCard.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <i class="ph-bold ph-calculator" style="font-size: 15px; color: #38bdf8;"></i>
-            <span style="font-size: 11.5px; font-weight: 800; color: #f8fafc; text-transform: uppercase; letter-spacing: 0.4px;">Szűrt követelések összesen</span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <i class="ph-bold ph-calculator" style="font-size: 13px; color: #38bdf8;"></i>
+            <span style="font-size: 11px; font-weight: 800; color: #f8fafc; text-transform: uppercase; letter-spacing: 0.3px;">Szűrt követelések összesen</span>
         </div>
-        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-            <div style="display: flex; align-items: center; gap: 6px; background: rgba(249, 115, 22, 0.15); padding: 3px 10px; border-radius: 6px; border: 1px solid rgba(249, 115, 22, 0.3);">
-                <i class="ph-bold ph-hand-coins" style="font-size: 13px; color: #f97316;"></i>
-                <span style="font-size: 10.5px; color: #cbd5e1; font-weight: 700; text-transform: uppercase;">Függő KP:</span>
-                <strong style="font-size: 13px; font-weight: 800; color: #f97316;">${totalFilteredPendingKp.toLocaleString('hu-HU')} Ft</strong>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 5px; background: rgba(249, 115, 22, 0.15); padding: 2px 8px; border-radius: 5px; border: 1px solid rgba(249, 115, 22, 0.3);">
+                <i class="ph-bold ph-hand-coins" style="font-size: 12px; color: #f97316;"></i>
+                <span style="font-size: 10px; color: #cbd5e1; font-weight: 700; text-transform: uppercase;">Függő KP:</span>
+                <strong style="font-size: 12px; font-weight: 800; color: #f97316;">${totalFilteredPendingKp.toLocaleString('hu-HU')} Ft</strong>
             </div>
-            <div style="display: flex; align-items: center; gap: 6px; background: rgba(37, 99, 235, 0.15); padding: 3px 10px; border-radius: 6px; border: 1px solid rgba(37, 99, 235, 0.3);">
-                <i class="ph-bold ph-bank" style="font-size: 13px; color: #38bdf8;"></i>
-                <span style="font-size: 10.5px; color: #cbd5e1; font-weight: 700; text-transform: uppercase;">Kártyás utalásra vár:</span>
-                <strong style="font-size: 13px; font-weight: 800; color: #38bdf8;">${totalFilteredPendingCard.toLocaleString('hu-HU')} Ft</strong>
+            <div style="display: flex; align-items: center; gap: 5px; background: rgba(37, 99, 235, 0.15); padding: 2px 8px; border-radius: 5px; border: 1px solid rgba(37, 99, 235, 0.3);">
+                <i class="ph-bold ph-bank" style="font-size: 12px; color: #38bdf8;"></i>
+                <span style="font-size: 10px; color: #cbd5e1; font-weight: 700; text-transform: uppercase;">Kártyás utalásra vár:</span>
+                <strong style="font-size: 12px; font-weight: 800; color: #38bdf8;">${totalFilteredPendingCard.toLocaleString('hu-HU')} Ft</strong>
             </div>
         </div>
     `;

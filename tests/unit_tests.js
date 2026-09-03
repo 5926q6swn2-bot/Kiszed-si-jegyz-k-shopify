@@ -3,6 +3,16 @@
 
 import { formatHungarianPhoneNumber } from '../js/utils/phoneFormatter.js';
 import { getPaymentDetails, getRunPaymentTotals } from '../js/utils/paymentUtils.js';
+import { 
+    classifyItemForSela, 
+    extractPhones, 
+    cleanStreetFromPhone, 
+    detectProformaCod, 
+    prepareSelaRowData, 
+    generateSelaCsv,
+    isPendingBankDeposit 
+} from '../js/services/exporter.js';
+import { buildDuplicateCustomerOrdersMap } from '../js/utils/orderUtils.js';
 
 function fixHungarianAccents(str) {
     if (!str) return '';
@@ -612,6 +622,271 @@ assertEqual("Sorting Test - 4th is Akupanel", sorted[3].name, "Akupanel Dió 240
 assertEqual("Sorting Test - 5th is Ragasztó", sorted[4].name, "T-Rex Gold ragasztó");
 assertEqual("Sorting Test - 6th is Profil", sorted[5].name, "Belső sarok profil fekete");
 assertEqual("Sorting Test - 7th is Minden más", sorted[6].name, "Mélyalapozó 5L");
+
+// --- SELA SZÁLLÍTÓI EXPORT TESZTEK ---
+// Kategória besorolások
+assertEqual("Sela Classify - PB Falpanel", classifyItemForSela({ name: "PB-04 Fehér falpanel" }), 'pvc_spc_floor');
+assertEqual("Sela Classify - TR Falpanel", classifyItemForSela({ name: "TR-05 Fényes Márvány Falpanel" }), 'pvc_spc_floor');
+assertEqual("Sela Classify - LJ Falpanel", classifyItemForSela({ name: "LJ-10 Kőhatású Falpanel" }), 'pvc_spc_floor');
+assertEqual("Sela Classify - SPC Falpanel", classifyItemForSela({ name: "SPC Falpanel Calacatta" }), 'pvc_spc_floor');
+assertEqual("Sela Classify - SPC Padlózat", classifyItemForSela({ name: "SPC Padlózat Natúr Tölgy" }), 'pvc_spc_floor');
+assertEqual("Sela Classify - Laminált Padló", classifyItemForSela({ name: "Laminált padló Vörös" }), 'pvc_spc_floor');
+assertEqual("Sela Classify - TR PVC Kombó (Egyetlen számlálás)", classifyItemForSela({ name: "TR PVC falpanel 280cm" }), 'pvc_spc_floor');
+assertEqual("Sela Classify - Akupanel", classifyItemForSela({ name: "Akupanel Dió 240cm" }), 'acoustic');
+assertEqual("Sela Classify - Prémium Akusztikus", classifyItemForSela({ name: "Prémium Akusztikus Falpanel - Tölgy" }), 'acoustic');
+assertEqual("Sela Classify - Wide Akusztikus", classifyItemForSela({ name: "Wide Akusztikus Falpanel Pecan" }), 'acoustic');
+assertEqual("Sela Classify - Wide Acoustic", classifyItemForSela({ name: "Wide Acoustic Panel Grey" }), 'acoustic');
+assertEqual("Sela Classify - T-Rex Ragasztó", classifyItemForSela({ name: "T-Rex Gold ragasztó" }), 'adhesive');
+assertEqual("Sela Classify - HPR Ragasztó", classifyItemForSela({ name: "HPR ragasztó 290ml" }), 'adhesive');
+assertEqual("Sela Classify - Szilikon", classifyItemForSela({ name: "Szilikon transzparens" }), 'adhesive');
+assertEqual("Sela Classify - Mamut Kizárva", classifyItemForSela({ name: "Mamut ragasztó" }), 'other');
+assertEqual("Sela Classify - Fix All Kizárva", classifyItemForSela({ name: "Fix all" }), 'other');
+assertEqual("Sela Classify - Belső Sarokprofil", classifyItemForSela({ name: "Belső sarok profil fekete" }), 'profile');
+assertEqual("Sela Classify - Skirting", classifyItemForSela({ name: "Skirting szegélyléc tölgy" }), 'profile');
+assertEqual("Sela Classify - Tapadóhíd", classifyItemForSela({ name: "Mapei Eco Prim Grip Tapadóhíd 5kg" }), 'tapadohid');
+assertEqual("Sela Classify - Tapadohid Ékezet Nélkül", classifyItemForSela({ name: "Mapei Tapadohid 1kg" }), 'tapadohid');
+
+// Telefonszám kinyerés védelem
+const orderWithPhoneInAddr = {
+    shippingPhone: "06301234567",
+    address1: "Fő utca 12.",
+    address2: "2. em. 4. ajtó tel: +36 20 987 6543",
+    note: ""
+};
+const phones1 = extractPhones(orderWithPhoneInAddr);
+assertEqual("Sela Phone - Main Phone", phones1.mainPhone, "06301234567");
+assertEqual("Sela Phone - Secondary Phone", phones1.secondaryPhone, "+36 20 987 6543");
+assertEqual("Sela Phone - Full Text", phones1.fullPhoneText, "06301234567 / +36 20 987 6543");
+
+// Irányítószám és házszám nem telefonszám
+const orderWithZip36 = {
+    shippingPhone: "06301234567",
+    address1: "3600 Ózd, Vasvár út 36.",
+    address2: "36. ajtó",
+    note: ""
+};
+const phones2 = extractPhones(orderWithZip36);
+assertEqual("Sela Phone - ZIP/House 36 Not Phone", phones2.secondaryPhone, "");
+assertEqual("Sela Phone - ZIP/House Full Text", phones2.fullPhoneText, "06301234567");
+
+// Utca megtisztítása kinyert telefonszámtól
+const selaCleanStreet = cleanStreetFromPhone("Fő utca 12. tel: 06209876543", "06209876543");
+assertEqual("Sela Clean Street - Phone Removed", selaCleanStreet, "Fő utca 12.");
+
+// Díjbek.ki utánvét detektálás
+const proformaOrder1 = {
+    tags: "díjbek.ki",
+    totalAmount: 320000,
+    codAmount: 320000,
+    note: "25.000 Ft díjbekérő kiállítva, maradt 295.000 Ft uv"
+};
+const prof1 = detectProformaCod(proformaOrder1);
+assertEqual("Sela Proforma - Detected isProforma", prof1.isProforma, true);
+assertEqual("Sela Proforma - Suggested COD (25k diff)", prof1.suggestedCod, 295000);
+assertEqual("Sela Proforma - Detected Diff", prof1.diff, 25000);
+
+const proformaOrder2 = {
+    tags: "dijbek.ki",
+    totalAmount: 250000,
+    codAmount: 250000,
+    note: "20000 Ft előleg fizetve"
+};
+const prof2 = detectProformaCod(proformaOrder2);
+assertEqual("Sela Proforma - Suggested COD from advance", prof2.suggestedCod, 230000);
+assertEqual("Sela Proforma - Diff 20k", prof2.diff, 20000);
+
+// Sela Row Data és "nincs utánvét" tesztek
+const orderWithCodAndTapadohid = {
+    id: "#4001",
+    zip: "1118",
+    city: "Budapest",
+    address1: "Rét utca 5.",
+    shippingPhone: "06301112233",
+    shippingName: "Teszt Elek",
+    isCOD: true,
+    codAmount: 45000,
+    items: [
+        { name: "TR-01 PVC falpanel", qty: 4 },
+        { name: "Akupanel Dió", qty: 2 },
+        { name: "T-Rex ragasztó", qty: 3 },
+        { name: "Skirting szegélyléc", qty: 2 },
+        { name: "Tapadóhíd 1kg", qty: 3 }
+    ]
+};
+const row1 = prepareSelaRowData(orderWithCodAndTapadohid);
+assertEqual("Sela Row 1 - PVC/SPC Qty", row1.col8_pvcSpcFloorQty, 4);
+assertEqual("Sela Row 1 - Acoustic Qty", row1.col9_acousticQty, 2);
+assertEqual("Sela Row 1 - Glue Qty", row1.col10_adhesivesQty, 3);
+assertEqual("Sela Row 1 - Profile Qty", row1.col11_profilesQty, 2);
+assertEqual("Sela Row 1 - COD and Tapadohid Text", row1.col12_codAndTapadohid, "45 000 Ft, 3db tapadóhíd");
+
+const orderPaidWithTapadohid = {
+    id: "#4002",
+    zip: "1118",
+    city: "Budapest",
+    address1: "Rét utca 5.",
+    shippingPhone: "06301112233",
+    shippingName: "Teszt Elek",
+    isCOD: false,
+    codAmount: 0,
+    items: [
+        { name: "Tapadóhíd 5kg", qty: 2 }
+    ]
+};
+const row2 = prepareSelaRowData(orderPaidWithTapadohid);
+assertEqual("Sela Row 2 - Paid with Tapadohid", row2.col12_codAndTapadohid, "nincs utánvét, 2db tapadóhíd");
+
+const orderPaidNoTapadohid = {
+    id: "#4003",
+    zip: "1118",
+    city: "Budapest",
+    address1: "Rét utca 5.",
+    shippingPhone: "06301112233",
+    shippingName: "Teszt Elek",
+    isCOD: false,
+    codAmount: 0,
+    items: [
+        { name: "PB-01 Falpanel", qty: 5 }
+    ]
+};
+const row3 = prepareSelaRowData(orderPaidNoTapadohid);
+assertEqual("Sela Row 3 - Nincs Utánvét Text", row3.col12_codAndTapadohid, "nincs utánvét");
+
+// Díjbekérős rendelés üres/nem egyértelmű notes esetén
+const proformaOrderNoNote = {
+    id: "#4004",
+    tags: "díjbek.ki",
+    totalAmount: 280000,
+    codAmount: 280000,
+    shippingName: "Nagy Anna",
+    billingName: "Nagy Kft.",
+    note: ""
+};
+const profNoNote = detectProformaCod(proformaOrderNoNote);
+assertEqual("Sela Proforma - No Note hasReliableNoteCod false", profNoNote.hasReliableNoteCod, false);
+assertEqual("Sela Proforma - No Note needsManualCod true", profNoNote.needsManualCod, true);
+assertEqual("Sela Proforma - No Note suggestedCod null", profNoNote.suggestedCod, null);
+
+const rowNoNote = prepareSelaRowData(proformaOrderNoNote);
+assertEqual("Sela Row No Note - Needs Manual COD flag", rowNoNote.needsManualCod, true);
+assertEqual("Sela Row No Note - Warning in Col 12", rowNoNote.col12_codAndTapadohid.includes("⚠️ ADJ MEG UTÁNVÉTET!"), true);
+assertEqual("Sela Row No Note - Col 7 is strictly shippingName", rowNoNote.col7_customerName, "Nagy Anna");
+
+// CSV Header és generálás teszt
+const csvOutput = generateSelaCsv([row1, row2, row3, rowNoNote]);
+assertEqual("Sela CSV - Has BOM", csvOutput.startsWith("\ufeff"), true);
+assertEqual("Sela CSV - Header has 12 columns", csvOutput.split("\r\n")[0].split(";").length, 12);
+assertEqual("Sela CSV - Header col 1", csvOutput.split("\r\n")[0].split(";")[0], "\ufeffDátum");
+assertEqual("Sela CSV - Header col 12", csvOutput.split("\r\n")[0].split(";")[11], "Utánvét összege / tapadóhíd");
+assertEqual("Sela CSV - Row 3 contains nincs utánvét", csvOutput.includes("nincs utánvét"), true);
+
+// Függő utalás tesztek
+const bankOrderPaid = {
+    isBankDeposit: true,
+    isPaid: true
+};
+assertEqual("Sela Bank - Paid Bank Deposit is NOT Pending", isPendingBankDeposit(bankOrderPaid), false);
+
+const bankOrderUnpaid = {
+    isBankDeposit: true,
+    isPaid: false
+};
+assertEqual("Sela Bank - Unpaid Bank Deposit is Pending", isPendingBankDeposit(bankOrderUnpaid), true);
+
+const bankOrderGateway = {
+    payment_gateway_names: ["Banki átutalás"],
+    financialStatus: "pending"
+};
+assertEqual("Sela Bank - Gateway Unpaid is Pending", isPendingBankDeposit(bankOrderGateway), true);
+
+const bankOrderTag = {
+    tags: "függő utalás",
+    isPaid: false
+};
+assertEqual("Sela Bank - Tag Unpaid is Pending", isPendingBankDeposit(bankOrderTag), true);
+
+const normalCodOrder = {
+    isBankDeposit: false,
+    isCOD: true,
+    isPaid: false
+};
+assertEqual("Sela Bank - Normal COD is NOT Bank Pending", isPendingBankDeposit(normalCodOrder), false);
+
+const rowBankUnpaid = prepareSelaRowData({
+    id: "#4005",
+    isBankDeposit: true,
+    isPaid: false,
+    shippingName: "Kovács Béla"
+});
+assertEqual("Sela Row - Bank Unpaid has isPendingBankTransfer true", rowBankUnpaid.isPendingBankTransfer, true);
+
+// Duplikált aktív (unfulfilled) rendelések tesztjei
+const testOrderA = {
+    id: "#5001",
+    isCancelled: false,
+    isFulfilled: false,
+    fulfillmentStatus: "unfulfilled",
+    shippingName: "Szabó Péter",
+    shippingPhone: "+36 30 987 6543",
+    city: "Debrecen"
+};
+const testOrderB = {
+    id: "#5002",
+    isCancelled: false,
+    isFulfilled: false,
+    fulfillmentStatus: "unfulfilled",
+    shippingName: "Szabó Péter",
+    shippingPhone: "06309876543", // Ugyanaz a telefonszám más formátumban
+    city: "Debrecen"
+};
+const testOrderC = {
+    id: "#5003",
+    isCancelled: false,
+    isFulfilled: true, // Már teljesítve! Nem számít aktív duplikációnak!
+    fulfillmentStatus: "fulfilled",
+    shippingName: "Szabó Péter",
+    shippingPhone: "06309876543",
+    city: "Debrecen"
+};
+const testOrderD = {
+    id: "#5004",
+    isCancelled: false,
+    isFulfilled: false,
+    fulfillmentStatus: "unfulfilled",
+    shippingName: "Kovács Anna",
+    shippingPhone: "+36 20 111 2233",
+    customerEmail: "anna@example.com",
+    city: "Budapest"
+};
+const testOrderE = {
+    id: "#5005",
+    isCancelled: false,
+    isFulfilled: false,
+    fulfillmentStatus: "unfulfilled",
+    shippingName: "Kovács Anna",
+    shippingPhone: "+36 70 999 8877", // Eltérő telefon, de ugyanaz az email!
+    customerEmail: "anna@example.com",
+    city: "Budapest"
+};
+const testOrderF = {
+    id: "#5006",
+    isCancelled: false,
+    isFulfilled: false,
+    fulfillmentStatus: "unfulfilled",
+    shippingName: "Egyedi Vásárló",
+    shippingPhone: "+36 30 000 0000",
+    city: "Sopron"
+};
+
+const dupMap = buildDuplicateCustomerOrdersMap([testOrderA, testOrderB, testOrderC, testOrderD, testOrderE, testOrderF]);
+
+assertEqual("Duplicate Orders - #5001 has duplicate", dupMap.has("#5001"), true);
+assertEqual("Duplicate Orders - #5001 points to #5002", dupMap.get("#5001")[0].id, "#5002");
+assertEqual("Duplicate Orders - #5002 points to #5001", dupMap.get("#5002")[0].id, "#5001");
+assertEqual("Duplicate Orders - Fulfilled #5003 is NOT in dupMap", dupMap.has("#5003"), false);
+assertEqual("Duplicate Orders - Email match #5004 has duplicate", dupMap.has("#5004"), true);
+assertEqual("Duplicate Orders - Email match #5004 points to #5005", dupMap.get("#5004")[0].id, "#5005");
+assertEqual("Duplicate Orders - Unique customer #5006 has NO duplicate", dupMap.has("#5006"), false);
 
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 

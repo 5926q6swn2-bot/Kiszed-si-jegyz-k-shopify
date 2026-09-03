@@ -13,6 +13,7 @@ import { renderStatistics } from './views/stats.js';
 import { ExporterService } from './services/exporter.js';
 import { AuditView } from './views/auditView.js';
 import { OrderOverviewView } from './views/orderOverviewView.js';
+import { SelaExportModal } from './views/selaExportModal.js';
 import { ShopifyApiService } from './services/shopifyApiService.js';
 import { generatePdfHtml, openPdfView, generateDeliveryNotesHtml } from './utils/printTemplates.js';
 import { getPaymentDetails, getRunPaymentTotals } from './utils/paymentUtils.js';
@@ -593,7 +594,7 @@ function initApp() {
             });
         }
 
-        // Szállítói Export (Sela)
+        // Szállítói Export (Sela) - Interaktív Előnézet és Szerkesztő Modal
         const btnExportSela = document.getElementById('btn-hub-export-sela');
         if (btnExportSela) {
             btnExportSela.addEventListener('click', async () => {
@@ -603,44 +604,10 @@ function initApp() {
                 const selectedOrders = Store.shopifyHubOrders.filter(o => selectedIds.has(o.id));
                 if (selectedOrders.length === 0) return;
 
-                const confirmChoice = await CustomDialog.choice(
-                    `Kijelöltél <strong>${selectedOrders.length} db</strong> rendelést szállítói exporthoz.<br><br>Szeretnéd a rendeléseket automatikusan megjelölni a <strong>"sela megr."</strong> címkével a Shopify-ban az exportálás után?`,
-                    'Export + "sela megr." címkézés',
-                    'Csak Export (címke nélkül)',
-                    'Mégse',
-                    'Szállítói Export',
-                    'info'
-                );
-
-                if (confirmChoice === 1 || confirmChoice === 2) {
-                    // Export CSV generálás és letöltés
-                    await ExporterService.exportSelaOrdersToCsv(selectedOrders);
-
-                    if (confirmChoice === 1) {
-                        try {
-                            const payload = selectedOrders.map(o => ({ orderId: o.id, shopifyId: o.shopifyId }));
-                            await ShopifyApiService.bulkUpdateOrderTags({ orders: payload, addTag: 'sela megr.' });
-                            selectedOrders.forEach(o => {
-                                o.hasSelaOrdered = true;
-                                o.needsSelaDispatch = false;
-                                const tagsArr = (o.tags || '').split(',').map(t => t.trim()).filter(Boolean);
-                                if (!tagsArr.some(t => t.toLowerCase() === 'sela megr.' || t.toLowerCase() === 'sela megr')) {
-                                    tagsArr.push('sela megr.');
-                                }
-                                o.tags = tagsArr.join(', ');
-                            });
-                            Store.clearHubOrderSelection();
-                            renderOverview();
-                            CustomDialog.alert(`Az export elkészült, és a(z) ${selectedOrders.length} db rendelés sikeresen megkapta a "sela megr." címkét! 🎉`, 'Export Kész', 'success');
-                        } catch (err) {
-                            CustomDialog.alert(`Az export letöltődött, de a címkék beállítása meghiúsult:\n${err.message}`, 'Címkézési Hiba', 'warning');
-                        }
-                    } else {
-                        Store.clearHubOrderSelection();
-                        renderOverview();
-                        CustomDialog.alert(`Az exportálás elkészült (${selectedOrders.length} db rendelés).`, 'Export Kész', 'info');
-                    }
-                }
+                // Megnyitjuk a szerkesztő előnézeti táblázatot
+                SelaExportModal.show(selectedOrders, () => {
+                    renderOverview();
+                });
             });
         }
 
@@ -1775,35 +1742,33 @@ function initApp() {
         [tabBtnAccounting, tabBtnStats, tabBtnAudit].forEach(btn => {
             if (btn) {
                 btn.classList.remove('active');
-                btn.style.borderBottomColor = 'transparent';
+                btn.style.background = 'transparent';
                 btn.style.color = '#64748b';
-                btn.style.fontWeight = '500';
+                btn.style.fontWeight = '600';
+                btn.style.boxShadow = 'none';
             }
         });
         [tabContentAccounting, tabContentStats, tabContentAudit].forEach(content => {
             if (content) content.style.display = 'none';
         });
 
+        const activeBtn = tab === 'accounting' ? tabBtnAccounting : (tab === 'stats' ? tabBtnStats : tabBtnAudit);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+            activeBtn.style.background = '#ffffff';
+            activeBtn.style.color = '#0f172a';
+            activeBtn.style.fontWeight = '700';
+            activeBtn.style.boxShadow = '0 1px 2px rgba(0,0,0,0.08)';
+        }
+
         if (tab === 'accounting') {
-            tabBtnAccounting.classList.add('active');
-            tabBtnAccounting.style.borderBottomColor = 'var(--primary-color)';
-            tabBtnAccounting.style.color = 'var(--primary-color)';
-            tabBtnAccounting.style.fontWeight = '600';
             tabContentAccounting.style.display = 'block';
             renderAccountingRuns();
         } else if (tab === 'stats') {
-            tabBtnStats.classList.add('active');
-            tabBtnStats.style.borderBottomColor = 'var(--primary-color)';
-            tabBtnStats.style.color = 'var(--primary-color)';
-            tabBtnStats.style.fontWeight = '600';
             tabContentStats.style.display = 'block';
             renderStatistics();
         } else if (tab === 'audit') {
             if (tabBtnAudit && tabContentAudit) {
-                tabBtnAudit.classList.add('active');
-                tabBtnAudit.style.borderBottomColor = 'var(--primary-color)';
-                tabBtnAudit.style.color = 'var(--primary-color)';
-                tabBtnAudit.style.fontWeight = '600';
                 tabContentAudit.style.display = 'flex';
                 AuditView.render(tabContentAudit);
             }

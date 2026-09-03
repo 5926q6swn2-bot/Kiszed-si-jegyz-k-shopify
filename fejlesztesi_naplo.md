@@ -27,16 +27,14 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
-- **Utolsó aktív modell**: Gemini 3.6 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris és stabil. Céges gépen bekonfigurálva: `.env` és Shopify API kapcsolat élesítve (501 élő rendelés betöltve, 122/122 zöld unit teszt).
+- **Utolsó aktív modell**: Gemini 3.8 Flash (High)
+- **Státusz**: A rendszer 100%-ban moduláris és stabil. Céges gépen bekonfigurálva: `.env` és Shopify API kapcsolat élesítve. Elkészült az interaktív Szállítói Export (Sela) előnézeti táblázat 12 oszloppal, közvetlen cellaszerkesztéssel, díjbek.ki utánvét-kalkulációval, rejtett telefonszám kinyeréssel, dupla unfulfilled rendelés figyelmeztető címkével és ultra-kompakt Előzmények fejléccel (`v3.8.5`, 184/184 zöld unit teszt).
 
 ---
 
 ## 📌 Holnapi Teendők (TODO Lista)
 
-1. 🚚 **Szállítói Egyedi Export Formátum Finomhangolása**:
-   - Véglegesíteni a Sela-nak küldött oszlopok és mezők pontos struktúráját a felhasználó visszajelzései alapján.
-2. ☁️ **Felhős Telepítés (Cloud Deployment - Render.com / Vercel)**:
+1. ☁️ **Felhős Telepítés (Cloud Deployment - Render.com / Vercel)**:
    - Összekötni a GitHub repót a Render.com-mal (vagy Vercellel).
    - Beállítani az Environment Variables (`SHOPIFY_ACCESS_TOKEN`, `SHOPIFY_SHOP`, stb.) értékeket.
    - Biztosítani az állandó, bárhonnan és bármilyen gépről/telefonról elérhető HTTPS webcímet.
@@ -44,6 +42,53 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. szeptember 3. (8. frissítés) - Interaktív Szállítói Export (Sela) Előnézet, 12 Oszlopos Struktúra, Dupla Rendelés Címke & Ultra-Kompakt Fejléc (`v3.8.5`)
+- **Interaktív Előnézeti & Szerkesztő Táblázat (`SelaExportModal`)**:
+  - A korábbi azonnali CSV letöltés helyett megnyílik egy modern, glassmorphic előnézeti modal.
+  - Mind a 12 oszlop látható egy áttekinthető táblázatban, és a letöltés előtt **bármelyik cella (cím, telefon, darabszámok, utánvét) közvetlenül szerkeszthető/átírható**.
+  - **Soronkénti Kuka (Törlés) Ikon**: Ha a felhasználó a táblázatban látja, hogy egy rendelést mégsem küldünk el most, a piros kuka gombra kattintva azonnal eltávolíthatja. A törölt tétel garantáltan **nem kerül bele a CSV-be**, és **nem kapja meg a `sela megr.` címkét** a Shopify-ban sem!
+  - A felesleges felső összesítő dobozokat eltávolítottuk a felhasználó kérésére a tiszta, fókuszált munkaterület érdekében.
+- **12 Oszlopos Sela Struktúra & Szabályok**:
+  1. *Dátum*: Mai dátum (az export készítésének napja, pl. `2026.09.03`).
+  2. *Rendelésszám*: `#3050`.
+  3. *Irányítószám*: `1118`.
+  4. *Település*: `Budapest`.
+  5. *Utca és házszám*: Közterület és házszám (automatikusan megtisztítva az esetlegesen benne lévő telefonszámtól).
+  6. *Telefonszám*: Fő telefonszám + más mezőkből (cím 2, emelet/ajtó, notes) kinyert alternatív telefonszám összefűzve (`+3630... / +3620...`). Szigorú regex védelemmel: irányítószám (pl. 3600) és házszám (pl. 36.) garantáltan nem kerül kinyerésre telefonszámként.
+  7. *Címzett Neve*: Szigorúan a szállítási címzett neve (`shippingName`), garantáltan nem a számlázási név.
+  8. *PVC/SPC falpanel és padlózatok (db)*: PVC és SPC falpanelek (PB, TR, LJ, SPC falpanel SKU/név) és padlózatok összesített darabszáma. Akusztikus panelek kizárva. Egy tételenkénti szigorú egyszeri számlálás (nem duplázódik, ha a névben egyszerre szerepel TR és PVC).
+  9. *Akusztikus falpanelek (db)*: Akusztikus, aku, wide akusztikus, wide acoustic panelek összesített darabszáma.
+  10. *Ragasztók, szilikonok (db)*: Ragasztók, T-Rex, HPR, szilikonok összesített darabszáma (mamut és fix all kizárva).
+  11. *Profilok (db)*: Profilok és **skirting** (szegélylécek) összesített darabszáma.
+  12. *Utánvét összege / tapadóhíd*:
+      - Ha van utánvét: `45 000 Ft` (vagy tapadóhíd esetén `45 000 Ft, 3db tapadóhíd`).
+      - Ha nincs utánvét: **`nincs utánvét`** (vagy tapadóhíd esetén `nincs utánvét, 3db tapadóhíd`).
+- **Szigorú Díjbek.ki Utánvét-Védelem ("Ne engedje elfelejteni")**:
+  - A rendszer felismeri a `díjbek.ki` címkés rendeléseket.
+  - Ha a Notes-ban egyértelműen szerepel a 20.000, 25.000 vagy 30.000 Ft-os levonás vagy az új utánvét, automatikusan kitölti.
+  - Ha a Notes üres vagy nem tartalmaz egyértelmű levonást: a mező piros kerettel és `⚠️ ADJ MEG UTÁNVÉTET!` jelzéssel jelenik meg.
+  - **Letöltési blokkolás**: A rendszer nem engedi a CSV letöltését mindaddig, amíg minden díjbekérős tételnél be nem írják a pontos összeget (figyelmeztető modallal és a fókusz odaállításával).
+- **Összeg & Fizetés Oszlop Duplikáció Megszüntetése ([orderOverviewView.js](file:///c:/Users/Intel/OneDrive/Asztali%20g%C3%A9p/Projektek/Kiszed%C3%A9si%20jegyz%C3%A9k%20shopify/js/views/orderOverviewView.js))**:
+  - Korábban az utánvétes rendeléseknél kétszer jelent meg az összeg egymás mellett (pl. `31 240 Ft [UV: 31 240 Ft]`).
+  - Finomhangoltuk: ha a végösszeg megegyezik az utánvéttel, csak az összeg és egy letisztult **`[Utánvét]`** badge látható (`31 240 Ft [Utánvét]`).
+  - Ha az utánvét eltér a végösszegtől (pl. előleg/díjbekérő vagy részfizetés esetén), akkor továbbra is indokoltan kiírja a pontos UV összeget (pl. `300 000 Ft [UV: 275 000 Ft]`).
+- **Függő Utalás Jelzése a CSV Szerkesztőben (Felugró ablak nélkül)**:
+  - A rendszer a CSV szerkesztő táblázatban narancssárga `⚠️ Függő Utalás` badge-dzsel és kiemelt sorháttérrel, valamint a fejlécben figyelmeztető sávval jelzi a még nem fizetett banki utalásokat (pontosan úgy, mint a díjbekérőt).
+  - A letöltéskor a felhasználó kérésére **nem jelenik meg plusz felugró ablak**, így a folyamat gyors és zökkenőmentes marad.
+- **Több Aktív Rendelés (Unfulfilled Duplikáció) Jelzése & Címke ([orderUtils.js](file:///c:/Users/Intel/OneDrive/Asztali%20g%C3%A9p/Projektek/Kiszed%C3%A9si%20jegyz%C3%A9k%20shopify/js/utils/orderUtils.js), [orderOverviewView.js](file:///c:/Users/Intel/OneDrive/Asztali%20g%C3%A9p/Projektek/Kiszed%C3%A9si%20jegyz%C3%A9k%20shopify/js/views/orderOverviewView.js))**:
+  - A rendszer intelligensen megvizsgálja az összes aktív (unfulfilled/nem törölt) rendelést, és felismeri, ha ugyanannak a vásárlónak több megrendelése is folyamatban van (telefonszám, email vagy név + cím egyezés alapján).
+  - **Kilógó Címke**: A "Rossz szállítást választott!" címke mintájára egy külön lila hanging badge jelenik meg a sor bal oldalán: **`2x rendelés (#3048)`** (több rendelésnél `3x rendelés (#3048, #3049)`).
+  - **Gyorsszűrő Chip**: A fejlécben külön szűrőgombot kapott (**`Több rendelés (X db)`**), amivel 1 kattintással listázhatók az összevonható, dupla vagy többszörös rendelések.
+- **Ultra-Kompakt 1-Soros Előzmények Fejléc & Pill Tab-Sáv ([index.html](file:///c:/Users/Intel/OneDrive/Asztali%20g%C3%A9p/Projektek/Kiszed%C3%A9si%20jegyz%C3%A9k%20shopify/index.html), [app.js](file:///c:/Users/Intel/OneDrive/Asztali%20g%C3%A9p/Projektek/Kiszed%C3%A9si%20jegyz%C3%A9k%20shopify/js/app.js), [style.css](file:///c:/Users/Intel/OneDrive/Asztali%20g%C3%A9p/Projektek/Kiszed%C3%A9si%20jegyz%C3%A9k%20shopify/css/style.css))**:
+  - A korábban különálló, túlméretezett címsávot és fül-sávot (~135px magasság) összevontuk egyetlen **38px magas modern egybeépített fejléccé**.
+  - Bal oldalon: Letisztult cím és ikon (`Előzmények és Keresés`).
+  - Középen: Kapszula (segmented pill) stílusú kompakt fülek (`Elszámolások`, `Statisztika`, `Számlaellenőrzés`).
+  - Jobb oldalon: Szemetes (`🗑️`) és Bezárás (`✕`) gombok.
+  - A szűrősáv és az összesítő sáv margóit lecsökkentettük, így **több mint 90px függőleges hasznos tér** szabadult fel a képernyőn a fuvarok listájához.
+- **Opcionális Shopify Címkézés**:
+  - A modal alján egy jelölőnégyzettel (`[x] Rendelések megjelölése "sela megr." címkével a Shopify-ban`) választható a címkézés futtatása vagy elhagyása.
+- **184/184 Unit Teszt Zöld** (`node tests/unit_tests.js`).
 
 ### 2026. szeptember 3. (7. frissítés) - Céges Gép Konfiguráció & Shopify API Környezet (`v3.8.5`)
 - **Céges Gépes Beállítás & `.env` Konfiguráció**:

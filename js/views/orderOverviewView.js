@@ -2,6 +2,9 @@
 // Rendelésáttekintő (Shopify Order Hub) - Teljes Terítési / Járat Integráció (Kiszállítás dátuma, Futár), Tiszta Címoszlop, Sárga pötty (0 Emoji)
 
 import { Store } from '../store/state.js';
+import { buildDuplicateCustomerOrdersMap } from '../utils/orderUtils.js';
+
+export { buildDuplicateCustomerOrdersMap };
 
 // Nyitott sorok ID-jainak nyilvántartása
 const expandedOrderIds = new Set();
@@ -193,6 +196,7 @@ export const OrderOverviewView = {
         if (!containerElement) return;
 
         const allOrders = Store.shopifyHubOrders || [];
+        const duplicateCustomerOrdersMap = buildDuplicateCustomerOrdersMap(allOrders);
         const selectedIds = Store.selectedHubOrderIds || new Set();
         const filters = Store.hubFilters || {
             tab: 'unfulfilled', // 'unfulfilled', 'fulfilled', 'all', 'cancelled'
@@ -237,7 +241,8 @@ export const OrderOverviewView = {
             pickup: tabOrders.filter(o => o.isPickup).length,
             deliveryOnly: tabOrders.filter(o => !o.isPickup && !o.hasBadShipping).length,
             cod: tabOrders.filter(o => o.isCOD && !o.isPickup).length,
-            pendingTransfer: tabOrders.filter(o => o.isBankDeposit && !o.isPaid).length
+            pendingTransfer: tabOrders.filter(o => o.isBankDeposit && !o.isPaid).length,
+            multipleOrders: tabOrders.filter(o => duplicateCustomerOrdersMap.has(o.id)).length
         };
 
         // Összes egyedi Tag kigyűjtése
@@ -275,6 +280,7 @@ export const OrderOverviewView = {
             if (currentChip === 'delivery_only' && (order.isPickup || order.hasBadShipping)) return false;
             if (currentChip === 'cod' && !order.isCOD) return false;
             if (currentChip === 'pending_transfer' && !(order.isBankDeposit && !order.isPaid)) return false;
+            if (currentChip === 'multiple_orders' && !duplicateCustomerOrdersMap.has(order.id)) return false;
 
             // 3. SZÖVEGES KERESÉS
             if (filters.search) {
@@ -507,6 +513,14 @@ export const OrderOverviewView = {
                             </button>
                         ` : ''}
 
+                        ${stats.multipleOrders > 0 ? `
+                            <button class="hub-chip-btn ${currentChip === 'multiple_orders' ? 'active' : ''}" data-chip="multiple_orders" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'multiple_orders' ? '#7c3aed' : '#ddd6fe'}; background: ${currentChip === 'multiple_orders' ? '#7c3aed' : '#f5f3ff'}; color: ${currentChip === 'multiple_orders' ? '#ffffff' : '#6d28d9'}; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px;">
+                                <i class="ph-bold ph-copy"></i>
+                                <span>Több rendelés</span>
+                                <span style="background: ${currentChip === 'multiple_orders' ? 'rgba(255,255,255,0.25)' : '#7c3aed'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.multipleOrders}</span>
+                            </button>
+                        ` : ''}
+
                     </div>
 
                     <!-- Jobb szélen: Rendelésszám & Reset -->
@@ -555,6 +569,8 @@ export const OrderOverviewView = {
                             const formattedTotal = new Intl.NumberFormat('hu-HU').format(order.totalAmount || 0);
                             const formattedCod = new Intl.NumberFormat('hu-HU').format(order.codAmount || 0);
                             const logisticsStatus = OrderOverviewView.getLogisticsStatus(order);
+                            const duplicateOrders = duplicateCustomerOrdersMap.get(order.id) || [];
+                            const hasDuplicateOrders = duplicateOrders.length > 0;
 
                             // Fizetési jelvény
                             let paymentBadge = '';
@@ -563,7 +579,12 @@ export const OrderOverviewView = {
                             } else if (order.isBankDeposit && !order.isPaid) {
                                 paymentBadge = `<span style="background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">Függő Utalás</span>`;
                             } else if (order.isCOD) {
-                                paymentBadge = `<span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">UV: ${formattedCod} Ft</span>`;
+                                const isFullCod = Math.abs((order.codAmount || 0) - (order.totalAmount || 0)) < 1;
+                                if (isFullCod) {
+                                    paymentBadge = `<span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 1.5px 6px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">Utánvét</span>`;
+                                } else {
+                                    paymentBadge = `<span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">UV: ${formattedCod} Ft</span>`;
+                                }
                             } else if (order.isPaid) {
                                 paymentBadge = `<span style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">Fizetve</span>`;
                             } else {
@@ -667,6 +688,16 @@ export const OrderOverviewView = {
                                                 <div style="background: #dc2626; color: #ffffff; padding: 2px 6px; border-radius: 4px 0 0 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 5px rgba(220,38,38,0.35); display: flex; align-items: center; gap: 3px; white-space: nowrap; border: 1px solid #b91c1c;">
                                                     <i class="ph-bold ph-warning-octagon" style="font-size: 10px; color: #fee2e2;"></i>
                                                     <span>Rossz szállítást választott!</span>
+                                                </div>
+                                            ` : ''}
+
+                                            <!-- 4. Több unfulfilled rendelése van ugyanannak a vevőnek (Lila / #7c3aed) -->
+                                            ${hasDuplicateOrders ? `
+                                                <div class="hub-duplicate-orders-tag" 
+                                                     title="Ugyanennek a vevőnek ${duplicateOrders.length + 1} db aktív (unfulfilled) rendelése van folyamatban: ${[order.id, ...duplicateOrders.map(o => o.id)].join(', ')}"
+                                                     style="background: #7c3aed; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 5px rgba(124,58,237,0.35); display: flex; align-items: center; gap: 3px; white-space: nowrap; border: 1px solid #6d28d9; cursor: help; pointer-events: auto;">
+                                                    <i class="ph-bold ph-copy" style="font-size: 10px; color: #ede9fe;"></i>
+                                                    <span>${duplicateOrders.length + 1}x rendelés (${duplicateOrders.map(o => o.id).join(', ')})</span>
                                                 </div>
                                             ` : ''}
 

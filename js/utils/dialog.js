@@ -1,11 +1,11 @@
 export const CustomDialog = {
-        overlay: document.getElementById('custom-dialog-overlay'),
-        icon: document.getElementById('cd-icon'),
-        title: document.getElementById('cd-title'),
-        msg: document.getElementById('cd-msg'),
-        input: document.getElementById('cd-input'),
-        btnCancel: document.getElementById('cd-btn-cancel'),
-        btnConfirm: document.getElementById('cd-btn-confirm'),
+        get overlay() { return typeof document !== 'undefined' ? document.getElementById('custom-dialog-overlay') : null; },
+        get icon() { return typeof document !== 'undefined' ? document.getElementById('cd-icon') : null; },
+        get title() { return typeof document !== 'undefined' ? document.getElementById('cd-title') : null; },
+        get msg() { return typeof document !== 'undefined' ? document.getElementById('cd-msg') : null; },
+        get input() { return typeof document !== 'undefined' ? document.getElementById('cd-input') : null; },
+        get btnCancel() { return typeof document !== 'undefined' ? document.getElementById('cd-btn-cancel') : null; },
+        get btnConfirm() { return typeof document !== 'undefined' ? document.getElementById('cd-btn-confirm') : null; },
 
         show: function(options) {
             return new Promise((resolve) => {

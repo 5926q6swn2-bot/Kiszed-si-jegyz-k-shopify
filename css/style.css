@@ -1010,7 +1010,8 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
 .hac-sep { color: #d1d5db; font-size: 11px; }
 .hac-courier { font-weight: 600; color: #374151; font-size: 12px; white-space: nowrap; }
 .hac-timestamp { font-size: 11px; color: #94a3b8; white-space: nowrap; }
-#history-modal .modal-body { padding: 0 16px 16px; }
+#history-modal .modal-header { padding: 6px 14px !important; min-height: 38px !important; }
+#history-modal .modal-body { padding: 6px 14px 14px !important; }
 #history-runs-container { gap: 5px !important; }
 
 /* Preview toggle gomb */
