@@ -54,14 +54,14 @@ body {
 
 /* Felső Toolbar (MacOS stílus) */
 .top-toolbar {
-    height: 64px;
-    background: rgba(255, 255, 255, 0.5);
-    backdrop-filter: blur(40px);
-    -webkit-backdrop-filter: blur(40px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.6);
+    height: 44px;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.7);
     display: flex;
     align-items: center;
-    justify-content: center;
+    padding: 0 16px;
     z-index: 10;
     flex-shrink: 0;
 }
@@ -1419,6 +1419,79 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
 
 #hub-action-bar button:active {
     transform: translateY(0);
+}
+
+/* Logisztikai Állapot Ikon & Gomb Stílusok */
+.logi-icon-badge {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    user-select: none;
+    flex-shrink: 0;
+}
+.logi-icon-badge:hover {
+    transform: scale(1.08);
+}
+.btn-ready-for-pickup-icon {
+    flex-shrink: 0;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-ready-for-pickup-icon:hover {
+    transform: scale(1.12);
+    background: #ede9fe !important;
+    border-color: #8b5cf6 !important;
+    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3) !important;
+}
+.btn-ready-for-pickup-icon:active {
+    transform: scale(0.96);
+}
+
+/* Látványos Szövegbuborék (Tooltip) a Logisztikai Ikonokhoz */
+.logi-tooltip-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logi-tooltip-bubble {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: #0f172a;
+    color: #f8fafc;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 8px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s;
+    box-shadow: 0 10px 25px -3px rgba(15, 23, 42, 0.45), 0 4px 10px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    letter-spacing: 0.015em;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.logi-tooltip-bubble::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: #0f172a transparent transparent transparent;
+}
+
+.logi-tooltip-wrapper:hover .logi-tooltip-bubble {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
 }
 
 

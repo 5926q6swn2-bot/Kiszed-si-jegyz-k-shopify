@@ -249,6 +249,7 @@ export const ShopifyApiService = {
         const tagsLower = tags.toLowerCase();
         const hasSelaOrdered = tagsLower.includes('sela megr') || tagsLower.includes('sela');
         const hasPxpTag = tagsLower.includes('pannonxp') || tagsLower.includes('pxp');
+        const hasLabelTag = tagsLower.includes('címke') || tagsLower.includes('cimke') || tagsLower.includes('label') || tagsLower.includes('nyomtatva') || tagsLower.includes('feladva') || tagsLower.includes('pxp kész') || tagsLower.includes('pxp_kesz');
 
         // Szállítmányra / Anyagra váró címkék (pl. "spc szállítmányra vár", "profilra vár", "tr szállítmányra vár")
         const rawTagsList = tags.split(',').map(t => t.trim()).filter(Boolean);
@@ -276,8 +277,14 @@ export const ShopifyApiService = {
                          /üzlet|bolt|pickup|raktár|személyes|helyszíni|store pickup/i.test(shippingLinesStr) ||
                          (!apiOrder.shipping_address && shippingLinesRaw.length > 0);
 
-        // Ready for pickup felismerése (átvételre kész)
+        const hasManualPickupTag = tagsLower.includes('személyes') || 
+                                   tagsLower.includes('szemelyes') || 
+                                   tagsLower.includes('raktári átvétel') || 
+                                   tagsLower.includes('boltban átvétel');
+
+        // Ready for pickup felismerése (átvételre kész) - Manuális 'személyes' tag esetén alapból kész (zöld bolt)
         const isReadyForPickup = isPickup && (
+            hasManualPickupTag ||
             apiOrder.is_ready_for_pickup === true ||
             tagsLower.includes('ready for pickup') || 
             tagsLower.includes('ready_for_pickup') || 
@@ -529,6 +536,9 @@ export const ShopifyApiService = {
             isReseller: isReseller,
             hasSelaOrdered: hasSelaOrdered,
             hasPxpTag: hasPxpTag,
+            hasLabelTag: hasLabelTag,
+            isPxpReady: hasPxpTag && hasLabelTag,
+            isPxpPending: hasPxpTag && !hasLabelTag,
             waitingTags: waitingTags,
             hasWaitingTag: hasWaitingTag,
             needsSelaDispatch: !isCancelled && fulfillmentStatus !== 'fulfilled' && !isPickup && !hasPxpTag && !hasSelaOrdered && !hasWaitingTag && !hasBadShipping,

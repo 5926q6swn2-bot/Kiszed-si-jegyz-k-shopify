@@ -274,6 +274,18 @@ const server = http.createServer(async (req, res) => {
                     id
                     name
                     tags
+                    displayFulfillmentStatus
+                    fulfillmentOrders(first: 5) {
+                      edges {
+                        node {
+                          status
+                          requestStatus
+                          deliveryMethod {
+                            methodType
+                          }
+                        }
+                      }
+                    }
                     events(first: 10) {
                       edges {
                         node {
@@ -300,7 +312,15 @@ const server = http.createServer(async (req, res) => {
               const node = edge.node;
               const hasReadyEmail = (node.events && node.events.edges || []).some(e => /ready for pickup|átvehető/i.test(e.node.message || ''));
               const hasReadyTag = (node.tags || []).some(t => /ready for pickup|átvehető|atveheto/i.test(t));
-              if (hasReadyEmail || hasReadyTag) {
+              const hasReadyFO = (node.fulfillmentOrders && node.fulfillmentOrders.edges || []).some(foEdge => {
+                const fo = foEdge.node;
+                const isPickupMethod = fo.deliveryMethod && (fo.deliveryMethod.methodType === 'PICK_UP' || fo.deliveryMethod.methodType === 'PICKUP' || fo.deliveryMethod.methodType === 'LOCAL_PICKUP');
+                const isReadyStatus = fo.status === 'IN_PROGRESS' || fo.status === 'in_progress' || fo.requestStatus === 'PREPARED';
+                return isPickupMethod && isReadyStatus;
+              });
+              const isDisplayReady = String(node.displayFulfillmentStatus || '').toUpperCase() === 'READY_FOR_PICKUP';
+
+              if (hasReadyEmail || hasReadyTag || hasReadyFO || isDisplayReady) {
                 readyOrderNames.add(node.name);
                 readyOrderNames.add(String(node.id).replace('gid://shopify/Order/', ''));
               }
@@ -316,11 +336,6 @@ const server = http.createServer(async (req, res) => {
         orders.forEach(o => {
           if (readyOrderNames.has(String(o.name)) || readyOrderNames.has(String(o.id))) {
             o.is_ready_for_pickup = true;
-            const currentTags = (o.tags || '').split(',').map(t => t.trim()).filter(Boolean);
-            if (!currentTags.some(t => /ready for pickup|átvehető|atveheto/i.test(t))) {
-              currentTags.push('ready for pickup');
-              o.tags = currentTags.join(', ');
-            }
           }
         });
 
@@ -806,6 +821,7 @@ const server = http.createServer(async (req, res) => {
 
             // 1. Natív Shopify Fulfillment Order Prepared for Pickup átállítás (GraphQL)
             let nativePickupMarked = false;
+            let errorMessage = null;
             try {
               const foUrl = `https://${shop}/admin/api/2024-04/orders/${sId}/fulfillment_orders.json`;
               const foRes = await fetch(foUrl, {
@@ -850,51 +866,29 @@ const server = http.createServer(async (req, res) => {
                       nativePickupMarked = true;
                       console.log(`🟣 [Shopify Ready for Pickup] Fulfillment Order (${fo.id}) sikeresen átállítva átvehetőre!`);
                     } else {
-                      console.warn(`[FO Ready for Pickup GQL Warning for ${oId}]:`, gqlData.errors || gqlData.data?.fulfillmentOrderLineItemsPreparedForPickup?.userErrors);
+                      const userErrors = gqlData.data?.fulfillmentOrderLineItemsPreparedForPickup?.userErrors;
+                      const userErrMsg = userErrors && userErrors.map(e => e.message).join(', ');
+                      errorMessage = userErrMsg || (gqlData.errors && gqlData.errors.map(e => e.message).join(', ')) || 'GraphQL hiba';
+                      console.warn(`[FO Ready for Pickup GQL Warning for ${oId}]:`, errorMessage);
                     }
                   } else if (fo.status === 'in_progress') {
                     nativePickupMarked = true;
                   }
                 }
+              } else {
+                errorMessage = 'Nem található nyitott Fulfillment Order ehhez a rendeléshez.';
               }
             } catch (foErr) {
+              errorMessage = foErr.message;
               console.warn(`[FO Ready For Pickup Warning for ${oId}]:`, foErr.message);
             }
 
-            // 2. Minden esetben hozzáadjuk a "ready for pickup" címkét is a rendeléshez
-            let currentTagsStr = item.currentTags;
-            if (currentTagsStr === undefined) {
-              const getOrderRes = await fetch(`https://${shop}/admin/api/2024-04/orders/${sId}.json?fields=id,tags`, {
-                headers: { 'X-Shopify-Access-Token': token }
-              });
-              const getOrderData = await getOrderRes.json();
-              currentTagsStr = (getOrderData.order && getOrderData.order.tags) || '';
-            }
-
-            const currentTags = currentTagsStr ? currentTagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
-            
-            if (!currentTags.some(t => t.toLowerCase() === 'ready for pickup')) {
-              currentTags.push('ready for pickup');
-            }
-
-            const putRes = await fetch(`https://${shop}/admin/api/2024-04/orders/${sId}.json`, {
-              method: 'PUT',
-              headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                order: {
-                  id: sId,
-                  tags: currentTags.join(', ')
-                }
-              })
-            });
-
-            if (putRes.ok) {
+            if (nativePickupMarked) {
               results.successCount++;
-              results.updatedOrders.push({ orderId: oId, shopifyId: sId, nativePickupMarked, tags: currentTags.join(', ') });
+              results.updatedOrders.push({ orderId: oId, shopifyId: sId, nativePickupMarked: true });
             } else {
-              const errBody = await putRes.json();
               results.failedCount++;
-              results.errors.push({ orderId: oId, error: errBody.errors ? JSON.stringify(errBody.errors) : 'Címke mentési hiba' });
+              results.errors.push({ orderId: oId, error: errorMessage || 'Nem sikerült átállítani a rendelést átvehetőre a Shopify-ban.' });
             }
           } catch (e) {
             results.failedCount++;

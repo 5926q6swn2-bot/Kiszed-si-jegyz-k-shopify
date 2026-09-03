@@ -685,8 +685,8 @@ function initApp() {
             });
         });
 
-        // Személyes Átvétel: Ready for pickup (Külső Sor Gomb & Lenyitott Gomb)
-        document.querySelectorAll('.btn-ready-for-pickup, .btn-ready-for-pickup-row').forEach(btn => {
+        // Személyes Átvétel: Ready for pickup (Külső Sor Ikon / Gomb & Lenyitott Gomb)
+        document.querySelectorAll('.btn-ready-for-pickup, .btn-ready-for-pickup-row, .btn-ready-for-pickup-icon').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation(); // Megakadályozza a sor lenyitását / becsukását
                 const orderId = btn.getAttribute('data-order-id');
@@ -715,11 +715,6 @@ function initApp() {
                 try {
                     await ShopifyApiService.markReadyForPickup({ orderId, shopifyId, notifyCustomer: true });
                     targetOrder.isReadyForPickup = true;
-                    const tagsArr = (targetOrder.tags || '').split(',').map(t => t.trim()).filter(Boolean);
-                    if (!tagsArr.some(t => t.toLowerCase() === 'ready for pickup')) {
-                        tagsArr.push('ready for pickup');
-                    }
-                    targetOrder.tags = tagsArr.join(', ');
                     renderOverview();
                     CustomDialog.alert(`A(z) ${orderId} rendelés sikeresen átállítva <strong>Ready for pickup</strong> (Átvehető) státuszra! 🎉`, 'Átvehetőre Állítva', 'success');
                 } catch (err) {
@@ -760,11 +755,6 @@ function initApp() {
 
                     selectedOrders.forEach(o => {
                         o.isReadyForPickup = true;
-                        const tagsArr = (o.tags || '').split(',').map(t => t.trim()).filter(Boolean);
-                        if (!tagsArr.some(t => t.toLowerCase() === 'ready for pickup')) {
-                            tagsArr.push('ready for pickup');
-                        }
-                        o.tags = tagsArr.join(', ');
                     });
 
                     Store.clearHubOrderSelection();

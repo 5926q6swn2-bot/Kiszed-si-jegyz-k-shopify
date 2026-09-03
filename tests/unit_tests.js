@@ -479,23 +479,62 @@ const waitTagsNone = extractWaitingTags("számla ki, viszonteladó");
 assertEqual("Waiting Tags - none", waitTagsNone.length, 0);
 
 // --- Ready for Pickup (Személyes Átvétel Átvehető) Tests ---
-function checkReadyForPickup(isPickup, tags, fulfillmentStatus = 'unfulfilled') {
+function checkReadyForPickup(isPickup, tags, fulfillmentStatus = 'unfulfilled', isReadyFlag = false) {
     const tagsLower = (tags || '').toLowerCase();
+    const hasManualPickupTag = tagsLower.includes('személyes') || tagsLower.includes('szemelyes') || tagsLower.includes('raktári átvétel') || tagsLower.includes('boltban átvétel');
     return isPickup && (
+        hasManualPickupTag ||
+        isReadyFlag === true ||
         tagsLower.includes('ready for pickup') || 
         tagsLower.includes('ready_for_pickup') || 
         tagsLower.includes('átvehető') || 
         tagsLower.includes('atveheto') || 
         tagsLower.includes('átvételre kész') || 
         tagsLower.includes('atvetelre kesz') ||
-        (fulfillmentStatus && fulfillmentStatus.toLowerCase() === 'ready_for_pickup')
+        (fulfillmentStatus && (fulfillmentStatus.toLowerCase() === 'ready_for_pickup' || fulfillmentStatus.toLowerCase() === 'in_progress'))
     );
 }
 
 assertEqual("Pickup - not ready", checkReadyForPickup(true, "számla ki"), false);
+assertEqual("Pickup - ready via isReadyFlag without tag", checkReadyForPickup(true, "számla ki", "unfulfilled", true), true);
 assertEqual("Pickup - ready via tag 'ready for pickup'", checkReadyForPickup(true, "ready for pickup, számla ki"), true);
 assertEqual("Pickup - ready via tag 'átvehető'", checkReadyForPickup(true, "átvehető"), true);
-assertEqual("Delivery - cannot be pickup ready", checkReadyForPickup(false, "ready for pickup"), false);
+assertEqual("Pickup - ready via manual 'személyes' tag", checkReadyForPickup(true, "személyes"), true);
+assertEqual("Delivery - cannot be pickup ready", checkReadyForPickup(false, "ready for pickup", "unfulfilled", true), false);
+
+// --- Logistics Status Classification Tests (Icons) ---
+function getLogisticsStatusType(order) {
+    if (order.isCancelled) return 'cancelled';
+    if (order.isFulfilled) return 'fulfilled';
+    if (order.deliveryInfo) {
+        return order.deliveryInfo.isUncollected ? 'uncollected' : 'in_delivery';
+    }
+    if (order.hasWaitingTag || (order.waitingTags && order.waitingTags.length > 0)) return 'waiting_shipment';
+    const tagsLower = (order.tags || '').toLowerCase();
+    const hasManualPickupTag = tagsLower.includes('személyes') || tagsLower.includes('szemelyes') || tagsLower.includes('raktári átvétel') || tagsLower.includes('boltban átvétel');
+    if (order.isPickup) {
+        return (order.isReadyForPickup || hasManualPickupTag) ? 'pickup_ready' : 'pickup_pending';
+    }
+    const hasLabelTag = order.hasLabelTag || tagsLower.includes('címke') || tagsLower.includes('cimke') || tagsLower.includes('label') || tagsLower.includes('nyomtatva') || tagsLower.includes('feladva') || tagsLower.includes('pxp kész') || tagsLower.includes('pxp_kesz');
+    if (order.hasPxpTag) {
+        return (hasLabelTag || order.isPxpReady) ? 'pxp_ready' : 'pxp_pending';
+    }
+    if (order.hasSelaOrdered) return 'sela_sent';
+    return 'sela_pending';
+}
+
+assertEqual("Logi Status - Cancelled", getLogisticsStatusType({ isCancelled: true }), 'cancelled');
+assertEqual("Logi Status - Fulfilled", getLogisticsStatusType({ isFulfilled: true }), 'fulfilled');
+assertEqual("Logi Status - In Delivery", getLogisticsStatusType({ deliveryInfo: { runDate: '09.03', courier: 'Bábel' } }), 'in_delivery');
+assertEqual("Logi Status - Pickup Pending", getLogisticsStatusType({ isPickup: true, isReadyForPickup: false }), 'pickup_pending');
+assertEqual("Logi Status - Pickup Ready", getLogisticsStatusType({ isPickup: true, isReadyForPickup: true }), 'pickup_ready');
+assertEqual("Logi Status - Manual Szemelyes Tag (Green Icon)", getLogisticsStatusType({ isPickup: true, tags: 'személyes' }), 'pickup_ready');
+assertEqual("Logi Status - Pickup with Waiting Tag (Should be Waiting Shipment)", getLogisticsStatusType({ isPickup: true, hasWaitingTag: true, waitingTags: ['spc szállítmányra vár'] }), 'waiting_shipment');
+assertEqual("Logi Status - PXP Pending (no label)", getLogisticsStatusType({ hasPxpTag: true, tags: 'PannonXP' }), 'pxp_pending');
+assertEqual("Logi Status - PXP Ready (with címke tag)", getLogisticsStatusType({ hasPxpTag: true, tags: 'PannonXP, címke nyomtatva' }), 'pxp_ready');
+assertEqual("Logi Status - Sela Sent", getLogisticsStatusType({ hasSelaOrdered: true, tags: 'sela megr.' }), 'sela_sent');
+assertEqual("Logi Status - Waiting Shipment", getLogisticsStatusType({ hasWaitingTag: true, waitingTags: ['spc szállítmányra vár'] }), 'waiting_shipment');
+assertEqual("Logi Status - Sela Pending", getLogisticsStatusType({}), 'sela_pending');
 
 // --- 7-Tier Picking List Item Ranking & Sorting Tests ---
 function getItemRank(name) {

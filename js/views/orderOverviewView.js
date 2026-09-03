@@ -41,11 +41,152 @@ export const OrderOverviewView = {
             </div>
         `;
 
-        document.body.appendChild(modal);
-
         modal.addEventListener('click', () => modal.remove());
         const btnClose = modal.querySelector('#btn-close-lightbox');
         if (btnClose) btnClose.addEventListener('click', () => modal.remove());
+    },
+
+    getLogisticsStatus(order) {
+        if (order.isCancelled) {
+            return {
+                type: 'cancelled',
+                tooltip: 'Törölt rendelés',
+                html: `<span class="logi-icon-badge" title="Törölt rendelés" style="width: 25px; height: 25px; border-radius: 6px; background: #f1f5f9; border: 1px solid #cbd5e1; color: #94a3b8; display: inline-flex; align-items: center; justify-content: center;"><i class="ph-bold ph-x-circle" style="font-size: 13px;"></i></span>`
+            };
+        }
+        if (order.isFulfilled) {
+            return {
+                type: 'fulfilled',
+                tooltip: 'Teljesítve (Fulfilled)',
+                html: `<span class="logi-icon-badge" title="Teljesítve (Fulfilled)" style="width: 25px; height: 25px; border-radius: 6px; background: #f1f5f9; border: 1px solid #cbd5e1; color: #64748b; display: inline-flex; align-items: center; justify-content: center;"><i class="ph-bold ph-check" style="font-size: 13px;"></i></span>`
+            };
+        }
+        if (order.deliveryInfo) {
+            if (order.deliveryInfo.isUncollected) {
+                return {
+                    type: 'uncollected',
+                    tooltip: `Meghiúsult kiszállítás: ${order.deliveryInfo.runDate}`,
+                    html: `<span class="logi-icon-badge" title="Meghiúsult kiszállítás: ${order.deliveryInfo.runDate}" style="width: 25px; height: 25px; border-radius: 6px; background: #fef2f2; border: 1.5px solid #fca5a5; color: #dc2626; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(220,38,38,0.15);"><i class="ph-bold ph-warning-circle" style="font-size: 13px;"></i></span>`
+                };
+            }
+            // RIKÍTÓ KÉK KISAUTÓ IKON (Terítésben)
+            return {
+                type: 'in_delivery',
+                tooltip: `Terítésben: ${order.deliveryInfo.runDate} (${order.deliveryInfo.courier})`,
+                html: `<span class="logi-icon-badge" title="Terítésben: ${order.deliveryInfo.runDate} (${order.deliveryInfo.courier})" style="width: 25px; height: 25px; border-radius: 6px; background: #e0f2fe; border: 1.5px solid #38bdf8; color: #0284c7; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(2,132,199,0.25);"><i class="ph-bold ph-truck" style="font-size: 14px; color: #0284c7;"></i></span>`
+            };
+        }
+
+        // 1. SZÁLLÍTMÁNYRA / ANYAGRA VÁRÓ VIZSGÁLAT (MEGELŐZI a Személyes Átvételt is!)
+        // Így a személyes átvételes, de még szállítmányra váró rendelésen is a piros homokóra jelenik meg és nem lehet átállítani ready for pickupra!
+        const orderWaitingTags = (order.waitingTags && order.waitingTags.length > 0)
+            ? order.waitingTags
+            : (order.tags ? order.tags.split(',').map(t => t.trim()).filter(t => {
+                const tl = t.toLowerCase();
+                return (tl.includes('vár') || tl.includes('var') || tl.includes('szállítmány') || tl.includes('szallitmany')) && !tl.includes('számla') && !tl.includes('dijbek');
+            }) : []);
+
+        if (order.hasWaitingTag || orderWaitingTags.length > 0) {
+            const waitText = orderWaitingTags.length > 0 ? orderWaitingTags.join(', ') : 'Szállítmányra vár';
+            return {
+                type: 'waiting_shipment',
+                tooltip: `${waitText}${order.hasSelaOrdered ? ' • Szállítónak elküldve (sela megr.)' : ''}`,
+                html: `
+                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                        <span class="logi-icon-badge" style="position: relative; width: 25px; height: 25px; border-radius: 6px; background: #fef2f2; border: 1.5px solid #fca5a5; color: #dc2626; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(220,38,38,0.15); cursor: help;">
+                            <i class="ph-bold ph-hourglass-medium" style="font-size: 13.5px; color: #dc2626;"></i>
+                            ${order.hasSelaOrdered ? `
+                                <span title="Szállítónak már elküldve (sela megr.)" style="position: absolute; bottom: -3.5px; right: -3.5px; background: #16a34a; color: white; border-radius: 50%; width: 12px; height: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 7.5px; border: 1.5px solid #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.25);">
+                                    <i class="ph-bold ph-truck"></i>
+                                </span>
+                            ` : ''}
+                        </span>
+                        <div class="logi-tooltip-bubble" style="min-width: 170px;">
+                            <div style="display: flex; align-items: center; gap: 5px; font-weight: 700;">
+                                <i class="ph-bold ph-hourglass-medium" style="color: #f87171; font-size: 12px;"></i>
+                                <span>${waitText}</span>
+                            </div>
+                            ${order.hasSelaOrdered ? `
+                                <div style="margin-top: 4px; padding-top: 3px; border-top: 1px solid rgba(255,255,255,0.2); color: #86efac; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                                    <i class="ph-bold ph-truck"></i>
+                                    <span>Szállítónak elküldve (sela megr.)</span>
+                                </div>
+                            ` : ''}
+                            ${order.hasPxpTag ? `
+                                <div style="margin-top: 4px; padding-top: 3px; border-top: 1px solid rgba(255,255,255,0.2); color: #93c5fd; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                                    <i class="ph-bold ph-barcode"></i>
+                                    <span>PannonXP csomagküldés</span>
+                                </div>
+                            ` : ''}
+                            ${order.isPickup ? `
+                                <div style="margin-top: 4px; padding-top: 3px; border-top: 1px solid rgba(255,255,255,0.2); color: #c4b5fd; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                                    <i class="ph-bold ph-storefront"></i>
+                                    <span>Személyes átvétel</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `
+            };
+        }
+
+        // 2. SZEMÉLYES ÁTVÉTEL VIZSGÁLAT (Csak ha NEM vár szállítmányra)
+        if (order.isPickup) {
+            const tagsLower = (order.tags || '').toLowerCase();
+            const hasManualPickupTag = tagsLower.includes('személyes') || tagsLower.includes('szemelyes') || tagsLower.includes('raktári átvétel') || tagsLower.includes('boltban átvétel');
+
+            if (order.isReadyForPickup || hasManualPickupTag) {
+                return {
+                    type: 'pickup_ready',
+                    tooltip: 'Személyes átvétel (Átvehető)',
+                    html: `<span class="logi-icon-badge" title="Személyes átvétel (Átvehető)" style="width: 25px; height: 25px; border-radius: 6px; background: #ecfdf5; border: 1.5px solid #6ee7b7; color: #047857; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(4,120,87,0.15);"><i class="ph-bold ph-storefront" style="font-size: 14px; color: #059669;"></i></span>`
+                };
+            } else {
+                return {
+                    type: 'pickup_pending',
+                    tooltip: 'Személyes átvétel (Még nem vehető át) — Kattints ide az Átvehetőre (Ready for pickup) állításhoz!',
+                    html: `<button class="btn-ready-for-pickup-icon" data-order-id="${order.id}" data-shopify-id="${order.shopifyId}" data-is-ready="false" title="Személyes átvétel (Még nem vehető át) — Kattints ide az Átvehetőre (Ready for pickup) állításhoz!" style="width: 25px; height: 25px; border-radius: 6px; background: #f5f3ff; border: 1.5px solid #c4b5fd; color: #7c3aed; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s; padding: 0; box-shadow: 0 1px 2px rgba(124,58,237,0.15);">
+                        <i class="ph-bold ph-storefront" style="font-size: 14px;"></i>
+                    </button>`
+                };
+            }
+        }
+        
+        // 3. PANNONXP VIZSGÁLAT
+        const tagsLower = (order.tags || '').toLowerCase();
+        const hasLabelTag = order.hasLabelTag || tagsLower.includes('címke') || tagsLower.includes('cimke') || tagsLower.includes('label') || tagsLower.includes('nyomtatva') || tagsLower.includes('feladva') || tagsLower.includes('pxp kész') || tagsLower.includes('pxp_kesz');
+        
+        if (order.hasPxpTag) {
+            if (hasLabelTag || order.isPxpReady) {
+                return {
+                    type: 'pxp_ready',
+                    tooltip: 'PannonXP: Címke kinyomtatva / Csomag kész (Kiküldés után teljesíthető)',
+                    html: `<span class="logi-icon-badge" title="PannonXP: Címke kinyomtatva / Csomag kész (Kiküldés után teljesíthető)" style="width: 25px; height: 25px; border-radius: 6px; background: #ecfdf5; border: 1.5px solid #a7f3d0; color: #047857; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(4,120,87,0.15);"><i class="ph-bold ph-barcode" style="font-size: 14px; color: #059669;"></i></span>`
+                };
+            } else {
+                return {
+                    type: 'pxp_pending',
+                    tooltip: 'PannonXP: Csomagküldés (Címkézésre vár)',
+                    html: `<span class="logi-icon-badge" title="PannonXP: Csomagküldés (Címkézésre vár)" style="width: 25px; height: 25px; border-radius: 6px; background: #fff7ed; border: 1.5px solid #fed7aa; color: #ea580c; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(234,88,12,0.12);"><i class="ph-bold ph-barcode" style="font-size: 14px; color: #ea580c;"></i></span>`
+                };
+            }
+        }
+        
+        // 4. SELA MEGRENDELVE / SZÁLLÍTÓNAK ELKÜLDVE
+        if (order.hasSelaOrdered) {
+            return {
+                type: 'sela_sent',
+                tooltip: 'Szállítónak elküldve (sela megr.)',
+                html: `<span class="logi-icon-badge" title="Szállítónak elküldve (sela megr.)" style="width: 25px; height: 25px; border-radius: 6px; background: #f0fdf4; border: 1.5px solid #bbf7d0; color: #15803d; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(21,128,61,0.12);"><i class="ph-bold ph-truck" style="font-size: 14px; color: #16a34a;"></i></span>`
+            };
+        }
+
+        // 5. KÜLDENDŐ A SZÁLLÍTÓNAK (Alapértelmezett nyitott kiszállítás)
+        return {
+            type: 'sela_pending',
+            tooltip: 'Szállítónak küldendő',
+            html: `<span class="logi-icon-badge" title="Szállítónak küldendő" style="width: 25px; height: 25px; border-radius: 6px; background: #fff7ed; border: 1.5px solid #fdba74; color: #c2410c; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(234,88,12,0.12);"><i class="ph-bold ph-truck" style="font-size: 14px; color: #ea580c;"></i></span>`
+        };
     },
 
     renderOrderOverview(containerElement) {
@@ -61,31 +202,42 @@ export const OrderOverviewView = {
             dateRange: 'all'
         };
 
+        const currentTab = filters.tab || 'unfulfilled';
+        const currentChip = filters.chip || 'all';
+
+        // Aktuális Fül szerint leszűrt rendelések (a gyorsszűrő chip-ek számlálói erre a halmazra vonatkoznak!)
+        let tabOrders = allOrders;
+        if (currentTab === 'unfulfilled') {
+            tabOrders = allOrders.filter(o => !o.isCancelled && !o.isFulfilled);
+        } else if (currentTab === 'fulfilled') {
+            tabOrders = allOrders.filter(o => !o.isCancelled && o.isFulfilled);
+        } else if (currentTab === 'cancelled') {
+            tabOrders = allOrders.filter(o => o.isCancelled);
+        }
+
         // Statisztikai számlálók
         const stats = {
+            // Globális fül-összesítők
             total: allOrders.length,
             unfulfilledAll: allOrders.filter(o => !o.isCancelled && !o.isFulfilled).length,
             fulfilled: allOrders.filter(o => !o.isCancelled && o.isFulfilled).length,
             cancelled: allOrders.filter(o => o.isCancelled).length,
             
-            // Szállítói & Csomagküldési statisztikák
-            selaPending: allOrders.filter(o => !o.isCancelled && !o.isFulfilled && !o.isPickup && !o.isInDelivery && !o.hasPxpTag && !o.hasSelaOrdered && !o.hasBadShipping && !o.hasWaitingTag && (!o.waitingTags || o.waitingTags.length === 0)).length,
-            selaOrdered: allOrders.filter(o => !o.isCancelled && o.hasSelaOrdered).length,
-            pxpTagged: allOrders.filter(o => !o.isCancelled && o.hasPxpTag).length,
-
-            // Terítési / Kiszállítási statisztikák
-            inDelivery: allOrders.filter(o => !o.isCancelled && o.isInDelivery).length,
-            notInDelivery: allOrders.filter(o => !o.isCancelled && !o.isFulfilled && !o.isPickup && !o.isInDelivery && !o.hasBadShipping).length,
-
-            // Teendő / Anomália számlálók
-            waitingShipment: allOrders.filter(o => !o.isCancelled && ((o.waitingTags && o.waitingTags.length > 0) || (o.tags && /(?:vár|var|szállítmány|szallitmany)/i.test(o.tags)))).length,
-            badShipping: allOrders.filter(o => !o.isCancelled && !o.isFulfilled && o.hasBadShipping).length,
-            needsProforma: allOrders.filter(o => !o.isCancelled && o.needsProforma).length,
-            noInvoice: allOrders.filter(o => !o.isCancelled && o.hasNoInvoice).length,
-            pickup: allOrders.filter(o => !o.isCancelled && o.isPickup).length,
-            deliveryOnly: allOrders.filter(o => !o.isCancelled && !o.isPickup && !o.hasBadShipping).length,
-            cod: allOrders.filter(o => !o.isCancelled && o.isCOD && !o.isPickup).length,
-            pendingTransfer: allOrders.filter(o => !o.isCancelled && o.isBankDeposit && !o.isPaid).length
+            // Fül-specifikus (pl. unfulfilled) gyorsszűrő számlálók
+            tabTotal: tabOrders.length,
+            selaPending: tabOrders.filter(o => !o.isCancelled && !o.isFulfilled && !o.isPickup && !o.isInDelivery && !o.hasPxpTag && !o.hasSelaOrdered && !o.hasBadShipping && !o.hasWaitingTag && (!o.waitingTags || o.waitingTags.length === 0)).length,
+            selaOrdered: tabOrders.filter(o => o.hasSelaOrdered).length,
+            pxpTagged: tabOrders.filter(o => o.hasPxpTag).length,
+            inDelivery: tabOrders.filter(o => o.isInDelivery).length,
+            notInDelivery: tabOrders.filter(o => !o.isInDelivery && !o.isPickup && !o.isFulfilled).length,
+            waitingShipment: tabOrders.filter(o => ((o.waitingTags && o.waitingTags.length > 0) || (o.tags && /(?:vár|var|szállítmány|szallitmany)/i.test(o.tags)))).length,
+            badShipping: tabOrders.filter(o => o.hasBadShipping && !o.isFulfilled).length,
+            needsProforma: tabOrders.filter(o => o.needsProforma).length,
+            noInvoice: tabOrders.filter(o => o.hasNoInvoice).length,
+            pickup: tabOrders.filter(o => o.isPickup).length,
+            deliveryOnly: tabOrders.filter(o => !o.isPickup && !o.hasBadShipping).length,
+            cod: tabOrders.filter(o => o.isCOD && !o.isPickup).length,
+            pendingTransfer: tabOrders.filter(o => o.isBankDeposit && !o.isPaid).length
         };
 
         // Összes egyedi Tag kigyűjtése
@@ -98,10 +250,6 @@ export const OrderOverviewView = {
             }
         });
         const sortedTags = Array.from(tagMap.entries()).sort((a, b) => b[1] - a[1]);
-
-        // Szűrés alkalmazása
-        const currentTab = filters.tab || 'unfulfilled';
-        const currentChip = filters.chip || 'all';
 
         const filteredOrders = allOrders.filter(order => {
             // 1. FŐ FÜL SZŰRÉS (Segmented Tab)
@@ -182,224 +330,223 @@ export const OrderOverviewView = {
         // Összes látható kijelölve van-e?
         const isAllVisibleSelected = filteredOrders.length > 0 && filteredOrders.every(o => selectedIds.has(o.id));
 
-        // HTML Felépítés
+        // HTML Felépítés (Szuper Kompakt, Áramvonalas Elrendezés)
         containerElement.innerHTML = `
-            <div class="overview-layout" style="padding: 14px 24px 100px 380px; max-width: 1880px; margin: 0 auto; width: 100%;">
+            <div class="overview-layout" style="padding: 6px 14px 70px 300px; max-width: 1540px; margin: 0 auto; width: 100%;">
                 
-                <!-- 1. PRÉMIUM SEGMENTED FÜL-VÁLASZTÓ (Fő Állapotok) -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                <!-- 1. PRÉMIUM EGYBEÉPÍTETT FEJLÉC SÁV (Fülek, Keresés, Szűrők, Frissítés) -->
+                <div style="background: #fff; padding: 5px 8px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
                     
-                    <!-- Fő Állapot Fülek -->
-                    <div style="display: flex; background: #e2e8f0; padding: 3px; border-radius: 10px; gap: 3px;">
+                    <!-- Bal: Fő Állapot Fülek (Kompakt Segmented Bar) -->
+                    <div style="display: flex; background: #f1f5f9; padding: 2px; border-radius: 6px; gap: 2px;">
                         
                         <!-- Unfulfilled Fül SÁRGA PÖTTYEL (#eab308) -->
-                        <button class="hub-tab-btn ${currentTab === 'unfulfilled' ? 'active' : ''}" data-tab="unfulfilled" style="padding: 7px 16px; border-radius: 8px; border: none; font-size: 12.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all .15s; background: ${currentTab === 'unfulfilled' ? '#ffffff' : 'transparent'}; color: ${currentTab === 'unfulfilled' ? '#0f172a' : '#475569'}; box-shadow: ${currentTab === 'unfulfilled' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'};">
-                            <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #eab308;"></span>
+                        <button class="hub-tab-btn ${currentTab === 'unfulfilled' ? 'active' : ''}" data-tab="unfulfilled" style="padding: 3.5px 9px; border-radius: 5px; border: none; font-size: 11.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all .15s; background: ${currentTab === 'unfulfilled' ? '#ffffff' : 'transparent'}; color: ${currentTab === 'unfulfilled' ? '#0f172a' : '#64748b'}; box-shadow: ${currentTab === 'unfulfilled' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'};">
+                            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #eab308;"></span>
                             <span>Unfulfilled</span>
-                            <span style="background: ${currentTab === 'unfulfilled' ? '#ffea8a' : '#cbd5e1'}; color: #4a3800; padding: 1px 7px; border-radius: 10px; font-size: 11px;">${stats.unfulfilledAll}</span>
+                            <span style="background: ${currentTab === 'unfulfilled' ? '#ffea8a' : '#e2e8f0'}; color: #4a3800; padding: 0 5px; border-radius: 6px; font-size: 10px;">${stats.unfulfilledAll}</span>
                         </button>
 
-                        <button class="hub-tab-btn ${currentTab === 'fulfilled' ? 'active' : ''}" data-tab="fulfilled" style="padding: 7px 16px; border-radius: 8px; border: none; font-size: 12.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all .15s; background: ${currentTab === 'fulfilled' ? '#ffffff' : 'transparent'}; color: ${currentTab === 'fulfilled' ? '#0f172a' : '#475569'}; box-shadow: ${currentTab === 'fulfilled' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'};">
-                            <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #707070;"></span>
+                        <button class="hub-tab-btn ${currentTab === 'fulfilled' ? 'active' : ''}" data-tab="fulfilled" style="padding: 3.5px 9px; border-radius: 5px; border: none; font-size: 11.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all .15s; background: ${currentTab === 'fulfilled' ? '#ffffff' : 'transparent'}; color: ${currentTab === 'fulfilled' ? '#0f172a' : '#64748b'}; box-shadow: ${currentTab === 'fulfilled' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'};">
+                            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #707070;"></span>
                             <span>Fulfilled</span>
-                            <span style="background: ${currentTab === 'fulfilled' ? '#e4e5e7' : '#cbd5e1'}; color: #303030; padding: 1px 7px; border-radius: 10px; font-size: 11px;">${stats.fulfilled}</span>
+                            <span style="background: ${currentTab === 'fulfilled' ? '#e4e5e7' : '#e2e8f0'}; color: #303030; padding: 0 5px; border-radius: 6px; font-size: 10px;">${stats.fulfilled}</span>
                         </button>
 
-                        <button class="hub-tab-btn ${currentTab === 'all' ? 'active' : ''}" data-tab="all" style="padding: 7px 16px; border-radius: 8px; border: none; font-size: 12.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all .15s; background: ${currentTab === 'all' ? '#ffffff' : 'transparent'}; color: ${currentTab === 'all' ? '#0f172a' : '#475569'}; box-shadow: ${currentTab === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'};">
-                            <i class="ph-bold ph-list"></i>
+                        <button class="hub-tab-btn ${currentTab === 'all' ? 'active' : ''}" data-tab="all" style="padding: 3.5px 9px; border-radius: 5px; border: none; font-size: 11.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all .15s; background: ${currentTab === 'all' ? '#ffffff' : 'transparent'}; color: ${currentTab === 'all' ? '#0f172a' : '#64748b'}; box-shadow: ${currentTab === 'all' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'};">
                             <span>Összes</span>
-                            <span style="background: rgba(0,0,0,0.08); padding: 1px 7px; border-radius: 10px; font-size: 11px;">${stats.total}</span>
+                            <span style="background: rgba(0,0,0,0.06); padding: 0 5px; border-radius: 6px; font-size: 10px;">${stats.total}</span>
                         </button>
 
-                        <button class="hub-tab-btn ${currentTab === 'cancelled' ? 'active' : ''}" data-tab="cancelled" style="padding: 7px 16px; border-radius: 8px; border: none; font-size: 12.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all .15s; background: ${currentTab === 'cancelled' ? '#ffffff' : 'transparent'}; color: ${currentTab === 'cancelled' ? '#0f172a' : '#475569'}; box-shadow: ${currentTab === 'cancelled' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'};">
-                            <i class="ph-bold ph-x-circle"></i>
+                        <button class="hub-tab-btn ${currentTab === 'cancelled' ? 'active' : ''}" data-tab="cancelled" style="padding: 3.5px 9px; border-radius: 5px; border: none; font-size: 11.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all .15s; background: ${currentTab === 'cancelled' ? '#ffffff' : 'transparent'}; color: ${currentTab === 'cancelled' ? '#0f172a' : '#64748b'}; box-shadow: ${currentTab === 'cancelled' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'};">
                             <span>Cancelled</span>
-                            <span style="background: rgba(0,0,0,0.08); padding: 1px 7px; border-radius: 10px; font-size: 11px;">${stats.cancelled}</span>
+                            <span style="background: rgba(0,0,0,0.06); padding: 0 5px; border-radius: 6px; font-size: 10px;">${stats.cancelled}</span>
                         </button>
 
                     </div>
 
-                    <!-- Frissítés Gomb -->
-                    <button id="btn-refresh-hub" title="Élő frissítés a Shopify-ból és a Járatokból" style="padding: 7px 14px; border-radius: 8px; border: 1.5px solid #2563eb; background: #2563eb; color: white; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 3px rgba(37,99,235,0.2);">
-                        <i class="ph-bold ph-arrows-clockwise" id="hub-refresh-icon"></i>
-                        <span>Shopify & Járat Frissítés</span>
-                    </button>
+                    <!-- Jobb: Kereső + Lenyílók + Frissítés Gomb -->
+                    <div style="display: flex; align-items: center; gap: 6px; flex: 1; justify-content: flex-end; min-width: 300px;">
+                        
+                        <!-- Keresőmező -->
+                        <div style="position: relative; flex: 1; max-width: 280px; min-width: 160px;">
+                            <i class="ph-bold ph-magnifying-glass" style="position: absolute; left: 8px; top: 7px; color: #94a3b8; font-size: 12px;"></i>
+                            <input type="text" id="hub-search-input" value="${filters.search || ''}" placeholder="Keresés (ID, Név, Cím, Futár)..." style="width: 100%; padding: 3.5px 6px 3.5px 24px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 11px; font-family: inherit; outline: none; background: #f8fafc;">
+                        </div>
+
+                        <!-- Tag szűrő -->
+                        <select id="hub-filter-tag" style="padding: 3.5px 6px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 11px; font-family: inherit; background: #f8fafc; color: #334155; max-width: 130px;">
+                            <option value="all" ${filters.tag === 'all' ? 'selected' : ''}>Minden Címke</option>
+                            ${sortedTags.map(([tag, count]) => `
+                                <option value="${tag}" ${filters.tag === tag ? 'selected' : ''}>${tag} (${count})</option>
+                            `).join('')}
+                        </select>
+
+                        <!-- Dátumszűrő -->
+                        <select id="hub-filter-date" style="padding: 3.5px 6px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 11px; font-family: inherit; background: #f8fafc; color: #334155;">
+                            <option value="all" ${filters.dateRange === 'all' ? 'selected' : ''}>Bármikori dátum</option>
+                            <option value="today" ${filters.dateRange === 'today' ? 'selected' : ''}>Ma</option>
+                            <option value="yesterday" ${filters.dateRange === 'yesterday' ? 'selected' : ''}>Tegnap</option>
+                            <option value="last7days" ${filters.dateRange === 'last7days' ? 'selected' : ''}>Elmúlt 7 nap</option>
+                            <option value="last30days" ${filters.dateRange === 'last30days' ? 'selected' : ''}>Elmúlt 30 nap</option>
+                        </select>
+
+                        <!-- Frissítés Gomb -->
+                        <button id="btn-refresh-hub" title="Élő frissítés a Shopify-ból és a Járatokból" style="padding: 3.5px 9px; border-radius: 5px; border: 1.5px solid #2563eb; background: #2563eb; color: white; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 2px rgba(37,99,235,0.2); white-space: nowrap;">
+                            <i class="ph-bold ph-arrows-clockwise" id="hub-refresh-icon" style="font-size: 12px;"></i>
+                            <span>Frissítés</span>
+                        </button>
+
+                    </div>
                 </div>
 
-                <!-- 2. GYORS-AKCIÓ CHIP-EK (Sela & PannonXP Logisztika, Terítés & Anomáliák) -->
-                <div style="display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center;">
+                <!-- 2. KOMPAKT GYORSSZŰRŐ SÁV (Fül-specifikus darabszámokkal, Helytakarékos és Logikus) -->
+                <div style="background: #fff; padding: 3.5px 8px; border-radius: 7px; border: 1px solid #e2e8f0; margin-bottom: 5px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
                     
-                    <button class="hub-chip-btn ${currentChip === 'all' ? 'active' : ''}" data-chip="all" style="padding: 5px 11px; border-radius: 20px; border: 1.5px solid ${currentChip === 'all' ? '#0f172a' : '#cbd5e1'}; background: ${currentChip === 'all' ? '#0f172a' : '#ffffff'}; color: ${currentChip === 'all' ? '#ffffff' : '#475569'}; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                        <span>Mind</span>
-                    </button>
-
-                    <!-- SELA KÜLDENDŐ CHIP (Feltűnő Narancssárga / Teendő) -->
-                    ${stats.selaPending > 0 ? `
-                        <button class="hub-chip-btn ${currentChip === 'sela_pending' ? 'active' : ''}" data-chip="sela_pending" style="padding: 5px 12px; border-radius: 20px; border: 1.5px solid ${currentChip === 'sela_pending' ? '#ea580c' : '#fdba74'}; background: ${currentChip === 'sela_pending' ? '#ea580c' : '#fff7ed'}; color: ${currentChip === 'sela_pending' ? '#ffffff' : '#c2410c'}; font-weight: 800; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px; box-shadow: 0 1px 3px rgba(234,88,12,0.2);">
-                            <i class="ph-bold ph-truck"></i>
-                            <span>Sela küldendő</span>
-                            <span style="background: ${currentChip === 'sela_pending' ? 'rgba(255,255,255,0.3)' : '#ea580c'}; color: white; padding: 0 6px; border-radius: 10px; font-size: 10.5px;">${stats.selaPending}</span>
+                    <!-- Logisztikai Csoport (Alap szállítási csatornák) -->
+                    <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+                        <button class="hub-chip-btn ${currentChip === 'all' ? 'active' : ''}" data-chip="all" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'all' ? '#0f172a' : '#cbd5e1'}; background: ${currentChip === 'all' ? '#0f172a' : '#ffffff'}; color: ${currentChip === 'all' ? '#ffffff' : '#475569'}; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px;">
+                            <span>Mind</span>
+                            <span style="background: ${currentChip === 'all' ? 'rgba(255,255,255,0.25)' : '#e2e8f0'}; color: ${currentChip === 'all' ? '#ffffff' : '#334155'}; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.tabTotal}</span>
                         </button>
-                    ` : ''}
 
-                    <!-- SELA ELKÜLDVE CHIP (Zöldes / Kész) -->
-                    ${stats.selaOrdered > 0 ? `
-                        <button class="hub-chip-btn ${currentChip === 'sela_ordered' ? 'active' : ''}" data-chip="sela_ordered" style="padding: 5px 11px; border-radius: 20px; border: 1.5px solid ${currentChip === 'sela_ordered' ? '#16a34a' : '#bbf7d0'}; background: ${currentChip === 'sela_ordered' ? '#16a34a' : '#f0fdf4'}; color: ${currentChip === 'sela_ordered' ? '#ffffff' : '#15803d'}; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                            <i class="ph-bold ph-check-circle"></i>
-                            <span>Sela elküldve</span>
-                            <span style="background: ${currentChip === 'sela_ordered' ? 'rgba(255,255,255,0.3)' : '#16a34a'}; color: white; padding: 0 6px; border-radius: 10px; font-size: 10.5px;">${stats.selaOrdered}</span>
-                        </button>
-                    ` : ''}
+                        ${stats.selaPending > 0 ? `
+                            <button class="hub-chip-btn ${currentChip === 'sela_pending' ? 'active' : ''}" data-chip="sela_pending" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'sela_pending' ? '#ea580c' : '#fdba74'}; background: ${currentChip === 'sela_pending' ? '#ea580c' : '#fff7ed'}; color: ${currentChip === 'sela_pending' ? '#ffffff' : '#c2410c'}; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px;">
+                                <i class="ph-bold ph-truck"></i>
+                                <span>Sela küldendő</span>
+                                <span style="background: ${currentChip === 'sela_pending' ? 'rgba(255,255,255,0.3)' : '#ea580c'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.selaPending}</span>
+                            </button>
+                        ` : ''}
 
-                    <!-- PANNONXP CHIP (Kék) -->
-                    ${stats.pxpTagged > 0 ? `
-                        <button class="hub-chip-btn ${currentChip === 'pxp_tagged' ? 'active' : ''}" data-chip="pxp_tagged" style="padding: 5px 11px; border-radius: 20px; border: 1.5px solid ${currentChip === 'pxp_tagged' ? '#2563eb' : '#bfdbfe'}; background: ${currentChip === 'pxp_tagged' ? '#2563eb' : '#eff6ff'}; color: ${currentChip === 'pxp_tagged' ? '#ffffff' : '#1d4ed8'}; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                            <i class="ph-bold ph-tag"></i>
-                            <span>PannonXP</span>
-                            <span style="background: ${currentChip === 'pxp_tagged' ? 'rgba(255,255,255,0.3)' : '#2563eb'}; color: white; padding: 0 6px; border-radius: 10px; font-size: 10.5px;">${stats.pxpTagged}</span>
-                        </button>
-                    ` : ''}
+                        ${stats.selaOrdered > 0 ? `
+                            <button class="hub-chip-btn ${currentChip === 'sela_ordered' ? 'active' : ''}" data-chip="sela_ordered" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'sela_ordered' ? '#16a34a' : '#bbf7d0'}; background: ${currentChip === 'sela_ordered' ? '#16a34a' : '#f0fdf4'}; color: ${currentChip === 'sela_ordered' ? '#ffffff' : '#15803d'}; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px;">
+                                <i class="ph-bold ph-truck"></i>
+                                <span>Sela elküldve</span>
+                                <span style="background: ${currentChip === 'sela_ordered' ? 'rgba(255,255,255,0.3)' : '#16a34a'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.selaOrdered}</span>
+                            </button>
+                        ` : ''}
 
-                    <!-- TERÍTÉSBEN CHIP (Zöldeskék / Türkiz) -->
-                    ${stats.inDelivery > 0 ? `
-                        <button class="hub-chip-btn ${currentChip === 'in_delivery' ? 'active' : ''}" data-chip="in_delivery" style="padding: 5px 11px; border-radius: 20px; border: 1.5px solid ${currentChip === 'in_delivery' ? '#0d9488' : '#99f6e4'}; background: ${currentChip === 'in_delivery' ? '#0d9488' : '#f0fdfa'}; color: ${currentChip === 'in_delivery' ? '#ffffff' : '#0f766e'}; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px; box-shadow: 0 1px 3px rgba(13,148,136,0.15);">
-                            <i class="ph-bold ph-truck"></i>
-                            <span>Terítésben (Járaton)</span>
-                            <span style="background: ${currentChip === 'in_delivery' ? 'rgba(255,255,255,0.25)' : '#0d9488'}; color: white; padding: 0 6px; border-radius: 10px; font-size: 10.5px;">${stats.inDelivery}</span>
-                        </button>
-                    ` : ''}
+                        ${stats.pxpTagged > 0 ? `
+                            <button class="hub-chip-btn ${currentChip === 'pxp_tagged' ? 'active' : ''}" data-chip="pxp_tagged" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'pxp_tagged' ? '#2563eb' : '#bfdbfe'}; background: ${currentChip === 'pxp_tagged' ? '#2563eb' : '#eff6ff'}; color: ${currentChip === 'pxp_tagged' ? '#ffffff' : '#1d4ed8'}; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px;">
+                                <i class="ph-bold ph-barcode"></i>
+                                <span>PannonXP</span>
+                                <span style="background: ${currentChip === 'pxp_tagged' ? 'rgba(255,255,255,0.3)' : '#2563eb'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.pxpTagged}</span>
+                            </button>
+                        ` : ''}
 
-                    ${stats.notInDelivery > 0 ? `
-                        <button class="hub-chip-btn ${currentChip === 'not_in_delivery' ? 'active' : ''}" data-chip="not_in_delivery" style="padding: 5px 11px; border-radius: 20px; border: 1.5px solid ${currentChip === 'not_in_delivery' ? '#b45309' : '#fde68a'}; background: ${currentChip === 'not_in_delivery' ? '#b45309' : '#fffbeb'}; color: ${currentChip === 'not_in_delivery' ? '#ffffff' : '#92400e'}; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                            <i class="ph-bold ph-package"></i>
-                            <span>Járatra vár</span>
-                            <span style="background: ${currentChip === 'not_in_delivery' ? 'rgba(255,255,255,0.25)' : '#b45309'}; color: white; padding: 0 6px; border-radius: 10px; font-size: 10.5px;">${stats.notInDelivery}</span>
-                        </button>
-                    ` : ''}
+                        ${stats.pickup > 0 ? `
+                            <button class="hub-chip-btn ${currentChip === 'pickup' ? 'active' : ''}" data-chip="pickup" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'pickup' ? '#8b5cf6' : '#ddd6fe'}; background: ${currentChip === 'pickup' ? '#8b5cf6' : '#ede9fe'}; color: ${currentChip === 'pickup' ? '#ffffff' : '#6d28d9'}; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px;">
+                                <i class="ph-bold ph-storefront"></i>
+                                <span>Személyes</span>
+                                <span style="background: ${currentChip === 'pickup' ? 'rgba(255,255,255,0.25)' : '#8b5cf6'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.pickup}</span>
+                            </button>
+                        ` : ''}
 
-                    <!-- SZÁLLÍTMÁNYRA VÁR CHIP (pl. spc, profil, tr szállítmányra vár) (Mély Petrolkék / Cián) -->
-                    ${stats.waitingShipment > 0 ? `
-                        <button class="hub-chip-btn ${currentChip === 'waiting_shipment' ? 'active' : ''}" data-chip="waiting_shipment" style="padding: 5px 11px; border-radius: 20px; border: 1.5px solid ${currentChip === 'waiting_shipment' ? '#0e7490' : '#a5f3fc'}; background: ${currentChip === 'waiting_shipment' ? '#0e7490' : '#ecfeff'}; color: ${currentChip === 'waiting_shipment' ? '#ffffff' : '#0891b2'}; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px; box-shadow: 0 1px 3px rgba(14,116,144,0.15);">
-                            <i class="ph-bold ph-hourglass-medium" style="color: ${currentChip === 'waiting_shipment' ? '#ffffff' : '#0891b2'};"></i>
-                            <span>Szállítmányra vár</span>
-                            <span style="background: ${currentChip === 'waiting_shipment' ? 'rgba(255,255,255,0.3)' : '#0e7490'}; color: white; padding: 0 6px; border-radius: 10px; font-size: 10.5px;">${stats.waitingShipment}</span>
-                        </button>
-                    ` : ''}
+                        ${stats.inDelivery > 0 ? `
+                            <button class="hub-chip-btn ${currentChip === 'in_delivery' ? 'active' : ''}" data-chip="in_delivery" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'in_delivery' ? '#0284c7' : '#bae6fd'}; background: ${currentChip === 'in_delivery' ? '#0284c7' : '#f0f9ff'}; color: ${currentChip === 'in_delivery' ? '#ffffff' : '#0369a1'}; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px;">
+                                <i class="ph-bold ph-truck"></i>
+                                <span>Terítésben</span>
+                                <span style="background: ${currentChip === 'in_delivery' ? 'rgba(255,255,255,0.25)' : '#0284c7'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.inDelivery}</span>
+                            </button>
+                        ` : ''}
 
-                    <!-- ROSSZ SZÁLLÍTÁS (2300 Ft) CHIP — Mindig látható, ha van hiba pirosan rikít -->
-                    <button class="hub-chip-btn ${currentChip === 'bad_shipping' ? 'active' : ''}" data-chip="bad_shipping" style="padding: 5px 11px; border-radius: 20px; border: 1.5px solid ${currentChip === 'bad_shipping' ? '#dc2626' : (stats.badShipping > 0 ? '#fca5a5' : '#cbd5e1')}; background: ${currentChip === 'bad_shipping' ? '#dc2626' : (stats.badShipping > 0 ? '#fef2f2' : '#ffffff')}; color: ${currentChip === 'bad_shipping' ? '#ffffff' : (stats.badShipping > 0 ? '#b91c1c' : '#475569')}; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px; ${stats.badShipping > 0 ? 'box-shadow: 0 1px 3px rgba(220,38,38,0.2);' : ''}">
-                        <i class="ph-bold ph-warning-octagon" style="color: ${stats.badShipping > 0 ? '#dc2626' : '#94a3b8'};"></i>
-                        <span>Rossz szállítás (2300 Ft)</span>
-                        <span style="background: ${currentChip === 'bad_shipping' ? 'rgba(255,255,255,0.25)' : (stats.badShipping > 0 ? '#dc2626' : 'rgba(0,0,0,0.06)')}; color: ${currentChip === 'bad_shipping' || stats.badShipping > 0 ? '#ffffff' : '#475569'}; padding: 0 6px; border-radius: 10px; font-size: 10.5px;">${stats.badShipping}</span>
-                    </button>
-
-                    ${stats.needsProforma > 0 ? `
-                        <button class="hub-chip-btn ${currentChip === 'needs_proforma' ? 'active' : ''}" data-chip="needs_proforma" style="padding: 5px 11px; border-radius: 20px; border: 1.5px solid ${currentChip === 'needs_proforma' ? '#4f46e5' : '#c7d2fe'}; background: ${currentChip === 'needs_proforma' ? '#4f46e5' : '#eef2ff'}; color: ${currentChip === 'needs_proforma' ? '#ffffff' : '#3730a3'}; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                            <i class="ph-bold ph-file-text"></i>
-                            <span>Díjbekérő kell</span>
-                            <span style="background: ${currentChip === 'needs_proforma' ? 'rgba(255,255,255,0.25)' : '#4f46e5'}; color: white; padding: 0 6px; border-radius: 10px; font-size: 10.5px;">${stats.needsProforma}</span>
-                        </button>
-                    ` : ''}
-
-                    ${stats.noInvoice > 0 ? `
-                        <button class="hub-chip-btn ${currentChip === 'no_invoice' ? 'active' : ''}" data-chip="no_invoice" style="padding: 5px 11px; border-radius: 20px; border: 1.5px solid ${currentChip === 'no_invoice' ? '#d97706' : '#fde68a'}; background: ${currentChip === 'no_invoice' ? '#d97706' : '#fffbeb'}; color: ${currentChip === 'no_invoice' ? '#ffffff' : '#92400e'}; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                            <i class="ph-bold ph-receipt"></i>
-                            <span>Számlázni!</span>
-                            <span style="background: ${currentChip === 'no_invoice' ? 'rgba(255,255,255,0.25)' : '#d97706'}; color: white; padding: 0 6px; border-radius: 10px; font-size: 10.5px;">${stats.noInvoice}</span>
-                        </button>
-                    ` : ''}
-
-                    <button class="hub-chip-btn ${currentChip === 'pickup' ? 'active' : ''}" data-chip="pickup" style="padding: 5px 11px; border-radius: 20px; border: 1.5px solid ${currentChip === 'pickup' ? '#8b5cf6' : '#ddd6fe'}; background: ${currentChip === 'pickup' ? '#8b5cf6' : '#ede9fe'}; color: ${currentChip === 'pickup' ? '#ffffff' : '#6d28d9'}; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                        <i class="ph-bold ph-storefront"></i>
-                        <span>Személyes Átvétel</span>
-                        <span style="background: ${currentChip === 'pickup' ? 'rgba(255,255,255,0.25)' : '#8b5cf6'}; color: white; padding: 0 6px; border-radius: 10px; font-size: 10.5px;">${stats.pickup}</span>
-                    </button>
-
-                    <button class="hub-chip-btn ${currentChip === 'delivery_only' ? 'active' : ''}" data-chip="delivery_only" style="padding: 5px 11px; border-radius: 20px; border: 1.5px solid ${currentChip === 'delivery_only' ? '#2563eb' : '#cbd5e1'}; background: ${currentChip === 'delivery_only' ? '#2563eb' : '#ffffff'}; color: ${currentChip === 'delivery_only' ? '#ffffff' : '#334155'}; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                        <i class="ph-bold ph-truck"></i>
-                        <span>Csak Kiszállítás</span>
-                        <span style="background: ${currentChip === 'delivery_only' ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.06)'}; color: ${currentChip === 'delivery_only' ? '#ffffff' : '#334155'}; padding: 0 6px; border-radius: 10px; font-size: 10.5px;">${stats.deliveryOnly}</span>
-                    </button>
-
-                    <button class="hub-chip-btn ${currentChip === 'cod' ? 'active' : ''}" data-chip="cod" style="padding: 5px 11px; border-radius: 20px; border: 1.5px solid ${currentChip === 'cod' ? '#3b82f6' : '#bfdbfe'}; background: ${currentChip === 'cod' ? '#3b82f6' : '#eff6ff'}; color: ${currentChip === 'cod' ? '#ffffff' : '#1d4ed8'}; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                        <i class="ph-bold ph-money"></i>
-                        <span>Utánvét</span>
-                        <span style="background: ${currentChip === 'cod' ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.06)'}; color: ${currentChip === 'cod' ? '#ffffff' : '#1d4ed8'}; padding: 0 6px; border-radius: 10px; font-size: 10.5px;">${stats.cod}</span>
-                    </button>
-
-                    ${stats.pendingTransfer > 0 ? `
-                        <button class="hub-chip-btn ${currentChip === 'pending_transfer' ? 'active' : ''}" data-chip="pending_transfer" style="padding: 5px 11px; border-radius: 20px; border: 1.5px solid ${currentChip === 'pending_transfer' ? '#ef4444' : '#fca5a5'}; background: ${currentChip === 'pending_transfer' ? '#ef4444' : '#fee2e2'}; color: ${currentChip === 'pending_transfer' ? '#ffffff' : '#b91c1c'}; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                            <i class="ph-bold ph-bank"></i>
-                            <span>Függő Utalás</span>
-                            <span style="background: ${currentChip === 'pending_transfer' ? 'rgba(255,255,255,0.25)' : '#ef4444'}; color: white; padding: 0 6px; border-radius: 10px; font-size: 10.5px;">${stats.pendingTransfer}</span>
-                        </button>
-                    ` : ''}
-
-                </div>
-
-                <!-- 3. KERESŐ & FINOMHANGOLÓ SÁV -->
-                <div style="background: #fff; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                    
-                    <!-- Keresőmező -->
-                    <div style="position: relative; flex: 1.5; min-width: 240px;">
-                        <i class="ph-bold ph-magnifying-glass" style="position: absolute; left: 10px; top: 9px; color: #94a3b8; font-size: 14px;"></i>
-                        <input type="text" id="hub-search-input" value="${filters.search || ''}" placeholder="Keresés (ID, Név, Város, Irányítószám, Utca, Futár)..." style="width: 100%; padding: 6px 10px 6px 30px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px; font-family: inherit; outline: none;">
+                        ${stats.notInDelivery > 0 ? `
+                            <button class="hub-chip-btn ${currentChip === 'not_in_delivery' ? 'active' : ''}" data-chip="not_in_delivery" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'not_in_delivery' ? '#b45309' : '#fde68a'}; background: ${currentChip === 'not_in_delivery' ? '#b45309' : '#fffbeb'}; color: ${currentChip === 'not_in_delivery' ? '#ffffff' : '#92400e'}; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px;">
+                                <i class="ph-bold ph-package"></i>
+                                <span>Járatra vár</span>
+                                <span style="background: ${currentChip === 'not_in_delivery' ? 'rgba(255,255,255,0.25)' : '#b45309'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.notInDelivery}</span>
+                            </button>
+                        ` : ''}
                     </div>
 
-                    <!-- Tag szűrő -->
-                    <select id="hub-filter-tag" style="padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px; font-family: inherit; background: #f8fafc; color: #334155; max-width: 180px;">
-                        <option value="all" ${filters.tag === 'all' ? 'selected' : ''}>Minden Címke</option>
-                        ${sortedTags.map(([tag, count]) => `
-                            <option value="${tag}" ${filters.tag === tag ? 'selected' : ''}>${tag} (${count})</option>
-                        `).join('')}
-                    </select>
+                    <!-- Elválasztó vonal (ha vannak teendők) -->
+                    ${(stats.waitingShipment > 0 || stats.badShipping > 0 || stats.noInvoice > 0 || stats.needsProforma > 0 || stats.pendingTransfer > 0) ? `
+                        <div style="width: 1px; height: 16px; background: #cbd5e1; margin: 0 3px;"></div>
+                    ` : ''}
 
-                    <!-- Dátumszűrő -->
-                    <select id="hub-filter-date" style="padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px; font-family: inherit; background: #f8fafc; color: #334155;">
-                        <option value="all" ${filters.dateRange === 'all' ? 'selected' : ''}>Bármikori dátum</option>
-                        <option value="today" ${filters.dateRange === 'today' ? 'selected' : ''}>Ma</option>
-                        <option value="yesterday" ${filters.dateRange === 'yesterday' ? 'selected' : ''}>Tegnap</option>
-                        <option value="last7days" ${filters.dateRange === 'last7days' ? 'selected' : ''}>Elmúlt 7 nap</option>
-                        <option value="last30days" ${filters.dateRange === 'last30days' ? 'selected' : ''}>Elmúlt 30 nap</option>
-                    </select>
+                    <!-- Teendők & Figyelmeztetések Csoport (Csak ha létezik ilyen tétel az aktuális fülön!) -->
+                    <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+                        
+                        ${stats.waitingShipment > 0 ? `
+                            <button class="hub-chip-btn ${currentChip === 'waiting_shipment' ? 'active' : ''}" data-chip="waiting_shipment" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'waiting_shipment' ? '#dc2626' : '#fca5a5'}; background: ${currentChip === 'waiting_shipment' ? '#dc2626' : '#fef2f2'}; color: ${currentChip === 'waiting_shipment' ? '#ffffff' : '#b91c1c'}; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px;">
+                                <i class="ph-bold ph-hourglass-medium"></i>
+                                <span>Szállítmányra vár</span>
+                                <span style="background: ${currentChip === 'waiting_shipment' ? 'rgba(255,255,255,0.3)' : '#dc2626'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.waitingShipment}</span>
+                            </button>
+                        ` : ''}
 
-                    <!-- Találatok száma & Szűrők törlése -->
-                    <div style="margin-left: auto; display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 12px; color: #64748b; font-weight: 700;">
+                        ${stats.badShipping > 0 ? `
+                            <button class="hub-chip-btn ${currentChip === 'bad_shipping' ? 'active' : ''}" data-chip="bad_shipping" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'bad_shipping' ? '#dc2626' : '#fca5a5'}; background: ${currentChip === 'bad_shipping' ? '#dc2626' : '#fef2f2'}; color: ${currentChip === 'bad_shipping' ? '#ffffff' : '#b91c1c'}; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px;">
+                                <i class="ph-bold ph-warning-octagon"></i>
+                                <span>Rossz szállítás (2300 Ft)</span>
+                                <span style="background: ${currentChip === 'bad_shipping' ? 'rgba(255,255,255,0.25)' : '#dc2626'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.badShipping}</span>
+                            </button>
+                        ` : ''}
+
+                        ${stats.noInvoice > 0 ? `
+                            <button class="hub-chip-btn ${currentChip === 'no_invoice' ? 'active' : ''}" data-chip="no_invoice" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'no_invoice' ? '#d97706' : '#fde68a'}; background: ${currentChip === 'no_invoice' ? '#d97706' : '#fffbeb'}; color: ${currentChip === 'no_invoice' ? '#ffffff' : '#92400e'}; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px;">
+                                <i class="ph-bold ph-receipt"></i>
+                                <span>Számlázni!</span>
+                                <span style="background: ${currentChip === 'no_invoice' ? 'rgba(255,255,255,0.25)' : '#d97706'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.noInvoice}</span>
+                            </button>
+                        ` : ''}
+
+                        ${stats.needsProforma > 0 ? `
+                            <button class="hub-chip-btn ${currentChip === 'needs_proforma' ? 'active' : ''}" data-chip="needs_proforma" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'needs_proforma' ? '#4f46e5' : '#c7d2fe'}; background: ${currentChip === 'needs_proforma' ? '#4f46e5' : '#eef2ff'}; color: ${currentChip === 'needs_proforma' ? '#ffffff' : '#3730a3'}; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px;">
+                                <i class="ph-bold ph-file-text"></i>
+                                <span>Díjbekérő</span>
+                                <span style="background: ${currentChip === 'needs_proforma' ? 'rgba(255,255,255,0.25)' : '#4f46e5'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.needsProforma}</span>
+                            </button>
+                        ` : ''}
+
+                        ${stats.pendingTransfer > 0 ? `
+                            <button class="hub-chip-btn ${currentChip === 'pending_transfer' ? 'active' : ''}" data-chip="pending_transfer" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'pending_transfer' ? '#ef4444' : '#fca5a5'}; background: ${currentChip === 'pending_transfer' ? '#ef4444' : '#fee2e2'}; color: ${currentChip === 'pending_transfer' ? '#ffffff' : '#b91c1c'}; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px;">
+                                <i class="ph-bold ph-bank"></i>
+                                <span>Függő utalás</span>
+                                <span style="background: ${currentChip === 'pending_transfer' ? 'rgba(255,255,255,0.25)' : '#ef4444'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.pendingTransfer}</span>
+                            </button>
+                        ` : ''}
+
+                    </div>
+
+                    <!-- Jobb szélen: Rendelésszám & Reset -->
+                    <div style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
+                        <span style="font-size: 11px; color: #64748b; font-weight: 700;">
                             ${filteredOrders.length} rendelés
                         </span>
                         ${(currentChip !== 'all' || filters.search || filters.tag !== 'all' || filters.dateRange !== 'all') ? `
-                            <button id="btn-reset-all-filters" style="border: none; background: #f1f5f9; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                            <button id="btn-reset-all-filters" style="border: none; background: #f1f5f9; padding: 2.5px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 3px;">
                                 <i class="ph-bold ph-x"></i>
-                                <span>Szűrők törlése</span>
+                                <span>Törlés</span>
                             </button>
                         ` : ''}
                     </div>
                 </div>
 
-                <!-- 4. SZUPER KOMPAKT TÁBLÁZAT (Shopify-stílusú oszlopok + Terítési Jelvény) -->
-                <div class="overview-table-container" style="background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; overflow: visible; box-shadow: 0 1px 4px rgba(0,0,0,0.04);">
+                <!-- 3. TISZTA TÁBLÁZAT (Kompakt oszlopszélességekkel, nincs felesleges térköz) -->
+                <div class="overview-table-container" style="background: #fff; border-radius: 8px; border: 1px solid #e2e8f0; overflow: visible; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
                     
                     <!-- Táblázat Fejléc -->
-                    <div style="display: grid; grid-template-columns: 36px 28px 105px 105px 225px 1fr 190px 145px; padding: 8px 14px; background: #f8fafc; border-bottom: 1.5px solid #e2e8f0; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; align-items: center; border-radius: 10px 10px 0 0;">
+                    <div style="display: grid; grid-template-columns: 32px 20px 32px 105px 85px minmax(160px, 1fr) minmax(190px, 1.2fr) 150px 130px; padding: 5px 10px; background: #f8fafc; border-bottom: 1.5px solid #e2e8f0; font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase; align-items: center; border-radius: 8px 8px 0 0;">
                         <div>
-                            <input type="checkbox" id="hub-select-all" ${isAllVisibleSelected ? 'checked' : ''} style="width: 15px; height: 15px; cursor: pointer; accent-color: #2563eb;">
+                            <input type="checkbox" id="hub-select-all" ${isAllVisibleSelected ? 'checked' : ''} style="width: 14px; height: 14px; cursor: pointer; accent-color: #2563eb;">
                         </div>
                         <div></div>
+                        <div style="display: flex; justify-content: center;" title="Logisztikai Állapot"><i class="ph-bold ph-truck" style="font-size: 12px;"></i></div>
                         <div>Rendelés</div>
                         <div>Dátum</div>
                         <div>Címzett Neve</div>
-                        <div>Szállítás & Terítés</div>
+                        <div>Szállítási Cím</div>
                         <div style="text-align: right;">Összeg & Fizetés</div>
-                        <div style="text-align: center;">Teljesítés (Fulfillment)</div>
+                        <div style="text-align: center;">Teljesítés</div>
                     </div>
 
                     <!-- Sorok listája -->
                     <div id="hub-orders-list">
                         ${filteredOrders.length === 0 ? `
-                            <div style="padding: 40px 20px; text-align: center; color: #94a3b8;">
-                                <i class="ph-bold ph-magnifying-glass" style="font-size: 32px; margin-bottom: 8px; display: block; color: #cbd5e1;"></i>
-                                <div style="font-size: 14px; font-weight: 700; color: #475569;">Nincs találat a megadott szűrőkkel</div>
+                            <div style="padding: 30px 20px; text-align: center; color: #94a3b8;">
+                                <i class="ph-bold ph-magnifying-glass" style="font-size: 28px; margin-bottom: 6px; display: block; color: #cbd5e1;"></i>
+                                <div style="font-size: 13px; font-weight: 700; color: #475569;">Nincs találat a megadott szűrőkkel</div>
                             </div>
                         ` : filteredOrders.map(order => {
                             const isSelected = selectedIds.has(order.id);
@@ -407,40 +554,41 @@ export const OrderOverviewView = {
                             const formattedDate = order.orderDate ? new Date(order.orderDate).toLocaleString('hu-HU', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
                             const formattedTotal = new Intl.NumberFormat('hu-HU').format(order.totalAmount || 0);
                             const formattedCod = new Intl.NumberFormat('hu-HU').format(order.codAmount || 0);
+                            const logisticsStatus = OrderOverviewView.getLogisticsStatus(order);
 
                             // Fizetési jelvény
                             let paymentBadge = '';
                             if (order.isCancelled) {
-                                paymentBadge = `<span style="background: #f1f5f9; color: #94a3b8; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;">Cancelled</span>`;
+                                paymentBadge = `<span style="background: #f1f5f9; color: #94a3b8; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 600;">Cancelled</span>`;
                             } else if (order.isBankDeposit && !order.isPaid) {
-                                paymentBadge = `<span style="background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">Függő Utalás</span>`;
+                                paymentBadge = `<span style="background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">Függő Utalás</span>`;
                             } else if (order.isCOD) {
-                                paymentBadge = `<span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">UV: ${formattedCod} Ft</span>`;
+                                paymentBadge = `<span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">UV: ${formattedCod} Ft</span>`;
                             } else if (order.isPaid) {
-                                paymentBadge = `<span style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">Fizetve</span>`;
+                                paymentBadge = `<span style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">Fizetve</span>`;
                             } else {
-                                paymentBadge = `<span style="background: #f1f5f9; color: #475569; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;">Fizetetlen</span>`;
+                                paymentBadge = `<span style="background: #f1f5f9; color: #475569; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 600;">Fizetetlen</span>`;
                             }
 
                             // SHOPIFY NATÍV TELJESÍTÉSI BADGE-EK (Fulfilled: Szürke, Unfulfilled: Sárga pötty #eab308)
                             let fulfillmentBadge = '';
                             if (order.isCancelled) {
                                 fulfillmentBadge = `
-                                    <span style="display: inline-flex; align-items: center; gap: 4px; background: #f1f2f4; color: #64748b; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-decoration: line-through;">
+                                    <span style="display: inline-flex; align-items: center; gap: 4px; background: #f1f2f4; color: #64748b; padding: 1.5px 7px; border-radius: 10px; font-size: 10.5px; font-weight: 600; text-decoration: line-through;">
                                         <span style="width: 5px; height: 5px; border-radius: 50%; background: #94a3b8;"></span>
                                         Cancelled
                                     </span>
                                 `;
                             } else if (order.isFulfilled) {
                                 fulfillmentBadge = `
-                                    <span style="display: inline-flex; align-items: center; gap: 4px; background: #e4e5e7; color: #303030; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">
+                                    <span style="display: inline-flex; align-items: center; gap: 4px; background: #e4e5e7; color: #303030; padding: 1.5px 7px; border-radius: 10px; font-size: 10.5px; font-weight: 600;">
                                         <span style="width: 5px; height: 5px; border-radius: 50%; background: #707070;"></span>
                                         Fulfilled
                                     </span>
                                 `;
                             } else if (order.fulfillmentStatus === 'partial') {
                                 fulfillmentBadge = `
-                                    <span style="display: inline-flex; align-items: center; gap: 4px; background: #ffe3b0; color: #6a4300; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700;">
+                                    <span style="display: inline-flex; align-items: center; gap: 4px; background: #ffe3b0; color: #6a4300; padding: 1.5px 7px; border-radius: 10px; font-size: 10.5px; font-weight: 700;">
                                         <span style="width: 5px; height: 5px; border-radius: 50%; background: #ea580c;"></span>
                                         Partially fulfilled
                                     </span>
@@ -448,151 +596,76 @@ export const OrderOverviewView = {
                             } else {
                                 // Unfulfilled (Shopify mustársárga + tiszta sárga pötty #eab308)
                                 fulfillmentBadge = `
-                                    <span style="display: inline-flex; align-items: center; gap: 4px; background: #ffea8a; color: #4a3800; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700;">
+                                    <span style="display: inline-flex; align-items: center; gap: 4px; background: #ffea8a; color: #4a3800; padding: 1.5px 7px; border-radius: 10px; font-size: 10.5px; font-weight: 700;">
                                         <span style="width: 5px; height: 5px; border-radius: 50%; background: #eab308;"></span>
                                         Unfulfilled
                                     </span>
                                 `;
                             }
 
-                            // Személyes átvétel címke (lila / átvehető zöld) és KÜLSŐ Ready for pickup gomb
-                            let deliveryBadge = '';
-                            if (order.isPickup) {
-                                if (order.isReadyForPickup) {
-                                    // Ha már át van állítva: CSAK a zöld jelvény látszik, a gomb eltűnik!
-                                    deliveryBadge = `
-                                        <span style="background: #ecfdf5; color: #047857; border: 1.5px solid #a7f3d0; padding: 2.5px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 2px rgba(4,120,87,0.1);" title="Vevő értesítve: Átvehető a boltban / raktárban">
-                                            <i class="ph-bold ph-check-circle" style="font-size: 12px; color: #059669;"></i> Átvehető (Ready for pickup)
-                                        </span>
-                                    `;
-                                } else {
-                                    // Ha MÉG NINCS átállítva: Kívül van a lila gomb, amivel 1 kattintással átállítható!
-                                    deliveryBadge = `
-                                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                                            <span style="background: #ffffff; color: #6d28d9; border: 1.5px solid #c4b5fd; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 800; display: inline-flex; align-items: center; gap: 3px;" title="${order.pickupTitle || 'Budapesti üzlet'}">
-                                                <i class="ph-bold ph-storefront" style="font-size: 11px;"></i> ${order.pickupTitle || 'Személyes'}
-                                            </span>
-                                            ${(!order.isFulfilled && !order.isCancelled) ? `
-                                                <button class="btn-ready-for-pickup-row" data-order-id="${order.id}" data-shopify-id="${order.shopifyId}" style="background: #7c3aed; color: #ffffff; border: 1.5px solid #6d28d9; padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 10.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 2px 5px rgba(124,58,237,0.3); transition: all .15s;" title="Kattints ide a vevő azonnali értesítéséhez (Ready for pickup státusz)">
-                                                    <i class="ph-bold ph-bell-ringing"></i>
-                                                    <span>Ready for pickup</span>
-                                                </button>
-                                            ` : ''}
-                                        </div>
-                                    `;
-                                }
-                            }
-
-                            // KISZÁLLÍTÁSI / TERÍTÉSI / SELA / PANNONXP JELVÉNYEK
-                            let dispatchBadge = '';
-                            if (order.deliveryInfo) {
-                                if (order.deliveryInfo.isUncollected) {
-                                    dispatchBadge = `
-                                        <span style="background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 700; margin-right: 6px; display: inline-flex; align-items: center; gap: 3px;" title="${order.deliveryInfo.uncollectedReason || 'Sikertelen átadás'}">
-                                            <i class="ph-bold ph-warning-circle" style="font-size: 11px;"></i> Meghiúsult (${order.deliveryInfo.runDate})
-                                        </span>
-                                    `;
-                                } else {
-                                    dispatchBadge = `
-                                        <span style="background: #f0fdfa; color: #0f766e; border: 1.5px solid #99f6e4; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 800; margin-right: 6px; display: inline-flex; align-items: center; gap: 3px; box-shadow: 0 1px 2px rgba(13,148,136,0.12);" title="Kiszállítás napja: ${order.deliveryInfo.runDate}, Futár: ${order.deliveryInfo.courier}">
-                                            <i class="ph-bold ph-truck" style="font-size: 11px; color: #0d9488;"></i> Terítésben: ${order.deliveryInfo.runDate} (${order.deliveryInfo.courier})
-                                        </span>
-                                    `;
-                                }
-                            } else if (!order.isPickup) {
-                                if (order.hasSelaOrdered) {
-                                    dispatchBadge = `
-                                        <span style="background: #f0fdf4; color: #15803d; border: 1.5px solid #bbf7d0; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 700; margin-right: 6px; display: inline-flex; align-items: center; gap: 3px;" title="Címke a Shopifyban: sela megr.">
-                                            <i class="ph-bold ph-check-circle" style="font-size: 11px; color: #16a34a;"></i> Sela elküldve
-                                        </span>
-                                    `;
-                                } else if (order.hasPxpTag) {
-                                    dispatchBadge = `
-                                        <span style="background: #eff6ff; color: #1d4ed8; border: 1.5px solid #bfdbfe; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 700; margin-right: 6px; display: inline-flex; align-items: center; gap: 3px;" title="Címke a Shopifyban: PannonXP">
-                                            <i class="ph-bold ph-tag" style="font-size: 11px; color: #2563eb;"></i> PannonXP
-                                        </span>
-                                    `;
-                                } else if (!order.isCancelled && !order.isFulfilled && !order.hasBadShipping && !order.hasWaitingTag && (!order.waitingTags || order.waitingTags.length === 0)) {
-                                    dispatchBadge = `
-                                        <span style="background: #fff7ed; color: #c2410c; border: 1.5px solid #fdba74; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 800; margin-right: 6px; display: inline-flex; align-items: center; gap: 3px; box-shadow: 0 1px 2px rgba(194,65,12,0.1);" title="Nincs Sela vagy PannonXP címke — Küldendő a szállítónak!">
-                                            <i class="ph-bold ph-truck" style="font-size: 11px; color: #ea580c;"></i> Sela küldendő
-                                        </span>
-                                    `;
-                                }
-                            }
-
                             // Szállítási cím formázás
                             const fullCityLine = order.zip ? `${order.zip} ${order.city || ''}` : (order.city || '');
                             const streetAddress = order.address1 || order.address || '';
 
-                            // Sor szegély & háttér (színes bal oldalsó csíkok eltávolítva a kérésnek megfelelően)
-                            let rowBorderLeft = '';
+                            // Sor háttér prioritások:
+                            // 1. Törölt rendelés
+                            // 2. Rossz szállítási mód (halvány piros háttér)
+                            // 3. Viszonteladó tag (arany színű sor háttér)
+                            // 4. Személyes átvétel (lila sor háttér)
+                            // 5. Normál fehér sor
                             let rowBg = isSelected ? '#f0fdf4' : (isExp ? '#f8fafc' : (order.isFulfilled ? '#fafbfc' : '#fff'));
                             let rowOpacity = order.isCancelled ? 'opacity: 0.65;' : '';
+                            let rowWrapperBorder = 'border-bottom: 1px solid #f1f5f9;';
 
                             if (order.isCancelled) {
                                 if (!isSelected && !isExp) rowBg = '#f8fafc';
                             } else if (!order.isFulfilled && order.hasBadShipping) {
-                                rowBorderLeft = 'border-left: 5px solid #dc2626;';
                                 if (!isSelected && !isExp) rowBg = '#fef2f2';
+                            } else if (order.isReseller) {
+                                // Viszonteladó: Arany színű sor
+                                rowWrapperBorder = 'border-bottom: 1px solid #fef08a;';
+                                if (!isSelected && !isExp) rowBg = '#fef9c3'; // Meleg, arany árnyalat
                             } else if (order.isPickup) {
-                                // Személyes átvétel: Nincs bal szegélycsík, az egész sor határozott, telt lila háttérrel emelkedik ki!
-                                if (!isSelected && !isExp) rowBg = '#ede9fe'; // Erős, elegáns lila (Purple-100)
+                                // Személyes átvétel: Karakteres lila háttér
+                                rowWrapperBorder = 'border-bottom: 1px solid #e9d5ff;';
+                                if (!isSelected && !isExp) rowBg = '#f3e8ff'; // Lila árnyalat
                             }
 
-                            const rowWrapperBorder = order.isPickup ? 'border-bottom: 1.5px solid #ddd6fe;' : 'border-bottom: 1px solid #f1f5f9;';
-
-                            // Szállítmányra / anyagra váró címkék
-                            const orderWaitingTags = (order.waitingTags && order.waitingTags.length > 0)
-                                ? order.waitingTags
-                                : (order.tags ? order.tags.split(',').map(t => t.trim()).filter(t => {
-                                    const tl = t.toLowerCase();
-                                    return (tl.includes('vár') || tl.includes('var') || tl.includes('szállítmány') || tl.includes('szallitmany')) && !tl.includes('számla') && !tl.includes('dijbek');
-                                }) : []);
-
                             return `
-                                <div class="hub-order-wrapper ${isExp ? 'expanded' : ''}" style="${rowWrapperBorder} ${rowBorderLeft} ${rowOpacity} position: relative; overflow: visible;">
+                                <div class="hub-order-wrapper ${isExp ? 'expanded' : ''}" style="${rowWrapperBorder} ${rowOpacity} position: relative; overflow: visible;">
                                     
                                     <!-- EGYMÁS MELLETTI (BALRÓL JOBBRA) KILÓGÓ CÍMKÉK (Csak nem törölt rendeléseknél) -->
                                     ${!order.isCancelled ? `
-                                        <div class="hub-hanging-tags-stack" style="position: absolute; right: 100%; top: 50%; transform: translateY(-50%); display: flex; flex-direction: row; gap: 4px; align-items: center; justify-content: flex-end; z-index: 50; pointer-events: none; margin-right: 0px; white-space: nowrap;">
+                                        <div class="hub-hanging-tags-stack" style="position: absolute; right: 100%; top: 50%; transform: translateY(-50%); display: flex; flex-direction: row; gap: 3px; align-items: center; justify-content: flex-end; z-index: 50; pointer-events: none; margin-right: 0px; white-space: nowrap;">
                                              
-                                            <!-- 0. Szállítmányra / Anyagra Váró Kilógó Címkék (pl. "spc szállítmányra vár", "profilra vár", "tr szállítmányra vár") (Mély Petrolkék / #0e7490) -->
-                                            ${orderWaitingTags.map(tagText => `
-                                                <div style="background: #0e7490; color: #ffffff; padding: 3px 8px; border-radius: 4px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 5px rgba(14,116,144,0.35); display: flex; align-items: center; gap: 4px; white-space: nowrap; border: 1px solid #0891b2;">
-                                                    <i class="ph-bold ph-hourglass-medium" style="font-size: 11px; color: #67e8f9;"></i>
-                                                    <span>${tagText}</span>
-                                                </div>
-                                            `).join('')}
-
                                             <!-- 1. Számlázni! (Sárga / Borostyán) -->
                                             ${order.hasNoInvoice ? `
-                                                <div style="background: #d97706; color: #ffffff; padding: 3px 8px; border-radius: 4px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 5px rgba(217,119,6,0.3); display: flex; align-items: center; gap: 4px; white-space: nowrap;">
-                                                    <i class="ph-bold ph-receipt" style="font-size: 11px;"></i>
+                                                <div style="background: #d97706; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 4px rgba(217,119,6,0.25); display: flex; align-items: center; gap: 3px; white-space: nowrap;">
+                                                    <i class="ph-bold ph-receipt" style="font-size: 10px;"></i>
                                                     <span>Számlázni!</span>
                                                 </div>
                                             ` : ''}
 
                                             <!-- 2. Díjbek szükséges 250e+ Ft (Indigó / Kék) -->
                                             ${order.needsProforma ? `
-                                                <div style="background: #4f46e5; color: #ffffff; padding: 3px 8px; border-radius: 4px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 5px rgba(79,70,229,0.3); display: flex; align-items: center; gap: 4px; white-space: nowrap;">
-                                                    <i class="ph-bold ph-file-text" style="font-size: 11px;"></i>
+                                                <div style="background: #4f46e5; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 4px rgba(79,70,229,0.25); display: flex; align-items: center; gap: 3px; white-space: nowrap;">
+                                                    <i class="ph-bold ph-file-text" style="font-size: 10px;"></i>
                                                     <span>Díjbek szükséges</span>
                                                 </div>
                                             ` : ''}
 
                                             <!-- 2b. Díjbeket várjuk (ha díjbek.ki már rajta van, de számla ki még nem) -->
                                             ${order.waitingProforma ? `
-                                                <div style="background: #6366f1; color: #ffffff; padding: 3px 8px; border-radius: 4px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 5px rgba(99,102,241,0.3); display: flex; align-items: center; gap: 4px; white-space: nowrap;">
-                                                    <i class="ph-bold ph-clock-countdown" style="font-size: 11px;"></i>
+                                                <div style="background: #6366f1; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 4px rgba(99,102,241,0.25); display: flex; align-items: center; gap: 3px; white-space: nowrap;">
+                                                    <i class="ph-bold ph-clock-countdown" style="font-size: 10px;"></i>
                                                     <span>Díjbeket várjuk</span>
                                                 </div>
                                             ` : ''}
 
                                             <!-- 3. Rossz szállítási mód (Csak ha NEM teljesített) (Tűzpiros / #dc2626) -->
                                             ${(!order.isFulfilled && order.hasBadShipping) ? `
-                                                <div style="background: #dc2626; color: #ffffff; padding: 3px 8px; border-radius: 4px 0 0 4px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 6px rgba(220,38,38,0.4); display: flex; align-items: center; gap: 4px; white-space: nowrap; border: 1px solid #b91c1c;">
-                                                    <i class="ph-bold ph-warning-octagon" style="font-size: 11px; color: #fee2e2;"></i>
+                                                <div style="background: #dc2626; color: #ffffff; padding: 2px 6px; border-radius: 4px 0 0 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 5px rgba(220,38,38,0.35); display: flex; align-items: center; gap: 3px; white-space: nowrap; border: 1px solid #b91c1c;">
+                                                    <i class="ph-bold ph-warning-octagon" style="font-size: 10px; color: #fee2e2;"></i>
                                                     <span>Rossz szállítást választott!</span>
                                                 </div>
                                             ` : ''}
@@ -600,56 +673,58 @@ export const OrderOverviewView = {
                                         </div>
                                     ` : ''}
 
-                                    <!-- Fő Sor -->
-                                    <div class="hub-order-row ${isSelected ? 'selected' : ''}" data-order-id="${order.id}" style="display: grid; grid-template-columns: 36px 28px 105px 105px 225px 1fr 190px 145px; padding: 7px 14px; align-items: center; font-size: 12px; background: ${rowBg}; cursor: pointer; user-select: none;">
+                                    <!-- Fő Sor (9 oszlop: Checkbox, Chevron, Logisztikai Ikon, Rendelés, Dátum, Címzett, Cím, Összeg, Teljesítés) -->
+                                    <div class="hub-order-row ${isSelected ? 'selected' : ''}" data-order-id="${order.id}" style="display: grid; grid-template-columns: 32px 20px 32px 105px 85px minmax(160px, 1fr) minmax(190px, 1.2fr) 150px 130px; padding: 5px 10px; align-items: center; font-size: 11.5px; background: ${rowBg}; cursor: pointer; user-select: none;">
                                         
-                                        <!-- Checkbox -->
+                                        <!-- 1. Checkbox -->
                                         <div>
-                                            <input type="checkbox" class="hub-order-checkbox" data-order-id="${order.id}" ${isSelected ? 'checked' : ''} style="width: 15px; height: 15px; cursor: pointer; accent-color: #2563eb;">
+                                            <input type="checkbox" class="hub-order-checkbox" data-order-id="${order.id}" ${isSelected ? 'checked' : ''} style="width: 14px; height: 14px; cursor: pointer; accent-color: #2563eb;">
                                         </div>
 
-                                        <!-- Chevron lenyitó -->
-                                        <div class="btn-toggle-row-expand" data-order-id="${order.id}" style="color: #64748b; font-size: 13px; display: flex; align-items: center; justify-content: center; height: 24px; width: 24px; border-radius: 6px; transition: transform .2s;">
+                                        <!-- 2. Chevron lenyitó -->
+                                        <div class="btn-toggle-row-expand" data-order-id="${order.id}" style="color: #64748b; font-size: 12px; display: flex; align-items: center; justify-content: center; height: 20px; width: 20px; border-radius: 5px; transition: transform .2s;">
                                             <i class="ph-bold ${isExp ? 'ph-caret-down' : 'ph-caret-right'}"></i>
                                         </div>
 
-                                        <!-- Rendelésszám & Notes Ikon -->
-                                        <div style="display: flex; align-items: center; gap: 6px;">
-                                            <strong style="color: #0f172a; font-weight: 700; font-size: 12.5px; ${order.isCancelled ? 'text-decoration: line-through; color: #64748b;' : ''}">${order.id}</strong>
-                                            <button class="btn-order-note" data-order-id="${order.id}" data-shopify-id="${order.shopifyId}" data-customer-name="${(order.shippingName || order.billingName || '').replace(/"/g, '&quot;')}" style="background: ${order.note && order.note.trim() ? '#fef3c7' : '#f1f5f9'}; color: ${order.note && order.note.trim() ? '#b45309' : '#94a3b8'}; border: 1.5px solid ${order.note && order.note.trim() ? '#fcd34d' : '#e2e8f0'}; border-radius: 6px; padding: 2.5px 5px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 12.5px; line-height: 1; transition: all .15s; box-shadow: ${order.note && order.note.trim() ? '0 1px 2px rgba(180,83,9,0.15)' : 'none'};" title="${order.note && order.note.trim() ? 'Megjegyzés: ' + order.note.replace(/"/g, '&quot;') : 'Megjegyzés hozzáadása / olvasása'}">
+                                        <!-- 3. Logisztikai Állapot Ikon -->
+                                        <div style="display: flex; align-items: center; justify-content: center;">
+                                            ${logisticsStatus.html}
+                                        </div>
+
+                                        <!-- 4. Rendelésszám & Notes Ikon -->
+                                        <div style="display: flex; align-items: center; gap: 5px;">
+                                            <strong style="color: #0f172a; font-weight: 700; font-size: 12px; ${order.isCancelled ? 'text-decoration: line-through; color: #64748b;' : ''}">${order.id}</strong>
+                                            <button class="btn-order-note" data-order-id="${order.id}" data-shopify-id="${order.shopifyId}" data-customer-name="${(order.shippingName || order.billingName || '').replace(/"/g, '&quot;')}" style="background: ${order.note && order.note.trim() ? '#fef3c7' : '#f1f5f9'}; color: ${order.note && order.note.trim() ? '#b45309' : '#94a3b8'}; border: 1px solid ${order.note && order.note.trim() ? '#fcd34d' : '#e2e8f0'}; border-radius: 5px; padding: 1.5px 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; line-height: 1; transition: all .15s; box-shadow: ${order.note && order.note.trim() ? '0 1px 2px rgba(180,83,9,0.12)' : 'none'};" title="${order.note && order.note.trim() ? 'Megjegyzés: ' + order.note.replace(/"/g, '&quot;') : 'Megjegyzés hozzáadása / olvasása'}">
                                                 <i class="ph-bold ${order.note && order.note.trim() ? 'ph-note-pencil' : 'ph-notepad'}"></i>
                                             </button>
                                         </div>
 
-                                        <!-- Dátum -->
-                                        <div style="color: #64748b; font-size: 11px;">
+                                        <!-- 5. Dátum -->
+                                        <div style="color: #64748b; font-size: 10.5px;">
                                             ${formattedDate}
                                         </div>
 
-                                        <!-- Címzett Neve -->
-                                        <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px;">
-                                            <span style="font-weight: 700; color: #0f172a; font-size: 12.5px;">${order.shippingName}</span>
-                                            ${order.billingName && order.billingName !== order.shippingName ? `<div style="font-size: 10.5px; color: #64748b;">(Számla: ${order.billingName})</div>` : ''}
+                                        <!-- 6. Címzett Neve -->
+                                        <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px;">
+                                            <span style="font-weight: 700; color: #0f172a; font-size: 12px;">${order.shippingName}</span>
+                                            ${order.billingName && order.billingName !== order.shippingName ? `<div style="font-size: 10px; color: #64748b;">(Számla: ${order.billingName})</div>` : ''}
                                         </div>
 
-                                        <!-- Szállítás & Terítés Oszlop (Terítési jelvény + Cím) -->
-                                        <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; display: flex; align-items: center;">
-                                            ${dispatchBadge}
-                                            ${order.isPickup ? `
-                                                ${deliveryBadge}
-                                            ` : `
+                                        <!-- 7. Szállítási Cím Oszlop (Személyes átvételnél ÜRES!) -->
+                                        <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px;">
+                                            ${order.isPickup ? '' : `
                                                 <span style="font-weight: 700; color: #1e293b; margin-right: 4px;">${fullCityLine}</span>
-                                                ${streetAddress ? `<span style="color: #64748b; font-size: 11.5px;">— ${streetAddress}</span>` : ''}
+                                                ${streetAddress ? `<span style="color: #64748b; font-size: 11px;">— ${streetAddress}</span>` : ''}
                                             `}
                                         </div>
 
-                                        <!-- Összeg & Fizetés (Tiszta összeg és badge) -->
-                                        <div style="text-align: right; display: flex; align-items: center; justify-content: flex-end; gap: 8px; white-space: nowrap;">
-                                            <span style="font-weight: 700; color: #0f172a; font-size: 12.5px;">${formattedTotal} Ft</span>
+                                        <!-- 8. Összeg & Fizetés -->
+                                        <div style="text-align: right; display: flex; align-items: center; justify-content: flex-end; gap: 6px; white-space: nowrap;">
+                                            <span style="font-weight: 700; color: #0f172a; font-size: 12px;">${formattedTotal} Ft</span>
                                             ${paymentBadge}
                                         </div>
 
-                                        <!-- Teljesítési státusz (Shopify natív badge) -->
+                                        <!-- 9. Teljesítés (Fulfillment) -->
                                         <div style="text-align: center; white-space: nowrap;">
                                             ${fulfillmentBadge}
                                         </div>
@@ -877,5 +952,9 @@ export const OrderOverviewView = {
 
             </div>
         `;
+    },
+
+    render(containerElement) {
+        return this.renderOrderOverview(containerElement);
     }
 };

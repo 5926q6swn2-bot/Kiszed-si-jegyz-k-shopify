@@ -45,6 +45,71 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
+### 2026. szeptember 3. (5. frissítés) - Sela + Szállítmányra Várás Kombinált Ikon & Szűrő, Letisztult Oldalsó Szegélyek (`v3.8.3`)
+- **Szállítmányra Váró + Sela Elküldve Kombinált Jelvény**:
+  - Ha egy szállítmányra váró rendelés már el lett küldve a Selának (`sela megr.`), a piros homokóra jobb alsó sarkában egy **apró zöld teherautó jelvény** jelenik meg.
+  - A felugró szövegbuborékban a várás oka alatt zölddel kiemelve látható: `🚚 Szállítónak elküldve (sela megr.)`.
+- **Külön „Sela elküldve” Gyorsszűrő Chip**:
+  - Bekerült a gyorsszűrő sávba a zöld `Sela elküldve` gomb a darabszámmal, így azonnal szűrhetők az elküldött tételek.
+- **Oldalsó Színes Csíkok Eltávolítása**:
+  - A sorok bal oldali vastag szegélyeit (lila, piros, arany csíkok) teljesen megszüntettük, tiszta háttérszínekkel és egységes elválasztó vonallal.
+- **122/122 Unit Teszt Zöld** (`node tests/unit_tests.js`).
+
+### 2026. szeptember 3. (4. frissítés) - Viszonteladó Arany Kiemelés, Rikító Kék Futár Ikon, Homokóra Prioritás, Fül-Specifikus Számlálók & Szuper-Kompakt Header (`v3.8.2`)
+- **Viszonteladó Sorok Arany Kiemelése**:
+  - A `viszonteladó` tag-es rendelések meleg, karakteres arany háttérszínt (`#fef9c3`) és határozott arany szegélyt kapnak.
+  - Ha egy rendelés egyszerre viszonteladó és személyes átvételes, a **viszonteladó arany szín az elsődleges**, megelőzi a lila színt.
+- **Személyes Átvétel Erősített Lila Árnyalata**:
+  - A sima személyes átvételes sorok határozottabb, elegáns lila árnyalattal (`#f3e8ff` háttér, `#ddd6fe` szegély, `#8b5cf6` bal csík) jelennek meg.
+- **Rikító Kék Futár Ikon (Terítésben)**:
+  - Ha egy rendelés már felkerült egy kiszállítási járatra (terítésben van), a logisztikai ikon rikító, élénk égkék kisautóként (`#0284c7`, sky blue kerettel) jelenik meg.
+- **Szállítmányra Várás Prioritása a Személyes Átvétellel Szemben**:
+  - Ha egy személyes átvételes rendelésen rajta van egy szállítmányra/anyagra várós tag (pl. `spc szállítmányra vár`), akkor a **piros homokóra jelenik meg hover buborékkal**, és nem a lila storefront gomb, így nem lehet véletlenül sem átállítani átvehetőre (`ready for pickup`).
+- **Fül-Specifikus (Dinamikus) Szűrőszámlálók**:
+  - A gyorsszűrő chip-eken látható darabszámok mostantól mindig a **kiválasztott fő fülre (pl. Unfulfilled)** vonatkoznak (pl. `Unfulfilled` fülön a Személyes gomb csak az unfulfilled személyes rendelések számát mutatja).
+- **Szuper-Kompakt Felső App Header & Rendelésáttekintő Térközök**:
+  - A felső alkalmazás fejléc (`.top-toolbar`) magasságát 64px-ről 44px-re csökkentettük, a navigációs fülek és a logó ultra-kompakt méretet kaptak.
+  - A Rendelésáttekintő sormagasságait és paddingjait maximalizáltuk a helytakarékosság érdekében.
+- **122/122 Unit Teszt Zöld** (`node tests/unit_tests.js`).
+
+### 2026. szeptember 3. (3. frissítés) - Logisztikai Tooltip Buborék, Manuális Személyes Tag Kezelés, Tiszta Címoszlop & Kompakt Szűrősáv (`v3.8.1`)
+- **Látványos Szövegbuborék (Tooltip) a Szállítmányra Váró Ikonhoz**:
+  - A piros homokóra hoverjére egy elegáns, sötét tónusú szövegbuborék (`.logi-tooltip-bubble`) ugrik fel, amely tisztán és látványosan mutatja a várás pontos okát (pl. `spc szállítmányra vár`, `profilra vár`), felesleges sallang nélkül.
+- **Manuálisan 'személyes' Címkével Ellátott Rendelések**:
+  - Ha egy rendelésen szerepel a `személyes` vagy `szemelyes` tag (még ha eredetileg kiszállításos volt is), a rendszer automatikusan átvehetőnek (`pickup_ready`) tekinti és alapból a **zöld bolt ikont** jeleníti meg hozzá az interaktív gomb helyett.
+- **Személyes Átvétel Szállítási Cím Oszlop Letisztítása**:
+  - Személyes átvételes rendeléseknél a `Szállítási Cím` oszlop mostantól teljesen üres marad, így vizuálisan azonnal elkülönül a kiszállításos rendelésektől és nincs zavaró duplikáció.
+- **Felső Szűrősáv Átdolgozása (Szuper Kompakt & Logikus)**:
+  - A korábbi sok elszórt színes gomb helyett egy tiszta, 2 csoportos sáv készült:
+    1. **Logisztikai csatornák** (Mind, Sela küldendő, PannonXP, Személyes, Terítésben, Járatra vár).
+    2. **Teendők & Figyelmeztetések** (Szállítmányra vár, Rossz szállítás 2300 Ft, Számlázni!, Díjbekérő, Függő utalás) — ezek **csak akkor jelennek meg**, ha ténylegesen van velük teendő!
+  - A kereső, dátum és tag szűrők a felső sávba rendeződtek a státuszfülek mellé.
+- **Oszloptérközök és Rács Normalizálása**:
+  - A felesleges nagy üres hézag a szállítási cím és az összeg között megszűnt, az arányok stabilak és kompaktak (`max-width: 1560px`).
+- **121/121 Unit Teszt Zöld** (`node tests/unit_tests.js`).
+
+### 2026. szeptember 3. (2. frissítés) - Logisztikai Állapot Ikon & Rendelésáttekintő Letisztítás (`v3.8.0`)
+- **Zsúfolt Szöveges Badge-ek és Kilógó Címkék Eltávolítása**:
+  - Eltávolítottuk a korábbi zavaró, nehezen átlátható `Sela küldendő`, `Sela elküldve`, `PannonXP`, `Ready for pickup` szöveges gombokat és badge-eket a szállítási cím oszlopából.
+  - A bal oldali kilógó címkék közül eltávolítottuk a felesleges szállítmányra váró címkét is, mivel a sor eleji piros homokóra ikon hoverjében megjelenik a teljes részletes kiírás.
+  - A szállítási oszlop mostantól 100%-ban tiszta és azonnal olvasható (csak a település és a közterület látható, vagy személyes átvételnél az üzlet neve).
+- **Közvetlen Logisztikai Állapot Ikon a Sor Elején (Checkbox és Rendelésszám Között)**:
+  - 🏪 **Lila bolt gomb (1-kattintásos)**: Személyes átvétel, ami még nincs összekészítve. Rákattintva azonnal felugrik a megerősítés és átállítható átvehetőre (`Ready for pickup`)!
+  - 🟢 **Zöld bolt**: Személyes átvétel, ami már átvehető (`Ready for pickup`, vevő értesítve).
+  - ⏳ **Piros homokóra**: Szállítmányra / anyagra váró rendelés. Rámutatva (hover) pontosan kiírja, hogy mire várunk (pl. `Szállítmányra vár: spc szállítmányra vár`).
+  - 🏷️ **Narancssárga vonalkód**: PannonXP csomagküldés, ami még nincs felcímkézve.
+  - 🏷️ **Zöld vonalkód**: PannonXP rendelés kinyomtatott / elkészített címkével (kiküldés után fulfilmentelhető).
+  - 🚚 **Zöld teherautó**: Szállítónak elküldve (`sela megr.` címkés rendelés).
+  - 🚚 **Narancs teherautó**: Szállítónak küldendő nyitott kiszállítás.
+  - 🚚 **Türkiz teherautó**: Saját körben terítés alatt.
+- **Automata Unit Tesztek**: 119/119 sikeres teszt (`node tests/unit_tests.js`).
+
+### 2026. szeptember 3. - Ready for Pickup Címke Generálás Megszüntetése (`v3.7.2`)
+- **Felesleges `ready for pickup` Címke (Tag) Létrehozásának Eltávolítása**:
+  - Amikor az appban átállítunk egy személyes átvételes rendelést "Ready for pickup" (Átvehető) állapotra, a rendszer mostantól **kizárólag a natív Shopify GraphQL Fulfillment Order mutációt (`fulfillmentOrderLineItemsPreparedForPickup`) hajtja végre**, amely hivatalosan átállítja az állapotot és kiküldi a vevőnek az értesítést.
+  - Megszüntettük a rendeléshez feleslegesen hozzáadott `ready for pickup` Shopify címke (`tags`) írását mind a szerveroldalon (`POST /api/shopify/ready-for-pickup`), mind az adatok beolvasásakor (`GET /api/shopify/orders`), mind a kliensoldali felületen (`js/app.js`).
+- **Automata Unit Tesztek**: 109/109 sikeres teszt (`node tests/unit_tests.js`).
+
 ### 2026. szeptember 2. - Shopify Bolti Jogosultságok & GraphQL Ready for Pickup Élesítés (`v3.7.1`)
 - **Shopify Bolti Helyszínek & Fulfillment Orders Jogosultságok**:
   - A Shopify Admin Develop Apps és a [.env](file:///c:/Users/Intel/OneDrive/Asztali%20g%C3%A9p/Projektek/Kiszed%C3%A9si%20jegyz%C3%A9k%20shopify/.env) beállításaiban élesítettük a teljes jogosultsági kört (`read_merchant_managed_fulfillment_orders`, `write_merchant_managed_fulfillment_orders`, `read_locations`, `read_third_party_fulfillment_orders`, `write_third_party_fulfillment_orders`).
