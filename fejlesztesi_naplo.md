@@ -28,7 +28,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.6 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris és stabil. Az Előzmények és Keresés (Elszámolások) felület szűrősávja, összesítő kártyája és terítési kártyái szuper-kompakt elrendezést kapnak (`v3.8.4`, 122/122 zöld unit teszt).
+- **Státusz**: A rendszer 100%-ban moduláris és stabil. Céges gépen bekonfigurálva: `.env` és Shopify API kapcsolat élesítve (501 élő rendelés betöltve, 122/122 zöld unit teszt).
 
 ---
 
@@ -44,6 +44,15 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. szeptember 3. (7. frissítés) - Céges Gép Konfiguráció & Shopify API Környezet (`v3.8.5`)
+- **Céges Gépes Beállítás & `.env` Konfiguráció**:
+  - Konfiguráltuk a céges gép helyi környezeti változóit (`SHOPIFY_SHOP`, `SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET`, `SHOPIFY_SCOPES`, `SHOPIFY_ACCESS_TOKEN`).
+  - Újraindítottuk a helyi szervert (`node server.js` - `http://localhost:8080`), és ellenőriztük a Shopify OAuth API végpontot.
+  - Sikeresen lekérdezésre került 501 élő Shopify rendelés.
+- **Git Biztonság Verifikáció**:
+  - Ellenőriztük a [.gitignore](file:///c:/Users/CH_001/Desktop/Projektek/kiszedesi/.gitignore) fájlt, a `.env` biztonságosan figyelmen kívül van hagyva (nem kerül pusholásra/pullolásra).
+- **122/122 Unit Teszt Zöld** (`node tests/unit_tests.js`).
 
 ### 2026. szeptember 3. (6. frissítés) - Ultra-Kompakt Előzmények és Elszámolások Felület & CSV Import Fix (`v3.8.4`)
 - **1-Soros Szuper-Kompakt Szűrősáv az Előzmények Modalban**:
