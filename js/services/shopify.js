@@ -277,22 +277,9 @@ export const ShopifyParser = {
     
     formatItemName(name) {
         if (!name) return '';
-        
-        // Ha profil, kivesszük a méreteket, mert nincsenek összekészítve
-        if (ShopifyParser.isProfile(name)) {
-            let cleanName = name.replace(/\b\d+(\.\d+)?\s*(cm|m|mm)\b/gi, '')
-                                .replace(/\b\d+\s*x\s*\d+\b/gi, '')
-                                .replace(/\(\s*\)/g, '')
-                                .trim();
-            // Esetleges extra szóközök takarítása
-            return cleanName.replace(/\s{2,}/g, ' ');
-        }
-
-        // Egyéb panelek esetén méret rövidítés (elnyeli a már meglévő cm szócskát is, hogy ne legyen cmcm)
-        let formatted = name.replace(/280\s*x\s*122\s*(cm)?/gi, '280 cm');
-        formatted = formatted.replace(/244\s*x\s*122\s*(cm)?/gi, '244 cm');
-        
-        return formatted;
+        // Megtisztítjuk a felesleges dupla szóközöket és perem-írásjeleket,
+        // de szigorúan MEGŐRIZZÜK a teljes terméknevet a méretekkel (pl. 244x122, 280x122, 2.8m) és kiszereléssel (pl. 5kg, 1kg) együtt!
+        return String(name).replace(/\s{2,}/g, ' ').trim();
     }
     ,
     
@@ -331,8 +318,13 @@ export const ShopifyParser = {
                 return;
             }
 
-            const rawItemName = row['Lineitem name'] || '';
+            let rawItemName = row['Lineitem name'] || '';
+            const variantName = (row['Lineitem variant'] || row['Lineitem variant title'] || row['Variant Title'] || '').trim();
+            if (variantName && variantName.toLowerCase() !== 'default title' && !rawItemName.toLowerCase().includes(variantName.toLowerCase())) {
+                rawItemName = `${rawItemName} - ${variantName}`;
+            }
             const itemName = ShopifyParser.formatItemName(rawItemName);
+            const itemSku = row['Lineitem sku'] || row['SKU'] || '';
             const itemQty = parseInt(row['Lineitem quantity']) || 0;
             const itemPriceStr = row['Lineitem price'] || "0";
             const itemPrice = parseFloat(itemPriceStr) || 0;
@@ -583,7 +575,9 @@ export const ShopifyParser = {
                         order.items.push({
                             name: itemName,
                             qty: itemQty,
-                            price: itemPrice
+                            price: itemPrice,
+                            sku: itemSku,
+                            variantTitle: variantName
                         });
                     }
                 }

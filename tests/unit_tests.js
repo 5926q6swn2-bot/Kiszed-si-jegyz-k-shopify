@@ -10,9 +10,24 @@ import {
     detectProformaCod, 
     prepareSelaRowData, 
     generateSelaCsv,
-    isPendingBankDeposit 
+    isPendingBankDeposit,
+    DEFAULT_SELA_WEIGHTS,
+    calculateSelaOrderWeight 
 } from '../js/services/exporter.js';
-import { buildDuplicateCustomerOrdersMap } from '../js/utils/orderUtils.js';
+import { 
+    buildDuplicateCustomerOrdersMap, 
+    isPvcSpcOrFloorItem, 
+    isPickupOrder, 
+    isEligibleForAutoPannonXp 
+} from '../js/utils/orderUtils.js';
+import { 
+    cleanItemNameForSelaWeight, 
+    getItemWeightKey, 
+    detectItemCategory, 
+    suggestWeightForItem, 
+    SelaWeightService 
+} from '../js/services/selaWeightService.js';
+import { ensureSelaModalStyles } from '../js/views/selaModalStyles.js';
 
 function fixHungarianAccents(str) {
     if (!str) return '';
@@ -772,12 +787,19 @@ assertEqual("Sela Row No Note - Needs Manual COD flag", rowNoNote.needsManualCod
 assertEqual("Sela Row No Note - Warning in Col 12", rowNoNote.col12_codAndTapadohid.includes("⚠️ ADJ MEG UTÁNVÉTET!"), true);
 assertEqual("Sela Row No Note - Col 7 is strictly shippingName", rowNoNote.col7_customerName, "Nagy Anna");
 
-// CSV Header és generálás teszt
+// CSV Header és generálás teszt (13 oszlop súllyal)
+assertEqual("Sela Row 1 - Weight calculation (4*18 + 2*7 + 3*0.5 + 2*0.5 + 3*1 = 91.5kg)", row1.col13_weight, 91.5);
+const customWeightsTest = { pvc_spc_floor: 20, acoustic: 8, adhesive: 1, profile: 1, tapadohid: 2 };
+const customWeightRes = calculateSelaOrderWeight({ pvcSpcFloorQty: 2, acousticQty: 1, adhesivesQty: 3, profilesQty: 4, tapadohidQty: 1 }, customWeightsTest);
+assertEqual("Sela Custom Weights Calculation (2*20 + 1*8 + 3*1 + 4*1 + 1*2 = 57kg)", customWeightRes, 57);
+
 const csvOutput = generateSelaCsv([row1, row2, row3, rowNoNote]);
 assertEqual("Sela CSV - Has BOM", csvOutput.startsWith("\ufeff"), true);
-assertEqual("Sela CSV - Header has 12 columns", csvOutput.split("\r\n")[0].split(";").length, 12);
+assertEqual("Sela CSV - Header has 13 columns", csvOutput.split("\r\n")[0].split(";").length, 13);
 assertEqual("Sela CSV - Header col 1", csvOutput.split("\r\n")[0].split(";")[0], "\ufeffDátum");
 assertEqual("Sela CSV - Header col 12", csvOutput.split("\r\n")[0].split(";")[11], "Utánvét összege / tapadóhíd");
+assertEqual("Sela CSV - Header col 13 (Weight)", csvOutput.split("\r\n")[0].split(";")[12], "Összsúly (kg)");
+assertEqual("Sela CSV - Row 1 contains calculated weight 91.5", csvOutput.split("\r\n")[1].split(";")[12], "91.5");
 assertEqual("Sela CSV - Row 3 contains nincs utánvét", csvOutput.includes("nincs utánvét"), true);
 
 // Függő utalás tesztek
@@ -887,6 +909,236 @@ assertEqual("Duplicate Orders - Fulfilled #5003 is NOT in dupMap", dupMap.has("#
 assertEqual("Duplicate Orders - Email match #5004 has duplicate", dupMap.has("#5004"), true);
 assertEqual("Duplicate Orders - Email match #5004 points to #5005", dupMap.get("#5004")[0].id, "#5005");
 assertEqual("Duplicate Orders - Unique customer #5006 has NO duplicate", dupMap.has("#5006"), false);
+
+// --- AUTOMATA PANNONXP CÍMKÉZÉS ÉS TERMÉKOSZTÁLYOZÁS TESZTEK ---
+assertEqual("Auto PXP Item - PB Falpanel is large", isPvcSpcOrFloorItem({ name: "PB-01 Fehér márvány falpanel", sku: "PB-01" }), true);
+assertEqual("Auto PXP Item - TR Falpanel is large", isPvcSpcOrFloorItem({ name: "TR-12 Fekete márvány falburkolat", sku: "TR-12" }), true);
+assertEqual("Auto PXP Item - LJ Falpanel is large", isPvcSpcOrFloorItem({ name: "LJ-05 Falpanel", sku: "LJ-05" }), true);
+assertEqual("Auto PXP Item - SPC Falpanel is large", isPvcSpcOrFloorItem({ name: "SPC Falpanel Calacatta", sku: "SPC-01" }), true);
+assertEqual("Auto PXP Item - SPC Padlózat is large", isPvcSpcOrFloorItem({ name: "SPC Padló Tölgy", sku: "SPC-P-01" }), true);
+assertEqual("Auto PXP Item - Laminált Padló is large", isPvcSpcOrFloorItem({ name: "Laminált padlózat szürke", sku: "LAM-01" }), true);
+assertEqual("Auto PXP Item - Akusztikus Falpanel is NOT large", isPvcSpcOrFloorItem({ name: "Prémium Akusztikus Falpanel - Wide Pecan", sku: "W-PEC" }), false);
+assertEqual("Auto PXP Item - Akupanel is NOT large", isPvcSpcOrFloorItem({ name: "Akupanel Natúr Tölgy 278x60cm", sku: "AKU-NAT" }), false);
+assertEqual("Auto PXP Item - T-Rex Ragasztó is NOT large", isPvcSpcOrFloorItem({ name: "T-Rex ragasztó 310ml", sku: "TREX-01" }), false);
+assertEqual("Auto PXP Item - Profil is NOT large", isPvcSpcOrFloorItem({ name: "Belső sarokprofil 280cm", sku: "PROF-01" }), false);
+assertEqual("Auto PXP Item - Tapadóhíd is NOT large", isPvcSpcOrFloorItem({ name: "Tapadóhíd 1kg", sku: "TAP-01" }), false);
+
+assertEqual("Auto PXP Pickup - Tag személyes", isPickupOrder({ tags: "személyes, egyéb" }), true);
+assertEqual("Auto PXP Pickup - Tag pickup", isPickupOrder({ tags: "pickup" }), true);
+assertEqual("Auto PXP Pickup - Shipping line budapesti bolt", isPickupOrder({ shipping_lines: [{ title: "Budapesti üzlet - Személyes átvétel" }] }), true);
+assertEqual("Auto PXP Pickup - Delivery order is NOT pickup", isPickupOrder({ tags: "", shipping_lines: [{ title: "Házhozszállítás Sela Futárral" }] }), false);
+
+const orderAkupanel = {
+    id: "#6001",
+    fulfillment_status: "unfulfilled",
+    tags: "",
+    line_items: [
+        { name: "Prémium Akusztikus Falpanel - Wide Pecan", sku: "W-PEC", quantity: 2 },
+        { name: "T-Rex ragasztó 310ml", sku: "TREX-01", quantity: 2 }
+    ]
+};
+assertEqual("Auto PXP Order - Akusztikus panel + Ragasztó -> Eligible", isEligibleForAutoPannonXp(orderAkupanel), true);
+
+const orderGlueAndProfile = {
+    id: "#6002",
+    fulfillment_status: "unfulfilled",
+    tags: "előreutalás fizetve",
+    line_items: [
+        { name: "Belső sarokprofil 280cm", sku: "PROF-01", quantity: 4 },
+        { name: "HPR ragasztó", sku: "HPR-01", quantity: 2 }
+    ]
+};
+assertEqual("Auto PXP Order - Profil + Ragasztó -> Eligible", isEligibleForAutoPannonXp(orderGlueAndProfile), true);
+
+const orderWithPvc = {
+    id: "#6003",
+    fulfillment_status: "unfulfilled",
+    tags: "",
+    line_items: [
+        { name: "PB-01 Fehér márvány falpanel", sku: "PB-01", quantity: 10 },
+        { name: "T-Rex ragasztó 310ml", sku: "TREX-01", quantity: 3 }
+    ]
+};
+assertEqual("Auto PXP Order - Has PVC panel -> NOT Eligible", isEligibleForAutoPannonXp(orderWithPvc), false);
+
+const orderWithSpcFloor = {
+    id: "#6004",
+    fulfillment_status: "unfulfilled",
+    tags: "",
+    line_items: [
+        { name: "SPC Padló Tölgy", sku: "SPC-P-01", quantity: 15 }
+    ]
+};
+assertEqual("Auto PXP Order - Has SPC Padló -> NOT Eligible", isEligibleForAutoPannonXp(orderWithSpcFloor), false);
+
+const orderPickupGlueOnly = {
+    id: "#6005",
+    fulfillment_status: "unfulfilled",
+    tags: "személyes átvétel",
+    line_items: [
+        { name: "T-Rex ragasztó 310ml", sku: "TREX-01", quantity: 2 }
+    ]
+};
+assertEqual("Auto PXP Order - Glue only BUT Pickup -> NOT Eligible", isEligibleForAutoPannonXp(orderPickupGlueOnly), false);
+
+const orderAlreadyPxp = {
+    id: "#6006",
+    fulfillment_status: "unfulfilled",
+    tags: "PannonXP, egyéb",
+    line_items: [
+        { name: "Prémium Akusztikus Falpanel", sku: "AKU-01", quantity: 2 }
+    ]
+};
+assertEqual("Auto PXP Order - Already has PannonXP tag -> NOT Eligible", isEligibleForAutoPannonXp(orderAlreadyPxp), false);
+
+const orderAlreadySela = {
+    id: "#6007",
+    fulfillment_status: "unfulfilled",
+    tags: "sela megr.",
+    line_items: [
+        { name: "T-Rex ragasztó 310ml", sku: "TREX-01", quantity: 2 }
+    ]
+};
+assertEqual("Auto PXP Order - Already has sela megr. tag -> NOT Eligible", isEligibleForAutoPannonXp(orderAlreadySela), false);
+
+const orderCancelled = {
+    id: "#6008",
+    cancelled_at: "2026-09-03T10:00:00Z",
+    fulfillment_status: "unfulfilled",
+    tags: "",
+    line_items: [
+        { name: "Prémium Akusztikus Falpanel", sku: "AKU-01", quantity: 1 }
+    ]
+};
+assertEqual("Auto PXP Order - Cancelled order -> NOT Eligible", isEligibleForAutoPannonXp(orderCancelled), false);
+
+const orderFulfilled = {
+    id: "#6009",
+    fulfillment_status: "fulfilled",
+    tags: "",
+    line_items: [
+        { name: "Prémium Akusztikus Falpanel", sku: "AKU-01", quantity: 1 }
+    ]
+};
+assertEqual("Auto PXP Order - Fulfilled order -> NOT Eligible", isEligibleForAutoPannonXp(orderFulfilled), false);
+
+// --- SelaWeightService: Méretmegőrzés és Táblánkénti Súlytesztek ---
+const selaClean244 = cleanItemNameForSelaWeight("PB-01 Fehér márvány PVC falpanel 244x122 cm (Beérkezés: 08.27)");
+assertEqual("Sela Weight Clean - 244x122 preserved, date stripped", selaClean244, "PB-01 Fehér márvány PVC falpanel 244x122 cm");
+
+const selaClean280 = cleanItemNameForSelaWeight("PB-01 Fehér márvány PVC falpanel 280x122 cm [Érkezés: 2026.09.01]");
+assertEqual("Sela Weight Clean - 280x122 preserved, date stripped", selaClean280, "PB-01 Fehér márvány PVC falpanel 280x122 cm");
+
+const key244 = getItemWeightKey({ name: selaClean244 });
+const key280 = getItemWeightKey({ name: selaClean280 });
+assertEqual("Sela Weight Key - 244 and 280 have DISTINCT keys", key244 !== key280, true);
+
+// Kiszerelés és profilméret védelem (pl. 2.8m és 5kg nem vész el)
+const profileClean28 = cleanItemNameForSelaWeight("Belső sarokprofil Fehér 2.8 m (Beérkezés: 08.27)");
+assertEqual("Sela Weight Clean - Profile 2.8m preserved, date stripped", profileClean28, "Belső sarokprofil Fehér 2.8 m");
+
+const tapadohid5kKey = getItemWeightKey({ name: "Tapadóhíd", variantTitle: "5 kg" });
+const tapadohid1kKey = getItemWeightKey({ name: "Tapadóhíd", variantTitle: "1 kg" });
+assertEqual("Sela Weight Key - Tapadóhíd 5kg vs 1kg distinct keys", tapadohid5kKey !== tapadohid1kKey, true);
+assertEqual("Sela Suggest - Tapadóhíd variant 5kg is 5kg", suggestWeightForItem({ name: "Tapadóhíd", variantTitle: "5 kg" }), 5.0);
+assertEqual("Sela Suggest - Tapadóhíd variant 1kg is 1kg", suggestWeightForItem({ name: "Tapadóhíd", variantTitle: "1 kg" }), 1.0);
+assertEqual("Sela Suggest - TR-032 variant 280 is 18.5kg", suggestWeightForItem({ name: "TR-032", variantTitle: "280 x 122 cm" }), 18.5);
+
+assertEqual("Sela Category - PVC 244", detectItemCategory(selaClean244), 'pvc_spc_floor');
+assertEqual("Sela Suggest - PVC 244 is 16kg", suggestWeightForItem({ name: selaClean244 }), 16.0);
+assertEqual("Sela Suggest - PVC 280 is 18.5kg", suggestWeightForItem({ name: selaClean280 }), 18.5);
+assertEqual("Sela Suggest - Wide Acoustic is 9kg", suggestWeightForItem({ name: "Prémium Wide Akusztikus Falpanel" }), 9.0);
+assertEqual("Sela Suggest - Normal Acoustic is 7kg", suggestWeightForItem({ name: "Akupanel Tölgy" }), 7.0);
+assertEqual("Sela Suggest - Tapadóhíd 5kg", suggestWeightForItem({ name: "Murexin Tapadóhíd 5kg vödör" }), 5.0);
+assertEqual("Sela Suggest - Tapadóhíd 1kg", suggestWeightForItem({ name: "Murexin Tapadóhíd 1kg kanna" }), 1.0);
+assertEqual("Sela Suggest - T-Rex Glue is 0.5kg", suggestWeightForItem({ name: "T-Rex ragasztó 310ml" }), 0.5);
+
+// Ismeretlen tételek felismerésének tesztje (findUnknownItemsInOrders)
+const testWeightsDb = {
+    [key244]: { name: selaClean244, weight: 16.0 },
+    "t-rex ragasztó 310ml": { name: "T-Rex ragasztó 310ml", weight: 0.6 }
+};
+
+const testOrderWithUnknown = {
+    id: "#7001",
+    items: [
+        { name: selaClean244, qty: 3 }, // ismert
+        { name: selaClean280, qty: 2 }, // ismeretlen!
+        { name: "Új ismeretlen profil", qty: 4 } // ismeretlen!
+    ]
+};
+
+const missingList = SelaWeightService.findUnknownItemsInOrders([testOrderWithUnknown], testWeightsDb);
+assertEqual("Sela Missing Items - Count is 2", missingList.length, 2);
+assertEqual("Sela Missing Items - Item 1 is 280 panel", missingList.some(m => m.name.includes("280x122")), true);
+assertEqual("Sela Missing Items - Item 2 is profile", missingList.some(m => m.name.includes("Új ismeretlen profil")), true);
+
+// Ha minden tétel ismert
+const testWeightsFull = {
+    ...testWeightsDb,
+    [key280]: { name: selaClean280, weight: 19.0 },
+    "új ismeretlen profil": { name: "Új ismeretlen profil", weight: 0.8 }
+};
+const missingListEmpty = SelaWeightService.findUnknownItemsInOrders([testOrderWithUnknown], testWeightsFull);
+assertEqual("Sela Missing Items - When all known, count is 0", missingListEmpty.length, 0);
+
+// Súlyszámítás tételes terméksúlyok alapján (calculateOrderWeight)
+// 3 * 16.0 (244 tábla) + 2 * 19.0 (280 tábla) + 4 * 0.8 (profil) = 48 + 38 + 3.2 = 89.2 kg
+const orderCalc = SelaWeightService.calculateOrderWeight(testOrderWithUnknown, testWeightsFull);
+assertEqual("Sela Order Weight - Exact sum of items (3*16 + 2*19 + 4*0.8 = 89.2kg)", orderCalc.totalWeight, 89.2);
+assertEqual("Sela Order Weight - Breakdown has 3 items", orderCalc.breakdown.length, 3);
+assertEqual("Sela Order Weight - Breakdown text contains total", orderCalc.breakdownText.includes("89.2 kg"), true);
+
+// Összekészített profil kibontása a súlyszámításban
+const testOrderCollapsedProfile = {
+    id: "#7002",
+    items: [
+        {
+            name: "Összekészített profilok",
+            qty: 1,
+            isCollapsedProfile: true,
+            subItems: [
+                { name: "Belső sarokprofil Fehér", qty: 3 },
+                { name: "Végzáró profil Fehér", qty: 2 }
+            ]
+        }
+    ]
+};
+const profileWeightsDb = {
+    "belső sarokprofil fehér": { name: "Belső sarokprofil Fehér", weight: 0.4 },
+    "végzáró profil fehér": { name: "Végzáró profil Fehér", weight: 0.3 }
+};
+// 3 * 0.4 + 2 * 0.3 = 1.2 + 0.6 = 1.8 kg
+const profileOrderCalc = SelaWeightService.calculateOrderWeight(testOrderCollapsedProfile, profileWeightsDb);
+assertEqual("Sela Order Weight - Collapsed Profile Sub-items (3*0.4 + 2*0.3 = 1.8kg)", profileOrderCalc.totalWeight, 1.8);
+
+// prepareSelaRowData integráció teszt
+const rowPreparedWithItemWeights = prepareSelaRowData(testOrderWithUnknown, {}, testWeightsFull);
+assertEqual("Sela Prepare Row - Uses item-level weights for Col 13 (89.2kg)", rowPreparedWithItemWeights.col13_weight, 89.2);
+// ensureSelaModalStyles Node.js biztonságos lefutásának tesztje (amikor nincs DOM / document)
+let stylesSafeInNode = true;
+try {
+    ensureSelaModalStyles();
+} catch (e) {
+    stylesSafeInNode = false;
+}
+assertEqual("Sela Modal Styles - Safe in Node without document", stylesSafeInNode, true);
+
+// Variant title retention in getItemWeight
+const itemWithVariant = { name: "TR-032", variantTitle: "280 x 122 cm" };
+const weightResult = SelaWeightService.getItemWeight(itemWithVariant, {});
+assertEqual("Sela Item Weight - Display name contains variant", weightResult.name.includes("280 x 122 cm"), true);
+
+// Variant title retention in findUnknownItemsInOrders
+const orderWithVariantItem = {
+    id: "#9999",
+    items: [{ name: "Tapadóhíd", variantTitle: "5 kg", qty: 2 }]
+};
+const unknownWithVariant = SelaWeightService.findUnknownItemsInOrders([orderWithVariantItem], {});
+assertEqual("Sela Unknown Items - Found 1 item", unknownWithVariant.length, 1);
+assertEqual("Sela Unknown Items - Name contains variant", unknownWithVariant[0].name.includes("5 kg"), true);
+assertEqual("Sela Unknown Items - VariantTitle preserved", unknownWithVariant[0].variantTitle, "5 kg");
+assertEqual("Sela Unknown Items - Suggested weight matches 5kg", unknownWithVariant[0].suggestedWeight, 5.0);
 
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 

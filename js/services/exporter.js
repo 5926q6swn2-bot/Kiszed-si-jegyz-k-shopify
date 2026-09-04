@@ -2,6 +2,60 @@
 // Exportáló szolgáltatás a terítések és elszámolások CSV-be mentéséhez
 import { CustomDialog } from '../utils/dialog.js';
 import { getPaymentDetails } from '../utils/paymentUtils.js';
+import { SelaWeightService } from './selaWeightService.js';
+
+// --- SELA SÚLYKONFIGURÁCIÓ ÉS KALKULÁCIÓ ---
+
+export const DEFAULT_SELA_WEIGHTS = {
+    pvc_spc_floor: 18,   // kg / db
+    acoustic: 7,         // kg / db
+    adhesive: 0.5,       // kg / db
+    profile: 0.5,        // kg / db
+    tapadohid: 1.0       // kg / db
+};
+
+export function getSelaWeightSettings() {
+    try {
+        if (typeof localStorage !== 'undefined') {
+            const saved = localStorage.getItem('sela_weight_settings');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                return {
+                    pvc_spc_floor: parseFloat(parsed.pvc_spc_floor) >= 0 ? parseFloat(parsed.pvc_spc_floor) : DEFAULT_SELA_WEIGHTS.pvc_spc_floor,
+                    acoustic: parseFloat(parsed.acoustic) >= 0 ? parseFloat(parsed.acoustic) : DEFAULT_SELA_WEIGHTS.acoustic,
+                    adhesive: parseFloat(parsed.adhesive) >= 0 ? parseFloat(parsed.adhesive) : DEFAULT_SELA_WEIGHTS.adhesive,
+                    profile: parseFloat(parsed.profile) >= 0 ? parseFloat(parsed.profile) : DEFAULT_SELA_WEIGHTS.profile,
+                    tapadohid: parseFloat(parsed.tapadohid) >= 0 ? parseFloat(parsed.tapadohid) : DEFAULT_SELA_WEIGHTS.tapadohid
+                };
+            }
+        }
+    } catch (e) {
+        console.warn('[getSelaWeightSettings]', e);
+    }
+    return { ...DEFAULT_SELA_WEIGHTS };
+}
+
+export function saveSelaWeightSettings(weights) {
+    try {
+        if (typeof localStorage !== 'undefined' && weights) {
+            localStorage.setItem('sela_weight_settings', JSON.stringify(weights));
+        }
+    } catch (e) {
+        console.warn('[saveSelaWeightSettings]', e);
+    }
+}
+
+export function calculateSelaOrderWeight(quantities, weights = null) {
+    const w = weights || getSelaWeightSettings();
+    const pvc = (quantities.pvcSpcFloorQty || 0) * (w.pvc_spc_floor ?? DEFAULT_SELA_WEIGHTS.pvc_spc_floor);
+    const acoustic = (quantities.acousticQty || 0) * (w.acoustic ?? DEFAULT_SELA_WEIGHTS.acoustic);
+    const adhesive = (quantities.adhesivesQty || quantities.adhesiveQty || 0) * (w.adhesive ?? DEFAULT_SELA_WEIGHTS.adhesive);
+    const profile = (quantities.profilesQty || quantities.profileQty || 0) * (w.profile ?? DEFAULT_SELA_WEIGHTS.profile);
+    const tapadohid = (quantities.tapadohidQty || 0) * (w.tapadohid ?? DEFAULT_SELA_WEIGHTS.tapadohid);
+
+    const total = pvc + acoustic + adhesive + profile + tapadohid;
+    return Math.round(total * 10) / 10;
+}
 
 export const ExporterService = {
     exportAccountingToCsv: async function(runs, onlyPending = false) {
@@ -176,29 +230,42 @@ export const ExporterService = {
         return detectProformaCod(order);
     },
 
-    // 5. Egyedi Sela sor adat előkészítése a 12 oszlophoz
-    prepareSelaRowData: function(order, customCodMap = {}) {
-        return prepareSelaRowData(order, customCodMap);
+    // 5. Sela Súlybeállítások és kalkuláció
+    DEFAULT_SELA_WEIGHTS: DEFAULT_SELA_WEIGHTS,
+    getSelaWeightSettings: function() {
+        return getSelaWeightSettings();
+    },
+    saveSelaWeightSettings: function(weights) {
+        return saveSelaWeightSettings(weights);
+    },
+    calculateSelaOrderWeight: function(quantities, weights = null) {
+        return calculateSelaOrderWeight(quantities, weights);
+    },
+    SelaWeightService: SelaWeightService,
+
+    // 6. Egyedi Sela sor adat előkészítése a 13 oszlophoz (súllyal kiegészítve)
+    prepareSelaRowData: function(order, customCodMap = {}, customWeights = null) {
+        return prepareSelaRowData(order, customCodMap, customWeights);
     },
 
-    // 6. CSV szöveg legenerálása a 12 oszlopos sorokból
+    // 7. CSV szöveg legenerálása a 13 oszlopos sorokból
     generateSelaCsv: function(rows) {
         return generateSelaCsv(rows);
     },
 
-    // 7. CSV fájl böngészős letöltése
+    // 8. CSV fájl böngészős letöltése
     downloadSelaCsv: function(csvContent, filename) {
         downloadSelaCsv(csvContent, filename);
     },
 
     // Szállítói (Sela) Rendelések Exportálása CSV-be (közvetlen vagy előnézetből)
-    exportSelaOrdersToCsv: async function(orders, customCodMap = {}) {
+    exportSelaOrdersToCsv: async function(orders, customCodMap = {}, customWeights = null) {
         if (!orders || orders.length === 0) {
             await CustomDialog.alert("Nincs exportálható rendelés kijelölve!", "Figyelmeztetés", "warning");
             return;
         }
 
-        const rows = orders.map(o => prepareSelaRowData(o, customCodMap));
+        const rows = orders.map(o => prepareSelaRowData(o, customCodMap, customWeights));
         const csvContent = generateSelaCsv(rows);
         downloadSelaCsv(csvContent);
     }
@@ -445,7 +512,8 @@ export function isPendingBankDeposit(order) {
     return false;
 }
 
-export function prepareSelaRowData(order, customCodMap = {}) {
+
+export function prepareSelaRowData(order, customCodMap = {}, customWeights = null) {
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -533,6 +601,26 @@ export function prepareSelaRowData(order, customCodMap = {}) {
         col12Text = tapadohidText ? `nincs utánvét, ${tapadohidText}` : 'nincs utánvét';
     }
 
+    // 13. oszlop: Rendelés összsúlyának kalkulációja tételes / táblánkénti terméksúlyok alapján
+    let orderWeight = 0;
+    let weightBreakdownText = '';
+
+    if (order && Array.isArray(order.items) && order.items.length > 0) {
+        const weightCalc = SelaWeightService.calculateOrderWeight(order, customWeights);
+        orderWeight = weightCalc.totalWeight;
+        weightBreakdownText = weightCalc.breakdownText;
+    } else {
+        const weightSettings = customWeights || getSelaWeightSettings();
+        orderWeight = calculateSelaOrderWeight({
+            pvcSpcFloorQty,
+            acousticQty,
+            adhesivesQty: adhesiveQty,
+            profilesQty: profileQty,
+            tapadohidQty
+        }, weightSettings);
+        weightBreakdownText = `${orderWeight} kg`;
+    }
+
     return {
         orderId: order.id,
         col1_date: dateStr,
@@ -547,6 +635,9 @@ export function prepareSelaRowData(order, customCodMap = {}) {
         col10_adhesivesQty: adhesiveQty,
         col11_profilesQty: profileQty,
         col12_codAndTapadohid: col12Text,
+        col13_weight: orderWeight,
+        totalWeight: orderWeight,
+        weightBreakdownText: weightBreakdownText,
         rawCodAmount: finalCodAmount,
         needsManualCod: needsManualCod,
         tapadohidQty: tapadohidQty,
@@ -570,7 +661,8 @@ export function generateSelaCsv(rows) {
         "Akusztikus falpanelek (db)",
         "Ragasztók, szilikonok (db)",
         "Profilok (db)",
-        "Utánvét összege / tapadóhíd"
+        "Utánvét összege / tapadóhíd",
+        "Összsúly (kg)"
     ];
 
     const clean = (val) => {
@@ -587,6 +679,7 @@ export function generateSelaCsv(rows) {
     csvLines.push('\ufeff' + headers.join(";"));
 
     rows.forEach(r => {
+        const rawWeight = r.col13_weight !== undefined && r.col13_weight !== null ? r.col13_weight : (r.totalWeight ?? '');
         const line = [
             clean(r.col1_date),
             clean(r.col2_orderId),
@@ -599,7 +692,8 @@ export function generateSelaCsv(rows) {
             clean(r.col9_acousticQty),
             clean(r.col10_adhesivesQty),
             clean(r.col11_profilesQty),
-            clean(r.col12_codAndTapadohid)
+            clean(r.col12_codAndTapadohid),
+            clean(rawWeight)
         ];
         csvLines.push(line.join(";"));
     });

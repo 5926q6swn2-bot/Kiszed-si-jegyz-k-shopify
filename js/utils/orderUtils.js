@@ -120,3 +120,119 @@ export function buildDuplicateCustomerOrdersMap(allOrders) {
 
     return duplicateMap;
 }
+
+/**
+ * Ellenőrzi, hogy egy adott tétel PVC falpanel, SPC falpanel vagy padlózat-e.
+ * Akusztikus falpanelek kizárva (azok mehetnek PannonXP-vel).
+ * 
+ * @param {Object} item - line item (name/title, sku)
+ * @returns {boolean}
+ */
+export function isPvcSpcOrFloorItem(item) {
+    if (!item) return false;
+    const name = String(item.name || item.title || '').trim();
+    const sku = String(item.sku || '').trim();
+    const text = `${name} ${sku}`.toLowerCase();
+
+    // 0. Explicit kizárások (mamut és fix all nem ragasztó, de nem is falpanel/padló)
+    if (text.includes('mamut') || text.includes('fix all')) {
+        return false;
+    }
+
+    // 1. Akusztikus falpanelek (aku, akusztikus, wide akusztikus, wide acoustic, akupanel) -> NEM PVC/SPC/padló!
+    if (text.includes('akusztik') || text.includes('akusztikus') || 
+        text.includes('wide akusztikus') || text.includes('wide acoustic') || 
+        text.includes('akupanel') || /\baku\b/i.test(text)) {
+        return false;
+    }
+
+    // 2. PVC / SPC falpanelek és padlózatok
+    const hasPvcSpcFloor = /\b(pb-tr|tr|lj|pb|spc|pvc)\b/i.test(text) ||
+                           text.includes('pb-tr') ||
+                           text.includes('spc') ||
+                           text.includes('pvc') ||
+                           text.includes('padló') ||
+                           text.includes('padlo') ||
+                           text.includes('padlózat') ||
+                           text.includes('padlozat') ||
+                           text.includes('falpanel') ||
+                           text.includes('falburkolat') ||
+                           /\btr-\d+/i.test(text) ||
+                           /\blj-\d+/i.test(text) ||
+                           /\bpb-\d+/i.test(text);
+
+    return hasPvcSpcFloor;
+}
+
+/**
+ * Ellenőrzi, hogy egy rendelés személyes / bolti / raktári átvétel-e.
+ * 
+ * @param {Object} order
+ * @returns {boolean}
+ */
+export function isPickupOrder(order) {
+    if (!order) return false;
+    if (order.isPickup === true || order.isReadyForPickup === true || order.is_ready_for_pickup === true) {
+        return true;
+    }
+
+    const tagsLower = String(order.tags || '').toLowerCase();
+    if (tagsLower.includes('személyes') || 
+        tagsLower.includes('szemelyes') || 
+        tagsLower.includes('pickup') || 
+        tagsLower.includes('raktári átvétel') || 
+        tagsLower.includes('boltban átvétel') ||
+        tagsLower.includes('ready for pickup') ||
+        tagsLower.includes('átvehető')) {
+        return true;
+    }
+
+    const shippingLines = order.shipping_lines || [];
+    const shippingLinesStr = (Array.isArray(shippingLines) ? shippingLines.map(sl => sl.title || '').join(' ') : String(order.shippingMethod || '')).toLowerCase();
+    if (/üzlet|bolt|pickup|raktár|személyes|helyszíni|store pickup/i.test(shippingLinesStr)) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Ellenőrzi, hogy egy nyitott rendelés automatikusan jogosult-e a PannonXP címkére.
+ * Feltételek:
+ * 1. Nem törölt és nem teljesített (unfulfilled / partial).
+ * 2. Nem személyes átvétel.
+ * 3. Még nincs rajta sem PannonXP/PXP, sem Sela megr., sem terítésben tag.
+ * 4. Van benne tétel, és EGYETLEN tétele sem PVC/SPC falpanel vagy padlózat.
+ * 
+ * @param {Object} order
+ * @returns {boolean}
+ */
+export function isEligibleForAutoPannonXp(order) {
+    if (!order) return false;
+    if (order.isCancelled === true || order.cancelled_at) return false;
+
+    const fStatus = String(order.fulfillmentStatus || order.fulfillment_status || '').toLowerCase();
+    if (fStatus === 'fulfilled') return false;
+
+    const tagsLower = String(order.tags || '').toLowerCase();
+    const tagsList = tagsLower.split(',').map(t => t.trim()).filter(Boolean);
+
+    // Ha már rajta van a PannonXP tag, nem kell újra
+    if (tagsList.some(t => t === 'pannonxp' || t === 'pxp')) return false;
+
+    // Ha már Selának elküldve vagy saját terítésben
+    if (tagsList.some(t => t === 'sela megr.' || t === 'sela megr' || t === 'terítésben' || t === 'teritesben')) return false;
+
+    // Személyes átvétel kizárása
+    if (isPickupOrder(order)) return false;
+
+    // Tételek vizsgálata
+    const items = order.line_items || order.items || [];
+    if (items.length === 0) return false;
+
+    // Ha bármelyik tétel PVC/SPC falpanel vagy padlózat -> NEM jogosult
+    const hasLarge = items.some(isPvcSpcOrFloorItem);
+    if (hasLarge) return false;
+
+    return true;
+}

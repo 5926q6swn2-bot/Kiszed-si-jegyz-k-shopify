@@ -28,7 +28,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.8 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris és stabil. Céges gépen bekonfigurálva: `.env` és Shopify API kapcsolat élesítve. Elkészült az interaktív Szállítói Export (Sela) előnézeti táblázat 12 oszloppal, közvetlen cellaszerkesztéssel, díjbek.ki utánvét-kalkulációval, rejtett telefonszám kinyeréssel, dupla unfulfilled rendelés figyelmeztető címkével és ultra-kompakt Előzmények fejléccel (`v3.8.5`, 184/184 zöld unit teszt).
+- **Státusz**: A rendszer 100%-ban moduláris és stabil. ⚡ **A termékek teljes neve, mérete (pl. 280x122, 2.8m) és kiszerelése (pl. 5kg, 1kg) mostantól minden felületen csonkítás nélkül megjelenik**. A Shopify API és a CSV import integráció automatikusan megőrzi a variánsokat, a Sela súlybekérő és az áttekintő felület pedig kiemelt címkékkel és szótöréssel biztosítja a hibátlan beazonosíthatóságot (`v3.9.3`, 243/243 zöld unit teszt).
 
 ---
 
@@ -42,6 +42,124 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. szeptember 4. (7. frissítés) - Termékek Teljes Neve, Mérete és Kiszerelése Minden Felületen (`v3.9.3`)
+- **Shopify API Variánsok és Kiszerelések Megőrzése (`shopifyApiService.js`)**:
+  - **Felhasználói visszajelzés**: „mindig legyen kiírva a termékek teljes neve, mert nem tudom rendesen beazonosítani a méretét és kiszerelését, ebből nem tudom a súlyát ha annyit látok hogy tr032 meg tapadóhíd több fajta van”.
+  - **Hiba oka**: A korábbi API feldolgozás (`item.title || item.name`) elsőként az `item.title`-t vette figyelembe, amely a Shopify-ban kizárólag a szülő termék neve (pl. csak „TR-032” vagy „Tapadóhíd”). A variánsok (pl. „280 x 122 cm”, „5 kg”, „1 kg”) elvesztek.
+  - **Megoldás**: A feldolgozó mostantól az `item.name`-et (teljes cím variánssal) vagy a `title + variant_title` összetételt menti el, így a tételnévben mindig hiánytalanul szerepel a pontos méret és kiszerelés.
+- **Névformázó Tisztítás Megszüntetése (`shopify.js` - `formatItemName`)**:
+  - A korábbi `formatItemName` levágta a profilok hosszméreteit (pl. 2.8m) és lerövidítette a táblaméreteket. Ezt letiltottuk, kizárólag a felesleges dupla szóközöket takarítja, a méretek és kiszerelések 100%-ig megmaradnak.
+- **Dátumtisztítás Pontosítása a Súlykezelőben (`selaWeightService.js`)**:
+  - A korábbi reguláris kifejezés (`\b\d{1,2}[./]\d{1,2}\b`) a törtszámokat (pl. 2.8 m, 1.5 kg) is dátumként értelmezhette. Átírtuk egy intelligens ellenőrzésre, amely a mértékegységek (`m`, `cm`, `mm`, `kg`, `liter`, `l`) előtti számokat szigorúan megvédi a törléstől.
+  - Az ismeretlen termékek súlybekérésénél és a keresőkulcs generálásánál (`getItemWeightKey`, `suggestWeightForItem`) a rendszer a variánst is figyelembe veszi, így az 5 kg-os és 1 kg-os tapadóhíd különálló súlyt és automatikus javaslatot kap (5 kg -> 5.0 kg, 1 kg -> 1.0 kg).
+- **Megjelenítés Javítása a Súlybekérőben és a Rendelés Kártyán (`selaMissingWeightsModal.js`, `orderOverviewView.js`)**:
+  - A korábbi `white-space: nowrap; text-overflow: ellipsis` csonkítás helyett mostantól `word-break: break-word` biztosítja, hogy a teljes terméknév mindig látható legyen.
+  - Dedikált, jól látható kék badge jelzi a pontos variánst / kiszerelést (pl. `Méret / Kiszerelés: 5 kg`, `Méret / Kiszerelés: 280 x 122 cm`).
+- **Unit Tesztek Bővítése (`tests/unit_tests.js`)**:
+  - 5 új teszt hozzáadva: profilméret védelem (2.8m), tapadóhíd 5kg vs 1kg külön kulcsok és helyes súlyjavaslatok (**238 / 238 zöld teszt**).
+
+### 2026. szeptember 4. (6. frissítés) - Sela Export Gomb Hibajavítás & Firestore Időtúllépés Kezelés (`v3.9.1`)
+- **Firestore RPC / WebChannel Újracsatlakozási Időtúllépés Megoldása (`selaWeightService.js`)**:
+  - **Hiba oka**: Amikor a felhasználó böngészőjében a Firestore Listen stream újracsatlakozási állapotba került (`WebChannelConnection RPC 'Listen' stream transport errored: Qd`), az `initializeProductWeights()`-ban futó `await fb.getDoc()` végtelen ideig blokkolta az export gomb eseménykezelőjét.
+  - **Megoldás**: A Firestore lekérést (`fb.getDoc`) egy 1500 ms-os `Promise.race` időtúllépéssel egészítettük ki. Ha a felhő lassú vagy épp újracsatlakozik, a rendszer 1.5 mp után azonnal a lokális gyorsítótárból (`localStorage`) dolgozik tovább, így a felhasználói felület sosem fagy le. Hasonló védelmet kapott a mentés is (`fb.setDoc` 2500 ms timeout).
+- **Garantált Modál Stílusbetöltés (`selaModalStyles.js` & `css/style.css`)**:
+  - **Hiba oka**: Ha a kiválasztott rendelésekben ismeretlen súlyú termék volt, a `SelaMissingWeightsModal` nyílt meg először, amelynek a CSS stílusai (`.sela-modal-overlay`, `.sela-modal-container`) eredetileg csak a `SelaExportModal` megjelenítésekor injektálódtak. Emiatt a felugró ablak formázatlanul és láthatatlanul a képernyő aljára került.
+  - **Megoldás**: A modál stílusokat beemeltük a statikus `css/style.css`-be, valamint létrehoztunk egy központi `selaModalStyles.js` segédmodult (`ensureSelaModalStyles()`), amely a modálok megnyitása előtt ellenőrzi és biztosítja a szükséges CSS jelenlétét a DOM-ban.
+- **Interaktív Visszajelzés a Sela Export Gombon (`app.js`)**:
+  - Ha a felhasználó kijelölés nélkül kattint az export gombra, a rendszer mostantól nem csendben lép ki (`return;`), hanem egyértelmű figyelmeztető párbeszédablakot jelenít meg (`CustomDialog.alert`).
+  - A gomb kattintásakor azonnali töltési animációt kap (`Előkészítés...`), és egy átfogó `try / catch` hibakezelő védi a folyamatot.
+- **Unit Tesztek Frissítése (`tests/unit_tests.js`)**:
+  - Node.js biztonságos modálstílus-futtatás tesztelve (233 / 233 zöld teszt).
+
+### 2026. szeptember 4. (5. frissítés) - Táblánkénti és Cikkszám Szintű Súlykezelés & Hiányzó Súlyok Bekérése Sela Exportnál (`v3.9.0`)
+- **Táblánkénti és Termékenkénti Súlykezelő Szolgáltatás (`selaWeightService.js`)**:
+  - **Felhasználói elvárás**: Ne globális kategória-szorzók legyenek, hanem *táblánként, termékenként legyen rögzítve a súly*. Ha egy cikk még nem került exportálásra Sela-nak, a rendszer kérdezzen rá a felhasználónál.
+  - **Szigorú Méretmegőrzés (`cleanItemNameForSelaWeight`)**: A tisztító algoritmus a beérkezési dátumokat (`(Beérkezés: 08.27)`) letakarítja, **de a méreteket szigorúan megtartja** (pl. `244x122` vs `280x122`, `278x60cm`, `5kg`), így az eltérő méretű táblák különálló súlyt kapnak.
+  - **Kettős Perzisztencia**: A terméksúlyokat a rendszer mind a Firebase Firestore felhőben (`sela_settings / product_weights`), mind a böngésző `localStorage`-ban azonnal elmenti.
+  - **Dinamikus ESM Loader**: A Firebase csak böngésző környezetben töltődik be dinamikusan, így a Node.js unit tesztek és szerver folyamatok zökkenőmentesen futnak (`ERR_UNSUPPORTED_ESM_URL_SCHEME` nélkül).
+- **Hiányzó Súlyok Interaktív Bekérése (`selaMissingWeightsModal.js`)**:
+  - A *[Sela Export]* gombra kattintáskor a rendszer átvizsgálja a kijelölt rendelések tételeit (az összekészített profilokat al-profilokra bontva).
+  - Ha van olyan tábla vagy kellék, aminek a súlya még nem rögzített, megnyílik egy modern ablak, ahol a felhasználó közvetlenül megadhatja a cikkek darabsúlyát (`kg / db`).
+  - A mezők kategória-alapú intelligens javaslattal indulnak (pl. 244-es PVC: 16 kg, 280-as PVC: 18.5 kg, Wide akupanel: 9 kg, Normál akupanel: 7 kg, 5kg-os tapadóhíd: 5 kg, ragasztó/profil: 0.5 kg).
+  - A *[💾 Súlyok mentése és Folytatás]* gombra kattintva az adatok elmentődnek, és a folyamat automatikusan továbbugrik a Sela Export áttekintő táblázathoz.
+- **Sela Export Modal Bővítés (`selaExportModal.js`)**:
+  - A táblázat 13. oszlopában (`Összsúly (kg)`) az egér fölé mozgatásakor részletes bontási tooltip jelenik meg (pl. `PB-01 Fehér 280x122 (4 db × 18.5 kg = 74 kg) + T-Rex (2 db × 0.5 kg = 1 kg) | Összesen: 75 kg`).
+  - A fejlécbe beépült egy **[⚖️ Terméksúlyok kezelése]** gomb, amellyel a felhasználó bármikor megtekintheti, módosíthatja vagy törölheti a korábban mentett cikkek súlyát.
+- **Unit Tesztek Bővítése (`tests/unit_tests.js`)**:
+  - 21 új teszteset hozzáadva (összesen: **233 / 233 zöld unit teszt**).
+
+### 2026. szeptember 4. (4. frissítés) - Sela CSV Export: Rendelésenkénti Összsúly Számítás (13. Oszlop) & Súlykonfiguráció (`v3.8.9`)
+- **Rendelésenkénti Súlyszámítás a Sela Exportban (`exporter.js`)**:
+  - **Felhasználói igény**: A PannonXP-től független, önálló súlyszámítás a Sela export számára, plusz egy oszlopként hozzátűzve a CSV végére.
+  - **13. oszlop bevezetése**: `"Összsúly (kg)"` oszlop került a Sela CSV végére (13. oszlop), kerekített 1 tizedes pontossággal.
+  - **Alapértelmezett kategória-súlyok**:
+    - PVC / SPC falpanelek és padlók: **18 kg / db**
+    - Akusztikus falpanelek (akupanel): **7 kg / db**
+    - Ragasztók, szilikonok: **0.5 kg / db**
+    - Profilok (beleértve a szétbontott al-profilokat): **0.5 kg / db**
+    - Tapadóhíd: **1.0 kg / db**
+  - **Összekészített profilok intelligens kezelése**: Amennyiben egy rendelésben összekészített profil csomag van (`isCollapsedProfile`), a rendszer az al-tételek (`subItems`) darabszámait veszi alapul a súlyhoz.
+- **Interaktív Súlykonfigurációs Panel a Modálban (`selaExportModal.js`)**:
+  - A felugró Sela export modál tetején megjelent egy kompakt konfigurációs sáv a kategóriák egységsúlyainak beállítására.
+  - Bármelyik súly módosításakor a táblázat minden sorának összsúlya, valamint a modál láblécében látható teljes kiszállítandó összsúly azonnal, valós időben újraszámolódik.
+  - Az egyedi súlybeállítások a böngésző `localStorage`-ban automatikusan elmentődnek a következő használatra.
+- **Unit Tesztek Bővítése (`tests/unit_tests.js`)**:
+  - Sela CSV 13 oszlopos fejléc, súlykalkuláció és egyedi kategória-súlyok tesztelése (212/212 sikeres teszt).
+
+### 2026. szeptember 4. (3. frissítés) - 7x-es Betöltési Sebességgyorsítás (15s ➔ 2.3s) & Kompakt Rendelésnézet (`v3.8.8`)
+- **Radikális Shopify Betöltési Sebességgyorsítás (`server.js`)**:
+  - **Probléma feltárása**: Korábban a betöltés ~15-16 másodpercig tartott, mert:
+    1. A GraphQL `events(first: 10)` mezője miatt a Shopify adatbázisa minden egyes nyitott rendelésnél végigkutatta az összes korábbi rendszerlevelet (6.5 másodperc/oldal).
+    2. A REST hívások és a GraphQL lekérdezések szekvenciálisan, egymás után futottak le.
+    3. A 140 termék képeit a rendszer minden egyes frissítésnél újra lekérte a Shopify hálózatáról.
+  - **Megvalósított megoldások**:
+    - **Célzott GraphQL Lekérdezés**: Eltávolítottuk az `events(first: 10)` lekérdezést, közvetlenül a natív `displayFulfillmentStatus` és `fulfillmentOrders` mezőket vizsgáljuk. Ezzel a GraphQL idő 6.5 másodpercről **1.2 másodpercre** esett vissza!
+    - **Párhuzamos Végrehajtás (`Promise.all`)**: A REST rendelések (`unfulfilled`, `partial`, `recent`), a GraphQL átvehető státuszok és a termékképek egyszerre, párhuzamos szálon futnak le.
+    - **Helyi Képcache (`.tmp/products_cache.json`)**: A termék- és variánsképek leképezését a szerver memóriában és lemezen tárolja (6 órás TTL), így az azonnal (0 ms) rendelkezésre áll.
+    - **Mért Eredmény**: 501 rendelés teljes feldolgozása, duplikáció-szűrése, PannonXP minősítése és képek csatolása **2.29 – 2.34 másodperc** alatt lefut (több mint 7-szeres sebességugrás)!
+- **Kompakt Rendelésrészletező Felület (`orderOverviewView.js`)**:
+  - A felhasználói visszajelzés alapján eltávolításra kerültek a felesleges akciógombok (`Fulfill`, `Sela címke`), így a lenyitott kártya alsó része teljesen letisztult és kompakt lett.
+  - A jobb oldali oszlop pont a bal oldali terméklista magasságához igazodik, felesleges üres tér vagy vertikális túlnyúlás nélkül.
+  - **Fizetési Státusz Jelvény Hibajavítás**: A lenyitott panel korábban egy leegyszerűsített `codAmount ? Utánvét : Kifizetve` feltételt használt, emiatt a még ki nem fizetett átutalásos rendeléseknél (`isBankDeposit && !isPaid`, pl. `#3934`) tévesen zöld "Kifizetve" badge jelent meg. A lenyitott panel mostantól a fejléc sávval azonos, precíz logikát alkalmaz: külön megjeleníti a `⚠️ Függő Utalás`, `Utánvét`, `Fizetetlen` és `✓ Kifizetve` státuszokat.
+- **208/208 Unit Teszt Zöld** (`node tests/unit_tests.js`).
+
+### 2026. szeptember 4. (2. frissítés) - Lenyitható Rendelés Panel Újratervezés & Prémium Dashboard Nézet (`v3.8.7`)
+- **Lenyitható Rendelésrészletező (Accordion) Redesign (`orderOverviewView.js`, `app.js`)**:
+  - **Megszűnt a „bumszli nagy” dizájn és a felesleges 66px-es bal behúzás**: A lenyitott felület mostantól elegáns, tiszta, teljes szélességű belső kártyaként jelenik meg (`padding: 12px 18px 14px 18px;`).
+  - **Kétoszlopos Strukturált Elrendezés**:
+    - **Bal hasáb (Megrendelt tételek)**:
+      - Tömör, kényelmes sávos elrendezés (44px magasságú kártyák a korábbi 90px helyett).
+      - **40x40px miniatűr termékképek** kattintható nagyítással (Lightbox).
+      - **Kiemelt Mennyiség Kapszula**: Nagy kontrasztú kék badge (`[ X db ]`), hogy a raktáros egy pillantással azonnal lássa a darabszámot!
+      - Egységár és tételes összeg jobbra rendezve.
+      - Diszkrét áthúzott piros blokk a törölt tételeknek.
+    - **Jobb hasáb (Logisztika, Ügyféladatok, Akciók)**:
+      - **Címzett & Szállítás**: Cím, település, irányítószám, és egy beépített **`[📋 Másolás]`** gomb, ami azonnal vágólapra másolja az adatokat a futárhoz vagy fuvarlevélhez.
+      - **Telefonszám**: Közvetlenül kattintható hívás link (`tel:`).
+      - **Kiemelt Vásárlói Megjegyzés (Notes)**: Meleg borostyán/arany színű kártyán, azonnal olvashatóan kiemelve.
+      - Pénzügy: Végösszeg + Utánvét badge vagy zöld Kifizetve jelvény.
+      - **Akciógombok**: Egységes, kompakt gombok (`Fulfill`, `Ready for pickup`, `Sela címke`).
+  - **Egybeépített Figyelmeztető Sáv**:
+    - A korábbi egymás alá halmozott 4 darab 50px magas doboz helyett egyetlen kompakt, modern chip-sávba kerültek a státuszok (lemondott, hibás szállítás 2300 Ft, díjbekérő szükséges, számla hiányzik, terítésben).
+- **208/208 Unit Teszt Zöld** (`node tests/unit_tests.js`).
+
+### 2026. szeptember 4. - Automatikus PannonXP Címkézés a Háttérben (Shopify API) (`v3.8.6`)
+- **Intelligens Termékszűrés & PannonXP Jogosultság (`js/utils/orderUtils.js`)**:
+  - Elkészült a moduláris termékosztályozó és szűrő logika (`isPvcSpcOrFloorItem`, `isPickupOrder`, `isEligibleForAutoPannonXp`).
+  - **Kizárva**: Minden olyan rendelés, amelyben legalább 1 db PVC falpanel, SPC falpanel vagy padlózat (PB, TR, LJ panelek, SPC panelek, padlózatok) szerepel.
+  - **Engedélyezve (PannonXP-re mehet)**: Akusztikus falpanelek (aku, wide acoustic, akupanel), ragasztók, szilikonok, profilok, tapadóhíd, minták, csavarok és kiegészítők.
+  - **Személyes Átvétel Védelem**: A bolti és raktári átvételek (`személyes`, `pickup`, bolti szállítási mód) szigorúan kizárva, nem kapnak téves PannonXP jelölést.
+  - **Duplikáció & Státusz Védelem**: Már felcímkézett (`PannonXP`, `pxp`), Sela-nak küldött (`sela megr.`), járaton lévő (`terítésben`), törölt vagy már teljesített rendelések automatikusan kizárva.
+- **0 Másodperces Felületi Késleltetés (Optimista UI Frissítés)**:
+  - A szerver a `GET /api/shopify/orders` lekéréskor azonnal átadja az adatokat a böngészőnek (nem vár a Shopify címkementésekre).
+  - A visszaküldött válaszban a jogosult rendelések már tartalmazzák a `PannonXP` címkét, így a szűrősáv, a darabszámlálók és a sorok melletti badge-ek azonnal a helyükre ugranak.
+- **Kíméletes Háttérfolyamat (Rate-Limited Queue Worker a `server.js`-ben)**:
+  - A szerver a válasz elküldése után a háttérben (`setImmediate`) sorban, 600 ms-os biztonsági időközzel menti le a `PannonXP` címkét a Shopify REST API-ba (`PUT /admin/api/2024-04/orders/{id}.json`).
+  - Ezzel 100%-ban megelőzhető a Shopify API túlterhelése (`429 Too Many Requests`), és a felhasználónak egyetlen plusz másodpercet sem kell várnia betöltéskor.
+  - Lock védelem: egyszerre csak egyetlen worker futhat, elkerülve a gyors egymásutáni frissítésekből adódó párhuzamos ütközéseket.
+- **24 Új Automata Unit Teszt**:
+  - Összesen **208/208 sikeres (zöld) teszt** ellenőrzi a termékek osztályozását, a szállítási módokat és a jogosultságokat (`node tests/unit_tests.js`).
 
 ### 2026. szeptember 3. (8. frissítés) - Interaktív Szállítói Export (Sela) Előnézet, 12 Oszlopos Struktúra, Dupla Rendelés Címke & Ultra-Kompakt Fejléc (`v3.8.5`)
 - **Interaktív Előnézeti & Szerkesztő Táblázat (`SelaExportModal`)**:

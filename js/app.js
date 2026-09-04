@@ -599,15 +599,31 @@ function initApp() {
         if (btnExportSela) {
             btnExportSela.addEventListener('click', async () => {
                 const selectedIds = Store.selectedHubOrderIds;
-                if (selectedIds.size === 0) return;
+                if (!selectedIds || selectedIds.size === 0) {
+                    CustomDialog.alert('Nincs kijelölve egyetlen rendelés sem az exportáláshoz! Kérlek jelölj ki legalább egy rendelést a pipálódobozzal a lista bal szélén.', 'Nincs kijelölés', 'warning');
+                    return;
+                }
 
                 const selectedOrders = Store.shopifyHubOrders.filter(o => selectedIds.has(o.id));
-                if (selectedOrders.length === 0) return;
+                if (selectedOrders.length === 0) {
+                    CustomDialog.alert('A kijelölt rendelések nem találhatók az aktuális listában!', 'Hiba', 'warning');
+                    return;
+                }
 
-                // Megnyitjuk a szerkesztő előnézeti táblázatot
-                SelaExportModal.show(selectedOrders, () => {
-                    renderOverview();
-                });
+                const origHtml = btnExportSela.innerHTML;
+                try {
+                    btnExportSela.disabled = true;
+                    btnExportSela.innerHTML = '<i class="ph-bold ph-spinner" style="animation: spin 1s linear infinite;"></i> <span>Előkészítés...</span>';
+                    await SelaExportModal.show(selectedOrders, () => {
+                        renderOverview();
+                    });
+                } catch (err) {
+                    console.error('[SelaExport] Hiba a Sela export megnyitásakor:', err);
+                    CustomDialog.alert('Hiba történt a Sela export előkészítésekor: ' + (err?.message || err), 'Export Hiba', 'error');
+                } finally {
+                    btnExportSela.disabled = false;
+                    btnExportSela.innerHTML = origHtml;
+                }
             });
         }
 
@@ -689,6 +705,26 @@ function initApp() {
                     console.error('[btn-ready-for-pickup error]', err);
                     CustomDialog.alert(`Nem sikerült átállítani a rendelést:\n${err.message}`, 'Hiba', 'danger');
                     renderOverview();
+                }
+            });
+        });
+
+        // Címzett és Szállítási Cím Másolása Gomb (1-kattintásos vágólap)
+        document.querySelectorAll('.btn-copy-client-info').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const text = decodeURIComponent(btn.getAttribute('data-copy-text') || '');
+                if (text && navigator.clipboard) {
+                    navigator.clipboard.writeText(text);
+                    const originalHtml = btn.innerHTML;
+                    btn.innerHTML = '<i class="ph-bold ph-check" style="color: #15803d;"></i> <span style="color: #15803d;">Másolva!</span>';
+                    btn.style.background = '#dcfce7';
+                    btn.style.borderColor = '#86efac';
+                    setTimeout(() => {
+                        btn.innerHTML = originalHtml;
+                        btn.style.background = '#f1f5f9';
+                        btn.style.borderColor = '#cbd5e1';
+                    }, 1800);
                 }
             });
         });

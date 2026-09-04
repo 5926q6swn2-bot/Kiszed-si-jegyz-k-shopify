@@ -52,6 +52,273 @@ function saveAccessToken(token) {
 
 loadEnv();
 
+let orderUtilsModule = null;
+async function getOrderUtils() {
+  if (!orderUtilsModule) {
+    orderUtilsModule = await import('./js/utils/orderUtils.js');
+  }
+  return orderUtilsModule;
+}
+
+let isPannonXpQueueRunning = false;
+
+async function queuePannonXpAutoTagging(targetOrders, token, shop) {
+  if (!token || !shop || !Array.isArray(targetOrders) || targetOrders.length === 0) return;
+  if (isPannonXpQueueRunning) {
+    console.log('[Auto PannonXP] Már fut egy címkéző háttérfolyamat, a mostani tételek várakoznak.');
+    return;
+  }
+
+  console.log(`🏷️ [Auto PannonXP Háttérfolyamat] ${targetOrders.length} db rendelés automatikus címkézése indul (PannonXP)...`);
+  isPannonXpQueueRunning = true;
+
+  setImmediate(async () => {
+    try {
+      for (const order of targetOrders) {
+        try {
+          const sId = order.id;
+          const oName = order.name || `#${sId}`;
+
+          let currentTagsStr = order.tags || '';
+          let tagsArr = currentTagsStr.split(',').map(t => t.trim()).filter(Boolean);
+          if (!tagsArr.some(t => t.toLowerCase() === 'pannonxp')) {
+            tagsArr.push('PannonXP');
+          }
+          const newTagsStr = tagsArr.join(', ');
+
+          const putUrl = `https://${shop}/admin/api/2024-04/orders/${sId}.json`;
+          const putRes = await fetch(putUrl, {
+            method: 'PUT',
+            headers: {
+              'X-Shopify-Access-Token': token,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              order: {
+                id: sId,
+                tags: newTagsStr
+              }
+            })
+          });
+
+          if (putRes.ok) {
+            order.tags = newTagsStr;
+            console.log(`✅ [Auto PannonXP] ${oName} sikeresen felcímkézve: "PannonXP"`);
+          } else {
+            const errData = await putRes.json().catch(() => ({}));
+            console.warn(`⚠️ [Auto PannonXP Hiba] ${oName}:`, errData.errors || putRes.statusText);
+          }
+        } catch (itemErr) {
+          console.error(`❌ [Auto PannonXP Kivétel] #${order.name || order.id}:`, itemErr.message);
+        }
+
+        // Kíméletes rate-limit: 600 ms szünet a Shopify API védelmében
+        await new Promise(resolve => setTimeout(resolve, 600));
+      }
+    } catch (globalErr) {
+      console.error('❌ [Auto PannonXP Globális Hiba]', globalErr);
+    } finally {
+      isPannonXpQueueRunning = false;
+      console.log('🏷️ [Auto PannonXP Háttérfolyamat] Befejeződött.');
+    }
+  });
+}
+
+// ==========================================
+// GYORSÍTÓTÁR ÉS PÁRHUZAMOS LEKÉRDEZÉS SEGÉDEK
+// ==========================================
+
+let productImagesCache = null;
+let productImagesCacheTime = 0;
+const PRODUCT_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 óra
+const PRODUCT_CACHE_FILE = path.join(__dirname, '.tmp', 'products_cache.json');
+
+// Termékképek gyorsítótárazott lekérése (Memória -> Lemez -> Shopify API)
+async function getProductImageMaps(shop, token) {
+  // 1. Memória gyorsítótár vizsgálata
+  if (productImagesCache && (Date.now() - productImagesCacheTime < PRODUCT_CACHE_TTL_MS)) {
+    return productImagesCache;
+  }
+
+  // 2. Helyi lemezes cache vizsgálata (.tmp/products_cache.json)
+  try {
+    if (fs.existsSync(PRODUCT_CACHE_FILE)) {
+      const stat = fs.statSync(PRODUCT_CACHE_FILE);
+      if (Date.now() - stat.mtimeMs < PRODUCT_CACHE_TTL_MS) {
+        const fileData = JSON.parse(fs.readFileSync(PRODUCT_CACHE_FILE, 'utf8'));
+        if (fileData && fileData.productImageMap && fileData.variantImageMap) {
+          productImagesCache = fileData;
+          productImagesCacheTime = stat.mtimeMs;
+          return productImagesCache;
+        }
+      }
+    }
+  } catch (fErr) {
+    console.warn('[Product Cache Read Warning]', fErr.message);
+  }
+
+  // 3. Shopify API lekérés ha még nincs vagy lejárt
+  try {
+    const res = await fetch(`https://${shop}/admin/api/2024-04/products.json?limit=250&fields=id,image,images,variants`, {
+      headers: {
+        'X-Shopify-Access-Token': token,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (res.ok) {
+      const prodData = await res.json();
+      const productImageMap = {};
+      const variantImageMap = {};
+
+      (prodData.products || []).forEach(p => {
+        const mainImg = p.image ? p.image.src : (p.images && p.images[0] ? p.images[0].src : null);
+        if (mainImg) productImageMap[p.id] = mainImg;
+
+        (p.variants || []).forEach(v => {
+          if (v.image_id && p.images) {
+            const matched = p.images.find(img => img.id === v.image_id);
+            if (matched) variantImageMap[v.id] = matched.src;
+          }
+        });
+      });
+
+      productImagesCache = { productImageMap, variantImageMap };
+      productImagesCacheTime = Date.now();
+
+      // Mentés háttérben a .tmp könyvtárba
+      try {
+        const tmpDir = path.dirname(PRODUCT_CACHE_FILE);
+        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+        fs.writeFileSync(PRODUCT_CACHE_FILE, JSON.stringify(productImagesCache), 'utf8');
+      } catch (wErr) {
+        console.warn('[Product Cache Write Warning]', wErr.message);
+      }
+
+      return productImagesCache;
+    }
+  } catch (err) {
+    console.warn('[Shopify Products Image Fetch Error]', err.message);
+  }
+
+  return productImagesCache || { productImageMap: {}, variantImageMap: {} };
+}
+
+// Célzott, villámgyors GraphQL lekérdezés a személyes átvételes / Ready for pickup rendelésekhez
+// Esemény-lavina (events 10) nélkül -> 6.5 mp helyett ~1.2 mp!
+async function fetchGraphQLReadyOrders(shop, token) {
+  const readyOrderNames = new Set();
+  let hasNext = true;
+  let cursor = null;
+  let page = 0;
+
+  try {
+    while (hasNext && page < 5) {
+      page++;
+      const afterParam = cursor ? `, after: "${cursor}"` : '';
+      const query = `
+        query {
+          orders(first: 250, query: "status:open", sortKey: CREATED_AT, reverse: true${afterParam}) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              node {
+                id
+                name
+                tags
+                displayFulfillmentStatus
+                fulfillmentOrders(first: 5) {
+                  edges {
+                    node {
+                      status
+                      requestStatus
+                      deliveryMethod {
+                        methodType
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const gqlRes = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
+        method: 'POST',
+        headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+      });
+
+      if (!gqlRes.ok) break;
+
+      const gqlData = await gqlRes.json();
+      const ordersData = gqlData.data && gqlData.data.orders;
+      const edges = (ordersData && ordersData.edges) || [];
+
+      for (const edge of edges) {
+        const node = edge.node;
+        const hasReadyTag = (node.tags || []).some(t => /ready for pickup|átvehető|atveheto/i.test(t));
+        const hasReadyFO = (node.fulfillmentOrders && node.fulfillmentOrders.edges || []).some(foEdge => {
+          const fo = foEdge.node;
+          const isPickupMethod = fo.deliveryMethod && (fo.deliveryMethod.methodType === 'PICK_UP' || fo.deliveryMethod.methodType === 'PICKUP' || fo.deliveryMethod.methodType === 'LOCAL_PICKUP');
+          const isReadyStatus = fo.status === 'IN_PROGRESS' || fo.status === 'in_progress' || fo.requestStatus === 'PREPARED';
+          return isPickupMethod && isReadyStatus;
+        });
+        const isDisplayReady = String(node.displayFulfillmentStatus || '').toUpperCase() === 'READY_FOR_PICKUP';
+
+        if (hasReadyTag || hasReadyFO || isDisplayReady) {
+          readyOrderNames.add(node.name);
+          readyOrderNames.add(String(node.id).replace('gid://shopify/Order/', ''));
+        }
+      }
+
+      hasNext = ordersData && ordersData.pageInfo && ordersData.pageInfo.hasNextPage;
+      cursor = ordersData && ordersData.pageInfo && ordersData.pageInfo.endCursor;
+    }
+  } catch (eErr) {
+    console.warn('[Shopify Events ReadyForPickup Warning]', eErr.message);
+  }
+
+  return readyOrderNames;
+}
+
+// Lapozásos REST rendelés lekérdezés segédfüggvény
+async function fetchPagedOrders(initialUrl, token, maxPages = 10) {
+  let results = [];
+  let nextUrl = initialUrl;
+  let pageCount = 0;
+  while (nextUrl && pageCount < maxPages) {
+    pageCount++;
+    console.log(`[Shopify API] Lapozás (${pageCount}. oldal): ${nextUrl}`);
+    const res = await fetch(nextUrl, {
+      headers: {
+        'X-Shopify-Access-Token': token,
+        'Content-Type': 'application/json'
+      }
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Shopify API hiba (${res.status}): ${errText}`);
+    }
+    const data = await res.json();
+    const pagedOrders = data.orders || [];
+    results = results.concat(pagedOrders);
+
+    const linkHeader = res.headers.get('link') || res.headers.get('Link');
+    nextUrl = null;
+    if (linkHeader) {
+      const match = linkHeader.match(/<([^>]+)>;\s*rel="next"/i);
+      if (match) {
+        nextUrl = match[1];
+      }
+    }
+  }
+  return results;
+}
+
 const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   let pathname = parsedUrl.pathname;
@@ -183,59 +450,17 @@ const server = http.createServer(async (req, res) => {
         'note', 'note_attributes', 'payment_gateway_names', 'cancelled_at'
       ].join(',');
 
-      // Segédfüggvény Shopify lapozásos lekéréshez (Link rel="next" támogatással)
-      async function fetchPagedOrders(initialUrl, maxPages = 10) {
-        let results = [];
-        let nextUrl = initialUrl;
-        let pageCount = 0;
-        while (nextUrl && pageCount < maxPages) {
-          pageCount++;
-          console.log(`[Shopify API] Lapozás (${pageCount}. oldal): ${nextUrl}`);
-          const res = await fetch(nextUrl, {
-            headers: {
-              'X-Shopify-Access-Token': token,
-              'Content-Type': 'application/json'
-            }
-          });
-          if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(`Shopify API hiba (${res.status}): ${errText}`);
-          }
-          const data = await res.json();
-          const pagedOrders = data.orders || [];
-          results = results.concat(pagedOrders);
-
-          const linkHeader = res.headers.get('link') || res.headers.get('Link');
-          nextUrl = null;
-          if (linkHeader) {
-            const match = linkHeader.match(/<([^>]+)>;\s*rel="next"/i);
-            if (match) {
-              nextUrl = match[1];
-            }
-          }
-        }
-        return results;
-      }
-
-      // Párhuzamosan lekérjük:
-      // 1. Az összes nyitott/unfulfilled rendelést (akár 100+ vagy 250+ darab)
-      // 2. Az összes részleges (partial) rendelést
-      // 3. A legutóbbi 250 általános rendelést (fulfilled archívum)
-      // 4. A termékképeket
-      const [unfulfilledOrders, partialOrders, recentAnyOrders, productsRes] = await Promise.all([
-        fetchPagedOrders(`https://${shop}/admin/api/2024-04/orders.json?status=any&fulfillment_status=unfulfilled&limit=250&fields=${fields}`, 10),
-        fetchPagedOrders(`https://${shop}/admin/api/2024-04/orders.json?status=any&fulfillment_status=partial&limit=250&fields=${fields}`, 10),
-        fetchPagedOrders(`https://${shop}/admin/api/2024-04/orders.json?status=any&limit=250&fields=${fields}`, 1),
-        fetch(`https://${shop}/admin/api/2024-04/products.json?limit=250&fields=id,image,images,variants`, {
-          headers: {
-            'X-Shopify-Access-Token': token,
-            'Content-Type': 'application/json'
-          }
-        }).catch(err => {
-          console.warn('[Shopify Products Image Error]', err);
-          return null;
-        })
+      // Párhuzamos lekérés: REST rendelések, GraphQL Átvehető státuszok, Termékképek (Cache)
+      const tFetchStart = Date.now();
+      const [unfulfilledOrders, partialOrders, recentAnyOrders, readyOrderNames, imageMaps] = await Promise.all([
+        fetchPagedOrders(`https://${shop}/admin/api/2024-04/orders.json?status=any&fulfillment_status=unfulfilled&limit=250&fields=${fields}`, token, 10),
+        fetchPagedOrders(`https://${shop}/admin/api/2024-04/orders.json?status=any&fulfillment_status=partial&limit=250&fields=${fields}`, token, 10),
+        fetchPagedOrders(`https://${shop}/admin/api/2024-04/orders.json?status=any&limit=250&fields=${fields}`, token, 1),
+        fetchGraphQLReadyOrders(shop, token),
+        getProductImageMaps(shop, token)
       ]);
+
+      console.log(`⚡ [Shopify API] Minden adat sikeresen lekérve ${(Date.now() - tFetchStart) / 1000}s alatt.`);
 
       // Összefésülés és deduplikálás ID szerint
       const orderMap = new Map();
@@ -252,122 +477,47 @@ const server = http.createServer(async (req, res) => {
 
       console.log(`[Shopify API] Összesen összefésülve: ${orders.length} rendelés (Unfulfilled: ${unfulfilledOrders.length}, Partial: ${partialOrders.length})`);
 
-      // Személyes átvételes / Ready for pickup események lekérdezése GraphQL-lel az ÖSSZES nyitott rendeléshez (lapozással)
-      try {
-        const readyOrderNames = new Set();
-        let hasNext = true;
-        let cursor = null;
-        let page = 0;
-
-        while (hasNext && page < 5) {
-          page++;
-          const afterParam = cursor ? `, after: "${cursor}"` : '';
-          const eventsQuery = `
-            query {
-              orders(first: 250, query: "status:open", sortKey: CREATED_AT, reverse: true${afterParam}) {
-                pageInfo {
-                  hasNextPage
-                  endCursor
-                }
-                edges {
-                  node {
-                    id
-                    name
-                    tags
-                    displayFulfillmentStatus
-                    fulfillmentOrders(first: 5) {
-                      edges {
-                        node {
-                          status
-                          requestStatus
-                          deliveryMethod {
-                            methodType
-                          }
-                        }
-                      }
-                    }
-                    events(first: 10) {
-                      edges {
-                        node {
-                          message
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          `;
-          const gqlRes = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
-            method: 'POST',
-            headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: eventsQuery })
-          });
-          if (gqlRes.ok) {
-            const gqlData = await gqlRes.json();
-            const ordersData = gqlData.data && gqlData.data.orders;
-            const edges = (ordersData && ordersData.edges) || [];
-            
-            for (const edge of edges) {
-              const node = edge.node;
-              const hasReadyEmail = (node.events && node.events.edges || []).some(e => /ready for pickup|átvehető/i.test(e.node.message || ''));
-              const hasReadyTag = (node.tags || []).some(t => /ready for pickup|átvehető|atveheto/i.test(t));
-              const hasReadyFO = (node.fulfillmentOrders && node.fulfillmentOrders.edges || []).some(foEdge => {
-                const fo = foEdge.node;
-                const isPickupMethod = fo.deliveryMethod && (fo.deliveryMethod.methodType === 'PICK_UP' || fo.deliveryMethod.methodType === 'PICKUP' || fo.deliveryMethod.methodType === 'LOCAL_PICKUP');
-                const isReadyStatus = fo.status === 'IN_PROGRESS' || fo.status === 'in_progress' || fo.requestStatus === 'PREPARED';
-                return isPickupMethod && isReadyStatus;
-              });
-              const isDisplayReady = String(node.displayFulfillmentStatus || '').toUpperCase() === 'READY_FOR_PICKUP';
-
-              if (hasReadyEmail || hasReadyTag || hasReadyFO || isDisplayReady) {
-                readyOrderNames.add(node.name);
-                readyOrderNames.add(String(node.id).replace('gid://shopify/Order/', ''));
-              }
-            }
-
-            hasNext = ordersData && ordersData.pageInfo && ordersData.pageInfo.hasNextPage;
-            cursor = ordersData && ordersData.pageInfo && ordersData.pageInfo.endCursor;
-          } else {
-            hasNext = false;
-          }
-        }
-
+      // Személyes átvételes / Ready for pickup állapotok ráültetése
+      if (readyOrderNames && readyOrderNames.size > 0) {
         orders.forEach(o => {
           if (readyOrderNames.has(String(o.name)) || readyOrderNames.has(String(o.id))) {
             o.is_ready_for_pickup = true;
           }
         });
-
         console.log(`🟣 [Ready for pickup Felismerve] Összesen ${readyOrderNames.size} rendelés átvehetőre állítva a boltban.`);
-      } catch (eErr) {
-        console.warn('[Shopify Events ReadyForPickup Warning]', eErr.message);
       }
 
-      // Termékképek feltérképezése
-      let productImageMap = {};
-      let variantImageMap = {};
-      if (productsRes && productsRes.ok) {
-        const prodData = await productsRes.json().catch(() => ({}));
-        (prodData.products || []).forEach(p => {
-          const mainImg = p.image ? p.image.src : (p.images && p.images[0] ? p.images[0].src : null);
-          if (mainImg) productImageMap[p.id] = mainImg;
-
-          (p.variants || []).forEach(v => {
-            if (v.image_id && p.images) {
-              const matched = p.images.find(img => img.id === v.image_id);
-              if (matched) variantImageMap[v.id] = matched.src;
-            }
-          });
-        });
-      }
-
-      // Képek csatolása a tételekhez
+      // Képek csatolása a tételekhez a gyorsítótárból
+      const { productImageMap = {}, variantImageMap = {} } = imageMaps || {};
       orders.forEach(order => {
         (order.line_items || []).forEach(item => {
           item.image_url = variantImageMap[item.variant_id] || productImageMap[item.product_id] || null;
         });
       });
+
+      // Automatikus PannonXP szűrés és optimista UI címke (0 ms késleltetés a kezelőfelületnek)
+      try {
+        const { isEligibleForAutoPannonXp } = await getOrderUtils();
+        const eligibleForPxp = orders.filter(isEligibleForAutoPannonXp);
+
+        if (eligibleForPxp.length > 0) {
+          console.log(`🏷️ [Auto PannonXP Felismerés] ${eligibleForPxp.length} db nyitott rendelés nem tartalmaz PVC/SPC-t vagy padlót -> PannonXP-re jelölve.`);
+          
+          // Optimista címkézés a visszaküldött válaszban (azonnali frissülés a felületen)
+          eligibleForPxp.forEach(order => {
+            let tagsArr = (order.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+            if (!tagsArr.some(t => t.toLowerCase() === 'pannonxp')) {
+              tagsArr.push('PannonXP');
+              order.tags = tagsArr.join(', ');
+            }
+          });
+
+          // Háttérben futó kíméletes (600 ms rate-limit) Shopify API szinkronizáció indítása
+          queuePannonXpAutoTagging(eligibleForPxp, token, shop);
+        }
+      } catch (autoTagErr) {
+        console.warn('[Auto PannonXP Init Warning]', autoTagErr.message);
+      }
 
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',

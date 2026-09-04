@@ -38,6 +38,11 @@ You are operating as an agent inside the **WAT framework** (Workflows, Agents, T
 5. **Follow-up:** After pushing, remind the user to wait 2 minutes for GitHub Actions and use **Ctrl + Shift + R** to bypass cache.
 6. **Session Closure Rule:** NEVER say goodbye or close the session/day without first updating the `fejlesztesi_naplo.md`, committing the log, and pushing it to the repository. The log update and push must ALWAYS happen before the final sign-off.
 
+### 🚫 Böngésző / Chrome Használati Tilalom (MANDATORY)
+**Az ágens soha NE nyisson meg és NE vezéreljen önállóan böngészőt (Chrome, browser_subagent)!**
+- A felület megtekintését és tesztelését mindig a felhasználó végzi a saját böngészőjében.
+- Az ágens kizárólag terminálos és szerveroldali eszközökkel (Node.js futtatás, unit tesztek, fetch API mérések) ellenőrizheti a rendszert, szigorúan tilos felugró Chrome ablakot vagy automatizált böngészőt indítani.
+
 ---
 
 ## 3. Multi-Model & Resource Guidelines

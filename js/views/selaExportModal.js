@@ -7,22 +7,49 @@ import { ExporterService } from '../services/exporter.js';
 import { ShopifyApiService } from '../services/shopifyApiService.js';
 import { Store } from '../store/state.js';
 import { CustomDialog } from '../utils/dialog.js';
+import { SelaWeightService } from '../services/selaWeightService.js';
+import { SelaMissingWeightsModal } from './selaMissingWeightsModal.js';
+import { ensureSelaModalStyles } from './selaModalStyles.js';
 
 export const SelaExportModal = {
-    show: function(selectedOrders, onCompleteCallback) {
+    show: async function(selectedOrders, onCompleteCallback) {
         if (!selectedOrders || selectedOrders.length === 0) {
             CustomDialog.alert('Nincs exportálható rendelés kijelölve!', 'Figyelem', 'warning');
             return;
         }
 
-        // 1. Sorok előkészítése a 12 oszlopos logikával
-        const initialRows = selectedOrders.map(o => ExporterService.prepareSelaRowData(o));
+        // Stílusok előzetes biztosítása a DOM-ban
+        ensureSelaModalStyles();
+
+        // 0. Terméksúlyok inicializálása és hiányzó súlyok ellenőrzése
+        await SelaWeightService.initializeProductWeights();
+        const unknownItems = SelaWeightService.findUnknownItemsInOrders(selectedOrders);
+        if (unknownItems.length > 0) {
+            SelaMissingWeightsModal.show(
+                unknownItems,
+                () => {
+                    // Súlyok sikeres rögzítése után automatikusan megnyitjuk az export modalt
+                    SelaExportModal.show(selectedOrders, onCompleteCallback);
+                },
+                () => {
+                    console.log('[SelaExportModal] Új terméksúlyok megadása megszakítva.');
+                }
+            );
+            return;
+        }
+
+        // 1. Sorok előkészítése a 13 oszlopos logikával (terméksúlyokkal)
+        const weightSettings = ExporterService.getSelaWeightSettings();
+        const initialRows = selectedOrders.map(o => ExporterService.prepareSelaRowData(o, {}, weightSettings));
 
         // Van-e díjbekérős vagy függő utalásos rendelés a listában?
         const hasProformaOrders = initialRows.some(r => r.isProforma);
         const proformaCount = initialRows.filter(r => r.isProforma).length;
         const hasPendingBankOrders = initialRows.some(r => r.isPendingBankTransfer);
         const pendingBankCount = initialRows.filter(r => r.isPendingBankTransfer).length;
+
+        // Összsúly kezdeti kalkulációja
+        const initialTotalWeight = Math.round(initialRows.reduce((sum, r) => sum + (parseFloat(r.col13_weight) || 0), 0) * 10) / 10;
 
         // 2. Régi modal eltávolítása, ha létezne
         const existingModal = document.getElementById('sela-export-modal-overlay');
@@ -85,6 +112,16 @@ export const SelaExportModal = {
                                    title="${r.col12_codAndTapadohid}">
                         </div>
                     </td>
+                    <td>
+                        <input type="number" 
+                               step="0.1" 
+                               min="0" 
+                               class="sela-cell-input col-weight" 
+                               data-field="col13_weight" 
+                               value="${r.col13_weight}" 
+                               style="width: 65px; text-align: right; font-weight:700; color: #0284c7;" 
+                               title="${r.weightBreakdownText ? r.weightBreakdownText.replace(/"/g, '&quot;') : `Kalkulált súly: ${r.col13_weight} kg`}">
+                    </td>
                 </tr>
             `;
         }).join('');
@@ -103,7 +140,13 @@ export const SelaExportModal = {
                             <p class="sela-modal-subtitle">A letöltés előtt bármelyik mezőt átírhatod, vagy a kuka ikonnal kihagyhatsz rendeléseket.</p>
                         </div>
                     </div>
-                    <button type="button" class="sela-modal-close" id="btn-sela-close">&times;</button>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <button type="button" class="btn btn-secondary sela-btn-manage-weights" id="btn-sela-manage-weights" style="display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; padding:5px 11px; border-radius:6px; background:#f0f9ff; border:1px solid #bae6fd; color:#0369a1; cursor:pointer;" title="Rögzített terméksúlyok megtekintése és módosítása">
+                            <i class="ph ph-sliders" style="font-size:14px;"></i>
+                            <span>Terméksúlyok kezelése</span>
+                        </button>
+                        <button type="button" class="sela-modal-close" id="btn-sela-close">&times;</button>
+                    </div>
                 </div>
 
                 <!-- Figyelmeztető sávok -->
@@ -127,6 +170,37 @@ export const SelaExportModal = {
                     </div>
                 ` : ''}
 
+                <!-- Súlybeállítások sáv -->
+                <div class="sela-weight-bar" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 7px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #0f172a;">
+                        <i class="ph ph-scales" style="font-size: 16px; color: #0284c7;"></i>
+                        <span>Súlybeállítások (kg/db):</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 11.5px; color: #334155;">
+                        <label style="display: inline-flex; align-items: center; gap: 4px;">
+                            <span>PVC/SPC:</span>
+                            <input type="number" step="0.5" min="0" class="sela-weight-cfg-input" data-weight-key="pvc_spc_floor" value="${weightSettings.pvc_spc_floor}" style="width: 46px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-weight: 600;"> kg
+                        </label>
+                        <label style="display: inline-flex; align-items: center; gap: 4px;">
+                            <span>Akusztikus:</span>
+                            <input type="number" step="0.5" min="0" class="sela-weight-cfg-input" data-weight-key="acoustic" value="${weightSettings.acoustic}" style="width: 44px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-weight: 600;"> kg
+                        </label>
+                        <label style="display: inline-flex; align-items: center; gap: 4px;">
+                            <span>Ragasztó:</span>
+                            <input type="number" step="0.1" min="0" class="sela-weight-cfg-input" data-weight-key="adhesive" value="${weightSettings.adhesive}" style="width: 44px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-weight: 600;"> kg
+                        </label>
+                        <label style="display: inline-flex; align-items: center; gap: 4px;">
+                            <span>Profil:</span>
+                            <input type="number" step="0.1" min="0" class="sela-weight-cfg-input" data-weight-key="profile" value="${weightSettings.profile}" style="width: 44px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-weight: 600;"> kg
+                        </label>
+                        <label style="display: inline-flex; align-items: center; gap: 4px;">
+                            <span>Tapadóhíd:</span>
+                            <input type="number" step="0.1" min="0" class="sela-weight-cfg-input" data-weight-key="tapadohid" value="${weightSettings.tapadohid}" style="width: 44px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-weight: 600;"> kg
+                        </label>
+                        <span style="font-size: 10.5px; color: #64748b; font-style: italic;">(Módosításkor azonnal újraszámolja a sorokat)</span>
+                    </div>
+                </div>
+
                 <!-- Táblázat Görgethető Terület -->
                 <div class="sela-table-scroll">
                     <table class="sela-table">
@@ -146,6 +220,7 @@ export const SelaExportModal = {
                                 <th style="width:50px; text-align:center;" title="Ragasztók, szilikonok">Ragasztó</th>
                                 <th style="width:50px; text-align:center;" title="Profilok és skirting szegélylécek">Profil</th>
                                 <th style="width:180px;">Utánvét / Tapadóhíd</th>
+                                <th style="width:75px; text-align:right;" title="Kalkulált összsúly">Összsúly (kg)</th>
                             </tr>
                         </thead>
                         <tbody id="sela-table-body">
@@ -163,7 +238,7 @@ export const SelaExportModal = {
                         </label>
                     </div>
                     <div class="sela-footer-right">
-                        <span style="font-size:12px; color:#64748b; margin-right:8px;" id="sela-footer-count">Összesen: <strong>${initialRows.length} db</strong> rendelés</span>
+                        <span style="font-size:12px; color:#64748b; margin-right:8px;" id="sela-footer-count">Összesen: <strong>${initialRows.length} db</strong> rendelés | Kiszállítandó összsúly: <strong id="sela-footer-total-weight" style="color:#0284c7;">${new Intl.NumberFormat('hu-HU').format(initialTotalWeight)} kg</strong></span>
                         <button type="button" class="btn btn-secondary sela-btn-cancel" id="btn-sela-cancel">Mégse</button>
                         <button type="button" class="btn btn-primary sela-btn-export" id="btn-sela-export">
                             <i class="ph ph-download-simple" style="font-size:18px;"></i>
@@ -174,326 +249,35 @@ export const SelaExportModal = {
             </div>
         `;
 
-        // 4. Stílusok injektálása
-        if (!document.getElementById('sela-modal-styles')) {
-            const style = document.createElement('style');
-            style.id = 'sela-modal-styles';
-            style.textContent = `
-                .sela-modal-overlay {
-                    position: fixed;
-                    inset: 0;
-                    background: rgba(15, 23, 42, 0.75);
-                    backdrop-filter: blur(8px);
-                    -webkit-backdrop-filter: blur(8px);
-                    z-index: 99999;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 16px;
-                    animation: selaFadeIn 0.2s ease-out;
-                }
-                @keyframes selaFadeIn {
-                    from { opacity: 0; transform: scale(0.98); }
-                    to { opacity: 1; transform: scale(1); }
-                }
-                .sela-modal-container {
-                    background: #ffffff;
-                    width: 98vw;
-                    max-width: 1540px;
-                    height: 92vh;
-                    max-height: 900px;
-                    border-radius: 16px;
-                    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
-                    display: flex;
-                    flex-direction: column;
-                    overflow: hidden;
-                    border: 1px solid rgba(226, 232, 240, 0.8);
-                }
-                .sela-modal-header {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    padding: 14px 20px;
-                    border-bottom: 1px solid #e2e8f0;
-                    background: #f8fafc;
-                }
-                .sela-header-title-group {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                }
-                .sela-header-icon {
-                    width: 38px;
-                    height: 38px;
-                    border-radius: 10px;
-                    background: #e0f2fe;
-                    color: #0284c7;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 22px;
-                }
-                .sela-modal-title {
-                    margin: 0;
-                    font-size: 16.5px;
-                    font-weight: 700;
-                    color: #0f172a;
-                    letter-spacing: -0.01em;
-                }
-                .sela-modal-subtitle {
-                    margin: 2px 0 0 0;
-                    font-size: 12px;
-                    color: #64748b;
-                }
-                .sela-order-count-badge {
-                    display: inline-block;
-                    padding: 2px 8px;
-                    background: #e0f2fe;
-                    color: #0284c7;
-                    border-radius: 6px;
-                    font-size: 11px;
-                    font-weight: 700;
-                }
-                .sela-modal-close {
-                    background: none;
-                    border: none;
-                    font-size: 26px;
-                    line-height: 1;
-                    color: #94a3b8;
-                    cursor: pointer;
-                    padding: 4px;
-                    border-radius: 8px;
-                    transition: all 0.15s;
-                }
-                .sela-modal-close:hover {
-                    color: #0f172a;
-                    background: #e2e8f0;
-                }
-                .sela-bank-alert {
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                    padding: 8px 16px;
-                    background: #fff7ed;
-                    border-bottom: 1px solid #fed7aa;
-                    color: #9a3412;
-                    font-size: 12.5px;
-                }
-                .sela-proforma-alert {
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                    padding: 8px 16px;
-                    background: #fffbeb;
-                    border-bottom: 1px solid #fde68a;
-                    color: #92400e;
-                    font-size: 12.5px;
-                }
-                .sela-table-scroll {
-                    flex: 1;
-                    overflow: auto;
-                    min-height: 0;
-                    background: #ffffff;
-                }
-                .sela-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    font-size: 12.5px;
-                    text-align: left;
-                }
-                .sela-table thead th {
-                    position: sticky;
-                    top: 0;
-                    background: #f8fafc;
-                    padding: 7px 8px;
-                    font-size: 11.5px;
-                    font-weight: 700;
-                    color: #475569;
-                    border-bottom: 2px solid #cbd5e1;
-                    white-space: nowrap;
-                    z-index: 10;
-                }
-                .sela-row {
-                    border-bottom: 1px solid #f1f5f9;
-                    transition: background-color 0.15s;
-                }
-                .sela-row:hover {
-                    background: #f8fafc;
-                }
-                .sela-row-proforma {
-                    background: #f0f9ff;
-                }
-                .sela-row-proforma:hover {
-                    background: #e0f2fe;
-                }
-                .sela-row-bank-pending {
-                    background: #fff7ed;
-                }
-                .sela-row-bank-pending:hover {
-                    background: #ffedd5;
-                }
-                .sela-col-idx {
-                    color: #94a3b8;
-                    font-size: 11px;
-                    text-align: center;
-                    padding: 4px 6px;
-                }
-                .sela-btn-delete-row {
-                    background: transparent;
-                    border: none;
-                    cursor: pointer;
-                    padding: 4px 6px;
-                    border-radius: 6px;
-                    color: #ef4444;
-                    font-size: 14px;
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    transition: all 0.15s;
-                }
-                .sela-btn-delete-row:hover {
-                    background: #fee2e2;
-                    color: #b91c1c;
-                    transform: scale(1.1);
-                }
-                .sela-proforma-badge {
-                    display: inline-block;
-                    padding: 1px 5px;
-                    background: #0284c7;
-                    color: #ffffff;
-                    border-radius: 4px;
-                    font-size: 10px;
-                    font-weight: 700;
-                    white-space: nowrap;
-                }
-                .sela-bank-badge {
-                    display: inline-block;
-                    padding: 1px 5px;
-                    background: #ea580c;
-                    color: #ffffff;
-                    border-radius: 4px;
-                    font-size: 10px;
-                    font-weight: 700;
-                    white-space: nowrap;
-                }
-                .sela-cell-input {
-                    padding: 4px 6px;
-                    border: 1px solid transparent;
-                    border-radius: 5px;
-                    background: transparent;
-                    font-family: inherit;
-                    font-size: 12.5px;
-                    color: #1e293b;
-                    box-sizing: border-box;
-                    transition: all 0.15s;
-                }
-                .sela-cell-input:hover {
-                    border-color: #cbd5e1;
-                    background: #ffffff;
-                }
-                .sela-cell-input:focus {
-                    border-color: #0284c7;
-                    background: #ffffff;
-                    outline: none;
-                    box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2);
-                }
-                .sela-input-proforma {
-                    background: #ffffff;
-                    border-color: #7dd3fc;
-                    color: #0369a1;
-                }
-                .sela-input-required-cod {
-                    background: #fef2f2 !important;
-                    border: 2px solid #ef4444 !important;
-                    color: #b91c1c !important;
-                    font-weight: 700 !important;
-                }
-                .sela-input-pulse-error {
-                    border: 2px solid #dc2626 !important;
-                    background: #fee2e2 !important;
-                    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.3) !important;
-                    animation: pulseError 0.8s ease-in-out infinite alternate;
-                }
-                @keyframes pulseError {
-                    from { transform: scale(1); }
-                    to { transform: scale(1.02); }
-                }
-                .sela-modal-footer {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    padding: 12px 20px;
-                    background: #f8fafc;
-                    border-top: 1px solid #e2e8f0;
-                }
-                .sela-checkbox-label {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 8px;
-                    font-size: 13px;
-                    font-weight: 600;
-                    color: #1e293b;
-                    cursor: pointer;
-                    user-select: none;
-                }
-                .sela-checkbox-label input[type="checkbox"] {
-                    width: 17px;
-                    height: 17px;
-                    accent-color: #0284c7;
-                    cursor: pointer;
-                }
-                .sela-footer-right {
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                }
-                .sela-btn-cancel {
-                    padding: 7px 14px;
-                    font-size: 13px;
-                    font-weight: 600;
-                    border-radius: 8px;
-                    background: #e2e8f0;
-                    color: #475569;
-                    border: none;
-                    cursor: pointer;
-                    transition: all 0.15s;
-                }
-                .sela-btn-cancel:hover {
-                    background: #cbd5e1;
-                    color: #0f172a;
-                }
-                .sela-btn-export {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 6px;
-                    padding: 7px 18px;
-                    font-size: 13px;
-                    font-weight: 700;
-                    border-radius: 8px;
-                    background: #0284c7;
-                    color: #ffffff;
-                    border: none;
-                    cursor: pointer;
-                    box-shadow: 0 2px 4px rgba(2, 132, 199, 0.25);
-                    transition: all 0.15s;
-                }
-                .sela-btn-export:hover {
-                    background: #0369a1;
-                }
-            `;
-            document.head.appendChild(style);
-        }
+        // 4. Stílusok biztosítása
+        ensureSelaModalStyles();
 
         document.body.appendChild(overlay);
 
-        // 5. Segédfüggvény a darabszám frissítésére
+        // 5. Segédfüggvény a darabszám és összsúly frissítésére
+        const updateTotalWeightDisplay = (explicitTotal = null) => {
+            let total = 0;
+            if (explicitTotal !== null) {
+                total = explicitTotal;
+            } else {
+                overlay.querySelectorAll('.col-weight').forEach(inp => {
+                    total += parseFloat(inp.value) || 0;
+                });
+            }
+            const roundedTotal = Math.round(total * 10) / 10;
+            const target = overlay.querySelector('#sela-footer-total-weight');
+            if (target) {
+                target.textContent = `${new Intl.NumberFormat('hu-HU').format(roundedTotal)} kg`;
+            }
+        };
+
         const updateCountDisplays = () => {
             const currentRows = overlay.querySelectorAll('.sela-row');
             const count = currentRows.length;
             const headerCount = overlay.querySelector('#sela-header-count');
-            const footerCount = overlay.querySelector('#sela-footer-count');
             if (headerCount) headerCount.textContent = `${count} db rendelés`;
-            if (footerCount) footerCount.innerHTML = `Összesen: <strong>${count} db</strong> rendelés`;
+            
+            updateTotalWeightDisplay();
 
             // Sorszámok újrainstallálása
             currentRows.forEach((row, i) => {
@@ -507,6 +291,53 @@ export const SelaExportModal = {
             }
         };
 
+        // Súlyok újraszámítása ha a terméksúlyok módosulnak vagy kategóriasúlyt írnak át
+        const recalculateAllRowWeights = () => {
+            const currentCfg = {};
+            overlay.querySelectorAll('.sela-weight-cfg-input').forEach(inp => {
+                const key = inp.dataset.weightKey;
+                currentCfg[key] = parseFloat(inp.value) >= 0 ? parseFloat(inp.value) : 0;
+            });
+            ExporterService.saveSelaWeightSettings(currentCfg);
+
+            let totalKg = 0;
+            overlay.querySelectorAll('.sela-row').forEach(rowEl => {
+                const orderId = rowEl.dataset.orderId;
+                const origRow = initialRows.find(r => r.orderId === orderId);
+                let rowWeight = 0;
+                let titleText = '';
+
+                if (origRow && origRow.order && Array.isArray(origRow.order.items) && origRow.order.items.length > 0) {
+                    const weightCalc = SelaWeightService.calculateOrderWeight(origRow.order);
+                    rowWeight = weightCalc.totalWeight;
+                    titleText = weightCalc.breakdownText;
+                } else {
+                    const getNum = (selector) => {
+                        const input = rowEl.querySelector(selector);
+                        return input ? parseInt(input.value, 10) || 0 : 0;
+                    };
+                    const tapadohidQty = origRow ? origRow.tapadohidQty || 0 : 0;
+                    rowWeight = ExporterService.calculateSelaOrderWeight({
+                        pvcSpcFloorQty: getNum('[data-field="col8_pvcSpcFloorQty"]'),
+                        acousticQty: getNum('[data-field="col9_acousticQty"]'),
+                        adhesivesQty: getNum('[data-field="col10_adhesivesQty"]'),
+                        profilesQty: getNum('[data-field="col11_profilesQty"]'),
+                        tapadohidQty: tapadohidQty
+                    }, currentCfg);
+                    titleText = `Kalkulált súly: ${rowWeight} kg`;
+                }
+
+                const weightInput = rowEl.querySelector('.col-weight');
+                if (weightInput) {
+                    weightInput.value = rowWeight;
+                    weightInput.title = titleText;
+                }
+                totalKg += rowWeight;
+            });
+
+            updateTotalWeightDisplay(totalKg);
+        };
+
         // 6. Eseménykezelők bekötése
         const closeModal = () => {
             overlay.remove();
@@ -516,6 +347,15 @@ export const SelaExportModal = {
         const btnCancel = overlay.querySelector('#btn-sela-cancel');
         const btnExport = overlay.querySelector('#btn-sela-export');
         const tagCheckbox = overlay.querySelector('#sela-tag-checkbox');
+        const btnManageWeights = overlay.querySelector('#btn-sela-manage-weights');
+
+        if (btnManageWeights) {
+            btnManageWeights.addEventListener('click', () => {
+                SelaMissingWeightsModal.showManagerModal(() => {
+                    recalculateAllRowWeights();
+                });
+            });
+        }
 
         if (btnClose) btnClose.addEventListener('click', closeModal);
         if (btnCancel) btnCancel.addEventListener('click', closeModal);
@@ -534,6 +374,11 @@ export const SelaExportModal = {
         };
         document.addEventListener('keydown', escHandler);
 
+        // Súlykonfiguráció változása
+        overlay.querySelectorAll('.sela-weight-cfg-input').forEach(inp => {
+            inp.addEventListener('input', recalculateAllRowWeights);
+        });
+
         // SOROK TÖRLÉSE (Kuka gomb)
         overlay.addEventListener('click', (e) => {
             const delBtn = e.target.closest('.sela-btn-delete-row');
@@ -546,13 +391,45 @@ export const SelaExportModal = {
             }
         });
 
-        // Ha a kötelező utánvét mezőbe írnak, töröljük a piros hibajelzést
+        // Ha a kötelező utánvét mezőbe írnak vagy tételszám változik
         overlay.addEventListener('input', (e) => {
             if (e.target.classList.contains('col-cod')) {
                 e.target.classList.remove('sela-input-pulse-error');
                 if (e.target.value.trim() && !e.target.value.includes('⚠️')) {
                     e.target.classList.remove('sela-input-required-cod');
                 }
+            } else if (e.target.classList.contains('col-num')) {
+                const rowEl = e.target.closest('tr');
+                if (rowEl) {
+                    const currentCfg = {};
+                    overlay.querySelectorAll('.sela-weight-cfg-input').forEach(inp => {
+                        const key = inp.dataset.weightKey;
+                        currentCfg[key] = parseFloat(inp.value) >= 0 ? parseFloat(inp.value) : 0;
+                    });
+                    const getNum = (selector) => {
+                        const input = rowEl.querySelector(selector);
+                        return input ? parseInt(input.value, 10) || 0 : 0;
+                    };
+                    const orderId = rowEl.dataset.orderId;
+                    const origRow = initialRows.find(r => r.orderId === orderId);
+                    const tapadohidQty = origRow ? origRow.tapadohidQty || 0 : 0;
+
+                    const rowWeight = ExporterService.calculateSelaOrderWeight({
+                        pvcSpcFloorQty: getNum('[data-field="col8_pvcSpcFloorQty"]'),
+                        acousticQty: getNum('[data-field="col9_acousticQty"]'),
+                        adhesivesQty: getNum('[data-field="col10_adhesivesQty"]'),
+                        profilesQty: getNum('[data-field="col11_profilesQty"]'),
+                        tapadohidQty: tapadohidQty
+                    }, currentCfg);
+
+                    const weightInput = rowEl.querySelector('.col-weight');
+                    if (weightInput) {
+                        weightInput.value = rowWeight;
+                    }
+                    updateTotalWeightDisplay();
+                }
+            } else if (e.target.classList.contains('col-weight')) {
+                updateTotalWeightDisplay();
             }
         });
 
@@ -635,7 +512,8 @@ export const SelaExportModal = {
                         col9_acousticQty: getNum('[data-field="col9_acousticQty"]'),
                         col10_adhesivesQty: getNum('[data-field="col10_adhesivesQty"]'),
                         col11_profilesQty: getNum('[data-field="col11_profilesQty"]'),
-                        col12_codAndTapadohid: getVal('.col-cod')
+                        col12_codAndTapadohid: getVal('.col-cod'),
+                        col13_weight: parseFloat(getVal('.col-weight')) >= 0 ? parseFloat(getVal('.col-weight')) : 0
                     });
                 });
 

@@ -461,8 +461,14 @@ export const ShopifyApiService = {
         const removedItems = [];
 
         (apiOrder.line_items || []).forEach(item => {
-            const rawItemName = item.title || item.name || '';
-            const formattedName = ShopifyParser.formatItemName(rawItemName);
+            const variantTitle = (item.variant_title || item.variantTitle || '').trim();
+            // Mindig a teljes nevet képezzük: Shopify-ban item.name tartalmazza a variánst ("Terméknév - Variáns")
+            // Ha mégis hiányozna a variáns a névből, automatikusan hozzáfűzzük a méretet/kiszerelést
+            let fullItemName = (item.name || item.title || '').trim();
+            if (variantTitle && variantTitle.toLowerCase() !== 'default title' && !fullItemName.toLowerCase().includes(variantTitle.toLowerCase())) {
+                fullItemName = `${item.title || fullItemName} - ${variantTitle}`;
+            }
+            const formattedName = ShopifyParser.formatItemName(fullItemName);
             const origQty = parseInt(item.quantity) || 0;
             const curQty = item.current_quantity !== undefined ? parseInt(item.current_quantity) : origQty;
             const fulfillableQty = item.fulfillable_quantity !== undefined ? parseInt(item.fulfillable_quantity) : curQty;

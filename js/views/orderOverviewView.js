@@ -761,184 +761,206 @@ export const OrderOverviewView = {
                                         </div>
                                     </div>
 
-                                    <!-- Lenyitható Részletes Panel (Képekkel, Részletekkel, Törölt tételekkel) -->
-                                    ${isExp ? `
-                                        <div class="hub-order-details" style="padding: 14px 20px 16px 66px; background: #f8fafc; border-top: 1px dashed #e2e8f0; border-bottom: 1px solid #e2e8f0;">
-                                            
-                                            <!-- KISZÁLLÍTÁSI / TERÍTÉSI INFÓ KÁRTYA (Ha terítésben van) -->
-                                            ${order.deliveryInfo ? `
-                                                <div style="background: #f0fdfa; border: 1.5px solid #99f6e4; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-                                                    <div style="display: flex; align-items: center; gap: 10px;">
-                                                        <div style="background: #0d9488; color: white; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px;">
-                                                            <i class="ph-bold ph-truck"></i>
+                                    <!-- Lenyitható Részletes Panel (Kompakt, Strukturált, Prémium Nézet) -->
+                                    ${isExp ? (() => {
+                                        const totalItemsQty = (order.items || []).reduce((sum, it) => sum + (it.qty || 0), 0);
+                                        return `
+                                            <div class="hub-order-details" style="padding: 12px 18px 14px 18px; background: #f8fafc; border-top: 1px solid #e2e8f0; border-bottom: 2px solid #cbd5e1; box-shadow: inset 0 2px 5px rgba(0,0,0,0.02);">
+                                                
+                                                <!-- 1. KOMPAKT STÁTUSZ & FIGYELMEZTETŐ SÁV (Csak ha van figyelmeztetés vagy terítés!) -->
+                                                ${(order.isCancelled || (!order.isFulfilled && order.hasBadShipping) || order.needsProforma || order.hasNoInvoice || order.deliveryInfo) ? `
+                                                    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px dashed #e2e8f0;">
+                                                        ${order.isCancelled ? `
+                                                            <span style="display: inline-flex; align-items: center; gap: 5px; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; padding: 3px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700;">
+                                                                <i class="ph-bold ph-x-circle"></i> Lemondott / Törölt rendelés (Stornózva a Shopify-ban)
+                                                            </span>
+                                                        ` : ''}
+
+                                                        ${(!order.isFulfilled && order.hasBadShipping) ? `
+                                                            <span style="display: inline-flex; align-items: center; gap: 5px; background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; padding: 3px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700;">
+                                                                <i class="ph-bold ph-warning"></i> Hibás szállítás: 2 300 Ft (${order.city || 'Vidéki cím'} - 9 900 Ft helyett)
+                                                            </span>
+                                                        ` : ''}
+
+                                                        ${order.needsProforma ? `
+                                                            <span style="display: inline-flex; align-items: center; gap: 5px; background: #e0e7ff; color: #3730a3; border: 1px solid #a5b4fc; padding: 3px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700;">
+                                                                <i class="ph-bold ph-file-text"></i> Díjbekérő szükséges (250 000 Ft feletti nem fizetett)
+                                                            </span>
+                                                        ` : ''}
+
+                                                        ${order.hasNoInvoice ? `
+                                                            <span style="display: inline-flex; align-items: center; gap: 5px; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 3px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700;">
+                                                                <i class="ph-bold ph-receipt"></i> Számlázandó (Nincs "számla ki" tag)
+                                                            </span>
+                                                        ` : ''}
+
+                                                        ${order.deliveryInfo ? `
+                                                            <span style="display: inline-flex; align-items: center; gap: 5px; background: #ccfbf1; color: #0f766e; border: 1px solid #5eead4; padding: 3px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700;">
+                                                                <i class="ph-bold ph-truck"></i> Terítésben: ${order.deliveryInfo.courier} (${order.deliveryInfo.runDate}) • #${order.deliveryInfo.runId}
+                                                            </span>
+                                                        ` : ''}
+                                                    </div>
+                                                ` : ''}
+
+                                                <!-- 2. KÉTOSZLOPOS MODERN MŰSZERFAL -->
+                                                <div style="display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 14px; align-items: start;">
+
+                                                    <!-- BAL HASÁB: MEGRENDELT TÉTELEK -->
+                                                    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #f1f5f9;">
+                                                            <div style="font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+                                                                <i class="ph-bold ph-package" style="color: #3b82f6; font-size: 14px;"></i>
+                                                                <span>Megrendelt Tételek (${(order.items || []).length} féle, ${totalItemsQty} db):</span>
+                            </div>
                                                         </div>
+
+                                                        <!-- Tétellista -->
+                                                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                                                            ${(order.items || []).map(item => `
+                                                                <div style="display: flex; align-items: center; gap: 10px; background: #f8fafc; padding: 6px 10px; border-radius: 8px; border: 1px solid #e2e8f0; transition: all .15s;">
+                                                                    <!-- 40x40px miniatűr kép (kattintható lightbox) -->
+                                                                    <div class="hub-product-thumb-container" data-img-url="${item.imageUrl || ''}" data-item-title="${item.name.replace(/"/g, '&quot;')}" style="width: 40px; height: 40px; min-width: 40px; border-radius: 6px; overflow: hidden; border: 1px solid #cbd5e1; background: #fff; display: flex; align-items: center; justify-content: center; cursor: ${item.imageUrl ? 'zoom-in' : 'default'}; flex-shrink: 0;" title="${item.imageUrl ? 'Kattints a nagyításhoz' : ''}">
+                                                                        ${item.imageUrl 
+                                                                            ? `<img src="${item.imageUrl}" alt="${item.name}" style="width: 100%; height: 100%; object-fit: contain; display: block;">` 
+                                                                            : `<i class="ph-bold ph-image-square" style="font-size: 18px; color: #94a3b8;"></i>`
+                                                                        }
+                                                                    </div>
+
+                                                                    <!-- Terméknév és SKU -->
+                                                                    <div style="flex: 1; min-width: 0;">
+                                                                        <div style="font-weight: 700; color: #0f172a; font-size: 13px; line-height: 1.35; word-break: break-word;" title="${item.name}">
+                                                                            ${item.name}
+                                                                            ${item.variantTitle && item.variantTitle.toLowerCase() !== 'default title' 
+                                                                                ? `<span style="display: inline-block; margin-left: 6px; padding: 1.5px 7px; border-radius: 5px; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-size: 11px; font-weight: 700;">${item.variantTitle}</span>` 
+                                                                                : ''}
+                                                                        </div>
+                                                                        ${item.sku ? `<div style="font-size: 10.5px; color: #64748b; font-family: monospace; margin-top: 2px;">SKU: ${item.sku}</div>` : ''}
+                                                                    </div>
+
+                                                                    <!-- Kiemelt Mennyiség BADGE & Ár -->
+                                                                    <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                                                                        <span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 3px 9px; border-radius: 6px; font-weight: 800; font-size: 13px; min-width: 48px; text-align: center;">
+                                                                            ${item.qty} db
+                                                                        </span>
+                                                                        ${item.isQuantityModified ? `<span style="font-size: 10px; color: #dc2626; font-weight: 600;">(volt: ${item.originalQty})</span>` : ''}
+                                                                        <div style="text-align: right; min-width: 80px; font-size: 12px; font-weight: 700; color: #1e293b;">
+                                                                            ${new Intl.NumberFormat('hu-HU').format(item.price * item.qty)} Ft
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            `).join('')}
+                                                        </div>
+
+                                                        <!-- Törölt / Kivett tételek szekció -->
+                                                        ${(order.removedItems && order.removedItems.length > 0) ? `
+                                                            <div style="margin-top: 8px; padding: 6px 10px; background: #fff1f2; border: 1px dashed #fca5a5; border-radius: 6px; font-size: 11px;">
+                                                                <div style="font-weight: 800; color: #dc2626; text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                                                                    <i class="ph-bold ph-scissors"></i>
+                                                                    <span>Kivett / Törölt tételek (NEM KELL KISZEDNI!):</span>
+                                                                </div>
+                                                                ${order.removedItems.map(item => `
+                                                                    <div style="color: #64748b; text-decoration: line-through; padding: 2px 0;">
+                                                                        • ${item.name} (${item.originalQty} db × ${new Intl.NumberFormat('hu-HU').format(item.price)} Ft)
+                                                                    </div>
+                                                                `).join('')}
+                                                            </div>
+                                                        ` : ''}
+                                                    </div>
+
+                                                    <!-- JOBB HASÁB: SZÁLLÍTÁS, ÜGYFÉLADATOK & AKCIÓGOMBOK -->
+                                                    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); display: flex; flex-direction: column; gap: 10px;">
+                                                        
+                                                        <!-- Címzett & Cím -->
                                                         <div>
-                                                            <div style="font-size: 12.5px; font-weight: 800; color: #0f766e;">
-                                                                Kiszállítás Napja: ${order.deliveryInfo.runDate} — Szállító: ${order.deliveryInfo.courier} ${order.deliveryInfo.company ? `(${order.deliveryInfo.company})` : ''}
+                                                            <div style="font-size: 13px; font-weight: 800; color: #0f172a; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                                                                <span style="display: flex; align-items: center; gap: 6px;">
+                                                                    <i class="ph-bold ph-user" style="color: #64748b;"></i>
+                                                                    ${order.shippingName || order.customerName || 'Vevő'}
+                                                                </span>
+                                                                <button class="btn-copy-client-info" data-copy-text="${encodeURIComponent((order.shippingName || '') + ' - ' + (order.fullAddress || order.address || '') + (order.shippingPhone ? ' (Tel: ' + order.shippingPhone + ')' : ''))}" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; padding: 2px 7px; font-size: 11px; font-weight: 600; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px; transition: all .15s;" title="Címzett és szállítási cím másolása">
+                                                                    <i class="ph-bold ph-copy"></i>
+                                                                    <span>Másolás</span>
+                                                                </button>
                                                             </div>
-                                                            <div style="font-size: 11.5px; color: #115e59; margin-top: 2px;">
-                                                                ${order.deliveryInfo.isUncollected ? `
-                                                                    <strong style="color: #dc2626;">Sikertelen kézbesítés: ${order.deliveryInfo.uncollectedReason || 'Megadott ok nélkül'}</strong>
-                                                                ` : `
-                                                                    Állapot: <strong>Terítésben / Járatra kiosztva</strong> • ${order.deliveryInfo.paymentMethod ? `Fizetési mód: ${order.deliveryInfo.paymentMethod.toUpperCase()}` : 'Elszámolás: Függőben'}
-                                                                `}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div style="font-size: 11px; color: #0f766e; font-weight: 600;">
-                                                        Azonosító: ${order.deliveryInfo.runId}
-                                                    </div>
-                                                </div>
-                                            ` : ''}
 
-                                            <!-- Figyelmeztető Dobozok (Törölt rendelés / Rossz szállítás / Díjbekérő / Számla hiány) -->
-                                            ${order.isCancelled ? `
-                                                <div style="background: #f1f5f9; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 9px 12px; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 8px; color: #475569; font-size: 12px;">
-                                                    <i class="ph-bold ph-x-circle" style="font-size: 16px; margin-top: 1px; flex-shrink: 0; color: #dc2626;"></i>
-                                                    <div>
-                                                        <strong>Lemondott rendelés:</strong> Ez a megrendelés törölve / stornózva lett a Shopify-ban. Nem kell kiszedni és nem kell csomagolni.
-                                                    </div>
-                                                </div>
-                                            ` : ''}
-
-                                            ${(!order.isFulfilled && order.hasBadShipping) ? `
-                                                <div style="background: #fff7ed; border: 1.5px solid #fed7aa; border-radius: 8px; padding: 9px 12px; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 8px; color: #c2410c; font-size: 12px;">
-                                                    <i class="ph-bold ph-warning" style="font-size: 16px; margin-top: 1px; flex-shrink: 0; color: #ea580c;"></i>
-                                                    <div>
-                                                        <strong>Rossz szállítási díj:</strong> Vidéki cím (${order.city || 'Vidéki'}), de a díj 2.300 Ft (9.900 Ft helyett). Javítás: "személyes" tag vagy szállítási díj módosítása a Shopifyban.
-                                                    </div>
-                                                </div>
-                                            ` : ''}
-
-                                            ${order.needsProforma ? `
-                                                <div style="background: #eef2ff; border: 1.5px solid #c7d2fe; border-radius: 8px; padding: 9px 12px; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 8px; color: #3730a3; font-size: 12px;">
-                                                    <i class="ph-bold ph-file-text" style="font-size: 16px; margin-top: 1px; flex-shrink: 0; color: #4f46e5;"></i>
-                                                    <div>
-                                                        <strong>Díjbekérő szükséges (250.000 Ft feletti nem fizetett rendelés):</strong> Összeg: ${formattedTotal} Ft. Küldd ki a díjbekérőt és add hozzá a "dijbek.ki" taget a Shopifyban!
-                                                    </div>
-                                                </div>
-                                            ` : ''}
-
-                                            ${order.hasNoInvoice ? `
-                                                <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 8px; padding: 9px 12px; margin-bottom: 10px; display: flex; align-items: flex-start; gap: 8px; color: #92400e; font-size: 12px;">
-                                                    <i class="ph-bold ph-receipt" style="font-size: 16px; margin-top: 1px; flex-shrink: 0; color: #d97706;"></i>
-                                                    <div><strong>Számlázandó:</strong> Nincs "számla ki" tag a rendeléshez rendelve. Számla legyen kiállítva!</div>
-                                                </div>
-                                            ` : ''}
-
-                                            <!-- Aktuálisan Megrendelt Tételek -->
-                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
-                                                <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase;">
-                                                    Megrendelt Tételek (${(order.items || []).length} termék):
-                                                </div>
-                                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                                    <!-- Egyedi Teljesítés Gomb (csak ha még nincs teljesítve!) -->
-                                                    ${(!order.isFulfilled && !order.isCancelled) ? `
-                                                        <button class="btn-fulfill-single-order" data-order-id="${order.id}" data-shopify-id="${order.shopifyId}" style="background: #059669; color: #ffffff; border: 1px solid #047857; padding: 6px 13px; border-radius: 7px; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 6px rgba(5,150,105,0.25); transition: all .15s;" title="Rendelés teljesítése a Shopify-ban (Fulfill)">
-                                                            <i class="ph-bold ph-package"></i>
-                                                            <span>Teljesítés Shopify-ban (Fulfill)</span>
-                                                        </button>
-                                                    ` : ''}
-
-                                                    <!-- Ready for pickup Átváltó Gomb (csak személyes átvételnél ÉS csak ha még nincs átállítva!) -->
-                                                    ${(order.isPickup && !order.isReadyForPickup && !order.isFulfilled && !order.isCancelled) ? `
-                                                        <button class="btn-ready-for-pickup" data-order-id="${order.id}" data-shopify-id="${order.shopifyId}" data-is-ready="false" style="background: #7c3aed; color: #ffffff; border: 1.5px solid #6d28d9; padding: 6px 13px; border-radius: 7px; font-weight: 800; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 6px rgba(124,58,237,0.3); transition: all .15s;" title="Átállítás Ready for pickup-ra a Shopify-ban">
-                                                            <i class="ph-bold ph-bell-ringing"></i>
-                                                            <span>Átállítás: Ready for pickup (Átvehető)</span>
-                                                        </button>
-                                                    ` : ''}
-
-                                                    <!-- Sela Címke Kézi Átváltó Gomb -->
-                                                    ${!order.isCancelled ? `
-                                                        <button class="btn-toggle-sela-tag" data-order-id="${order.id}" data-shopify-id="${order.shopifyId}" data-has-tag="${order.hasSelaOrdered ? 'true' : 'false'}" style="background: ${order.hasSelaOrdered ? '#fef2f2' : '#f0fdf4'}; color: ${order.hasSelaOrdered ? '#b91c1c' : '#15803d'}; border: 1px solid ${order.hasSelaOrdered ? '#fca5a5' : '#bbf7d0'}; padding: 6px 12px; border-radius: 7px; font-weight: 700; font-size: 11.5px; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all .15s;" title="${order.hasSelaOrdered ? 'Sela megr. tag eltávolítása' : 'sela megr. tag hozzáadása'}">
-                                                            <i class="ph-bold ${order.hasSelaOrdered ? 'ph-x-circle' : 'ph-check-circle'}"></i>
-                                                            <span>${order.hasSelaOrdered ? 'Sela címke levétele' : 'Megjelölés Sela-nak elküldöttként'}</span>
-                                                        </button>
-                                                    ` : ''}
-                                                </div>
-                                            </div>
-
-                                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; margin-bottom: 14px;">
-                                                ${(order.items || []).map(item => `
-                                                    <div style="display: flex; gap: 12px; align-items: center; background: #fff; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-                                                        ${item.imageUrl ? `
-                                                            <div class="hub-product-thumb-container" data-img-url="${item.imageUrl}" data-item-title="${item.name.replace(/"/g, '&quot;')}" style="position: relative; width: 74px; height: 74px; min-width: 74px; border-radius: 8px; overflow: hidden; border: 1px solid #cbd5e1; background: #fff; display: flex; align-items: center; justify-content: center; cursor: zoom-in;">
-                                                                <img src="${item.imageUrl}" alt="${item.name}" style="width: 100%; height: 100%; object-fit: contain; display: block;">
-                                                            </div>
-                                                        ` : `
-                                                            <div style="width: 74px; height: 74px; min-width: 74px; border-radius: 8px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; color: #94a3b8; border: 1px dashed #cbd5e1;">
-                                                                <i class="ph-bold ph-image-square" style="font-size: 22px;"></i>
-                                                            </div>
-                                                        `}
-                                                        <div style="flex: 1; min-width: 0;">
-                                                            <div style="font-weight: 700; color: #1e293b; font-size: 13px; line-height: 1.35; margin-bottom: 4px;">${item.name}</div>
-                                                            <div style="font-size: 12px; color: #0f172a; margin-top: 4px;">
-                                                                <strong style="color: #2563eb; font-size: 13px;">${item.qty} db</strong>
-                                                                ${item.isQuantityModified ? `<span style="font-size: 11px; color: #dc2626; margin-left: 4px;">(Eredetileg: ${item.originalQty} db)</span>` : ''}
-                                                                × ${new Intl.NumberFormat('hu-HU').format(item.price)} Ft
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                `).join('')}
-                                            </div>
-
-                                            <!-- Törölt / Kivett tételek szekció (Removed Items) -->
-                                            ${(order.removedItems && order.removedItems.length > 0) ? `
-                                                <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed #cbd5e1; margin-bottom: 14px;">
-                                                    <div style="font-size: 11px; font-weight: 800; color: #dc2626; text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; gap: 5px;">
-                                                        <i class="ph-bold ph-scissors"></i>
-                                                        <span>Kivett / Törölt tételek (${order.removedItems.length} termék — NEM KELL KISZEDNI!):</span>
-                                                    </div>
-                                                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px;">
-                                                        ${order.removedItems.map(item => `
-                                                            <div style="display: flex; gap: 12px; align-items: center; background: #fff1f2; padding: 8px 12px; border-radius: 8px; border: 1px dashed #fca5a5; opacity: 0.9;">
-                                                                <div style="position: relative; width: 50px; height: 50px; min-width: 50px; border-radius: 6px; overflow: hidden; background: #fff; border: 1px solid #fecdd3; display: flex; align-items: center; justify-content: center;">
-                                                                    ${item.imageUrl ? `<img src="${item.imageUrl}" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(80%);">` : `<i class="ph-bold ph-package" style="font-size: 20px; color: #f87171;"></i>`}
-                                                                    <div style="position: absolute; inset: 0; background: rgba(220,38,38,0.15); display: flex; align-items: center; justify-content: center;">
-                                                                        <i class="ph-bold ph-x" style="color: #dc2626; font-size: 18px; font-weight: bold;"></i>
-                                                                    </div>
+                                                            ${order.isPickup ? `
+                                                                <div style="color: #6d28d9; font-weight: 700; background: #ede9fe; border: 1px solid #ddd6fe; padding: 3px 8px; border-radius: 5px; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px; margin-top: 2px;">
+                                                                    <i class="ph-bold ph-storefront"></i>
+                                                                    <span>${order.pickupTitle || 'Személyes átvétel a raktárban'}</span>
                                                                 </div>
-                                                                <div style="flex: 1; min-width: 0;">
-                                                                    <div style="font-weight: 700; font-size: 12px; color: #475569; text-decoration: line-through;">${item.name}</div>
-                                                                    <div style="font-size: 11px; color: #dc2626; font-weight: 700; margin-top: 2px;">
-                                                                        Törölve (Eredeti: ${item.originalQty} db × ${new Intl.NumberFormat('hu-HU').format(item.price)} Ft)
-                                                                    </div>
+                                                            ` : `
+                                                                <div style="font-size: 12px; color: #334155; line-height: 1.35; margin-top: 2px;">
+                                                                    <i class="ph-bold ph-map-pin" style="color: #64748b; font-size: 13px;"></i>
+                                                                    <span>${order.fullAddress || order.address || 'Nincs cím megadva'}</span>
                                                                 </div>
+                                                                <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+                                                                    Szállítási díj: <strong style="color: #0f172a;">${new Intl.NumberFormat('hu-HU').format(order.shippingFee || 0)} Ft</strong>
+                                                                </div>
+                                                            `}
+
+                                                            ${order.shippingPhone ? `
+                                                                <div style="font-size: 12px; color: #0f172a; display: flex; align-items: center; gap: 6px; margin-top: 4px;">
+                                                                    <i class="ph-bold ph-phone" style="color: #059669; font-size: 13px;"></i>
+                                                                    <a href="tel:${order.shippingPhone}" style="color: #2563eb; font-weight: 700; text-decoration: none;">${order.shippingPhone}</a>
+                                                                </div>
+                                                            ` : ''}
+
+                                                            ${order.pxp_referencia ? `
+                                                                <div style="font-size: 11px; color: #64748b; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
+                                                                    <i class="ph-bold ph-barcode" style="color: #059669;"></i>
+                                                                    <span>PXP Ref:</span>
+                                                                    <strong style="font-family: monospace; color: #059669; font-size: 11.5px;">${order.pxp_referencia}</strong>
+                                                                </div>
+                                                            ` : ''}
+                                                        </div>
+
+                                                        <!-- Shopify Megjegyzés (Notes) – Kiemelten -->
+                                                        ${order.note ? `
+                                                            <div style="background: #fefce8; border: 1px solid #fef08a; border-radius: 7px; padding: 7px 10px; font-size: 11.5px; color: #854d0e;">
+                                                                <div style="font-weight: 800; display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
+                                                                    <i class="ph-bold ph-chat-text" style="color: #d97706;"></i>
+                                                                    <span>Megjegyzés (Notes):</span>
+                                                                </div>
+                                                                <div style="line-height: 1.35; color: #713f12; word-break: break-word;">"${order.note}"</div>
                                                             </div>
-                                                        `).join('')}
-                                                    </div>
-                                                </div>
-                                            ` : ''}
+                                                        ` : ''}
 
-                                            <!-- Részletes Szállítási és Pénzügyi Adatok Sáv -->
-                                            <div style="display: flex; gap: 20px; font-size: 11.5px; color: #334155; background: #fff; padding: 10px 14px; border-radius: 8px; border: 1px solid #e2e8f0; flex-wrap: wrap; align-items: center;">
-                                                <div>
-                                                    <strong style="color: #64748b;">Szállítás Módja:</strong> 
-                                                    ${order.isPickup ? `
-                                                        <span style="color: #6d28d9; font-weight: 700; background: #ede9fe; border: 1px solid #ddd6fe; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">${order.pickupTitle || 'Személyes átvétel a raktárban'}</span>
-                                                    ` : `
-                                                        <span style="color: #0f172a; font-weight: 600;">Kiszállítás címre (${order.fullAddress || order.address}) — Díj: ${new Intl.NumberFormat('hu-HU').format(order.shippingFee || 0)} Ft</span>
-                                                    `}
+                                                        <!-- Pénzügyi összefoglaló -->
+                                                        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px dashed #e2e8f0; font-size: 12px;">
+                                                            <div>
+                                                                <span style="color: #64748b; font-size: 11px;">Végösszeg:</span>
+                                                                <strong style="font-size: 13.5px; color: #0f172a; margin-left: 4px;">${formattedTotal} Ft</strong>
+                                                            </div>
+                                                            ${order.isCancelled ? `
+                                                                <span style="background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; padding: 2px 8px; border-radius: 5px; font-weight: 700; font-size: 11.5px;">
+                                                                    Törölve (Cancelled)
+                                                                </span>
+                                                            ` : (order.isBankDeposit && !order.isPaid) ? `
+                                                                <span style="background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; padding: 2px 8px; border-radius: 5px; font-weight: 800; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;">
+                                                                    <i class="ph-bold ph-warning-circle"></i> Függő Utalás
+                                                                </span>
+                                                            ` : order.isCOD ? `
+                                                                <span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 2px 8px; border-radius: 5px; font-weight: 800; font-size: 11.5px;">
+                                                                    Utánvét: ${formattedCod} Ft
+                                                                </span>
+                                                            ` : order.isPaid ? `
+                                                                <span style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; padding: 2px 8px; border-radius: 5px; font-weight: 700; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;">
+                                                                    <i class="ph-bold ph-check"></i> Kifizetve
+                                                                </span>
+                                                            ` : `
+                                                                <span style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; padding: 2px 8px; border-radius: 5px; font-weight: 700; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;">
+                                                                    <i class="ph-bold ph-x-circle"></i> Fizetetlen
+                                                                </span>
+                                                            `}
+                                                        </div>
+
+                                                    </div>
+
                                                 </div>
-                                                ${order.shippingPhone ? `
-                                                    <div>
-                                                        <strong style="color: #64748b;">Telefon:</strong> <span style="font-weight: 600; color: #0f172a;">${order.shippingPhone}</span>
-                                                    </div>
-                                                ` : ''}
-                                                ${order.note ? `
-                                                    <div>
-                                                        <strong style="color: #64748b;">Megjegyzés (Notes):</strong> <span style="color: #b45309; font-weight: 600;">${order.note}</span>
-                                                    </div>
-                                                ` : ''}
-                                                ${order.pxp_referencia ? `
-                                                    <div>
-                                                        <strong style="color: #64748b;">PannonXP Ref:</strong> <span style="font-family: monospace; font-weight: 700; color: #059669;">${order.pxp_referencia}</span>
-                                                    </div>
-                                                ` : ''}
+
                                             </div>
-
-                                        </div>
-                                    ` : ''}
+                                        `;
+                                    })() : ''}
 
                                 </div>
                             `;
