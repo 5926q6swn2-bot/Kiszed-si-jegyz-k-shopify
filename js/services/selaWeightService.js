@@ -115,11 +115,11 @@ export function suggestWeightForItem(item) {
     }
 
     if (cat === 'adhesive') {
-        return 0.5;
+        return 0.35;
     }
 
     if (cat === 'profile') {
-        return 0.5;
+        return 0.25;
     }
 
     if (cat === 'acoustic') {
@@ -233,7 +233,7 @@ export const SelaWeightService = {
             const numWeight = typeof entry === 'object' ? parseFloat(entry.weight) : parseFloat(entry);
             if (!isNaN(numWeight) && numWeight >= 0) {
                 return {
-                    weight: Math.round(numWeight * 10) / 10,
+                    weight: Math.round(numWeight * 100) / 100,
                     isKnown: true,
                     key,
                     name: displayName
@@ -343,7 +343,7 @@ export const SelaWeightService = {
 
             current[k] = {
                 name: name,
-                weight: Math.round(weightNum * 10) / 10,
+                weight: Math.round(weightNum * 100) / 100,
                 sku: sku,
                 category: category,
                 updatedAt: new Date().toISOString()
@@ -374,6 +374,42 @@ export const SelaWeightService = {
                 console.log('[SelaWeightService] Sikeres mentés a felhőbe (Firestore).');
             } catch (cloudErr) {
                 console.warn('[SelaWeightService] Felhő mentési figyelmeztetés (időtúllépés/offline):', cloudErr?.message || cloudErr);
+            }
+        }
+
+        return current;
+    },
+
+    /**
+     * Törli egy konkrét termék elmentett súlyát mind a helyi memóriából, mind a felhőből.
+     * @param {string} key
+     */
+    async deleteProductWeight(key) {
+        if (!key) return;
+        const current = this.getProductWeights();
+        delete current[key];
+        selaWeightsCache = current;
+
+        if (typeof localStorage !== 'undefined') {
+            try {
+                localStorage.setItem('sela_product_weights', JSON.stringify(current));
+            } catch (e) {
+                console.warn('[SelaWeightService] LocalStorage delete error:', e);
+            }
+        }
+
+        const fb = await getFirebaseDb();
+        if (fb.db && fb.doc && fb.setDoc) {
+            try {
+                const docRef = fb.doc(fb.db, 'sela_settings', 'product_weights');
+                const saveWithTimeout = Promise.race([
+                    fb.setDoc(docRef, { weights: current }),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore timeout')), 2500))
+                ]);
+                await saveWithTimeout;
+                console.log('[SelaWeightService] Termék törölve a felhőből (Firestore):', key);
+            } catch (cloudErr) {
+                console.warn('[SelaWeightService] Felhő törlési figyelmeztetés:', cloudErr?.message || cloudErr);
             }
         }
 
@@ -412,7 +448,7 @@ export const SelaWeightService = {
                         name: res.name || sub.name,
                         qty: subQty,
                         unitWeight: res.weight,
-                        totalItemWeight: Math.round(itemWeightTotal * 10) / 10
+                        totalItemWeight: Math.round(itemWeightTotal * 100) / 100
                     });
                 });
                 return;
@@ -425,11 +461,11 @@ export const SelaWeightService = {
                 name: res.name || item.name,
                 qty: qty,
                 unitWeight: res.weight,
-                totalItemWeight: Math.round(itemWeightTotal * 10) / 10
+                totalItemWeight: Math.round(itemWeightTotal * 100) / 100
             });
         });
 
-        const roundedTotal = Math.round(total * 10) / 10;
+        const roundedTotal = Math.round(total * 100) / 100;
         const breakdownParts = breakdown.map(b => `${b.name} (${b.qty}db × ${b.unitWeight}kg = ${b.totalItemWeight}kg)`);
         const breakdownText = breakdownParts.length > 0 
             ? `${breakdownParts.join(' + ')} | Összesen: ${roundedTotal} kg` 

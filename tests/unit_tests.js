@@ -12,14 +12,28 @@ import {
     generateSelaCsv,
     isPendingBankDeposit,
     DEFAULT_SELA_WEIGHTS,
-    calculateSelaOrderWeight 
+    calculateSelaOrderWeight,
+    calculateSelaDates,
+    calculateSelaDeliveryDeadline,
+    calculateSelaDispatchDate,
+    isHungarianHoliday,
+    isHungarianWorkday,
+    getEasterSunday 
 } from '../js/services/exporter.js';
 import { 
     buildDuplicateCustomerOrdersMap, 
     isPvcSpcOrFloorItem, 
     isPickupOrder, 
-    isEligibleForAutoPannonXp 
+    isEligibleForAutoPannonXp,
+    checkBadShipping,
+    isOrderMissingInvoice,
+    filterOrdersWithoutInvoice
 } from '../js/utils/orderUtils.js';
+import {
+    generateMissingInvoiceEmailHtml,
+    sendMissingInvoiceAlertEmail,
+    EmailService
+} from '../js/services/emailService.js';
 import { 
     cleanItemNameForSelaWeight, 
     getItemWeightKey, 
@@ -788,18 +802,19 @@ assertEqual("Sela Row No Note - Warning in Col 12", rowNoNote.col12_codAndTapado
 assertEqual("Sela Row No Note - Col 7 is strictly shippingName", rowNoNote.col7_customerName, "Nagy Anna");
 
 // CSV Header és generálás teszt (13 oszlop súllyal)
-assertEqual("Sela Row 1 - Weight calculation (4*18 + 2*7 + 3*0.5 + 2*0.5 + 3*1 = 91.5kg)", row1.col13_weight, 91.5);
+assertEqual("Sela Row 1 - Weight calculation (4*18 + 2*7 + 3*0.35 + 2*0.25 + 3*1 = 90.55kg)", row1.col13_weight, 90.55);
 const customWeightsTest = { pvc_spc_floor: 20, acoustic: 8, adhesive: 1, profile: 1, tapadohid: 2 };
 const customWeightRes = calculateSelaOrderWeight({ pvcSpcFloorQty: 2, acousticQty: 1, adhesivesQty: 3, profilesQty: 4, tapadohidQty: 1 }, customWeightsTest);
 assertEqual("Sela Custom Weights Calculation (2*20 + 1*8 + 3*1 + 4*1 + 1*2 = 57kg)", customWeightRes, 57);
 
 const csvOutput = generateSelaCsv([row1, row2, row3, rowNoNote]);
 assertEqual("Sela CSV - Has BOM", csvOutput.startsWith("\ufeff"), true);
-assertEqual("Sela CSV - Header has 13 columns", csvOutput.split("\r\n")[0].split(";").length, 13);
+assertEqual("Sela CSV - Header has 14 columns", csvOutput.split("\r\n")[0].split(";").length, 14);
 assertEqual("Sela CSV - Header col 1", csvOutput.split("\r\n")[0].split(";")[0], "\ufeffDátum");
 assertEqual("Sela CSV - Header col 12", csvOutput.split("\r\n")[0].split(";")[11], "Utánvét összege / tapadóhíd");
 assertEqual("Sela CSV - Header col 13 (Weight)", csvOutput.split("\r\n")[0].split(";")[12], "Összsúly (kg)");
-assertEqual("Sela CSV - Row 1 contains calculated weight 91.5", csvOutput.split("\r\n")[1].split(";")[12], "91.5");
+assertEqual("Sela CSV - Header col 14 (Deadline)", csvOutput.split("\r\n")[0].split(";")[13], "Legkésőbbi kézbesítés");
+assertEqual("Sela CSV - Row 1 contains calculated weight 90.55 kg", csvOutput.split("\r\n")[1].split(";")[12], "90.55 kg");
 assertEqual("Sela CSV - Row 3 contains nincs utánvét", csvOutput.includes("nincs utánvét"), true);
 
 // Függő utalás tesztek
@@ -1051,7 +1066,8 @@ assertEqual("Sela Suggest - Wide Acoustic is 9kg", suggestWeightForItem({ name: 
 assertEqual("Sela Suggest - Normal Acoustic is 7kg", suggestWeightForItem({ name: "Akupanel Tölgy" }), 7.0);
 assertEqual("Sela Suggest - Tapadóhíd 5kg", suggestWeightForItem({ name: "Murexin Tapadóhíd 5kg vödör" }), 5.0);
 assertEqual("Sela Suggest - Tapadóhíd 1kg", suggestWeightForItem({ name: "Murexin Tapadóhíd 1kg kanna" }), 1.0);
-assertEqual("Sela Suggest - T-Rex Glue is 0.5kg", suggestWeightForItem({ name: "T-Rex ragasztó 310ml" }), 0.5);
+assertEqual("Sela Suggest - T-Rex Glue is 0.35kg", suggestWeightForItem({ name: "T-Rex ragasztó 310ml" }), 0.35);
+assertEqual("Sela Suggest - Profile is 0.25kg", suggestWeightForItem({ name: "Belső sarokprofil" }), 0.25);
 
 // Ismeretlen tételek felismerésének tesztje (findUnknownItemsInOrders)
 const testWeightsDb = {
@@ -1140,6 +1156,404 @@ assertEqual("Sela Unknown Items - Name contains variant", unknownWithVariant[0].
 assertEqual("Sela Unknown Items - VariantTitle preserved", unknownWithVariant[0].variantTitle, "5 kg");
 assertEqual("Sela Unknown Items - Suggested weight matches 5kg", unknownWithVariant[0].suggestedWeight, 5.0);
 
+// --- Bad Shipping (2300 Ft) Detection & Free Shipping Coupon Exclusion Tests ---
+// 1. Vidéki cím, 2300 Ft szállítás, nincs kedvezmény -> Rossz szállítás!
+const badShipOrder1 = {
+    city: "Debrecen",
+    zip: "4000",
+    shipping_lines: [{ price: "2300.00", title: "Budapesti kiszállítás" }]
+};
+assertEqual("Bad Shipping - Countryside 2300 Ft without coupon is bad", checkBadShipping(badShipOrder1), true);
+
+// 2. Budapesti cím, 2300 Ft szállítás -> NEM rossz szállítás!
+const bpOrder = {
+    city: "Budapest",
+    zip: "1118",
+    shipping_lines: [{ price: "2300.00", title: "Budapesti kiszállítás" }]
+};
+assertEqual("Bad Shipping - Budapest 2300 Ft is NOT bad", checkBadShipping(bpOrder), false);
+
+// 3. Budapesti 1xxx irányítószám -> NEM rossz szállítás!
+const bpZipOrder = {
+    city: "Bp",
+    zip: "1037",
+    shipping_lines: [{ price: "2300.00" }]
+};
+assertEqual("Bad Shipping - 1xxx zip is Budapest -> NOT bad", checkBadShipping(bpZipOrder), false);
+
+// 4. Vidéki cím, de 9900 Ft normál díj -> NEM rossz szállítás!
+const normalCountryOrder = {
+    city: "Szeged",
+    zip: "6720",
+    shipping_lines: [{ price: "9900.00" }]
+};
+assertEqual("Bad Shipping - Countryside 9900 Ft is NOT bad", checkBadShipping(normalCountryOrder), false);
+
+// 5. #3966 TESZT: Vidéki cím (Dunaföldvár), 2300 Ft alapár DE ingyenes szállítás kupon (discount_allocations: 2300 Ft) -> NEM rossz szállítás!
+const order3966 = {
+    name: "#3966",
+    city: "Dunafoldvar",
+    zip: "7020",
+    shipping_lines: [{
+        price: "2300.00",
+        discounted_price: "0.00",
+        title: "Budapesti Kiszállítás (1-3 munkanap)",
+        discount_allocations: [{ amount: "2300.00" }]
+    }]
+};
+assertEqual("Bad Shipping - #3966 Free shipping coupon (Dunafoldvar) is NOT bad", checkBadShipping(order3966), false);
+
+// 6. Vidéki cím, discounted_price: "0.00" -> NEM rossz szállítás!
+const freeDiscountedOrder = {
+    city: "Győr",
+    zip: "9020",
+    shipping_lines: [{
+        price: "2300.00",
+        discounted_price: "0.00"
+    }]
+};
+assertEqual("Bad Shipping - Discounted to 0 Ft is NOT bad", checkBadShipping(freeDiscountedOrder), false);
+
+// 7. Törölt rendelés -> NEM rossz szállítás
+assertEqual("Bad Shipping - Cancelled order is NOT bad", checkBadShipping({ isCancelled: true, city: "Pécs", shipping_lines: [{ price: "2300.00" }] }), false);
+
+// 8. Teljesített rendelés -> NEM rossz szállítás
+assertEqual("Bad Shipping - Fulfilled order is NOT bad", checkBadShipping({ fulfillmentStatus: 'fulfilled', city: "Pécs", shipping_lines: [{ price: "2300.00" }] }), false);
+
+// 9. Személyes átvétel -> NEM rossz szállítás
+assertEqual("Bad Shipping - Pickup order is NOT bad", checkBadShipping({ isPickup: true, city: "Pécs", shipping_lines: [{ price: "2300.00" }] }), false);
+
+// 10. #3941 Eset: Ráfizetett a 2300 Ft-ra, hozzá van ütve egy másik szállítási sor (2300 + 7600 = 9900 Ft) -> NEM rossz szállítás!
+const order3941 = {
+    name: "#3941",
+    shipping_address: { city: "Tiszakürt", zip: "5471" },
+    shipping_lines: [
+        { title: "Budapesti Kiszállítás (1-3 munkanap)", price: "2300.00" },
+        { title: "Kiszállítás", price: "7600.00" }
+    ],
+    total_shipping_price_set: { shop_money: { amount: "9900.00" } }
+};
+assertEqual("Bad Shipping - #3941 Multiple shipping lines (2300+7600 Ft) is NOT bad", checkBadShipping(order3941), false);
+
+// 11. Megegyezés szerinti alacsonyabb ráfizetés (pl. 5000 Ft szállítás) -> NEM rossz szállítás!
+const agreedLowerShippingOrder = {
+    name: "#3929",
+    shipping_address: { city: "Kecskemét", zip: "6000" },
+    shipping_lines: [
+        { title: "Budapesti Kiszállítás", price: "2300.00" },
+        { title: "Kiszállítási különbözet", price: "2700.00" }
+    ],
+    total_shipping_price_set: { shop_money: { amount: "5000.00" } }
+};
+assertEqual("Bad Shipping - Agreed 5000 Ft shipping with 2 lines is NOT bad", checkBadShipping(agreedLowerShippingOrder), false);
+
+// 12. Egyetlen szállítási sor, de módosítva 5000 Ft-ra -> NEM rossz szállítás!
+const singleLine5000Order = {
+    name: "#3894",
+    shipping_address: { city: "Debrecen", zip: "4000" },
+    shipping_lines: [
+        { title: "Kiszállítás", price: "5000.00" }
+    ],
+    total_shipping_price_set: { shop_money: { amount: "5000.00" } }
+};
+assertEqual("Bad Shipping - Single line modified to 5000 Ft is NOT bad", checkBadShipping(singleLine5000Order), false);
+
+// 13. Rendelési tételek között szereplő szállítási pótdíj cikk -> NEM rossz szállítás!
+const orderWithShippingLineItem = {
+    name: "#3888",
+    shipping_address: { city: "Győr", zip: "9020" },
+    shipping_lines: [{ price: "2300.00" }],
+    items: [
+        { name: "PVC Falpanel", price: 15000 },
+        { name: "Kiszállítási pótdíj (vidék)", price: 7600 }
+    ]
+};
+assertEqual("Bad Shipping - Surcharge line item present is NOT bad", checkBadShipping(orderWithShippingLineItem), false);
+
+// --- Delivery Run Grouping Logic Tests ---
+const testDeliveryOrders = [
+    { id: "#1001", totalAmount: 15000, codAmount: 15000, deliveryInfo: { runId: "run_A", runDate: "2026.09.04", courier: "Bábel" } },
+    { id: "#1002", totalAmount: 25000, codAmount: 0, deliveryInfo: { runId: "run_A", runDate: "2026.09.04", courier: "Bábel" } },
+    { id: "#1003", totalAmount: 40000, codAmount: 40000, deliveryInfo: { runId: "run_B", runDate: "2026.09.05", courier: "Kovács" } }
+];
+
+const testRunGroups = new Map();
+testDeliveryOrders.forEach(o => {
+    const key = o.deliveryInfo.runId;
+    if (!testRunGroups.has(key)) testRunGroups.set(key, { ...o.deliveryInfo, orders: [] });
+    testRunGroups.get(key).orders.push(o);
+});
+
+assertEqual("Delivery Grouping - 2 distinct runs detected", testRunGroups.size, 2);
+assertEqual("Delivery Grouping - Run A has 2 orders", testRunGroups.get("run_A").orders.length, 2);
+assertEqual("Delivery Grouping - Run B has 1 order", testRunGroups.get("run_B").orders.length, 1);
+const runATotal = testRunGroups.get("run_A").orders.reduce((sum, o) => sum + o.totalAmount, 0);
+// --- Sela Weight Manager & Category Grouping Tests ---
+const sampleProductsToGroup = [
+    { name: "PB-01 Falpanel 280x122cm", sku: "PB01-280", weight: 18.5 },
+    { name: "Akusztikus falpanel Dió", sku: "AKU-DIO", weight: 7.0 },
+    { name: "T-Rex ragasztó 310ml", sku: "TREX", weight: 0.5 },
+    { name: "Belső sarokprofil Fekete", sku: "BS-01", weight: 0.5 },
+    { name: "Tapadóhíd 5kg", sku: "TAP-5", weight: 5.0 },
+    { name: "Mintadarab szett", sku: "SAMPLE", weight: 0.2 }
+];
+
+const categoryGroupResults = {
+    pvc_spc_floor: [],
+    acoustic: [],
+    adhesive: [],
+    profile: [],
+    tapadohid: [],
+    other: []
+};
+
+sampleProductsToGroup.forEach(p => {
+    const cat = detectItemCategory(p.name);
+    if (categoryGroupResults[cat]) {
+        categoryGroupResults[cat].push(p);
+    } else {
+        categoryGroupResults.other.push(p);
+    }
+});
+
+assertEqual("Category Grouping - PVC has 1 item", categoryGroupResults.pvc_spc_floor.length, 1);
+assertEqual("Category Grouping - Acoustic has 1 item", categoryGroupResults.acoustic.length, 1);
+assertEqual("Category Grouping - Adhesive has 1 item", categoryGroupResults.adhesive.length, 1);
+assertEqual("Category Grouping - Profile has 1 item", categoryGroupResults.profile.length, 1);
+assertEqual("Category Grouping - Tapadohid has 1 item", categoryGroupResults.tapadohid.length, 1);
+assertEqual("Category Grouping - Other has 1 item", categoryGroupResults.other.length, 1);
+
+// Test deleteProductWeight in SelaWeightService
+const tempWeightsDb = { "test-product-delete": { name: "Test Delete", weight: 10 } };
+const origGetProductWeights = SelaWeightService.getProductWeights;
+SelaWeightService.getProductWeights = () => tempWeightsDb;
+
+await SelaWeightService.deleteProductWeight("test-product-delete");
+assertEqual("SelaWeightService - deleteProductWeight removes key", tempWeightsDb["test-product-delete"], undefined);
+SelaWeightService.getProductWeights = origGetProductWeights;
+
+// Test ABC sorting within category
+const unsortedProfiles = [
+    { name: "Végzáró profil Fehér" },
+    { name: "Belső sarokprofil Fekete" },
+    { name: "Alu profil 2.8m" }
+];
+const sortedProfiles = [...unsortedProfiles].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'hu', { sensitivity: 'base', numeric: true }));
+assertEqual("Category ABC Sort - 1st is Alu", sortedProfiles[0].name, "Alu profil 2.8m");
+assertEqual("Category ABC Sort - 2nd is Belső", sortedProfiles[1].name, "Belső sarokprofil Fekete");
+assertEqual("Category ABC Sort - 3rd is Végzáró", sortedProfiles[2].name, "Végzáró profil Fehér");
+
+// Test 2-decimal precision (század pontosság, pl. 0.25 kg)
+const key025 = getItemWeightKey({ name: "Profil 0.25kg" });
+const profileDb2Dec = { [key025]: { name: "Profil 0.25kg", weight: 0.25 } };
+const res025 = SelaWeightService.getItemWeight({ name: "Profil 0.25kg" }, profileDb2Dec);
+assertEqual("2-Decimal Precision - 0.25 kg preserved in getItemWeight", res025.weight, 0.25);
+
+// Test order weight calculation with 0.25 kg item (3 * 0.25 = 0.75 kg)
+const order025 = {
+    id: "#8001",
+    items: [{ name: "Profil 0.25kg", qty: 3 }]
+};
+const orderCalc025 = SelaWeightService.calculateOrderWeight(order025, profileDb2Dec);
+assertEqual("2-Decimal Precision - 3 * 0.25 is 0.75 kg", orderCalc025.totalWeight, 0.75);
+
+// Test CSV output includes 'kg'
+const sampleRowForCsv = {
+    col1_date: "2026-09-05",
+    col2_orderId: "#9999",
+    col3_zip: "1118",
+    col4_city: "Budapest",
+    col5_street: "Rétköz u. 1.",
+    col6_phone: "+36301234567",
+    col7_customerName: "Minta János",
+    col8_pvcSpcFloorQty: 0,
+    col9_acousticQty: 0,
+    col10_adhesivesQty: 0,
+    col11_profilesQty: 3,
+    col12_codAndTapadohid: "Fizetve",
+    col13_weight: 0.75
+};
+const csvWithKg = generateSelaCsv([sampleRowForCsv]);
+assertEqual("Sela CSV - Column 13 has '0.75 kg'", csvWithKg.split("\r\n")[1].split(";")[12], "0.75 kg");
+
+// Test Category ABC Sorting
+const testCategories = [
+    { key: 'pvc_spc_floor', label: 'PVC / SPC Falpanelek és Padlózat' },
+    { key: 'acoustic', label: 'Akusztikus Falpanelek (Léces panelek)' },
+    { key: 'adhesive', label: 'Ragasztók és Kiegészítők' },
+    { key: 'profile', label: 'Profilok és Szegélylécek' },
+    { key: 'tapadohid', label: 'Tapadóhidak' },
+    { key: 'other', label: 'Egyéb Termékek és Kellékek' }
+];
+const sortedCats = [...testCategories].sort((a, b) => (a.label || '').localeCompare(b.label || '', 'hu', { sensitivity: 'base' }));
+assertEqual("Category ABC Sort - 1st is Akusztikus", sortedCats[0].key, "acoustic");
+assertEqual("Category ABC Sort - 2nd is Egyéb", sortedCats[1].key, "other");
+assertEqual("Category ABC Sort - 3rd is Profilok", sortedCats[2].key, "profile");
+assertEqual("Category ABC Sort - 4th is PVC", sortedCats[3].key, "pvc_spc_floor");
+assertEqual("Category ABC Sort - 5th is Ragasztók", sortedCats[4].key, "adhesive");
+assertEqual("Category ABC Sort - 6th is Tapadóhidak", sortedCats[5].key, "tapadohid");
+
+// Test Multi-Category Missing Items Sorting (Category ABC then Name ABC)
+const testMissingMultiCat = [
+    { name: "PB-02 Falpanel", category: "pvc_spc_floor" },
+    { name: "T-Rex ragasztó", category: "adhesive" },
+    { name: "Akupanel Natúr", category: "acoustic" },
+    { name: "PB-01 Falpanel", category: "pvc_spc_floor" },
+    { name: "Alu profil", category: "profile" }
+];
+const categoryLabelMap = {
+    'acoustic': 'Akusztikus panel',
+    'other': 'Egyéb termék',
+    'profile': 'Profil / Léc',
+    'pvc_spc_floor': 'PVC / SPC / Padló',
+    'adhesive': 'Ragasztó / Kellék',
+    'tapadohid': 'Tapadóhíd'
+};
+testMissingMultiCat.sort((a, b) => {
+    const catA = categoryLabelMap[a.category] || 'Egyéb termék';
+    const catB = categoryLabelMap[b.category] || 'Egyéb termék';
+    const catCmp = catA.localeCompare(catB, 'hu', { sensitivity: 'base' });
+    if (catCmp !== 0) return catCmp;
+    return (a.name || '').localeCompare(b.name || '', 'hu', { sensitivity: 'base', numeric: true });
+});
+assertEqual("MultiCat Missing Sort - 1st is Akupanel", testMissingMultiCat[0].name, "Akupanel Natúr");
+assertEqual("MultiCat Missing Sort - 2nd is Alu profil", testMissingMultiCat[1].name, "Alu profil");
+assertEqual("MultiCat Missing Sort - 3rd is PB-01", testMissingMultiCat[2].name, "PB-01 Falpanel");
+assertEqual("MultiCat Missing Sort - 4th is PB-02", testMissingMultiCat[3].name, "PB-02 Falpanel");
+assertEqual("MultiCat Missing Sort - 5th is T-Rex", testMissingMultiCat[4].name, "T-Rex ragasztó");
+
+// --- 5 Munkanapos Kézbesítési Határidő Kalkuláció Tesztek (10:30 levágási idővel) ---
+// Hétfő 09:00 (10:30 előtt) -> Hétfő még az 1. munkanap -> Péntek (2026.09.11)
+const monBeforeCutoff = calculateSelaDeliveryDeadline(new Date(2026, 8, 7, 9, 0));
+assertEqual("Sela Deadline - Hétfő 09:00 (10:30 előtt) -> Péntek", monBeforeCutoff, "2026.09.11");
+
+// Hétfő 10:30 (pontosan a levágáskor) -> Hétfő még az 1. munkanap -> Péntek (2026.09.11)
+const monAtCutoff = calculateSelaDeliveryDeadline(new Date(2026, 8, 7, 10, 30));
+assertEqual("Sela Deadline - Hétfő 10:30 (határon) -> Péntek", monAtCutoff, "2026.09.11");
+
+// Hétfő 10:31 (10:30 után) -> Kedd az 1. munkanap -> Következő Hétfő (2026.09.14)
+const monAfterCutoff = calculateSelaDeliveryDeadline(new Date(2026, 8, 7, 10, 31));
+assertEqual("Sela Deadline - Hétfő 10:31 (10:30 után) -> Következő Hétfő", monAfterCutoff, "2026.09.14");
+
+// Hétfő délután 14:00 (10:30 után) -> Kedd az 1. munkanap -> Következő Hétfő (2026.09.14)
+const monAfternoon = calculateSelaDeliveryDeadline(new Date(2026, 8, 7, 14, 0));
+assertEqual("Sela Deadline - Hétfő 14:00 -> Következő Hétfő", monAfternoon, "2026.09.14");
+
+// Péntek 09:00 (10:30 előtt) -> Péntek az 1. munkanap -> Következő Csütörtök (2026.09.17)
+const friBeforeCutoff = calculateSelaDeliveryDeadline(new Date(2026, 8, 11, 9, 0));
+assertEqual("Sela Deadline - Péntek 09:00 -> Következő Csütörtök", friBeforeCutoff, "2026.09.17");
+
+// Péntek 14:00 (10:30 után) -> Hétfő az 1. munkanap -> Következő Péntek (2026.09.18)
+const friAfternoon = calculateSelaDeliveryDeadline(new Date(2026, 8, 11, 14, 0));
+assertEqual("Sela Deadline - Péntek 14:00 -> Következő Péntek", friAfternoon, "2026.09.18");
+
+// Hétvége: Szombat -> Hétfő az 1. munkanap -> Következő Péntek (2026.09.18)
+const satWeekend = calculateSelaDeliveryDeadline(new Date(2026, 8, 12, 12, 0));
+assertEqual("Sela Deadline - Szombat -> Következő Péntek", satWeekend, "2026.09.18");
+
+// Hétvége: Vasárnap -> Hétfő az 1. munkanap -> Következő Péntek (2026.09.18)
+const sunWeekend = calculateSelaDeliveryDeadline(new Date(2026, 8, 13, 12, 0));
+assertEqual("Sela Deadline - Vasárnap -> Következő Péntek", sunWeekend, "2026.09.18");
+
+// --- MUNKASZÜNETI NAPOK ÉS HÍDNAPOK TESZTELÉSE ---
+// Csütörtöki ünnep (2025.10.23) -> Péntek (2025.10.24) is munkaszüneti nap (pihenőnap)
+assertEqual("Holiday - 2025.10.23 (Csütörtök 1956) is NOT workday", isHungarianWorkday(new Date(2025, 9, 23)), false);
+assertEqual("Holiday - 2025.10.24 (Péntek hídnap) is NOT workday", isHungarianWorkday(new Date(2025, 9, 24)), false);
+assertEqual("Holiday - 2025.10.27 (Hétfő) IS workday", isHungarianWorkday(new Date(2025, 9, 27)), true);
+
+// Keddi ünnep (2024.08.20) -> Hétfő (2024.08.19) is munkaszüneti nap (pihenőnap)
+assertEqual("Holiday - 2024.08.19 (Hétfő hídnap) is NOT workday", isHungarianWorkday(new Date(2024, 7, 19)), false);
+assertEqual("Holiday - 2024.08.20 (Kedd Államalapítás) is NOT workday", isHungarianWorkday(new Date(2024, 7, 20)), false);
+assertEqual("Holiday - 2024.08.21 (Szerda) IS workday", isHungarianWorkday(new Date(2024, 7, 21)), true);
+
+// Húsvéti mozgóünnepek (Nagypéntek, Húsvéthétfő 2026)
+assertEqual("Holiday - 2026.04.03 (Nagypéntek) is NOT workday", isHungarianWorkday(new Date(2026, 3, 3)), false);
+assertEqual("Holiday - 2026.04.06 (Húsvéthétfő) is NOT workday", isHungarianWorkday(new Date(2026, 3, 6)), false);
+assertEqual("Holiday - 2026.04.07 (Kedd húsvét után) IS workday", isHungarianWorkday(new Date(2026, 3, 7)), true);
+
+// Szenteste (dec. 24) pihenőnap
+assertEqual("Holiday - 2026.12.24 (Szenteste) is NOT workday", isHungarianWorkday(new Date(2026, 11, 24)), false);
+
+// calculateSelaDates és feladási dátum tesztek
+const datesMonMorning = calculateSelaDates(new Date(2026, 8, 7, 9, 0));
+assertEqual("Sela Dates - Hétfő 09:00 dispatchDate is Monday", datesMonMorning.dispatchDate, "2026.09.07");
+assertEqual("Sela Dates - Hétfő 09:00 deadlineDate is Friday", datesMonMorning.deadlineDate, "2026.09.11");
+assertEqual("Sela Dates - Hétfő 09:00 isWorkdayBeforeCutoff is true", datesMonMorning.isWorkdayBeforeCutoff, true);
+
+const datesMonAfternoon = calculateSelaDates(new Date(2026, 8, 7, 14, 0));
+assertEqual("Sela Dates - Hétfő 14:00 dispatchDate is Tuesday", datesMonAfternoon.dispatchDate, "2026.09.08");
+assertEqual("Sela Dates - Hétfő 14:00 deadlineDate is Next Monday", datesMonAfternoon.deadlineDate, "2026.09.14");
+assertEqual("Sela Dates - Hétfő 14:00 isWorkdayBeforeCutoff is false", datesMonAfternoon.isWorkdayBeforeCutoff, false);
+
+// Csütörtöki ünnepen indítva (2025.10.23) -> indítás következő hétfő (2025.10.27), határidő péntek (2025.10.31)
+const datesHoliday = calculateSelaDates(new Date(2025, 9, 23, 9, 0));
+assertEqual("Sela Dates - Csütörtöki ünnep dispatchDate is Next Monday", datesHoliday.dispatchDate, "2025.10.27");
+assertEqual("Sela Dates - Csütörtöki ünnep deadlineDate is Next Friday", datesHoliday.deadlineDate, "2025.10.31");
+
+// prepareSelaRowData integráció: az 1. oszlop a feladási nap, a 14. oszlop a határidő
+const rowWithCustomDate = prepareSelaRowData({ id: "#7777", items: [] }, {}, null, new Date(2026, 8, 7, 9, 0));
+assertEqual("prepareSelaRowData - col1_date has dispatch date (Monday)", rowWithCustomDate.col1_date, "2026.09.07");
+assertEqual("prepareSelaRowData - col14_deadline has 5-workday deadline (Friday)", rowWithCustomDate.col14_deadline, "2026.09.11");
+
+// CSV generálás ellenőrzése az 1. és 14. oszlopokkal
+const customCsv = generateSelaCsv([rowWithCustomDate]);
+const csvCols = customCsv.split("\r\n")[1].split(";");
+assertEqual("generateSelaCsv - col 1 is dispatch date", csvCols[0], "2026.09.07");
+assertEqual("generateSelaCsv - col 14 is latest delivery deadline", csvCols[13], "2026.09.11");
+
+// --- HIÁNYZÓ SZÁMLA ÉS E-MAIL ÉRTESÍTŐ TESZTEK ---
+const orderMissingInv = { id: "#8001", shippingName: "Kovács Péter", tags: "pannonxp", totalAmount: 45000 };
+const orderWithInv = { id: "#8002", shippingName: "Nagy Anna", tags: "számla ki, sela", totalAmount: 30000 };
+const orderWithInvAlt = { id: "#8003", shippingName: "Kiss Béla", tags: "szamla ki", totalAmount: 25000 };
+const orderReseller = { id: "#8004", shippingName: "Partner Kft.", tags: "viszonteladó", totalAmount: 180000 };
+const orderCancelledForInv = { id: "#8005", shippingName: "Törölt Elem", isCancelled: true, totalAmount: 10000 };
+const orderPickupUnpaid = { id: "#8006", shippingName: "Átvevő János", isPickup: true, isPaid: false, totalAmount: 15000 };
+const orderPickupPaid = { id: "#8007", shippingName: "Fizetett Átvevő", isPickup: true, isPaid: true, totalAmount: 20000 };
+
+assertEqual("Missing Invoice - Order without tag is missing", isOrderMissingInvoice(orderMissingInv), true);
+assertEqual("Missing Invoice - Order with 'számla ki' is NOT missing", isOrderMissingInvoice(orderWithInv), false);
+assertEqual("Missing Invoice - Order with 'szamla ki' is NOT missing", isOrderMissingInvoice(orderWithInvAlt), false);
+assertEqual("Missing Invoice - Reseller is excluded", isOrderMissingInvoice(orderReseller), false);
+assertEqual("Missing Invoice - Cancelled is excluded", isOrderMissingInvoice(orderCancelledForInv), false);
+assertEqual("Missing Invoice - Unpaid pickup is excluded", isOrderMissingInvoice(orderPickupUnpaid), false);
+assertEqual("Missing Invoice - Paid pickup without invoice is missing", isOrderMissingInvoice(orderPickupPaid), true);
+
+const filteredMissing = filterOrdersWithoutInvoice([
+    orderMissingInv,
+    orderWithInv,
+    orderWithInvAlt,
+    orderReseller,
+    orderCancelledForInv,
+    orderPickupUnpaid,
+    orderPickupPaid
+]);
+assertEqual("Missing Invoice - Filter count is 2 (#8001 and #8007)", filteredMissing.length, 2);
+assertEqual("Missing Invoice - 1st is #8001", filteredMissing[0].id, "#8001");
+assertEqual("Missing Invoice - 2nd is #8007", filteredMissing[1].id, "#8007");
+
+// HTML E-mail Sablon Tesztelése
+const sampleRun = { courier: "Nagy János", date: "2026.09.08", company: "Capsula" };
+const emailHtml = generateMissingInvoiceEmailHtml(sampleRun, [orderMissingInv], "test-shop.myshopify.com");
+assertEqual("Email HTML - Contains Warning Title", emailHtml.includes("Számla nélküli rendelés"), true);
+assertEqual("Email HTML - Contains Courier Name", emailHtml.includes("Nagy János"), true);
+assertEqual("Email HTML - Contains Date", emailHtml.includes("2026.09.08"), true);
+assertEqual("Email HTML - Contains Order ID #8001", emailHtml.includes("#8001"), true);
+assertEqual("Email HTML - Contains Customer Name", emailHtml.includes("Kovács Péter"), true);
+assertEqual("Email HTML - Contains Shopify URL", emailHtml.includes("test-shop.myshopify.com/admin/orders/8001"), true);
+assertEqual("Email HTML - Contains Formatted Amount", emailHtml.includes("45 000 Ft"), true);
+
+// SendMissingInvoiceAlertEmail szimulált működés tesztelése
+const emptyResult = await sendMissingInvoiceAlertEmail({ run: sampleRun, missingOrders: [] });
+assertEqual("Email Send - Empty missing orders returns success", emptyResult.success, true);
+
+const simResult = await sendMissingInvoiceAlertEmail({
+    run: sampleRun,
+    missingOrders: [orderMissingInv],
+    apiKey: "" // Nincs API kulcs -> szimulált mód
+});
+assertEqual("Email Send - Missing API key runs in simulated mode", simResult.simulated, true);
+assertEqual("Email Send - Simulated mode success is true", simResult.success, true);
+
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 
 if (failed > 0) {
@@ -1147,4 +1561,5 @@ if (failed > 0) {
 } else {
     process.exit(0);
 }
+
 

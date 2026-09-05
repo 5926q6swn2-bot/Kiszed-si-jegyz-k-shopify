@@ -1445,12 +1445,20 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
     transform: scale(0.96);
 }
 
-/* Látványos Szövegbuborék (Tooltip) a Logisztikai Ikonokhoz */
+/* Látványos Szövegbuborék (Tooltip) a Logisztikai Ikonokhoz, Notes-hoz és Címkékhez */
 .logi-tooltip-wrapper {
     position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+}
+
+.logi-tooltip-wrapper:hover {
+    z-index: 1000;
+}
+
+.hub-order-wrapper:hover {
+    z-index: 50;
 }
 
 .logi-tooltip-bubble {

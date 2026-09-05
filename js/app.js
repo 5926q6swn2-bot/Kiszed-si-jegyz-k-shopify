@@ -14,9 +14,11 @@ import { ExporterService } from './services/exporter.js';
 import { AuditView } from './views/auditView.js';
 import { OrderOverviewView } from './views/orderOverviewView.js';
 import { SelaExportModal } from './views/selaExportModal.js';
+import { SelaMissingWeightsModal } from './views/selaMissingWeightsModal.js';
 import { ShopifyApiService } from './services/shopifyApiService.js';
 import { generatePdfHtml, openPdfView, generateDeliveryNotesHtml } from './utils/printTemplates.js';
 import { getPaymentDetails, getRunPaymentTotals } from './utils/paymentUtils.js';
+import { filterOrdersWithoutInvoice } from './utils/orderUtils.js';
 function initApp() {
     console.log("KOPJ Rendszer: app.js elindult");
 
@@ -410,6 +412,16 @@ function initApp() {
                 }
             });
         });
+
+        // Terméksúlyok és Kategóriák Kezelése gomb
+        const btnOpenWeightManager = document.getElementById('btn-open-weight-manager');
+        if (btnOpenWeightManager) {
+            btnOpenWeightManager.addEventListener('click', async () => {
+                await SelaMissingWeightsModal.showManagerModal(() => {
+                    renderOverview();
+                });
+            });
+        }
 
         // Frissítés gomb
         const btnRefresh = document.getElementById('btn-refresh-hub');
@@ -1577,6 +1589,50 @@ function initApp() {
         return { added, modified, deleted };
     }
 
+    async function checkAndSendMissingInvoiceAlert(runInfo, ordersToCheck) {
+        if (!Array.isArray(ordersToCheck) || ordersToCheck.length === 0) return;
+        const missing = filterOrdersWithoutInvoice(ordersToCheck);
+        if (missing.length === 0) return;
+
+        try {
+            const payload = {
+                run: runInfo,
+                missingOrders: missing.map(o => ({
+                    id: o.id,
+                    numericId: o.numericId || String(o.id || '').replace(/\D/g, ''),
+                    shopifyId: o.shopifyId || o.id,
+                    shippingName: o.shippingName || o.customerName || '',
+                    billingName: o.billingName || o.shippingName || '',
+                    totalAmount: o.totalAmount || 0,
+                    isCOD: o.isCOD || false,
+                    codAmount: o.codAmount || 0,
+                    isPaid: o.isPaid || false,
+                    zip: o.zip || '',
+                    city: o.city || '',
+                    address1: o.address1 || o.address || '',
+                    note: o.note || '',
+                    items: (o.items || []).map(it => ({
+                        name: it.name || it.title || '',
+                        qty: it.qty || 1
+                    }))
+                }))
+            };
+
+            const res = await fetch('/api/notifications/missing-invoice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                console.log('✉️ [Missing Invoice Alert Küldve]', data);
+            }
+        } catch (err) {
+            console.warn('⚠️ [Missing Invoice Alert Hiba]', err);
+        }
+    }
+
     btnConfirmPrint.addEventListener('click', async () => {
         const date = psDateInput.value;
         const pickupDate = psPickupDateInput.value;
@@ -1608,6 +1664,7 @@ function initApp() {
 
                 await HistoryManager.updateRun(currentLoadedRunId, date, pickupDate, courier, company, sender, cleanOrders);
                 originalLoadedRun = await HistoryManager.getRunById(currentLoadedRunId);
+                checkAndSendMissingInvoiceAlert({ id: currentLoadedRunId, date, courier, company }, changes.added);
 
                 if (hasChanges) {
                     let msg = `<div style="font-size:13px;color:#374151;line-height:1.5;text-align:left;">`;
@@ -1674,11 +1731,13 @@ function initApp() {
                 const newRun = await HistoryManager.saveRun(date, pickupDate, courier, company, sender, cleanOrders);
                 currentLoadedRunId = newRun ? newRun.id : currentLoadedRunId;
                 originalLoadedRun = newRun ? JSON.parse(JSON.stringify(newRun)) : null;
+                checkAndSendMissingInvoiceAlert({ id: currentLoadedRunId, date, courier, company }, cleanOrders);
             }
         } else {
             const newRun = await HistoryManager.saveRun(date, pickupDate, courier, company, sender, cleanOrders);
             currentLoadedRunId = newRun ? newRun.id : currentLoadedRunId;
             originalLoadedRun = newRun ? JSON.parse(JSON.stringify(newRun)) : null;
+            checkAndSendMissingInvoiceAlert({ id: currentLoadedRunId, date, courier, company }, cleanOrders);
         }
 
         if (printNone || (!printPicking && !printSummary && !printDelivery)) return;

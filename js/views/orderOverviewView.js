@@ -54,14 +54,34 @@ export const OrderOverviewView = {
             return {
                 type: 'cancelled',
                 tooltip: 'Törölt rendelés',
-                html: `<span class="logi-icon-badge" title="Törölt rendelés" style="width: 25px; height: 25px; border-radius: 6px; background: #f1f5f9; border: 1px solid #cbd5e1; color: #94a3b8; display: inline-flex; align-items: center; justify-content: center;"><i class="ph-bold ph-x-circle" style="font-size: 13px;"></i></span>`
+                html: `
+                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                        <span class="logi-icon-badge" style="width: 25px; height: 25px; border-radius: 6px; background: #f1f5f9; border: 1px solid #cbd5e1; color: #94a3b8; display: inline-flex; align-items: center; justify-content: center; cursor: help;">
+                            <i class="ph-bold ph-x-circle" style="font-size: 13px;"></i>
+                        </span>
+                        <div class="logi-tooltip-bubble" style="min-width: 150px; white-space: nowrap;">
+                            <i class="ph-bold ph-x-circle" style="color: #94a3b8; font-size: 13px;"></i>
+                            <span>Törölt / Lemondott rendelés</span>
+                        </div>
+                    </div>
+                `
             };
         }
         if (order.isFulfilled) {
             return {
                 type: 'fulfilled',
                 tooltip: 'Teljesítve (Fulfilled)',
-                html: `<span class="logi-icon-badge" title="Teljesítve (Fulfilled)" style="width: 25px; height: 25px; border-radius: 6px; background: #f1f5f9; border: 1px solid #cbd5e1; color: #64748b; display: inline-flex; align-items: center; justify-content: center;"><i class="ph-bold ph-check" style="font-size: 13px;"></i></span>`
+                html: `
+                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                        <span class="logi-icon-badge" style="width: 25px; height: 25px; border-radius: 6px; background: #f1f5f9; border: 1px solid #cbd5e1; color: #64748b; display: inline-flex; align-items: center; justify-content: center; cursor: help;">
+                            <i class="ph-bold ph-check" style="font-size: 13px;"></i>
+                        </span>
+                        <div class="logi-tooltip-bubble" style="min-width: 140px; white-space: nowrap;">
+                            <i class="ph-bold ph-check-circle" style="color: #4ade80; font-size: 13px;"></i>
+                            <span>Teljesítve (Fulfilled)</span>
+                        </div>
+                    </div>
+                `
             };
         }
         if (order.deliveryInfo) {
@@ -69,14 +89,53 @@ export const OrderOverviewView = {
                 return {
                     type: 'uncollected',
                     tooltip: `Meghiúsult kiszállítás: ${order.deliveryInfo.runDate}`,
-                    html: `<span class="logi-icon-badge" title="Meghiúsult kiszállítás: ${order.deliveryInfo.runDate}" style="width: 25px; height: 25px; border-radius: 6px; background: #fef2f2; border: 1.5px solid #fca5a5; color: #dc2626; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(220,38,38,0.15);"><i class="ph-bold ph-warning-circle" style="font-size: 13px;"></i></span>`
+                    html: `
+                        <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                            <span class="logi-icon-badge" style="width: 25px; height: 25px; border-radius: 6px; background: #fef2f2; border: 1.5px solid #fca5a5; color: #dc2626; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(220,38,38,0.15); cursor: help;">
+                                <i class="ph-bold ph-warning-circle" style="font-size: 13px;"></i>
+                            </span>
+                            <div class="logi-tooltip-bubble" style="min-width: 180px; display: flex; flex-direction: column; align-items: stretch; white-space: normal; text-align: left;">
+                                <div style="display: flex; align-items: center; gap: 5px; font-weight: 700; color: #f87171;">
+                                    <i class="ph-bold ph-warning-circle" style="font-size: 13px;"></i>
+                                    <span>Meghiúsult kiszállítás</span>
+                                </div>
+                                <div style="margin-top: 5px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.15); font-size: 11.5px; color: #f8fafc; line-height: 1.5; font-weight: normal;">
+                                    <div><strong style="color: #fca5a5;">Dátum:</strong> ${order.deliveryInfo.runDate || 'Nincs dátum'}</div>
+                                    ${order.deliveryInfo.uncollectedReason ? `<div><strong style="color: #fca5a5;">Ok:</strong> ${order.deliveryInfo.uncollectedReason}</div>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `
                 };
             }
-            // RIKÍTÓ KÉK KISAUTÓ IKON (Terítésben)
+            // RIKÍTÓ KÉK KISAUTÓ IKON (Terítésben) - ESZTÉTIKUS LEBEGŐ TOOLTIP BUBORÉKKAL
+            const runDateText = order.deliveryInfo.runDate || order.deliveryInfo.pickupDate || 'Nincs dátum';
+            const courierText = order.deliveryInfo.courier || 'Nincs megadva';
+            const companyText = order.deliveryInfo.company ? ` • ${order.deliveryInfo.company}` : '';
+            const runIdText = order.deliveryInfo.runId ? ` (#${order.deliveryInfo.runId})` : '';
+
             return {
                 type: 'in_delivery',
-                tooltip: `Terítésben: ${order.deliveryInfo.runDate} (${order.deliveryInfo.courier})`,
-                html: `<span class="logi-icon-badge" title="Terítésben: ${order.deliveryInfo.runDate} (${order.deliveryInfo.courier})" style="width: 25px; height: 25px; border-radius: 6px; background: #e0f2fe; border: 1.5px solid #38bdf8; color: #0284c7; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(2,132,199,0.25);"><i class="ph-bold ph-truck" style="font-size: 14px; color: #0284c7;"></i></span>`
+                tooltip: `Terítésben: ${runDateText} (${courierText})${companyText}${runIdText}`,
+                html: `
+                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                        <span class="logi-icon-badge" style="width: 25px; height: 25px; border-radius: 6px; background: #e0f2fe; border: 1.5px solid #38bdf8; color: #0284c7; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(2,132,199,0.25); cursor: help;">
+                            <i class="ph-bold ph-truck" style="font-size: 14px; color: #0284c7;"></i>
+                        </span>
+                        <div class="logi-tooltip-bubble" style="min-width: 190px; display: flex; flex-direction: column; align-items: stretch; white-space: normal; text-align: left;">
+                            <div style="display: flex; align-items: center; gap: 5px; font-weight: 700; color: #38bdf8;">
+                                <i class="ph-bold ph-truck" style="font-size: 13px;"></i>
+                                <span>Terítés alatt</span>
+                            </div>
+                            <div style="margin-top: 5px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.15); font-size: 11.5px; color: #f8fafc; line-height: 1.5; font-weight: normal;">
+                                <div><strong style="color: #bae6fd;">Dátum / Járat:</strong> ${runDateText}</div>
+                                <div><strong style="color: #bae6fd;">Futár:</strong> ${courierText}</div>
+                                ${order.deliveryInfo.company ? `<div><strong style="color: #bae6fd;">Cég:</strong> ${order.deliveryInfo.company}</div>` : ''}
+                                ${order.deliveryInfo.runId ? `<div style="color: #94a3b8; font-size: 10.5px; margin-top: 3px; font-style: italic;">Azonosító: #${order.deliveryInfo.runId}</div>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `
             };
         }
 
@@ -142,15 +201,38 @@ export const OrderOverviewView = {
                 return {
                     type: 'pickup_ready',
                     tooltip: 'Személyes átvétel (Átvehető)',
-                    html: `<span class="logi-icon-badge" title="Személyes átvétel (Átvehető)" style="width: 25px; height: 25px; border-radius: 6px; background: #ecfdf5; border: 1.5px solid #6ee7b7; color: #047857; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(4,120,87,0.15);"><i class="ph-bold ph-storefront" style="font-size: 14px; color: #059669;"></i></span>`
+                    html: `
+                        <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                            <span class="logi-icon-badge" style="width: 25px; height: 25px; border-radius: 6px; background: #ecfdf5; border: 1.5px solid #6ee7b7; color: #047857; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(4,120,87,0.15); cursor: help;">
+                                <i class="ph-bold ph-storefront" style="font-size: 14px; color: #059669;"></i>
+                            </span>
+                            <div class="logi-tooltip-bubble" style="min-width: 170px; white-space: nowrap;">
+                                <i class="ph-bold ph-storefront" style="color: #6ee7b7; font-size: 13px;"></i>
+                                <span>Személyes átvétel (Átvehető)</span>
+                            </div>
+                        </div>
+                    `
                 };
             } else {
                 return {
                     type: 'pickup_pending',
                     tooltip: 'Személyes átvétel (Még nem vehető át) — Kattints ide az Átvehetőre (Ready for pickup) állításhoz!',
-                    html: `<button class="btn-ready-for-pickup-icon" data-order-id="${order.id}" data-shopify-id="${order.shopifyId}" data-is-ready="false" title="Személyes átvétel (Még nem vehető át) — Kattints ide az Átvehetőre (Ready for pickup) állításhoz!" style="width: 25px; height: 25px; border-radius: 6px; background: #f5f3ff; border: 1.5px solid #c4b5fd; color: #7c3aed; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s; padding: 0; box-shadow: 0 1px 2px rgba(124,58,237,0.15);">
-                        <i class="ph-bold ph-storefront" style="font-size: 14px;"></i>
-                    </button>`
+                    html: `
+                        <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                            <button class="btn-ready-for-pickup-icon" data-order-id="${order.id}" data-shopify-id="${order.shopifyId}" data-is-ready="false" style="width: 25px; height: 25px; border-radius: 6px; background: #f5f3ff; border: 1.5px solid #c4b5fd; color: #7c3aed; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s; padding: 0; box-shadow: 0 1px 2px rgba(124,58,237,0.15);">
+                                <i class="ph-bold ph-storefront" style="font-size: 14px;"></i>
+                            </button>
+                            <div class="logi-tooltip-bubble" style="min-width: 210px; display: flex; flex-direction: column; align-items: stretch; text-align: left; white-space: normal;">
+                                <div style="display: flex; align-items: center; gap: 5px; color: #c4b5fd; font-weight: 700;">
+                                    <i class="ph-bold ph-storefront" style="font-size: 13px;"></i>
+                                    <span>Személyes átvétel (Függő)</span>
+                                </div>
+                                <div style="margin-top: 4px; font-size: 10.5px; color: #f8fafc; font-weight: normal; line-height: 1.4;">
+                                    Még nem vehető át — Kattints az Átvehetőre (Ready for pickup) állításhoz!
+                                </div>
+                            </div>
+                        </div>
+                    `
                 };
             }
         }
@@ -164,13 +246,33 @@ export const OrderOverviewView = {
                 return {
                     type: 'pxp_ready',
                     tooltip: 'PannonXP: Címke kinyomtatva / Csomag kész (Kiküldés után teljesíthető)',
-                    html: `<span class="logi-icon-badge" title="PannonXP: Címke kinyomtatva / Csomag kész (Kiküldés után teljesíthető)" style="width: 25px; height: 25px; border-radius: 6px; background: #ecfdf5; border: 1.5px solid #a7f3d0; color: #047857; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(4,120,87,0.15);"><i class="ph-bold ph-barcode" style="font-size: 14px; color: #059669;"></i></span>`
+                    html: `
+                        <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                            <span class="logi-icon-badge" style="width: 25px; height: 25px; border-radius: 6px; background: #ecfdf5; border: 1.5px solid #a7f3d0; color: #047857; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(4,120,87,0.15); cursor: help;">
+                                <i class="ph-bold ph-barcode" style="font-size: 14px; color: #059669;"></i>
+                            </span>
+                            <div class="logi-tooltip-bubble" style="min-width: 190px; white-space: nowrap;">
+                                <i class="ph-bold ph-barcode" style="color: #6ee7b7; font-size: 13px;"></i>
+                                <span>PannonXP: Címke kész / Feladásra kész</span>
+                            </div>
+                        </div>
+                    `
                 };
             } else {
                 return {
                     type: 'pxp_pending',
                     tooltip: 'PannonXP: Csomagküldés (Címkézésre vár)',
-                    html: `<span class="logi-icon-badge" title="PannonXP: Csomagküldés (Címkézésre vár)" style="width: 25px; height: 25px; border-radius: 6px; background: #fff7ed; border: 1.5px solid #fed7aa; color: #ea580c; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(234,88,12,0.12);"><i class="ph-bold ph-barcode" style="font-size: 14px; color: #ea580c;"></i></span>`
+                    html: `
+                        <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                            <span class="logi-icon-badge" style="width: 25px; height: 25px; border-radius: 6px; background: #fff7ed; border: 1.5px solid #fed7aa; color: #ea580c; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(234,88,12,0.12); cursor: help;">
+                                <i class="ph-bold ph-barcode" style="font-size: 14px; color: #ea580c;"></i>
+                            </span>
+                            <div class="logi-tooltip-bubble" style="min-width: 170px; white-space: nowrap;">
+                                <i class="ph-bold ph-barcode" style="color: #fed7aa; font-size: 13px;"></i>
+                                <span>PannonXP: Címkézésre vár</span>
+                            </div>
+                        </div>
+                    `
                 };
             }
         }
@@ -180,7 +282,17 @@ export const OrderOverviewView = {
             return {
                 type: 'sela_sent',
                 tooltip: 'Szállítónak elküldve (sela megr.)',
-                html: `<span class="logi-icon-badge" title="Szállítónak elküldve (sela megr.)" style="width: 25px; height: 25px; border-radius: 6px; background: #f0fdf4; border: 1.5px solid #bbf7d0; color: #15803d; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(21,128,61,0.12);"><i class="ph-bold ph-truck" style="font-size: 14px; color: #16a34a;"></i></span>`
+                html: `
+                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                        <span class="logi-icon-badge" style="width: 25px; height: 25px; border-radius: 6px; background: #f0fdf4; border: 1.5px solid #bbf7d0; color: #15803d; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(21,128,61,0.12); cursor: help;">
+                            <i class="ph-bold ph-truck" style="font-size: 14px; color: #16a34a;"></i>
+                        </span>
+                        <div class="logi-tooltip-bubble" style="min-width: 180px; white-space: nowrap;">
+                            <i class="ph-bold ph-truck" style="color: #86efac; font-size: 13px;"></i>
+                            <span>Szállítónak elküldve (sela megr.)</span>
+                        </div>
+                    </div>
+                `
             };
         }
 
@@ -188,7 +300,17 @@ export const OrderOverviewView = {
         return {
             type: 'sela_pending',
             tooltip: 'Szállítónak küldendő',
-            html: `<span class="logi-icon-badge" title="Szállítónak küldendő" style="width: 25px; height: 25px; border-radius: 6px; background: #fff7ed; border: 1.5px solid #fdba74; color: #c2410c; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(234,88,12,0.12);"><i class="ph-bold ph-truck" style="font-size: 14px; color: #ea580c;"></i></span>`
+            html: `
+                <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                    <span class="logi-icon-badge" style="width: 25px; height: 25px; border-radius: 6px; background: #fff7ed; border: 1.5px solid #fdba74; color: #c2410c; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(234,88,12,0.12); cursor: help;">
+                        <i class="ph-bold ph-truck" style="font-size: 14px; color: #ea580c;"></i>
+                    </span>
+                    <div class="logi-tooltip-bubble" style="min-width: 150px; white-space: nowrap;">
+                        <i class="ph-bold ph-truck" style="color: #fdba74; font-size: 13px;"></i>
+                        <span>Szállítónak küldendő</span>
+                    </div>
+                </div>
+            `
         };
     },
 
@@ -397,11 +519,29 @@ export const OrderOverviewView = {
                             <option value="last30days" ${filters.dateRange === 'last30days' ? 'selected' : ''}>Elmúlt 30 nap</option>
                         </select>
 
+                        <!-- Terméksúlyok Kezelése Gomb -->
+                        <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                            <button id="btn-open-weight-manager" style="padding: 3.5px 9px; border-radius: 5px; border: 1.5px solid #0284c7; background: #f0f9ff; color: #0369a1; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 2px rgba(2,132,199,0.12); white-space: nowrap; transition: all .15s;">
+                                <i class="ph-bold ph-scales" style="font-size: 13px; color: #0284c7;"></i>
+                                <span>Terméksúlyok</span>
+                            </button>
+                            <div class="logi-tooltip-bubble" style="min-width: 220px; white-space: nowrap;">
+                                <i class="ph-bold ph-scales"></i>
+                                <span>Elmentett terméksúlyok és kategóriák kezelése</span>
+                            </div>
+                        </div>
+
                         <!-- Frissítés Gomb -->
-                        <button id="btn-refresh-hub" title="Élő frissítés a Shopify-ból és a Járatokból" style="padding: 3.5px 9px; border-radius: 5px; border: 1.5px solid #2563eb; background: #2563eb; color: white; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 2px rgba(37,99,235,0.2); white-space: nowrap;">
-                            <i class="ph-bold ph-arrows-clockwise" id="hub-refresh-icon" style="font-size: 12px;"></i>
-                            <span>Frissítés</span>
-                        </button>
+                        <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                            <button id="btn-refresh-hub" style="padding: 3.5px 9px; border-radius: 5px; border: 1.5px solid #2563eb; background: #2563eb; color: white; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 2px rgba(37,99,235,0.2); white-space: nowrap;">
+                                <i class="ph-bold ph-arrows-clockwise" id="hub-refresh-icon" style="font-size: 12px;"></i>
+                                <span>Frissítés</span>
+                            </button>
+                            <div class="logi-tooltip-bubble" style="min-width: 170px; white-space: nowrap;">
+                                <i class="ph-bold ph-arrows-clockwise"></i>
+                                <span>Élő frissítés (Shopify & Járatok)</span>
+                            </div>
+                        </div>
 
                     </div>
                 </div>
@@ -546,7 +686,15 @@ export const OrderOverviewView = {
                             <input type="checkbox" id="hub-select-all" ${isAllVisibleSelected ? 'checked' : ''} style="width: 14px; height: 14px; cursor: pointer; accent-color: #2563eb;">
                         </div>
                         <div></div>
-                        <div style="display: flex; justify-content: center;" title="Logisztikai Állapot"><i class="ph-bold ph-truck" style="font-size: 12px;"></i></div>
+                        <div style="display: flex; justify-content: center;">
+                            <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex; cursor: help;">
+                                <i class="ph-bold ph-truck" style="font-size: 12px;"></i>
+                                <div class="logi-tooltip-bubble" style="min-width: 140px; white-space: nowrap;">
+                                    <i class="ph-bold ph-truck"></i>
+                                    <span>Logisztikai állapot</span>
+                                </div>
+                            </div>
+                        </div>
                         <div>Rendelés</div>
                         <div>Dátum</div>
                         <div>Címzett Neve</div>
@@ -562,8 +710,9 @@ export const OrderOverviewView = {
                                 <i class="ph-bold ph-magnifying-glass" style="font-size: 28px; margin-bottom: 6px; display: block; color: #cbd5e1;"></i>
                                 <div style="font-size: 13px; font-weight: 700; color: #475569;">Nincs találat a megadott szűrőkkel</div>
                             </div>
-                        ` : filteredOrders.map(order => {
-                            const isSelected = selectedIds.has(order.id);
+                        ` : (() => {
+                            const renderSingleRow = (order) => {
+                                const isSelected = selectedIds.has(order.id);
                             const isExp = OrderOverviewView.isExpanded(order.id);
                             const formattedDate = order.orderDate ? new Date(order.orderDate).toLocaleString('hu-HU', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
                             const formattedTotal = new Intl.NumberFormat('hu-HU').format(order.totalAmount || 0);
@@ -575,52 +724,111 @@ export const OrderOverviewView = {
                             // Fizetési jelvény
                             let paymentBadge = '';
                             if (order.isCancelled) {
-                                paymentBadge = `<span style="background: #f1f5f9; color: #94a3b8; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 600;">Cancelled</span>`;
+                                paymentBadge = `
+                                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                                        <span style="background: #f1f5f9; color: #94a3b8; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 600;">Cancelled</span>
+                                        <div class="logi-tooltip-bubble" style="min-width: 130px; white-space: nowrap;">
+                                            <i class="ph-bold ph-x-circle" style="color: #94a3b8;"></i>
+                                            <span>Törölt rendelés</span>
+                                        </div>
+                                    </div>
+                                `;
                             } else if (order.isBankDeposit && !order.isPaid) {
-                                paymentBadge = `<span style="background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">Függő Utalás</span>`;
+                                paymentBadge = `
+                                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                                        <span style="background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">Függő Utalás</span>
+                                        <div class="logi-tooltip-bubble" style="min-width: 170px; white-space: nowrap;">
+                                            <i class="ph-bold ph-clock-countdown" style="color: #fca5a5;"></i>
+                                            <span>Banki átutalásra vár</span>
+                                        </div>
+                                    </div>
+                                `;
                             } else if (order.isCOD) {
                                 const isFullCod = Math.abs((order.codAmount || 0) - (order.totalAmount || 0)) < 1;
-                                if (isFullCod) {
-                                    paymentBadge = `<span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 1.5px 6px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">Utánvét</span>`;
-                                } else {
-                                    paymentBadge = `<span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">UV: ${formattedCod} Ft</span>`;
-                                }
+                                paymentBadge = `
+                                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                                        <span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 1.5px ${isFullCod ? '6px' : '5px'}; border-radius: 4px; font-size: 9.5px; font-weight: 700;">${isFullCod ? 'Utánvét' : `UV: ${formattedCod} Ft`}</span>
+                                        <div class="logi-tooltip-bubble" style="min-width: 180px; white-space: nowrap;">
+                                            <i class="ph-bold ph-money" style="color: #93c5fd;"></i>
+                                            <span>Utánvét: ${formattedCod} Ft</span>
+                                        </div>
+                                    </div>
+                                `;
                             } else if (order.isPaid) {
-                                paymentBadge = `<span style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">Fizetve</span>`;
+                                paymentBadge = `
+                                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                                        <span style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">Fizetve</span>
+                                        <div class="logi-tooltip-bubble" style="min-width: 150px; white-space: nowrap;">
+                                            <i class="ph-bold ph-check-circle" style="color: #6ee7b7;"></i>
+                                            <span>Kifizetve (Shopify)</span>
+                                        </div>
+                                    </div>
+                                `;
                             } else {
-                                paymentBadge = `<span style="background: #f1f5f9; color: #475569; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 600;">Fizetetlen</span>`;
+                                paymentBadge = `
+                                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                                        <span style="background: #f1f5f9; color: #475569; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 600;">Fizetetlen</span>
+                                        <div class="logi-tooltip-bubble" style="min-width: 140px; white-space: nowrap;">
+                                            <i class="ph-bold ph-warning-circle" style="color: #cbd5e1;"></i>
+                                            <span>Fizetetlen rendelés</span>
+                                        </div>
+                                    </div>
+                                `;
                             }
 
                             // SHOPIFY NATÍV TELJESÍTÉSI BADGE-EK (Fulfilled: Szürke, Unfulfilled: Sárga pötty #eab308)
                             let fulfillmentBadge = '';
                             if (order.isCancelled) {
                                 fulfillmentBadge = `
-                                    <span style="display: inline-flex; align-items: center; gap: 4px; background: #f1f2f4; color: #64748b; padding: 1.5px 7px; border-radius: 10px; font-size: 10.5px; font-weight: 600; text-decoration: line-through;">
-                                        <span style="width: 5px; height: 5px; border-radius: 50%; background: #94a3b8;"></span>
-                                        Cancelled
-                                    </span>
+                                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                                        <span style="display: inline-flex; align-items: center; gap: 4px; background: #f1f2f4; color: #64748b; padding: 1.5px 7px; border-radius: 10px; font-size: 10.5px; font-weight: 600; text-decoration: line-through;">
+                                            <span style="width: 5px; height: 5px; border-radius: 50%; background: #94a3b8;"></span>
+                                            Cancelled
+                                        </span>
+                                        <div class="logi-tooltip-bubble" style="min-width: 130px; white-space: nowrap;">
+                                            <span>Törölt rendelés</span>
+                                        </div>
+                                    </div>
                                 `;
                             } else if (order.isFulfilled) {
                                 fulfillmentBadge = `
-                                    <span style="display: inline-flex; align-items: center; gap: 4px; background: #e4e5e7; color: #303030; padding: 1.5px 7px; border-radius: 10px; font-size: 10.5px; font-weight: 600;">
-                                        <span style="width: 5px; height: 5px; border-radius: 50%; background: #707070;"></span>
-                                        Fulfilled
-                                    </span>
+                                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                                        <span style="display: inline-flex; align-items: center; gap: 4px; background: #e4e5e7; color: #303030; padding: 1.5px 7px; border-radius: 10px; font-size: 10.5px; font-weight: 600;">
+                                            <span style="width: 5px; height: 5px; border-radius: 50%; background: #707070;"></span>
+                                            Fulfilled
+                                        </span>
+                                        <div class="logi-tooltip-bubble" style="min-width: 160px; white-space: nowrap;">
+                                            <i class="ph-bold ph-check" style="color: #4ade80;"></i>
+                                            <span>Teljesítve a Shopify-ban</span>
+                                        </div>
+                                    </div>
                                 `;
                             } else if (order.fulfillmentStatus === 'partial') {
                                 fulfillmentBadge = `
-                                    <span style="display: inline-flex; align-items: center; gap: 4px; background: #ffe3b0; color: #6a4300; padding: 1.5px 7px; border-radius: 10px; font-size: 10.5px; font-weight: 700;">
-                                        <span style="width: 5px; height: 5px; border-radius: 50%; background: #ea580c;"></span>
-                                        Partially fulfilled
-                                    </span>
+                                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                                        <span style="display: inline-flex; align-items: center; gap: 4px; background: #ffe3b0; color: #6a4300; padding: 1.5px 7px; border-radius: 10px; font-size: 10.5px; font-weight: 700;">
+                                            <span style="width: 5px; height: 5px; border-radius: 50%; background: #ea580c;"></span>
+                                            Partially fulfilled
+                                        </span>
+                                        <div class="logi-tooltip-bubble" style="min-width: 160px; white-space: nowrap;">
+                                            <i class="ph-bold ph-package" style="color: #fb923c;"></i>
+                                            <span>Részben teljesítve</span>
+                                        </div>
+                                    </div>
                                 `;
                             } else {
                                 // Unfulfilled (Shopify mustársárga + tiszta sárga pötty #eab308)
                                 fulfillmentBadge = `
-                                    <span style="display: inline-flex; align-items: center; gap: 4px; background: #ffea8a; color: #4a3800; padding: 1.5px 7px; border-radius: 10px; font-size: 10.5px; font-weight: 700;">
-                                        <span style="width: 5px; height: 5px; border-radius: 50%; background: #eab308;"></span>
-                                        Unfulfilled
-                                    </span>
+                                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                                        <span style="display: inline-flex; align-items: center; gap: 4px; background: #ffea8a; color: #4a3800; padding: 1.5px 7px; border-radius: 10px; font-size: 10.5px; font-weight: 700;">
+                                            <span style="width: 5px; height: 5px; border-radius: 50%; background: #eab308;"></span>
+                                            Unfulfilled
+                                        </span>
+                                        <div class="logi-tooltip-bubble" style="min-width: 170px; white-space: nowrap;">
+                                            <i class="ph-bold ph-clock" style="color: #facc15;"></i>
+                                            <span>Teljesítetlen (Nyitott)</span>
+                                        </div>
+                                    </div>
                                 `;
                             }
 
@@ -661,43 +869,76 @@ export const OrderOverviewView = {
                                              
                                             <!-- 1. Számlázni! (Sárga / Borostyán) -->
                                             ${order.hasNoInvoice ? `
-                                                <div style="background: #d97706; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 4px rgba(217,119,6,0.25); display: flex; align-items: center; gap: 3px; white-space: nowrap;">
-                                                    <i class="ph-bold ph-receipt" style="font-size: 10px;"></i>
-                                                    <span>Számlázni!</span>
+                                                <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex; pointer-events: auto; cursor: help;">
+                                                    <div style="background: #d97706; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 4px rgba(217,119,6,0.25); display: flex; align-items: center; gap: 3px; white-space: nowrap;">
+                                                        <i class="ph-bold ph-receipt" style="font-size: 10px;"></i>
+                                                        <span>Számlázni!</span>
+                                                    </div>
+                                                    <div class="logi-tooltip-bubble" style="min-width: 170px; white-space: nowrap;">
+                                                        <i class="ph-bold ph-receipt" style="color: #fbbf24; font-size: 12px;"></i>
+                                                        <span>Nincs "számla ki" tag — Ki kell számlázni!</span>
+                                                    </div>
                                                 </div>
                                             ` : ''}
 
                                             <!-- 2. Díjbek szükséges 250e+ Ft (Indigó / Kék) -->
                                             ${order.needsProforma ? `
-                                                <div style="background: #4f46e5; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 4px rgba(79,70,229,0.25); display: flex; align-items: center; gap: 3px; white-space: nowrap;">
-                                                    <i class="ph-bold ph-file-text" style="font-size: 10px;"></i>
-                                                    <span>Díjbek szükséges</span>
+                                                <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex; pointer-events: auto; cursor: help;">
+                                                    <div style="background: #4f46e5; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 4px rgba(79,70,229,0.25); display: flex; align-items: center; gap: 3px; white-space: nowrap;">
+                                                        <i class="ph-bold ph-file-text" style="font-size: 10px;"></i>
+                                                        <span>Díjbek szükséges</span>
+                                                    </div>
+                                                    <div class="logi-tooltip-bubble" style="min-width: 210px; white-space: nowrap;">
+                                                        <i class="ph-bold ph-file-text" style="color: #a5b4fc; font-size: 12px;"></i>
+                                                        <span>250 000 Ft feletti nem fizetett rendelés!</span>
+                                                    </div>
                                                 </div>
                                             ` : ''}
 
                                             <!-- 2b. Díjbeket várjuk (ha díjbek.ki már rajta van, de számla ki még nem) -->
                                             ${order.waitingProforma ? `
-                                                <div style="background: #6366f1; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 4px rgba(99,102,241,0.25); display: flex; align-items: center; gap: 3px; white-space: nowrap;">
-                                                    <i class="ph-bold ph-clock-countdown" style="font-size: 10px;"></i>
-                                                    <span>Díjbeket várjuk</span>
+                                                <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex; pointer-events: auto; cursor: help;">
+                                                    <div style="background: #6366f1; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 4px rgba(99,102,241,0.25); display: flex; align-items: center; gap: 3px; white-space: nowrap;">
+                                                        <i class="ph-bold ph-clock-countdown" style="font-size: 10px;"></i>
+                                                        <span>Díjbeket várjuk</span>
+                                                    </div>
+                                                    <div class="logi-tooltip-bubble" style="min-width: 200px; white-space: nowrap;">
+                                                        <i class="ph-bold ph-clock-countdown" style="color: #c7d2fe; font-size: 12px;"></i>
+                                                        <span>Díjbekérő kiállítva — Utalásra várunk</span>
+                                                    </div>
                                                 </div>
                                             ` : ''}
 
                                             <!-- 3. Rossz szállítási mód (Csak ha NEM teljesített) (Tűzpiros / #dc2626) -->
                                             ${(!order.isFulfilled && order.hasBadShipping) ? `
-                                                <div style="background: #dc2626; color: #ffffff; padding: 2px 6px; border-radius: 4px 0 0 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 5px rgba(220,38,38,0.35); display: flex; align-items: center; gap: 3px; white-space: nowrap; border: 1px solid #b91c1c;">
-                                                    <i class="ph-bold ph-warning-octagon" style="font-size: 10px; color: #fee2e2;"></i>
-                                                    <span>Rossz szállítást választott!</span>
+                                                <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex; pointer-events: auto; cursor: help;">
+                                                    <div style="background: #dc2626; color: #ffffff; padding: 2px 6px; border-radius: 4px 0 0 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 5px rgba(220,38,38,0.35); display: flex; align-items: center; gap: 3px; white-space: nowrap; border: 1px solid #b91c1c;">
+                                                        <i class="ph-bold ph-warning-octagon" style="font-size: 10px; color: #fee2e2;"></i>
+                                                        <span>Rossz szállítást választott!</span>
+                                                    </div>
+                                                    <div class="logi-tooltip-bubble" style="min-width: 220px; white-space: nowrap;">
+                                                        <i class="ph-bold ph-warning-octagon" style="color: #fca5a5; font-size: 12px;"></i>
+                                                        <span>Vidéki címre 2300 Ft-os szállítás lett választva!</span>
+                                                    </div>
                                                 </div>
                                             ` : ''}
 
                                             <!-- 4. Több unfulfilled rendelése van ugyanannak a vevőnek (Lila / #7c3aed) -->
                                             ${hasDuplicateOrders ? `
-                                                <div class="hub-duplicate-orders-tag" 
-                                                     title="Ugyanennek a vevőnek ${duplicateOrders.length + 1} db aktív (unfulfilled) rendelése van folyamatban: ${[order.id, ...duplicateOrders.map(o => o.id)].join(', ')}"
-                                                     style="background: #7c3aed; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 5px rgba(124,58,237,0.35); display: flex; align-items: center; gap: 3px; white-space: nowrap; border: 1px solid #6d28d9; cursor: help; pointer-events: auto;">
-                                                    <i class="ph-bold ph-copy" style="font-size: 10px; color: #ede9fe;"></i>
-                                                    <span>${duplicateOrders.length + 1}x rendelés (${duplicateOrders.map(o => o.id).join(', ')})</span>
+                                                <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex; pointer-events: auto; cursor: help;">
+                                                    <div class="hub-duplicate-orders-tag" style="background: #7c3aed; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 5px rgba(124,58,237,0.35); display: flex; align-items: center; gap: 3px; white-space: nowrap; border: 1px solid #6d28d9;">
+                                                        <i class="ph-bold ph-copy" style="font-size: 10px; color: #ede9fe;"></i>
+                                                        <span>${duplicateOrders.length + 1}x rendelés (${duplicateOrders.map(o => o.id).join(', ')})</span>
+                                                    </div>
+                                                    <div class="logi-tooltip-bubble" style="min-width: 220px; max-width: 340px; white-space: normal; text-align: left; display: flex; flex-direction: column; align-items: stretch;">
+                                                        <div style="color: #c4b5fd; font-weight: 700; display: flex; align-items: center; gap: 5px;">
+                                                            <i class="ph-bold ph-copy"></i>
+                                                            <span>Aktív párhuzamos rendelések</span>
+                                                        </div>
+                                                        <div style="margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.15); font-size: 11px; font-weight: normal; color: #f8fafc;">
+                                                            Ugyanennek a vevőnek ${duplicateOrders.length + 1} db nyitott rendelése van: <strong style="color: #e9d5ff;">${[order.id, ...duplicateOrders.map(o => o.id)].join(', ')}</strong>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             ` : ''}
 
@@ -725,9 +966,26 @@ export const OrderOverviewView = {
                                         <!-- 4. Rendelésszám & Notes Ikon -->
                                         <div style="display: flex; align-items: center; gap: 5px;">
                                             <strong style="color: #0f172a; font-weight: 700; font-size: 12px; ${order.isCancelled ? 'text-decoration: line-through; color: #64748b;' : ''}">${order.id}</strong>
-                                            <button class="btn-order-note" data-order-id="${order.id}" data-shopify-id="${order.shopifyId}" data-customer-name="${(order.shippingName || order.billingName || '').replace(/"/g, '&quot;')}" style="background: ${order.note && order.note.trim() ? '#fef3c7' : '#f1f5f9'}; color: ${order.note && order.note.trim() ? '#b45309' : '#94a3b8'}; border: 1px solid ${order.note && order.note.trim() ? '#fcd34d' : '#e2e8f0'}; border-radius: 5px; padding: 1.5px 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; line-height: 1; transition: all .15s; box-shadow: ${order.note && order.note.trim() ? '0 1px 2px rgba(180,83,9,0.12)' : 'none'};" title="${order.note && order.note.trim() ? 'Megjegyzés: ' + order.note.replace(/"/g, '&quot;') : 'Megjegyzés hozzáadása / olvasása'}">
-                                                <i class="ph-bold ${order.note && order.note.trim() ? 'ph-note-pencil' : 'ph-notepad'}"></i>
-                                            </button>
+                                            <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                                                <button class="btn-order-note" data-order-id="${order.id}" data-shopify-id="${order.shopifyId}" data-customer-name="${(order.shippingName || order.billingName || '').replace(/"/g, '&quot;')}" style="background: ${order.note && order.note.trim() ? '#fef3c7' : '#f1f5f9'}; color: ${order.note && order.note.trim() ? '#b45309' : '#94a3b8'}; border: 1px solid ${order.note && order.note.trim() ? '#fcd34d' : '#e2e8f0'}; border-radius: 5px; padding: 1.5px 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; line-height: 1; transition: all .15s; box-shadow: ${order.note && order.note.trim() ? '0 1px 2px rgba(180,83,9,0.12)' : 'none'};">
+                                                    <i class="ph-bold ${order.note && order.note.trim() ? 'ph-note-pencil' : 'ph-notepad'}"></i>
+                                                </button>
+                                                <div class="logi-tooltip-bubble" style="min-width: 190px; max-width: 320px; white-space: normal; text-align: left; display: flex; flex-direction: column; align-items: stretch;">
+                                                    <div style="display: flex; align-items: center; gap: 5px; font-weight: 700; color: ${order.note && order.note.trim() ? '#fde047' : '#94a3b8'}; font-size: 11.5px;">
+                                                        <i class="ph-bold ${order.note && order.note.trim() ? 'ph-note-pencil' : 'ph-notepad'}" style="font-size: 13px;"></i>
+                                                        <span>${order.note && order.note.trim() ? 'Rendelés megjegyzés' : 'Megjegyzés hozzáadása'}</span>
+                                                    </div>
+                                                    ${order.note && order.note.trim() ? `
+                                                        <div style="margin-top: 5px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.15); font-size: 11px; color: #f8fafc; line-height: 1.45; font-weight: 400; word-break: break-word;">
+                                                            ${order.note.replace(/"/g, '&quot;')}
+                                                        </div>
+                                                    ` : `
+                                                        <div style="margin-top: 3px; font-size: 10px; color: #cbd5e1; font-weight: 400;">
+                                                            Kattints ide feljegyzés írásához!
+                                                        </div>
+                                                    `}
+                                                </div>
+                                            </div>
                                         </div>
 
                                         <!-- 5. Dátum -->
@@ -877,10 +1135,16 @@ export const OrderOverviewView = {
                                                                     <i class="ph-bold ph-user" style="color: #64748b;"></i>
                                                                     ${order.shippingName || order.customerName || 'Vevő'}
                                                                 </span>
-                                                                <button class="btn-copy-client-info" data-copy-text="${encodeURIComponent((order.shippingName || '') + ' - ' + (order.fullAddress || order.address || '') + (order.shippingPhone ? ' (Tel: ' + order.shippingPhone + ')' : ''))}" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; padding: 2px 7px; font-size: 11px; font-weight: 600; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px; transition: all .15s;" title="Címzett és szállítási cím másolása">
-                                                                    <i class="ph-bold ph-copy"></i>
-                                                                    <span>Másolás</span>
-                                                                </button>
+                                                                <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                                                                    <button class="btn-copy-client-info" data-copy-text="${encodeURIComponent((order.shippingName || '') + ' - ' + (order.fullAddress || order.address || '') + (order.shippingPhone ? ' (Tel: ' + order.shippingPhone + ')' : ''))}" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; padding: 2px 7px; font-size: 11px; font-weight: 600; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px; transition: all .15s;">
+                                                                        <i class="ph-bold ph-copy"></i>
+                                                                        <span>Másolás</span>
+                                                                    </button>
+                                                                    <div class="logi-tooltip-bubble" style="min-width: 170px; white-space: nowrap;">
+                                                                        <i class="ph-bold ph-copy"></i>
+                                                                        <span>Címzett és cím másolása</span>
+                                                                    </div>
+                                                                </div>
                                                             </div>
 
                                                             ${order.isPickup ? `
@@ -964,7 +1228,78 @@ export const OrderOverviewView = {
 
                                 </div>
                             `;
-                        }).join('')}
+                            };
+
+                            if (currentChip === 'in_delivery') {
+                                const runGroups = new Map();
+                                filteredOrders.forEach(order => {
+                                    const dInfo = order.deliveryInfo;
+                                    const key = dInfo?.runId 
+                                        ? `run_${dInfo.runId}` 
+                                        : (dInfo?.docId ? `doc_${dInfo.docId}` : `${dInfo?.runDate || 'ismeretlen'}_${dInfo?.courier || 'ismeretlen'}`);
+                                    
+                                    if (!runGroups.has(key)) {
+                                        runGroups.set(key, {
+                                            runId: dInfo?.runId,
+                                            docId: dInfo?.docId,
+                                            runDate: dInfo?.runDate || dInfo?.pickupDate || 'Dátum nélkül',
+                                            courier: dInfo?.courier || 'Futár nincs megadva',
+                                            company: dInfo?.company || '',
+                                            sender: dInfo?.sender || '',
+                                            orders: []
+                                        });
+                                    }
+                                    runGroups.get(key).orders.push(order);
+                                });
+
+                                let groupIndex = 1;
+                                let html = '';
+                                for (const [key, group] of runGroups.entries()) {
+                                    const groupTotal = group.orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+                                    const groupCod = group.orders.reduce((sum, o) => sum + (o.codAmount || 0), 0);
+                                    const formattedGroupTotal = new Intl.NumberFormat('hu-HU').format(groupTotal);
+                                    const formattedGroupCod = new Intl.NumberFormat('hu-HU').format(groupCod);
+
+                                    html += `
+                                        <div class="delivery-run-group-container" style="margin-bottom: 22px;">
+                                            <!-- Terítés Csoport Fejléc -->
+                                            <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 1.5px solid #7dd3fc; border-radius: 9px; padding: 8px 14px; margin: ${groupIndex === 1 ? '3px' : '18px'} 0 8px 0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; box-shadow: 0 2px 5px rgba(2, 132, 199, 0.08);">
+                                                <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap;">
+                                                    <span style="background: #0284c7; color: #ffffff; border-radius: 6px; padding: 3.5px 9px; font-weight: 800; font-size: 11.5px; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 1px 3px rgba(2,132,199,0.3);">
+                                                        <i class="ph-bold ph-truck" style="font-size: 13.5px;"></i>
+                                                        <span>${groupIndex}. Terítés</span>
+                                                    </span>
+                                                    <div style="font-size: 13px; color: #0c4a6e; font-weight: 700; display: flex; align-items: center; gap: 7px;">
+                                                        <span>📅 ${group.runDate}</span>
+                                                        <span style="color: #93c5fd;">•</span>
+                                                        <span style="color: #0369a1;">👤 ${group.courier}</span>
+                                                        ${group.company ? `<span style="background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; padding: 1.5px 6px; border-radius: 4px; font-size: 11px; font-weight: 600;">${group.company}</span>` : ''}
+                                                        ${group.runId ? `<span style="color: #64748b; font-size: 11px; font-weight: 500;">(#${group.runId})</span>` : ''}
+                                                    </div>
+                                                </div>
+                                                <div style="display: flex; align-items: center; gap: 12px; font-size: 12px;">
+                                                    <span style="background: #ffffff; color: #0284c7; border: 1px solid #bae6fd; padding: 2.5px 8px; border-radius: 7px; font-weight: 800; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+                                                        ${group.orders.length} db rendelés
+                                                    </span>
+                                                    <span style="color: #0f172a; font-weight: 700; font-size: 12px;">
+                                                        ${formattedGroupTotal} Ft
+                                                        ${groupCod > 0 ? `<span style="color: #1d4ed8; font-size: 11px; font-weight: 700; margin-left: 4px; background: #eff6ff; border: 1px solid #bfdbfe; padding: 1.5px 5px; border-radius: 4px;">UV: ${formattedGroupCod} Ft</span>` : ''}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <!-- Csoporthoz tartozó rendelések listája -->
+                                            <div class="delivery-run-orders-list">
+                                                ${group.orders.map(o => renderSingleRow(o)).join('')}
+                                            </div>
+                                        </div>
+                                    `;
+                                    groupIndex++;
+                                }
+                                return html;
+                            }
+                            return filteredOrders.map(o => renderSingleRow(o)).join('');
+                        })()}
                     </div>
                 </div>
 
@@ -997,10 +1332,16 @@ export const OrderOverviewView = {
                         <span>Szállítói Export (Sela)</span>
                     </button>
 
-                    <button id="btn-hub-clear-selection" title="Kijelölés megszüntetése" style="background: rgba(255,255,255,0.1); color: #cbd5e1; border: none; padding: 8px 12px; border-radius: 10px; font-weight: 600; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all .15s;">
-                        <i class="ph-bold ph-x"></i>
-                        <span>Törlés</span>
-                    </button>
+                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                        <button id="btn-hub-clear-selection" style="background: rgba(255,255,255,0.1); color: #cbd5e1; border: none; padding: 8px 12px; border-radius: 10px; font-weight: 600; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all .15s;">
+                            <i class="ph-bold ph-x"></i>
+                            <span>Törlés</span>
+                        </button>
+                        <div class="logi-tooltip-bubble" style="min-width: 150px; white-space: nowrap;">
+                            <i class="ph-bold ph-x"></i>
+                            <span>Kijelölés megszüntetése</span>
+                        </div>
+                    </div>
                 </div>
 
             </div>

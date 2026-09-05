@@ -236,3 +236,135 @@ export function isEligibleForAutoPannonXp(order) {
 
     return true;
 }
+
+/**
+ * Ellenőrzi, hogy egy rendelés rossz szállítási díjjal (pl. 2.300 Ft-os budapesti díj vidéki címre) rendelkezik-e.
+ * KIVÉTELEK:
+ * - Törölt vagy már teljesített rendelések
+ * - Személyes átvételes rendelések
+ * - Budapesti címek (Budapest város vagy 1xxx irányítószám)
+ * - Ingyenes szállítási kuponnal / kedvezménnyel rendelkezők (ahol a kedvezmény miatt 0 Ft vagy lecsökkent a díj, pl. #3966)
+ * 
+ * @param {Object} order Shopify API vagy konvertált rendelés
+ * @returns {boolean}
+ */
+export function checkBadShipping(order) {
+    if (!order) return false;
+    if (order.isCancelled === true || order.cancelled_at) return false;
+
+    const fStatus = String(order.fulfillmentStatus || order.fulfillment_status || '').toLowerCase();
+    if (fStatus === 'fulfilled') return false;
+
+    // Személyes átvétel kizárása
+    if (order.isPickup || isPickupOrder(order)) return false;
+
+    // Település és irányítószám vizsgálata
+    const city = String(order.city || order.shipping_address?.city || '').trim().toLowerCase();
+    const zip = String(order.zip || order.shipping_address?.zip || '').trim();
+    const isBudapest = city === 'budapest' || city.includes('budapest') || /^(1\d{3})$/.test(zip);
+    if (isBudapest) return false;
+
+    // Szállítási adatok kinyerése (Összes szállítási sor vizsgálata)
+    const shippingLines = order.shipping_lines || (order.shippingLine ? [order.shippingLine] : []);
+    
+    // Ha több szállítási sor van hozzáadva (ráfizetett / hozzá van ütve egy másik összeg, pl. #3941), NEM rossz szállítás!
+    if (shippingLines.length > 1) {
+        return false;
+    }
+
+    // Ha a rendelési tételek között szerepel szállítási pótdíj vagy plusz szállítás tétel
+    const lineItems = order.line_items || order.items || [];
+    const hasExtraShippingItem = lineItems.some(l => /szállít|kiszállít|pótdíj/i.test(l.title || l.name || ''));
+    if (hasExtraShippingItem) {
+        return false;
+    }
+
+    let totalRawPrice = 0;
+    let totalDiscount = 0;
+    let totalDiscounted = 0;
+
+    if (shippingLines.length > 0) {
+        shippingLines.forEach(line => {
+            const p = parseFloat(line.price || 0);
+            totalRawPrice += p;
+            let dAmount = 0;
+            if (Array.isArray(line.discount_allocations) && line.discount_allocations.length > 0) {
+                dAmount = line.discount_allocations.reduce((sum, d) => {
+                    return sum + (parseFloat(d.amount || d.amount_set?.shop_money?.amount || 0) || 0);
+                }, 0);
+            }
+            totalDiscount += dAmount;
+
+            if (line.discounted_price !== undefined && line.discounted_price !== null) {
+                totalDiscounted += parseFloat(line.discounted_price);
+            } else if (line.discounted_price_set?.shop_money?.amount !== undefined && line.discounted_price_set?.shop_money?.amount !== null) {
+                totalDiscounted += parseFloat(line.discounted_price_set.shop_money.amount);
+            } else {
+                totalDiscounted += Math.max(0, p - dAmount);
+            }
+        });
+    } else {
+        totalDiscounted = parseFloat(order.total_shipping_price_set?.shop_money?.amount || order.shippingFee || 0);
+        totalRawPrice = totalDiscounted;
+    }
+
+    // Ha a Shopify total_shipping_price_set-ben lévő összeg magasabb, azt vesszük
+    if (order.total_shipping_price_set?.shop_money?.amount !== undefined) {
+        const setTotal = parseFloat(order.total_shipping_price_set.shop_money.amount);
+        if (setTotal > totalDiscounted) {
+            totalDiscounted = setTotal;
+        }
+    }
+
+    // Ingyenes szállítás kupon / kedvezmény felismerése (kupon miatti 0 Ft, pl. #3966)
+    const hasFreeShippingDiscount = (totalDiscount >= totalRawPrice && totalRawPrice > 0) ||
+                                    (totalDiscounted === 0 && (totalDiscount > 0 || shippingLines.some(l => l.discount_allocations && l.discount_allocations.length > 0)));
+
+    if (hasFreeShippingDiscount || totalDiscounted === 0) {
+        return false;
+    }
+
+    // Ha ráfizetett vagy más összegben egyeztek meg (pl. 5000 Ft, 9900 Ft), NEM rossz szállítás!
+    if (totalDiscounted > 2350) {
+        return false;
+    }
+
+    // Csak akkor rossz szállítás, ha a ténylegesen fizetett összeg pontosan 2300 Ft
+    return Math.round(totalDiscounted) === 2300;
+}
+
+/**
+ * Ellenőrzi, hogy egy rendelés hiányzó számlásnak minősül-e.
+ * Nem törölt, nem viszonteladó, és nincs rajta "számla ki" tag.
+ */
+export function isOrderMissingInvoice(order) {
+    if (!order) return false;
+    if (order.isCancelled === true || order.cancelled_at) return false;
+
+    // Viszonteladó tag kizárása
+    const tags = String(order.tags || '').toLowerCase();
+    if (tags.includes('viszontelad') || tags.includes('viszonterlad')) return false;
+
+    // Személyes átvétel fizetetlen esetben nem számlázandó előre
+    const isPickup = order.isPickup || tags.includes('személyes') || tags.includes('pickup');
+    const isPaid = order.isPaid || order.financial_status === 'paid';
+    if (isPickup && !isPaid) return false;
+
+    // Ha van számla ki tag
+    if (tags.includes('számla ki') || tags.includes('szamla ki')) return false;
+
+    // Ha a rendelés hibái között szerepel 'no_invoice' vagy hasNoInvoice flag
+    if (order.hasNoInvoice !== undefined) return order.hasNoInvoice;
+    if (Array.isArray(order.errors) && order.errors.some(e => e.type === 'no_invoice')) return true;
+
+    return true;
+}
+
+/**
+ * Kiszűri a megadott rendelésekből azokat, amelyeknek nincs kiállított számlája.
+ */
+export function filterOrdersWithoutInvoice(orders) {
+    if (!Array.isArray(orders)) return [];
+    return orders.filter(isOrderMissingInvoice);
+}
+

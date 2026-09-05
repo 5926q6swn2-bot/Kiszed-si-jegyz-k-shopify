@@ -308,15 +308,61 @@ export const ShopifyApiService = {
         let isCancelled = !!apiOrder.cancelled_at || financialStatus === 'voided' || financialStatus === 'refunded';
 
         // Szállítási díj és Budapest ellenőrzés
-        const shippingFee = parseFloat(apiOrder.total_shipping_price_set?.shop_money?.amount || (shippingLinesRaw[0] && shippingLinesRaw[0].price) || 0);
+        // Összesített szállítási díj és kedvezmény számítás az ÖSSZES szállítási sorra (shippingLinesRaw a felsőbb sorokban deklarálva)
+        let totalShippingRaw = 0;
+        let totalShippingDiscount = 0;
+        let totalShippingDiscounted = 0;
+
+        if (shippingLinesRaw.length > 0) {
+            shippingLinesRaw.forEach(line => {
+                const p = parseFloat(line.price || 0);
+                totalShippingRaw += p;
+                let disc = 0;
+                if (line.discount_allocations && Array.isArray(line.discount_allocations)) {
+                    disc = line.discount_allocations.reduce((sum, d) => sum + (parseFloat(d.amount || d.amount_set?.shop_money?.amount || 0) || 0), 0);
+                }
+                totalShippingDiscount += disc;
+                if (line.discounted_price !== undefined && line.discounted_price !== null) {
+                    totalShippingDiscounted += parseFloat(line.discounted_price);
+                } else if (line.discounted_price_set?.shop_money?.amount !== undefined && line.discounted_price_set?.shop_money?.amount !== null) {
+                    totalShippingDiscounted += parseFloat(line.discounted_price_set.shop_money.amount);
+                } else {
+                    totalShippingDiscounted += Math.max(0, p - disc);
+                }
+            });
+        } else {
+            totalShippingDiscounted = parseFloat(apiOrder.total_shipping_price_set?.shop_money?.amount || 0);
+            totalShippingRaw = totalShippingDiscounted;
+        }
+
+        // Ha a Shopify total_shipping_price_set-ben lévő összeg magasabb, azt használjuk
+        if (apiOrder.total_shipping_price_set?.shop_money?.amount !== undefined) {
+            const apiTotalShipping = parseFloat(apiOrder.total_shipping_price_set.shop_money.amount);
+            if (apiTotalShipping > totalShippingDiscounted) {
+                totalShippingDiscounted = apiTotalShipping;
+            }
+        }
+
+        // Ingyenes szállítás kupon / kedvezmény felismerése (pl. #3966)
+        const hasFreeShippingDiscount = (totalShippingDiscount >= totalShippingRaw && totalShippingRaw > 0) ||
+                                        (totalShippingDiscounted === 0 && (totalShippingDiscount > 0 || shippingLinesRaw.some(l => l.discount_allocations && l.discount_allocations.length > 0)));
+
+        const shippingFee = Math.max(0, totalShippingDiscounted);
         const cityLower = cleanCity.toLowerCase();
         const isBudapest = cityLower === 'budapest' || cityLower.includes('budapest') || /^(1\d{3})$/.test(cleanZip);
 
         // Viszonteladó tag felismerése (nem kell díjbekérő, nem kell számla figyelmeztetés)
         const isReseller = tagsLower.includes('viszontelad') || tagsLower.includes('viszonterlad');
 
-        // Rossz szállítási mód felismerése: Nem törölt, nem teljesített, nem személyes átvétel, nem Budapest, de a szállítási díj pontosan 2300 Ft
-        const hasBadShipping = !isCancelled && fulfillmentStatus !== 'fulfilled' && !isPickup && !isBudapest && Math.round(shippingFee) === 2300;
+        // Külön szállítási pótdíj vagy szállítási cikk a rendelési tételek között
+        const hasShippingLineItem = (apiOrder.line_items || []).some(l => /szállít|kiszállít|pótdíj/i.test(l.title || l.name || ''));
+
+        // Ráfizetés / hozzáütött szállítási összeg felismerése (pl. #3941, #3955):
+        // Ha több szállítási sor van (shippingLinesRaw.length > 1), vagy a tényleges szállítási díj > 2300 Ft (pl. 5000 Ft, 9900 Ft), vagy van külön szállítás tétel
+        const hasExtraShippingPaid = shippingLinesRaw.length > 1 || shippingFee > 2350 || hasShippingLineItem;
+
+        // Rossz szállítási mód felismerése: Nem törölt, nem teljesített, nem személyes átvétel, nem Budapest, NEM ingyenes kuponos, ÉS NEM fizetett rá (nincs hozzáütve extra szállítás), és a tényleges díj pontosan 2300 Ft
+        const hasBadShipping = !isCancelled && fulfillmentStatus !== 'fulfilled' && !isPickup && !isBudapest && !hasFreeShippingDiscount && !hasExtraShippingPaid && Math.round(shippingFee) === 2300;
 
         // Számla ki hiány ellenőrzése (csak ha nem törölt a rendelés ÉS NEM viszonteladó)
         // Személyes átvétel esetén CSAK AKKOR kell előre számlázni, ha már kifizette (pl. bankkártya). Ha utánvétes/helyszíni fizetés, nem írjuk ki!

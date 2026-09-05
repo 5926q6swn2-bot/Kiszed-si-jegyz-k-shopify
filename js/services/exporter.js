@@ -9,8 +9,8 @@ import { SelaWeightService } from './selaWeightService.js';
 export const DEFAULT_SELA_WEIGHTS = {
     pvc_spc_floor: 18,   // kg / db
     acoustic: 7,         // kg / db
-    adhesive: 0.5,       // kg / db
-    profile: 0.5,        // kg / db
+    adhesive: 0.35,      // kg / db
+    profile: 0.25,       // kg / db
     tapadohid: 1.0       // kg / db
 };
 
@@ -243,9 +243,26 @@ export const ExporterService = {
     },
     SelaWeightService: SelaWeightService,
 
-    // 6. Egyedi Sela sor adat előkészítése a 13 oszlophoz (súllyal kiegészítve)
-    prepareSelaRowData: function(order, customCodMap = {}, customWeights = null) {
-        return prepareSelaRowData(order, customCodMap, customWeights);
+    // 5b. 5 munkanapos szállítási határidő és feladási nap kalkulációja (10:30 levágási idővel)
+    calculateSelaDates: function(fromDate, cutoffHour, cutoffMinute) {
+        return calculateSelaDates(fromDate, cutoffHour, cutoffMinute);
+    },
+    calculateSelaDeliveryDeadline: function(fromDate, cutoffHour, cutoffMinute) {
+        return calculateSelaDeliveryDeadline(fromDate, cutoffHour, cutoffMinute);
+    },
+    calculateSelaDispatchDate: function(fromDate, cutoffHour, cutoffMinute) {
+        return calculateSelaDispatchDate(fromDate, cutoffHour, cutoffMinute);
+    },
+    isHungarianHoliday: function(date) {
+        return isHungarianHoliday(date);
+    },
+    isHungarianWorkday: function(date) {
+        return isHungarianWorkday(date);
+    },
+
+    // 6. Egyedi Sela sor adat előkészítése a 14 oszlophoz (súllyal, feladási nappal és határidővel)
+    prepareSelaRowData: function(order, customCodMap = {}, customWeights = null, dispatchDate = new Date()) {
+        return prepareSelaRowData(order, customCodMap, customWeights, dispatchDate);
     },
 
     // 7. CSV szöveg legenerálása a 13 oszlopos sorokból
@@ -512,13 +529,178 @@ export function isPendingBankDeposit(order) {
     return false;
 }
 
+/**
+ * Meghatározza a húsvétvasárnap pontos dátumát bármely évre (Gregorián Gauss/Butcher algoritmus).
+ */
+export function getEasterSunday(year) {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31) - 1; // 0-indexed hónap
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month, day);
+}
 
-export function prepareSelaRowData(order, customCodMap = {}, customWeights = null) {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const dateStr = `${yyyy}.${mm}.${dd}`;
+/**
+ * Alapvető magyar állami ünnepek és egyházi mozgóünnepek vizsgálata.
+ */
+function isHungarianHolidayBasic(date) {
+    const y = date.getFullYear();
+    const m = date.getMonth();
+    const d = date.getDate();
+
+    // 1. Fix magyar állami ünnepek és munkaszüneti napok
+    if (m === 0 && d === 1) return true; // Jan 1 (Újév)
+    if (m === 2 && d === 15) return true; // Márc 15 (Nemzeti ünnep)
+    if (m === 4 && d === 1) return true; // Máj 1 (A munka ünnepe)
+    if (m === 7 && d === 20) return true; // Aug 20 (Államalapítás ünnepe)
+    if (m === 9 && d === 23) return true; // Okt 23 (1956-os forradalom)
+    if (m === 10 && d === 1) return true; // Nov 1 (Mindenszentek)
+    if (m === 11 && d === 24) return true; // Dec 24 (Szenteste / pihenőnap)
+    if (m === 11 && (d === 25 || d === 26)) return true; // Dec 25-26 (Karácsony)
+
+    // 2. Mozgó ünnepek (Húsvét és Pünkösd)
+    const easter = getEasterSunday(y);
+
+    // Nagypéntek (Húsvétvasárnap - 2 nap)
+    const gf = new Date(easter);
+    gf.setDate(easter.getDate() - 2);
+    if (m === gf.getMonth() && d === gf.getDate()) return true;
+
+    // Húsvéthétfő (Húsvétvasárnap + 1 nap)
+    const em = new Date(easter);
+    em.setDate(easter.getDate() + 1);
+    if (m === em.getMonth() && d === em.getDate()) return true;
+
+    // Pünkösdhétfő (Húsvétvasárnap + 50 nap)
+    const wm = new Date(easter);
+    wm.setDate(easter.getDate() + 50);
+    if (m === wm.getMonth() && d === wm.getDate()) return true;
+
+    return false;
+}
+
+/**
+ * Ellenőrzi, hogy egy adott dátum magyarországi munkaszüneti nap vagy hídnap (áthelyezett pihenőnap) -e.
+ * Szabály:
+ * - Ha az ünnep csütörtökre esik -> péntek is munkaszüneti nap (pihenőnap)
+ * - Ha az ünnep keddre esik -> hétfő is munkaszüneti nap (pihenőnap)
+ */
+export function isHungarianHoliday(date) {
+    const d = date instanceof Date ? date : new Date(date);
+    if (isHungarianHolidayBasic(d)) return true;
+
+    const dow = d.getDay();
+    const y = d.getFullYear();
+    const m = d.getMonth();
+    const day = d.getDate();
+
+    // Hídnap: Csütörtöki ünnep esetén a rákövetkező péntek pihenőnap
+    if (dow === 5) {
+        const prevThursday = new Date(y, m, day - 1);
+        if (isHungarianHolidayBasic(prevThursday)) return true;
+    }
+
+    // Hídnap: Keddi ünnep esetén a megelőző hétfő pihenőnap
+    if (dow === 1) {
+        const nextTuesday = new Date(y, m, day + 1);
+        if (isHungarianHolidayBasic(nextTuesday)) return true;
+    }
+
+    return false;
+}
+
+/**
+ * Ellenőrzi, hogy az adott nap valós magyar munkanap-e (hétfő-péntek, hétvégék és ünnepek/hídnapok kizárva).
+ */
+export function isHungarianWorkday(date) {
+    const d = date instanceof Date ? date : new Date(date);
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) return false; // Szombat vagy vasárnap
+    if (isHungarianHoliday(d)) return false; // Munkaszüneti nap vagy hídnap
+    return true;
+}
+
+/**
+ * Dátum formázása YYYY.MM.DD formátumba.
+ */
+export function formatSelaDate(date) {
+    const d = date instanceof Date ? date : new Date(date);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}.${mm}.${dd}`;
+}
+
+/**
+ * Kiszámítja a Sela export feladási/indítási dátumát és a legkésőbbi 5 munkanapos kézbesítési határidőt.
+ * 
+ * Szabály:
+ * 1. Oszlop ("Dátum"):
+ *    - Ha munkanapon délelőtt 10:30-ig (10:30-at is beleértve) indítjuk: aznap a feladás dátuma.
+ *    - Ha 10:30 után, vagy hétvégén / munkaszüneti napon indítjuk: a rákövetkező első munkanap a feladás dátuma.
+ * 
+ * 14. Oszlop ("Legkésőbbi kézbesítés"):
+ *    - A feladási naptól (ami az 1. munkanap) számított pontosan 5 munkanap (azaz még 4 további munkanap hozzáadása).
+ */
+export function calculateSelaDates(fromDate = new Date(), cutoffHour = 10, cutoffMinute = 30) {
+    const current = fromDate instanceof Date ? fromDate : new Date(fromDate);
+    const hours = current.getHours();
+    const minutes = current.getMinutes();
+    const isTodayWorkday = isHungarianWorkday(current);
+    const isBeforeCutoff = (hours < cutoffHour) || (hours === cutoffHour && minutes <= cutoffMinute);
+
+    let dispatchCursor = new Date(current.getFullYear(), current.getMonth(), current.getDate());
+
+    if (isTodayWorkday && isBeforeCutoff) {
+        // Aznap indítjuk
+    } else {
+        // Az első rákövetkező munkanapon indítjuk
+        do {
+            dispatchCursor.setDate(dispatchCursor.getDate() + 1);
+        } while (!isHungarianWorkday(dispatchCursor));
+    }
+
+    // A legkésőbbi határidő a feladási naptól (1. munkanap) számított további 4 munkanap
+    let deadlineCursor = new Date(dispatchCursor);
+    let workdaysLeft = 4;
+    while (workdaysLeft > 0) {
+        deadlineCursor.setDate(deadlineCursor.getDate() + 1);
+        if (isHungarianWorkday(deadlineCursor)) {
+            workdaysLeft--;
+        }
+    }
+
+    return {
+        dispatchDate: formatSelaDate(dispatchCursor),
+        deadlineDate: formatSelaDate(deadlineCursor),
+        isWorkdayBeforeCutoff: isTodayWorkday && isBeforeCutoff
+    };
+}
+
+export function calculateSelaDeliveryDeadline(fromDate = new Date(), cutoffHour = 10, cutoffMinute = 30) {
+    return calculateSelaDates(fromDate, cutoffHour, cutoffMinute).deadlineDate;
+}
+
+export function calculateSelaDispatchDate(fromDate = new Date(), cutoffHour = 10, cutoffMinute = 30) {
+    return calculateSelaDates(fromDate, cutoffHour, cutoffMinute).dispatchDate;
+}
+
+export function prepareSelaRowData(order, customCodMap = {}, customWeights = null, dispatchDate = new Date()) {
+    // 1. oszlop: Feladási nap (aznap ha 10:30-ig munkanapon, vagy az első munkanap)
+    // 14. oszlop: 5 munkanapos legkésőbbi kézbesítési határidő
+    const selaDates = calculateSelaDates(dispatchDate);
+    const dateStr = selaDates.dispatchDate;
+    const deadlineStr = selaDates.deadlineDate;
 
     const isPendingBank = isPendingBankDeposit(order);
 
@@ -636,6 +818,9 @@ export function prepareSelaRowData(order, customCodMap = {}, customWeights = nul
         col11_profilesQty: profileQty,
         col12_codAndTapadohid: col12Text,
         col13_weight: orderWeight,
+        col14_deadline: deadlineStr,
+        deadlineDate: deadlineStr,
+        dispatchDate: dateStr,
         totalWeight: orderWeight,
         weightBreakdownText: weightBreakdownText,
         rawCodAmount: finalCodAmount,
@@ -662,7 +847,8 @@ export function generateSelaCsv(rows) {
         "Ragasztók, szilikonok (db)",
         "Profilok (db)",
         "Utánvét összege / tapadóhíd",
-        "Összsúly (kg)"
+        "Összsúly (kg)",
+        "Legkésőbbi kézbesítés"
     ];
 
     const clean = (val) => {
@@ -680,6 +866,15 @@ export function generateSelaCsv(rows) {
 
     rows.forEach(r => {
         const rawWeight = r.col13_weight !== undefined && r.col13_weight !== null ? r.col13_weight : (r.totalWeight ?? '');
+        let formattedWeight = "";
+        if (rawWeight !== undefined && rawWeight !== null && rawWeight !== '') {
+            const s = String(rawWeight).trim();
+            formattedWeight = s.toLowerCase().endsWith('kg') ? s : `${s} kg`;
+        }
+        const deadlineVal = r.col14_deadline !== undefined && r.col14_deadline !== null && r.col14_deadline !== '' 
+            ? r.col14_deadline 
+            : (r.deadlineDate || '');
+
         const line = [
             clean(r.col1_date),
             clean(r.col2_orderId),
@@ -693,7 +888,8 @@ export function generateSelaCsv(rows) {
             clean(r.col10_adhesivesQty),
             clean(r.col11_profilesQty),
             clean(r.col12_codAndTapadohid),
-            clean(rawWeight)
+            clean(formattedWeight),
+            clean(deadlineVal)
         ];
         csvLines.push(line.join(";"));
     });

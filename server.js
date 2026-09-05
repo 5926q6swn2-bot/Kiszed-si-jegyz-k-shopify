@@ -60,6 +60,14 @@ async function getOrderUtils() {
   return orderUtilsModule;
 }
 
+let emailServiceModule = null;
+async function getEmailService() {
+  if (!emailServiceModule) {
+    emailServiceModule = await import('./js/services/emailService.js');
+  }
+  return emailServiceModule;
+}
+
 let isPannonXpQueueRunning = false;
 
 async function queuePannonXpAutoTagging(targetOrders, token, shop) {
@@ -1135,6 +1143,58 @@ const server = http.createServer(async (req, res) => {
         }
       } catch (err) {
         console.error('[Shopify Update Note Error]', err);
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: err.message }));
+        return;
+      }
+    });
+    return;
+  }
+
+  // 9. Automatikus E-mail Értesítés Számla Nélküli Rendelés Terítésbe Helyezésekor
+  if (pathname === '/api/notifications/missing-invoice' && req.method === 'POST') {
+    let bodyStr = '';
+    req.on('data', chunk => { bodyStr += chunk; });
+    req.on('end', async () => {
+      try {
+        const body = JSON.parse(bodyStr || '{}');
+        const run = body.run || {};
+        const missingOrders = body.missingOrders || [];
+
+        if (!Array.isArray(missingOrders) || missingOrders.length === 0) {
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: true, message: 'Nincs hiányzó számlás rendelés.' }));
+          return;
+        }
+
+        const emailModule = await getEmailService();
+        const service = process.env.EMAIL_SERVICE || 'resend';
+        const apiKey = process.env.RESEND_API_KEY || process.env.EMAIL_API_KEY || process.env.BREVO_API_KEY || '';
+        const from = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+        const to = process.env.ALERT_EMAIL_RECIPIENT || 'info@panelburkolat.com';
+        const shopDomain = process.env.SHOPIFY_SHOP || 'p4q0uj-2m.myshopify.com';
+
+        const result = await emailModule.sendMissingInvoiceAlertEmail({
+          run,
+          missingOrders,
+          service,
+          apiKey,
+          from,
+          to,
+          shopDomain
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({
+          success: result.success,
+          simulated: result.simulated || false,
+          count: missingOrders.length,
+          service: result.service || service,
+          error: result.error || null
+        }));
+        return;
+      } catch (err) {
+        console.error('[Notification Missing Invoice Error]', err);
         res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ error: err.message }));
         return;

@@ -38,9 +38,20 @@ export const SelaExportModal = {
             return;
         }
 
-        // 1. Sorok előkészítése a 13 oszlopos logikával (terméksúlyokkal)
-        const weightSettings = ExporterService.getSelaWeightSettings();
-        const initialRows = selectedOrders.map(o => ExporterService.prepareSelaRowData(o, {}, weightSettings));
+        // 1. 5 munkanapos kézbesítési határidő és feladási nap kalkulációja (10:30 levágási idővel)
+        const now = new Date();
+        const selaDates = ExporterService.calculateSelaDates 
+            ? ExporterService.calculateSelaDates(now)
+            : {
+                dispatchDate: new Date().toISOString().substring(0, 10).replace(/-/g, '.'),
+                deadlineDate: new Date().toISOString().substring(0, 10).replace(/-/g, '.'),
+                isWorkdayBeforeCutoff: true
+            };
+        const defaultDispatchDate = selaDates.dispatchDate;
+        const defaultDeadline = selaDates.deadlineDate;
+        const isWorkdayBeforeCutoff = selaDates.isWorkdayBeforeCutoff;
+
+        const initialRows = selectedOrders.map(o => ExporterService.prepareSelaRowData(o, {}, null, now));
 
         // Van-e díjbekérős vagy függő utalásos rendelés a listában?
         const hasProformaOrders = initialRows.some(r => r.isProforma);
@@ -49,7 +60,7 @@ export const SelaExportModal = {
         const pendingBankCount = initialRows.filter(r => r.isPendingBankTransfer).length;
 
         // Összsúly kezdeti kalkulációja
-        const initialTotalWeight = Math.round(initialRows.reduce((sum, r) => sum + (parseFloat(r.col13_weight) || 0), 0) * 10) / 10;
+        const initialTotalWeight = Math.round(initialRows.reduce((sum, r) => sum + (parseFloat(r.col13_weight) || 0), 0) * 100) / 100;
 
         // 2. Régi modal eltávolítása, ha létezne
         const existingModal = document.getElementById('sela-export-modal-overlay');
@@ -82,7 +93,7 @@ export const SelaExportModal = {
                             <i class="ph ph-trash"></i>
                         </button>
                     </td>
-                    <td><input type="text" class="sela-cell-input col-date" data-field="col1_date" value="${r.col1_date}" style="width: 85px;"></td>
+                    <td><input type="text" class="sela-cell-input col-date" data-field="col1_date" value="${r.col1_date}" style="width: 82px; text-align: center; font-weight: 600;" title="Indítás / feladás dátuma (aznap ha 10:30-ig, egyébként az első munkanap)"></td>
                     <td>
                         <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
                             <input type="text" class="sela-cell-input col-order" data-field="col2_orderId" value="${r.col2_orderId}" style="width: 65px; font-weight:700;">
@@ -112,15 +123,26 @@ export const SelaExportModal = {
                                    title="${r.col12_codAndTapadohid}">
                         </div>
                     </td>
-                    <td>
-                        <input type="number" 
-                               step="0.1" 
-                               min="0" 
-                               class="sela-cell-input col-weight" 
-                               data-field="col13_weight" 
-                               value="${r.col13_weight}" 
-                               style="width: 65px; text-align: right; font-weight:700; color: #0284c7;" 
-                               title="${r.weightBreakdownText ? r.weightBreakdownText.replace(/"/g, '&quot;') : `Kalkulált súly: ${r.col13_weight} kg`}">
+                    <td style="text-align: right; white-space: nowrap;">
+                        <div style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 3px;">
+                            <input type="number" 
+                                   step="0.01" 
+                                   min="0" 
+                                   class="sela-cell-input col-weight" 
+                                   data-field="col13_weight" 
+                                   value="${r.col13_weight}" 
+                                   style="width: 65px; text-align: right; font-weight:700; color: #0284c7;" 
+                                   title="${r.weightBreakdownText ? r.weightBreakdownText.replace(/"/g, '&quot;') : `Kalkulált súly: ${r.col13_weight} kg`}">
+                            <span style="font-size:11px; color:#64748b; font-weight:600;">kg</span>
+                        </div>
+                    </td>
+                    <td style="text-align: center; white-space: nowrap;">
+                        <input type="text" 
+                               class="sela-cell-input col-deadline" 
+                               data-field="col14_deadline" 
+                               value="${r.col14_deadline || r.deadlineDate || defaultDeadline}" 
+                               style="width: 85px; text-align: center; font-weight: 700; color: #15803d;" 
+                               title="5 munkanapos legkésőbbi kézbesítési határidő">
                     </td>
                 </tr>
             `;
@@ -170,36 +192,39 @@ export const SelaExportModal = {
                     </div>
                 ` : ''}
 
-                <!-- Súlybeállítások sáv -->
-                <div class="sela-weight-bar" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 7px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-                    <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #0f172a;">
-                        <i class="ph ph-scales" style="font-size: 16px; color: #0284c7;"></i>
-                        <span>Súlybeállítások (kg/db):</span>
+                <!-- 5 Munkanapos Kézbesítési Határidő Sáv -->
+                <div class="sela-deadline-bar" style="background: #f0fdf4; border-bottom: 1px solid #bbf7d0; padding: 8px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; font-size: 12px; color: #166534;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 28px; height: 28px; border-radius: 6px; background: #dcfce7; color: #15803d; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;">
+                            <i class="ph ph-calendar-check"></i>
+                        </div>
+                        <div>
+                            <div>
+                                <strong>Feladás (1. oszlop):</strong> 
+                                <span style="color: #15803d; font-weight: 600;">${defaultDispatchDate}</span>
+                                <span style="color: #64748b; font-size: 11px;">(${isWorkdayBeforeCutoff ? '✅ Mai nap, 10:30-ig indítva' : '⏰ 10:30 után / hétvége / munkaszünet: első munkanap'})</span>
+                                <span style="margin: 0 8px; color: #86efac;">|</span>
+                                <strong>5 munkanapos kézbesítés (utolsó oszlop):</strong>
+                                <strong style="color: #047857; font-size: 12.5px;">${defaultDeadline}</strong>
+                            </div>
+                            <div style="font-size: 10.5px; color: #166534; margin-top: 2px;">
+                                ℹ️ Munkaszüneti napok, mozgóünnepek és hídnapok (pl. csütörtöki ünnepnél a péntek is pihenőnap) automatikusan figyelembe véve.
+                            </div>
+                        </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 11.5px; color: #334155;">
-                        <label style="display: inline-flex; align-items: center; gap: 4px;">
-                            <span>PVC/SPC:</span>
-                            <input type="number" step="0.5" min="0" class="sela-weight-cfg-input" data-weight-key="pvc_spc_floor" value="${weightSettings.pvc_spc_floor}" style="width: 46px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-weight: 600;"> kg
-                        </label>
-                        <label style="display: inline-flex; align-items: center; gap: 4px;">
-                            <span>Akusztikus:</span>
-                            <input type="number" step="0.5" min="0" class="sela-weight-cfg-input" data-weight-key="acoustic" value="${weightSettings.acoustic}" style="width: 44px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-weight: 600;"> kg
-                        </label>
-                        <label style="display: inline-flex; align-items: center; gap: 4px;">
-                            <span>Ragasztó:</span>
-                            <input type="number" step="0.1" min="0" class="sela-weight-cfg-input" data-weight-key="adhesive" value="${weightSettings.adhesive}" style="width: 44px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-weight: 600;"> kg
-                        </label>
-                        <label style="display: inline-flex; align-items: center; gap: 4px;">
-                            <span>Profil:</span>
-                            <input type="number" step="0.1" min="0" class="sela-weight-cfg-input" data-weight-key="profile" value="${weightSettings.profile}" style="width: 44px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-weight: 600;"> kg
-                        </label>
-                        <label style="display: inline-flex; align-items: center; gap: 4px;">
-                            <span>Tapadóhíd:</span>
-                            <input type="number" step="0.1" min="0" class="sela-weight-cfg-input" data-weight-key="tapadohid" value="${weightSettings.tapadohid}" style="width: 44px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-weight: 600;"> kg
-                        </label>
-                        <span style="font-size: 10.5px; color: #64748b; font-style: italic;">(Módosításkor azonnal újraszámolja a sorokat)</span>
+                    <div style="display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <div style="display: inline-flex; align-items: center; gap: 5px;">
+                            <span style="font-size: 11px; font-weight: 600; color: #166534;">Indítás átírás:</span>
+                            <input type="text" id="sela-bulk-date-input" value="${defaultDispatchDate}" style="width: 82px; padding: 2.5px 6px; border: 1.5px solid #86efac; border-radius: 5px; font-size: 11.5px; font-weight: 700; text-align: center; color: #15803d; background: #ffffff; outline: none;" title="Ha átírod, az összes sor indítási dátuma (1. oszlop) frissül">
+                        </div>
+                        <div style="display: inline-flex; align-items: center; gap: 5px;">
+                            <span style="font-size: 11px; font-weight: 600; color: #166534;">Határidő átírás:</span>
+                            <input type="text" id="sela-bulk-deadline-input" value="${defaultDeadline}" style="width: 82px; padding: 2.5px 6px; border: 1.5px solid #86efac; border-radius: 5px; font-size: 11.5px; font-weight: 700; text-align: center; color: #047857; background: #ffffff; outline: none;" title="Ha átírod, az összes sor legkésőbbi határideje (14. oszlop) frissül">
+                        </div>
                     </div>
                 </div>
+
+
 
                 <!-- Táblázat Görgethető Terület -->
                 <div class="sela-table-scroll">
@@ -208,7 +233,7 @@ export const SelaExportModal = {
                             <tr>
                                 <th style="width:30px; text-align:center;">#</th>
                                 <th style="width:36px; text-align:center;" title="Rendelés kihagyása az exportból">Kuka</th>
-                                <th style="width:85px;">Dátum</th>
+                                <th style="width:82px; text-align:center;" title="Indítás dátuma: aznap ha 10:30-ig küldjük, egyébként az első munkanap">Dátum</th>
                                 <th style="width:115px;">Rendelés</th>
                                 <th style="width:55px;">Irsz.</th>
                                 <th style="width:110px;">Település</th>
@@ -221,6 +246,7 @@ export const SelaExportModal = {
                                 <th style="width:50px; text-align:center;" title="Profilok és skirting szegélylécek">Profil</th>
                                 <th style="width:180px;">Utánvét / Tapadóhíd</th>
                                 <th style="width:75px; text-align:right;" title="Kalkulált összsúly">Összsúly (kg)</th>
+                                <th style="width:90px; text-align:center;" title="5 munkanapos legkésőbbi kézbesítési határidő">Legkésőbb</th>
                             </tr>
                         </thead>
                         <tbody id="sela-table-body">
@@ -264,7 +290,7 @@ export const SelaExportModal = {
                     total += parseFloat(inp.value) || 0;
                 });
             }
-            const roundedTotal = Math.round(total * 10) / 10;
+            const roundedTotal = Math.round(total * 100) / 100;
             const target = overlay.querySelector('#sela-footer-total-weight');
             if (target) {
                 target.textContent = `${new Intl.NumberFormat('hu-HU').format(roundedTotal)} kg`;
@@ -291,15 +317,8 @@ export const SelaExportModal = {
             }
         };
 
-        // Súlyok újraszámítása ha a terméksúlyok módosulnak vagy kategóriasúlyt írnak át
+        // Súlyok újraszámítása a perzisztens terméksúly adatbázisból (pl. Terméksúlyok kezelése után)
         const recalculateAllRowWeights = () => {
-            const currentCfg = {};
-            overlay.querySelectorAll('.sela-weight-cfg-input').forEach(inp => {
-                const key = inp.dataset.weightKey;
-                currentCfg[key] = parseFloat(inp.value) >= 0 ? parseFloat(inp.value) : 0;
-            });
-            ExporterService.saveSelaWeightSettings(currentCfg);
-
             let totalKg = 0;
             overlay.querySelectorAll('.sela-row').forEach(rowEl => {
                 const orderId = rowEl.dataset.orderId;
@@ -311,20 +330,9 @@ export const SelaExportModal = {
                     const weightCalc = SelaWeightService.calculateOrderWeight(origRow.order);
                     rowWeight = weightCalc.totalWeight;
                     titleText = weightCalc.breakdownText;
-                } else {
-                    const getNum = (selector) => {
-                        const input = rowEl.querySelector(selector);
-                        return input ? parseInt(input.value, 10) || 0 : 0;
-                    };
-                    const tapadohidQty = origRow ? origRow.tapadohidQty || 0 : 0;
-                    rowWeight = ExporterService.calculateSelaOrderWeight({
-                        pvcSpcFloorQty: getNum('[data-field="col8_pvcSpcFloorQty"]'),
-                        acousticQty: getNum('[data-field="col9_acousticQty"]'),
-                        adhesivesQty: getNum('[data-field="col10_adhesivesQty"]'),
-                        profilesQty: getNum('[data-field="col11_profilesQty"]'),
-                        tapadohidQty: tapadohidQty
-                    }, currentCfg);
-                    titleText = `Kalkulált súly: ${rowWeight} kg`;
+                } else if (origRow) {
+                    rowWeight = parseFloat(origRow.col13_weight) || 0;
+                    titleText = origRow.weightBreakdownText || `Kalkulált súly: ${rowWeight} kg`;
                 }
 
                 const weightInput = rowEl.querySelector('.col-weight');
@@ -374,10 +382,27 @@ export const SelaExportModal = {
         };
         document.addEventListener('keydown', escHandler);
 
-        // Súlykonfiguráció változása
-        overlay.querySelectorAll('.sela-weight-cfg-input').forEach(inp => {
-            inp.addEventListener('input', recalculateAllRowWeights);
-        });
+        // Feladási dátum (1. oszlop) tömeges módosítása
+        const bulkDateInput = overlay.querySelector('#sela-bulk-date-input');
+        if (bulkDateInput) {
+            bulkDateInput.addEventListener('input', (e) => {
+                const val = e.target.value.trim();
+                overlay.querySelectorAll('.col-date').forEach(inp => {
+                    inp.value = val;
+                });
+            });
+        }
+
+        // Legkésőbbi kézbesítési határidő (14. oszlop) tömeges módosítása
+        const bulkDeadlineInput = overlay.querySelector('#sela-bulk-deadline-input');
+        if (bulkDeadlineInput) {
+            bulkDeadlineInput.addEventListener('input', (e) => {
+                const val = e.target.value.trim();
+                overlay.querySelectorAll('.col-deadline').forEach(inp => {
+                    inp.value = val;
+                });
+            });
+        }
 
         // SOROK TÖRLÉSE (Kuka gomb)
         overlay.addEventListener('click', (e) => {
@@ -391,42 +416,12 @@ export const SelaExportModal = {
             }
         });
 
-        // Ha a kötelező utánvét mezőbe írnak vagy tételszám változik
+        // Ha a kötelező utánvét mezőbe írnak vagy súly változik
         overlay.addEventListener('input', (e) => {
             if (e.target.classList.contains('col-cod')) {
                 e.target.classList.remove('sela-input-pulse-error');
                 if (e.target.value.trim() && !e.target.value.includes('⚠️')) {
                     e.target.classList.remove('sela-input-required-cod');
-                }
-            } else if (e.target.classList.contains('col-num')) {
-                const rowEl = e.target.closest('tr');
-                if (rowEl) {
-                    const currentCfg = {};
-                    overlay.querySelectorAll('.sela-weight-cfg-input').forEach(inp => {
-                        const key = inp.dataset.weightKey;
-                        currentCfg[key] = parseFloat(inp.value) >= 0 ? parseFloat(inp.value) : 0;
-                    });
-                    const getNum = (selector) => {
-                        const input = rowEl.querySelector(selector);
-                        return input ? parseInt(input.value, 10) || 0 : 0;
-                    };
-                    const orderId = rowEl.dataset.orderId;
-                    const origRow = initialRows.find(r => r.orderId === orderId);
-                    const tapadohidQty = origRow ? origRow.tapadohidQty || 0 : 0;
-
-                    const rowWeight = ExporterService.calculateSelaOrderWeight({
-                        pvcSpcFloorQty: getNum('[data-field="col8_pvcSpcFloorQty"]'),
-                        acousticQty: getNum('[data-field="col9_acousticQty"]'),
-                        adhesivesQty: getNum('[data-field="col10_adhesivesQty"]'),
-                        profilesQty: getNum('[data-field="col11_profilesQty"]'),
-                        tapadohidQty: tapadohidQty
-                    }, currentCfg);
-
-                    const weightInput = rowEl.querySelector('.col-weight');
-                    if (weightInput) {
-                        weightInput.value = rowWeight;
-                    }
-                    updateTotalWeightDisplay();
                 }
             } else if (e.target.classList.contains('col-weight')) {
                 updateTotalWeightDisplay();
@@ -513,7 +508,8 @@ export const SelaExportModal = {
                         col10_adhesivesQty: getNum('[data-field="col10_adhesivesQty"]'),
                         col11_profilesQty: getNum('[data-field="col11_profilesQty"]'),
                         col12_codAndTapadohid: getVal('.col-cod'),
-                        col13_weight: parseFloat(getVal('.col-weight')) >= 0 ? parseFloat(getVal('.col-weight')) : 0
+                        col13_weight: parseFloat(getVal('.col-weight')) >= 0 ? parseFloat(getVal('.col-weight')) : 0,
+                        col14_deadline: getVal('.col-deadline')
                     });
                 });
 

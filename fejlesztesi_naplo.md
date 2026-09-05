@@ -28,20 +28,177 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.8 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris és stabil. ⚡ **A termékek teljes neve, mérete (pl. 280x122, 2.8m) és kiszerelése (pl. 5kg, 1kg) mostantól minden felületen csonkítás nélkül megjelenik**. A Shopify API és a CSV import integráció automatikusan megőrzi a variánsokat, a Sela súlybekérő és az áttekintő felület pedig kiemelt címkékkel és szótöréssel biztosítja a hibátlan beazonosíthatóságot (`v3.9.3`, 243/243 zöld unit teszt).
+- **Státusz**: A rendszer 100%-ban moduláris és stabil. ✉️ **Automatikus E-mail Értesítő Számla Nélküli Rendelés Terítésbe Helyezésekor (Resend / Brevo API) az info@panelburkolat.com-ra** (`v4.1.0`, 335/335 zöld unit teszt).
 
 ---
 
 ## 📌 Holnapi Teendők (TODO Lista)
 
-1. ☁️ **Felhős Telepítés (Cloud Deployment - Render.com / Vercel)**:
+1. ✉️ **Számla Nélküli Rendelés E-mail Értesítő Finomhangolása**:
+   - Resend fiók e-mail cím átírása `info@panelburkolat.com`-ra a [resend.com/settings](https://resend.com/settings) alatt (vagy domain hitelesítés), hogy a levelek közvetlenül a céges címre essenek be.
+   - Az automatikus e-mail pontos tartalmának, elrendezésének és szövegezésének személyre szabása az `emailService.js` sablonban a felhasználó kérései alapján.
+
+2. ☁️ **Felhős Telepítés (Cloud Deployment - Render.com / Vercel)**:
    - Összekötni a GitHub repót a Render.com-mal (vagy Vercellel).
-   - Beállítani az Environment Variables (`SHOPIFY_ACCESS_TOKEN`, `SHOPIFY_SHOP`, stb.) értékeket.
+   - Beállítani az Environment Variables (`SHOPIFY_ACCESS_TOKEN`, `SHOPIFY_SHOP`, `RESEND_API_KEY`, stb.) értékeket.
    - Biztosítani az állandó, bárhonnan és bármilyen gépről/telefonról elérhető HTTPS webcímet.
 
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. szeptember 5. (8. frissítés) - Automatikus E-mail Értesítő Számla Nélküli Rendelés Terítésbe Helyezésekor (`v4.1.0`)
+- **Felhasználói kérés**: „tudunk-e olyat, hogy ha valamit ugy teszünk bele terítésbe, hogy nincsen számlája, arról kapjak egy automatikus e-mailt az info@panelburkolat.com-ra [...] Ingyenes tranzakciós E-mail API (pl. Resend vagy Brevo) - ezt választom”.
+- **Natív, Külső Csomagok Nélküli E-mail Szolgáltatás (`emailService.js`)**:
+  - Létrehoztuk a dedikált `emailService.js` modult, amely a Node.js natív `fetch` API-jával közvetlenül és aszinkron módon kommunikál a **Resend API-val** (`https://api.resend.com/emails`) és a **Brevo API-val** (`https://api.brevo.com/v3/smtp/email`).
+  - **Moduláris HTML levélsablon (`generateMissingInvoiceEmailHtml`)**:
+    - Fejléc: Figyelmeztető sáv (`⚠️ Figyelem: Számla nélküli rendelés terítésben!`).
+    - Terítés adatai: Kiszállítás napja, Szállító / futár neve, Cég.
+    - Érintett rendelések kártyái: Rendelésszám közvetlen, kattintható **Shopify admin linkkel**, címzett és számlázási név, szállítási cím, fizetési mód (utánvét összeggel), megjegyzés és a rendelt tételek felsorolása darabszámmal.
+    - A levél szövegezése külön moduláris sablonban van, így a későbbi igények szerint bármikor finomhangolható.
+  - **Szimulált Mód Védelmi Háló**: Ha a `.env` fájlban még nincs megadva az API kulcs (`RESEND_API_KEY`), a rendszer nem omlik össze és nem dob hibát: a szerver a konzolra kiírja a szimulált levélküldés adatait, így a terítés mentése és az alkalmazás zavartalanul működik a kulcs beírása előtt is.
+- **Backend API Végpont (`server.js`)**:
+  - Új `POST /api/notifications/missing-invoice` végpont, amely fogadja a terítés adatait és a hiányzó számlás rendeléseket, majd elindítja a levélküldést.
+- **Kliensoldali Automatikus Ellenőrzés és Mentés Integráció (`app.js`, `orderUtils.js`)**:
+  - `isOrderMissingInvoice`: Megbízhatóan kiszűri a számla nélküli rendeléseket (nincs rajta a `"számla ki"` vagy `"szamla ki"` címke, kizárva a viszonteladókat, a törölt rendeléseket és a még nem kifizetett személyes átvételeket).
+  - Új terítés mentésekor (`saveRun`) a teljes kört ellenőrzi; meglévő kör frissítésekor (`updateRun`) kizárólag az újonnan hozzáadott rendeléseket (`changes.added`) ellenőrzi, hogy ne történjen ismétlődő spamelés.
+- **Környezeti Változók Dokumentálása (`.env.example`)**:
+  - `EMAIL_SERVICE=resend`, `RESEND_API_KEY=...`, `EMAIL_FROM=onboarding@resend.dev`, `ALERT_EMAIL_RECIPIENT=info@panelburkolat.com`.
+- **Unit Tesztek Bővítése (`tests/unit_tests.js`)**:
+  - 20 új teszteset hozzáadva (számlaszűrési feltételek, HTML sablongenerálás, üres lista és szimulált küldés kezelése).
+  - **335 / 335 zöld unit teszt** (`node tests/unit_tests.js`).
+
+### 2026. szeptember 5. (7. frissítés) - Sela Export Súlybeállítások Sáv Eltávolítása & Elem-szintű Pontos Súlyszámítás Garantálása (`v4.0.0`)
+- **Megtévesztő Kategória-Súly Sáv Eltávolítása (`selaExportModal.js`, `css/style.css`)**:
+  - **Felhasználói kérés**: „itt a súlybeállítások tűnjön el, ami oda van írva nem is feltétlen helyes, ragasztók profilok amúgy is könnyebbek és remélem jól is számolja nem pedig 0,5 kg-mal”.
+  - A modál fejlécéből a korábbi statikus `.sela-weight-bar` („Súlybeállítások (kg/db): PVC/SPC: 18 kg, Akusztikus: 7 kg, Ragasztó: 0,5 kg, Profil: 0,5 kg, Tapadóhíd: 1 kg”) teljes egészében eltávolításra került.
+  - A felület letisztult, nem foglal felesleges helyet és nem jelenít meg megtévesztő általános kategória értékeket.
+- **A 0,5 kg-os Hibás Fallback Végleges Megszüntetése**:
+  - **Hiba feltárása**: A `selaExportModal.js` a sorok inicializálásakor egy `weightSettings` kategória-objektumot adott át `customWeights` paraméterként. A `calculateOrderWeight` algoritmus a termék-specifikus kulcsokat (pl. `belső sarokprofil`, `t-rex ragasztó`) kereste ebben a kategóriás objektumban, és mivel nem találta, a korábbi kód visszaugrott az általános 0.5 kg-os `suggestWeightForItem` ágra ahelyett, hogy a termékadatbázisból vette volna a mentett súlyt.
+  - **Javítás**: A modál mostantól szigorúan `null` értéket ad át `customWeights`-ként (`prepareSelaRowData(o, {}, null, now)`), így a rendszer közvetlenül a `SelaWeightService` adatbázisából (ahol a felhasználó által beállított pontos értékek vannak elmentve) olvassa ki a darabsúlyokat.
+  - Az alapértelmezett becslési értékeket is frissítettük a valósághoz igazodva: **profilok: 0.25 kg**, **ragasztók: 0.35 kg** (mind a `selaWeightService.js`-ben, mind az `exporter.js`-ben).
+- **Részletes Tooltip és Közvetlen Szerkeszthetőség Megtartása**:
+  - A táblázat 13. oszlopában (`Összsúly (kg)`) az egér fölé mozgatásakor megjelenő tooltip a valós termékek és a pontos súlyok szorzatát mutatja (pl. `Skirting szegélyléc (2 db × 0.25 kg = 0.5 kg)`).
+  - Szükség esetén az összsúly a sorban közvetlenül átírható, és a láblécben lévő össz-súly azonnal frissül.
+- **Unit Tesztek Bővítése (`tests/unit_tests.js`)**:
+  - 315 / 315 sikeres unit teszt (`node tests/unit_tests.js`).
+
+### 2026. szeptember 5. (6. frissítés) - 5 Munkanapos Kézbesítés, Teljes Ünnep- és Hídnap-Kezelés, 1. Oszlop Indítási Dátum & 14. Oszlop Záró Határidő (`v3.9.9`)
+- **Magyarországi Munkaszüneti Napok, Mozgóünnepek és Hídnapok Kezelése (`exporter.js`)**:
+  - **Felhasználói kérés**: „de a munkaszuneti napokat is vegye figyelembe azért, tehát ha csutortokon van okt 23 akkor péntek se munkanap, de most idén nem ez a helyzet ennél, csak példa. 2. az eredeti dátum fülön, az aznap vagy az első munanap legyen és jöjjön létre a táblázat legvégén új oszlopként, a végdátum hogy aznap legkésőbb”.
+  - **Munkaszüneti naptár és szabályok (`isHungarianHoliday`, `isHungarianWorkday`)**:
+    - **Fix nemzeti ünnepek és munkaszüneti napok**: Jan 1 (Újév), Márc 15 (Nemzeti ünnep), Máj 1 (Munka ünnepe), Aug 20 (Államalapítás), Okt 23 (1956-os forradalom), Nov 1 (Mindenszentek), Dec 24 (Szenteste / pihenőnap), Dec 25-26 (Karácsony).
+    - **Egyházi mozgóünnepek (`getEasterSunday`)**: Nagypéntek (húsvétvasárnap - 2 nap), Húsvéthétfő (+1 nap), Pünkösdhétfő (+50 nap) matematikai pontossággal kiszámítva minden évre.
+    - **Hídnapok / Pihenőnapok (Bridge days)**: Ha egy ünnep csütörtökre esik (pl. 2025.10.23), a rákövetkező péntek (2025.10.24) automatikusan munkaszüneti nap (pihenőnap); ha keddre esik (pl. 2024.08.20), az azt megelőző hétfő (2024.08.19) szintén munkaszüneti nap (pihenőnap).
+- **Két Dátum Rendelése a Sela Exportban (`calculateSelaDates`)**:
+  - **1. Oszlop („Dátum” - Indítási / feladási dátum)**:
+    - Munkanapon délelőtt 10:30-ig (10:30-at is beleértve) történő indításkor: **aznap** (pl. Hétfő 09:00 -> aznap Hétfő, Péntek 09:00 -> aznap Péntek).
+    - 10:30 után, vagy hétvégén / munkaszüneti napon indítva: **az első rákövetkező munkanap** (pl. Hétfő 10:31 -> Kedd; Péntek 14:00 -> következő Hétfő; Szombat/Vasárnap -> következő Hétfő; Csütörtöki 10.23 ünnep -> következő Hétfő 10.27).
+  - **14. Oszlop („Legkésőbbi kézbesítés” - Új oszlop a táblázat és a CSV legvégén)**:
+    - Az 1. oszlopban megadott feladási naptól (ami az 1. munkanap) számított pontosan 5 munkanap határidő (további 4 munkanap hozzáadása a hétvégék és munkaszüneti/hídnapok átugrásával).
+- **Sela Modál Áttekintő és Kettős Tömeges Átíró (`selaExportModal.js`)**:
+  - A felső zöld sávban (`.sela-deadline-bar`) mindkét dátum világosan ki van írva az indítási időpontnak megfelelő magyarázattal és a hídnapok figyelmeztetésével.
+  - **Kettős Tömeges Módosító**: Külön `#sela-bulk-date-input` (Indítás dátum) és `#sela-bulk-deadline-input` (Határidő végdátum) mező biztosítja a táblázat összes sorának azonnali egyszerre frissítését.
+  - **Külön Oszlopként Szerkeszthető**: A táblázatban az 1. oszlopban a feladás dátuma (`col1_date`), a 14. záró oszlopban pedig a legkésőbbi kézbesítés (`col14_deadline`) tetszőlegesen, soronként külön is felülírható.
+- **Sela CSV Export Bővítés 14 Oszlopra (`exporter.js`)**:
+  - A CSV fejléce kiegészült a 14. oszloppal: `Legkésőbbi kézbesítés`.
+  - A sorok a 13. oszlopban a súlyt (pl. `89.2 kg`), a 14. oszlopban pedig a kiszámított legkésőbbi kézbesítési dátumot tartalmazzák `YYYY.MM.DD` formátumban.
+- **Unit Tesztek Bővítése (`tests/unit_tests.js`)**:
+  - 31 új egységteszt lefutott: csütörtöki ünnep (2025.10.23) és pénteki hídnap (10.24), keddi ünnep és hétfői hídnap (2024.08.19), nagypéntek, húsvéthétfő, szenteste, délelőtti és délutáni indítások, hétvégi indítások, feladási dátum és legkésőbbi határidő párok, sorintegráció és CSV 14 oszlopos formátum.
+  - Összesen **314 / 314 egységteszt hibátlanul zöld**.
+
+### 2026. szeptember 5. (5. frissítés) - Kategóriák és Kategóriacsoportok ABC Rendezése, Csoporton Belüli ABC Lista & Hover Tisztítás (`v3.9.8`)
+- **Kategóriák és Csoportok ABC Rendezése (`selaMissingWeightsModal.js`)**:
+  - **Felhasználói kérés**: A terméksúlyok kategóriáinál nem kell hover, és a kategóriacsoportok listája, valamint az ott megjelenő termékek listája szigorúan ABC (ábécé) sorrendben jelenjen meg.
+  - A korábbi tetszőleges sorrend helyett mind a kategóriafülek (`[Mind] [Akusztikus panel] [Egyéb] [Profil / Léc] [PVC / SPC / Padló] [Ragasztó / Kellék] [Tapadóhíd]`), mind az alatta renderelt kategória kártyák magyar ábécé szerinti sorrendbe lettek állítva (`sortedCategories`).
+  - Az új termék rögzítésénél és a soronkénti kategóriaválasztó legördülő menüben (`select`) is ugyanez az ábécé sorrend érvényesül.
+- **Csoporton Belüli Termékek ABC Rendezése (`selaMissingWeightsModal.js`)**:
+  - Minden kategóriacsoport kártyáján belül a termékek szigorúan ábécé sorrendben (`localeCompare('hu', { sensitivity: 'base', numeric: true })`) jelennek meg, biztosítva a termékkódok és méretek természetes számsorrendjét is (pl. PB-01, PB-02, PB-10; 244x122, 280x122).
+  - A hiányzó súlyok felugró ablakában (`show`) a tételek szintén kategóriánként és azon belül terméknév szerint ábécébe rendezve látszanak.
+- **Hover / Tooltip Tisztítás a Kategóriáknál**:
+  - A felhasználói észrevételnek megfelelően a kategóriáknál nincs semmilyen zavaró vagy félrevezető lebegő hover effekt; a kategóriák azonnal és tisztán kattinthatók.
+- **Tesztek**:
+  - 11 új egységteszt hozzáadva a kategória ábécé rendezésére és a többkategóriás termékrendezésre.
+  - Mind a **283 / 283 egységteszt sikeresen lefutott (zöld)**.
+
+### 2026. szeptember 5. (4. frissítés) - ABC Rendezés Csoporton Belül, Század Pontosság (0.01 kg) & Sela Exportban 'kg' Kiírása (`v3.9.7`)
+- **Csoporton Belüli ABC Rendezés (`selaMissingWeightsModal.js`)**:
+  - A felhasználói kérésnek megfelelően a termékek mind a hiányzó súlyok felugró ablakában, mind a terméksúly kezelő modálban **kategórián/csoporton belül ábécé sorrendben** jelennek meg (`localeCompare('hu', { numeric: true })` magyar ékezet- és számsorrend-helyesen).
+- **Két Tizedesjegy (Század) Pontosság (0.01 kg) (`selaMissingWeightsModal.js`, `selaWeightService.js`, `selaExportModal.js`)**:
+  - A profilok és könnyebb kellékek (pl. 0,25 kg) pontos megadásához az összes súlybeviteli mező `step="0.01"` lépésközt kapott (`0.1` helyett).
+  - A `SelaWeightService` kerekítése `Math.round(val * 100) / 100`-ra bővült mind a tárolásnál (`saveProductWeights`), mind a terméksúly lekérésnél (`getItemWeight`), mind a rendelési összsúly kiszámításánál (`calculateOrderWeight`).
+- **Sela CSV Exportban a Súly Mellett 'kg' Kiírása (`exporter.js`, `selaExportModal.js`)**:
+  - A letöltött Sela CSV 13. oszlopában a súly mostantól kötelezően tartalmazza a mértékegységet (pl. `89.2 kg`, `0.75 kg`), valamint a modál táblázatában az input mellett is látható a `kg` jelzés.
+- **Tesztek**:
+  - 6 új egységteszt lefutott az ABC rendezésre, a 0.25 kg-os tételekre és a CSV `kg` kiírására.
+  - Mind a **272 / 272 egységteszt zöld**.
+
+### 2026. szeptember 5. (3. frissítés) - Kategóriánként Csoportosított Terméksúly Kezelő & Közvetlen Eszköztári Elérés (`v3.9.6`)
+- **Kategóriánként Csoportosított Sela Terméksúly Kezelő Modál (`selaMissingWeightsModal.js`, `selaWeightService.js`)**:
+  - **Felhasználói kérés**: Látni lehessen, milyen terméknek milyen súly lett elmentve, lehessen őket kényelmesen módosítani, és a hasonló termékkategóriák legyenek egymás alá csoportosítva.
+  - **Kategória Rendszer (`SELA_CATEGORY_CONFIG`)**:
+    1. 🟨 **PVC / SPC Falpanelek és Padlózat**: 244x122 táblák (~16 kg), 280x122 táblák (~18.5 kg), SPC padlók (~18 kg).
+    2. 🟦 **Akusztikus Falpanelek**: Normál akusztikus léces panelek (~7 kg), Wide akusztikus panelek (~9 kg).
+    3. 🟥 **Ragasztók és Kiegészítők**: T-Rex ragasztó (~0.5 kg), HPR ragasztó (~0.5 kg), szilikonok (~0.5 kg).
+    4. 🟪 **Profilok és Szegélylécek**: Belső sarokprofilok, végzárók, skirting szegélylécek (~0.5 kg/db).
+    5. 🟩 **Tapadóhidak**: 1 kg kiszerelés (1 kg), 5 kg kiszerelés (5 kg).
+    6. ⬜ **Egyéb Termékek**: Kiegészítők, mintadarabok és egyedi tételek.
+  - **Interaktív Szűrősáv & Keresés**:
+    - Fejléc alatt elhelyezett gyorsszűrő fülek (Chips) élő darabszámokkal: `Mind`, `PVC / SPC / Padló`, `Akusztikus panel`, `Ragasztó / Kellék`, `Profil / Léc`, `Tapadóhíd`, `Egyéb`.
+    - Azonnali élő keresőmező (terméknévre, SKU-ra, méretre szűrve).
+  - **Rendelésekből Beolvasás Gomb (`btn-mgr-scan-orders`)**:
+    - Egy kattintással átvizsgálja az összes betöltött Shopify rendelést (`Store.shopifyHubOrders`), felismeri azokat a termékeket, amelyek még nincsenek az adatbázisban, automatikusan besorolja őket a kategóriájukba a javasolt darabsúlyukkal együtt, és azonnal felveszi a listába.
+  - **Új Termék Rögzítése Kártya (`btn-mgr-toggle-add`)**:
+    - Lenyíló panel terméknév, kategória választó, darabsúly és opcionális SKU mezőkkel.
+  - **Soronkénti Módosítás & Kategória Átsorolás**:
+    - Minden terméksornál közvetlenül szerkeszthető a `kg/db` darabsúly és egy legördülő menüből azonnal átsorolható másik kategóriába.
+    - Termékenkénti törlés gomb megerősítéssel (`deleteProductWeight` - localStorage és Firebase Firestore törlés).
+  - **Perzisztens Felhő Mentés**:
+    - A `Változtatások Mentése` gomb egyben elmenti az összes rögzített terméket a Cloud Firestore-ba és a böngésző helyi memóriájába.
+- **Közvetlen Eszköztári Elérés a Rendelésáttekintőben (`orderOverviewView.js`, `app.js`)**:
+    - A felső eszközsorban a `Frissítés` gomb mellé bekerült a **„Terméksúlyok”** (⚖️) gomb saját Apple-stílusú sötét tooltip buborékkal.
+    - Ezzel anélkül is bármikor megnyitható, áttekinthető és módosítható a teljes terméksúly-adatbázis, hogy előbb rendeléseket kellene kijelölni és megnyitni a Sela export ablakot.
+- **Tesztek**:
+  - 6 új egységteszt hozzáadva a kategória csoportosításra és a felhős törlési logikára.
+  - Mind a **266 / 266 egységteszt zölden lefutott**.
+
+### 2026. szeptember 5. (2. frissítés) - Univerzális Lebegő Tooltipek Minden Ikonra & Ráfizetett/Hozzáadott Szállítás Kezelése (#3941) (`v3.9.5`)
+- **Univerzális Apple-stílusú Lebegő Tooltipek (`orderOverviewView.js`, `css/style.css`)**:
+  - A felhasználói kérésnek megfelelően mostantól **minden ikon, gomb és jelvény** a modern, prémium sötétített lebegő buborékot (`logi-tooltip-bubble`) használja a böngésző alapértelmezett, lassú és szürke felugró ablaka helyett:
+    - **Megjegyzés (Notes) gomb**: Ha van feljegyzés, elegáns borostyán fejléc alatt a teljes szöveget mutatja sortöréssel (`word-break: break-word`), ha üres, akkor az írásra buzdítást („Megjegyzés hozzáadása”).
+    - **Összes Logisztikai Állapot Ikon**: Törölt rendelés, Teljesítve (Fulfilled), Személyes átvétel (Átvehető és Függő), PannonXP (Címke kész és Címkézésre vár), Sela (Elküldve és Küldendő).
+    - **Függő Oldalsó Címkék (`hub-hanging-tags-stack`)**: Számlázni!, Díjbekérő szükséges (250e+ Ft), Díjbeket várjuk, Rossz szállítást választott!, és Többszörös (duplikált) aktív rendelések részletes rendelési számlistája.
+    - **Fizetési & Teljesítési Jelvények**: Fizetve, Függő utalás, Utánvét (pontos UV összeggel), Fizetetlen, Fulfilled, Unfulfilled, Részben teljesített.
+    - **Akciógombok & Fejléc**: Shopify & Járatok élő frissítés gomb, Fejléc logisztikai állapot ikon, Ügyféladatok másolása gomb, Kijelölés törlése gomb.
+    - **Rétegkezelés (Z-Index)**: `.logi-tooltip-wrapper:hover` automatikusan `z-index: 1000`-et kap, a kártyák pedig `z-index: 50`-et, így a buborékok garantáltan mindig minden más elem fölött lebegnek takarás nélkül.
+- **Ráfizetett & Hozzáadott Szállítás Kezelése a Rossz Szállítás Szűrésnél (#3941) (`shopifyApiService.js`, `orderUtils.js`)**:
+  - **Hiba oka**: A #3941-es rendelésnél (Tiszakürt, vidék) a vevő eredetileg 2300 Ft-ot választott, de utólag ráfizetett 7600 Ft-ot, amit a kezelő hozzáütött a rendeléshez. A Shopify ezt egy második szállítási sorként rögzítette (`shipping_lines[1] = 7600 Ft`, összköltség: 9900 Ft). A korábbi kód viszont csak a legelső szállítási sort (`shipping_lines[0] = 2300 Ft`) vizsgálta, és figyelmen kívül hagyta az összesített szállítási díjat (`total_shipping_price_set = 9900 Ft`).
+  - **Megoldás**:
+    - Ha egy rendeléshez több szállítási sor van hozzáadva (`shipping_lines.length > 1`), az egyértelműen jelzi, hogy ráfizetés / pótdíj lett hozzáütve -> NEM rossz szállítás!
+    - Ha a vevővel alacsonyabb szállításban egyeztek meg (pl. #3929: 5000 Ft szállítás) vagy a tényleges szállítási díj > 2300 Ft -> NEM rossz szállítás!
+    - Ha a rendelési tételek között szerepel szállítási díj / pótdíj tétel -> NEM rossz szállítás!
+    - Csak akkor jelzi rossz szállításnak, ha vidéki címre ténylegesen mindössze egyetlen 2300 Ft-os tétel szerepel ráfizetés vagy kupon nélkül.
+- **Unit Tesztek Bővítése (`tests/unit_tests.js`)**:
+  - 4 új teszteset hozzáadva: #3941 több szállítási sor (2300 + 7600 Ft), megegyezés szerinti 5000 Ft-os díj, módosított szállítási díjak és szállítási tételes rendelések ellenőrzésére.
+  - Összesen **260 / 260 zöld unit teszt**.
+
+### 2026. szeptember 5. (1. frissítés) - Terítés Csoportosítás a Rendelésáttekintőben, Terítés Tooltip & Ingyenes Szállítás Kuponkezelés (#3966) (`v3.9.4`)
+- **Terítés Csoportosítás a Rendelésösszesítőben (`currentChip === 'in_delivery'`)**:
+  - Amikor a felhasználó a „Terítésben” szűrőre szűr a Rendelésáttekintőben, a rendelések automatikusan terítésenként (`delivery-run-group-container`) jelennek meg csoportosítva.
+  - Minden terítés kap egy modern, kiemelt fejléc kártyát, amely kiírja:
+    - A terítés sorszámát („1. Terítés”, „2. Terítés”, „3. Terítés” stb.),
+    - A kiszállítás dátumát,
+    - A futár nevét és a céget (Sela / PannonXP / Saját futár),
+    - A terítésben lévő rendelések darabszámát,
+    - A terítés bruttó összértékét és a beszedendő utánvét összegét.
+- **Kék Kisautó Ikon Lebegő Tooltip Buborék (`orderOverviewView.js`)**:
+  - A rendelési kártyákon a terítésben lévő rendelések kék kisautó ikonja (`ph-truck`) mostantól a szállítmányra váró tételekhez hasonlóan `.logi-tooltip-wrapper`-be van csomagolva.
+  - Rámutatáskor (hover) egy esztétikus, Apple-stílusú sötétített lebegő buborék (`logi-tooltip-bubble`) ugrik fel, benne a terítés dátumával, a hozzárendelt futárral, a szállító céggel és a terítés azonosítójával.
+- **Ingyenes Szállítás Kupon / Kedvezmény Detektálás (#3966) (`shopifyApiService.js`, `orderUtils.js`)**:
+  - **Hiba oka**: A #3966-os rendelésnél (Dunaföldvár, vidék) a rendszer tévesen „Rossz szállítást választott (2300 Ft)” figyelmeztetést dobott, mert a Shopify REST API a `total_shipping_price_set.amount`-ban az eredeti 2300 Ft-ot tárolta, noha a vásárló 100%-os ingyenes szállítási kuponnal rendelkezett (`discount_allocations` = 2300 Ft, `discounted_price` = 0 Ft).
+  - **Megoldás**: A `shopifyApiService.js` és az `orderUtils.js` mostantól ellenőrzi a szállítási tételek `discount_allocations` és `discounted_price` adatait (`checkBadShipping(order)`). Ha a tényleges szállítási költség kedvezménnyel 0 Ft (vagy ingyenes kupon érvényesült), a rendszer nem jelöli rossz szállításnak.
+- **Unit Tesztek Bővítése (`tests/unit_tests.js`)**:
+  - 13 új unit teszt hozzáadva: kuponos és ingyenes szállítási díjak tesztelése (#3966 konkrét esetével), vidéki vs budapesti szállítási szabályok, valamint a terítés szerinti csoportosító logika ellenőrzése (**256 / 256 zöld unit teszt**).
 
 ### 2026. szeptember 4. (7. frissítés) - Termékek Teljes Neve, Mérete és Kiszerelése Minden Felületen (`v3.9.3`)
 - **Shopify API Variánsok és Kiszerelések Megőrzése (`shopifyApiService.js`)**:
