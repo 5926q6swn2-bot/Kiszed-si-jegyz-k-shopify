@@ -62,6 +62,9 @@ export const SelaExportModal = {
         // Összsúly kezdeti kalkulációja
         const initialTotalWeight = Math.round(initialRows.reduce((sum, r) => sum + (parseFloat(r.col13_weight) || 0), 0) * 100) / 100;
 
+        // Határidő oszlop beállítása (alapértelmezetten hamis / szüneteltetve)
+        const savedIncludeDeadline = localStorage.getItem('sela_include_deadline') === 'true';
+
         // 2. Régi modal eltávolítása, ha létezne
         const existingModal = document.getElementById('sela-export-modal-overlay');
         if (existingModal) existingModal.remove();
@@ -257,10 +260,14 @@ export const SelaExportModal = {
 
                 <!-- Lábléc / Akciók -->
                 <div class="sela-modal-footer">
-                    <div class="sela-footer-left">
+                    <div class="sela-footer-left" style="display:flex; flex-direction:column; gap:6px;">
                         <label class="sela-checkbox-label">
                             <input type="checkbox" id="sela-tag-checkbox" checked>
                             <span>Rendelések megjelölése <strong>"sela megr."</strong> címkével a Shopify-ban az exportálás után</span>
+                        </label>
+                        <label class="sela-checkbox-label" style="color: #166534; font-size: 11.5px;">
+                            <input type="checkbox" id="sela-deadline-checkbox" ${savedIncludeDeadline ? 'checked' : ''}>
+                            <span>Szállítási határidő (14. oszlop) belefoglalása a letöltött CSV-be</span>
                         </label>
                     </div>
                     <div class="sela-footer-right">
@@ -355,7 +362,14 @@ export const SelaExportModal = {
         const btnCancel = overlay.querySelector('#btn-sela-cancel');
         const btnExport = overlay.querySelector('#btn-sela-export');
         const tagCheckbox = overlay.querySelector('#sela-tag-checkbox');
+        const deadlineCheckbox = overlay.querySelector('#sela-deadline-checkbox');
         const btnManageWeights = overlay.querySelector('#btn-sela-manage-weights');
+
+        if (deadlineCheckbox) {
+            deadlineCheckbox.addEventListener('change', (e) => {
+                localStorage.setItem('sela_include_deadline', e.target.checked ? 'true' : 'false');
+            });
+        }
 
         if (btnManageWeights) {
             btnManageWeights.addEventListener('click', () => {
@@ -514,7 +528,8 @@ export const SelaExportModal = {
                 });
 
                 // CSV generálás és letöltés
-                const csvContent = ExporterService.generateSelaCsv(finalRows);
+                const includeDeadline = deadlineCheckbox ? deadlineCheckbox.checked : false;
+                const csvContent = ExporterService.generateSelaCsv(finalRows, includeDeadline);
                 ExporterService.downloadSelaCsv(csvContent);
 
                 const shouldTag = tagCheckbox ? tagCheckbox.checked : false;

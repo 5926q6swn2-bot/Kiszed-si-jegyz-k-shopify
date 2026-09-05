@@ -807,15 +807,19 @@ const customWeightsTest = { pvc_spc_floor: 20, acoustic: 8, adhesive: 1, profile
 const customWeightRes = calculateSelaOrderWeight({ pvcSpcFloorQty: 2, acousticQty: 1, adhesivesQty: 3, profilesQty: 4, tapadohidQty: 1 }, customWeightsTest);
 assertEqual("Sela Custom Weights Calculation (2*20 + 1*8 + 3*1 + 4*1 + 1*2 = 57kg)", customWeightRes, 57);
 
-const csvOutput = generateSelaCsv([row1, row2, row3, rowNoNote]);
-assertEqual("Sela CSV - Has BOM", csvOutput.startsWith("\ufeff"), true);
-assertEqual("Sela CSV - Header has 14 columns", csvOutput.split("\r\n")[0].split(";").length, 14);
-assertEqual("Sela CSV - Header col 1", csvOutput.split("\r\n")[0].split(";")[0], "\ufeffDátum");
-assertEqual("Sela CSV - Header col 12", csvOutput.split("\r\n")[0].split(";")[11], "Utánvét összege / tapadóhíd");
-assertEqual("Sela CSV - Header col 13 (Weight)", csvOutput.split("\r\n")[0].split(";")[12], "Összsúly (kg)");
-assertEqual("Sela CSV - Header col 14 (Deadline)", csvOutput.split("\r\n")[0].split(";")[13], "Legkésőbbi kézbesítés");
-assertEqual("Sela CSV - Row 1 contains calculated weight 90.55 kg", csvOutput.split("\r\n")[1].split(";")[12], "90.55 kg");
-assertEqual("Sela CSV - Row 3 contains nincs utánvét", csvOutput.includes("nincs utánvét"), true);
+const csvOutputDefault = generateSelaCsv([row1, row2, row3, rowNoNote]);
+assertEqual("Sela CSV Default - Has BOM", csvOutputDefault.startsWith("\ufeff"), true);
+assertEqual("Sela CSV Default - Header has 13 columns (deadline paused)", csvOutputDefault.split("\r\n")[0].split(";").length, 13);
+assertEqual("Sela CSV Default - Header col 13 (Weight)", csvOutputDefault.split("\r\n")[0].split(";")[12], "Összsúly (kg)");
+
+const csvOutputWithDeadline = generateSelaCsv([row1, row2, row3, rowNoNote], true);
+assertEqual("Sela CSV With Deadline - Header has 14 columns", csvOutputWithDeadline.split("\r\n")[0].split(";").length, 14);
+assertEqual("Sela CSV With Deadline - Header col 1", csvOutputWithDeadline.split("\r\n")[0].split(";")[0], "\ufeffDátum");
+assertEqual("Sela CSV With Deadline - Header col 12", csvOutputWithDeadline.split("\r\n")[0].split(";")[11], "Utánvét összege / tapadóhíd");
+assertEqual("Sela CSV With Deadline - Header col 13 (Weight)", csvOutputWithDeadline.split("\r\n")[0].split(";")[12], "Összsúly (kg)");
+assertEqual("Sela CSV With Deadline - Header col 14 (Deadline)", csvOutputWithDeadline.split("\r\n")[0].split(";")[13], "Legkésőbbi kézbesítés");
+assertEqual("Sela CSV With Deadline - Row 1 contains calculated weight 90.55 kg", csvOutputWithDeadline.split("\r\n")[1].split(";")[12], "90.55 kg");
+assertEqual("Sela CSV With Deadline - Row 3 contains nincs utánvét", csvOutputWithDeadline.includes("nincs utánvét"), true);
 
 // Függő utalás tesztek
 const bankOrderPaid = {
@@ -1495,11 +1499,15 @@ const rowWithCustomDate = prepareSelaRowData({ id: "#7777", items: [] }, {}, nul
 assertEqual("prepareSelaRowData - col1_date has dispatch date (Monday)", rowWithCustomDate.col1_date, "2026.09.07");
 assertEqual("prepareSelaRowData - col14_deadline has 5-workday deadline (Friday)", rowWithCustomDate.col14_deadline, "2026.09.11");
 
-// CSV generálás ellenőrzése az 1. és 14. oszlopokkal
-const customCsv = generateSelaCsv([rowWithCustomDate]);
+// CSV generálás ellenőrzése az 1. és 14. oszlopokkal (amikor includeDeadline = true)
+const customCsv = generateSelaCsv([rowWithCustomDate], true);
 const csvCols = customCsv.split("\r\n")[1].split(";");
 assertEqual("generateSelaCsv - col 1 is dispatch date", csvCols[0], "2026.09.07");
 assertEqual("generateSelaCsv - col 14 is latest delivery deadline", csvCols[13], "2026.09.11");
+
+const customCsvPaused = generateSelaCsv([rowWithCustomDate], false);
+const csvColsPaused = customCsvPaused.split("\r\n")[1].split(";");
+assertEqual("generateSelaCsv - 13 columns when deadline paused", csvColsPaused.length, 13);
 
 // --- HIÁNYZÓ SZÁMLA ÉS E-MAIL ÉRTESÍTŐ TESZTEK ---
 const orderMissingInv = { id: "#8001", shippingName: "Kovács Péter", tags: "pannonxp", totalAmount: 45000 };

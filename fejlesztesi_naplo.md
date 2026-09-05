@@ -27,8 +27,8 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
-- **Utolsó aktív modell**: Gemini 3.8 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris és stabil. ✉️ **Automatikus E-mail Értesítő Számla Nélküli Rendelés Terítésbe Helyezésekor (Resend / Brevo API) az info@panelburkolat.com-ra** (`v4.1.0`, 335/335 zöld unit teszt).
+- **Utolsó aktív modell**: Gemini 3.6 Flash (High)
+- **Státusz**: A rendszer 100%-ban moduláris és stabil. ⚡ **Szedőlista Hibadoboz Animációk Eltávolítása a Gyengébb Gépek Teljesítményének Növelésére** (`v4.1.2`, 338/338 zöld unit teszt).
 
 ---
 
@@ -46,6 +46,29 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. szeptember 5. (10. frissítés) - Hibadoboz Animációk Eltávolítása a Gyengébb Gépek Teljesítményének Növelésére (`v4.1.2`)
+- **Felhasználói kérés**: „szedőlista elkészítésénél, ha hibát dob, pl lappangó utánvét, meg minden ilyen, animáció van, hogy mozog a piros szövegdoboz. Ezt tűntessük el, ne legyen semmi animáció, könnyebben bírja el a egy gyengébb gagyibbakon laggol”.
+- **Folyamatos Pulzáló Animáció Megszüntetése (`css/style.css`, `js/views/selaModalStyles.js`)**:
+  - Eltávolítottuk az `.error-box` piros figyelmeztető doboz folyamatos, CPU/GPU terhelő `@keyframes pulseError` pulzálását és keretmozgását.
+  - Eltávolítottuk a Sela export modálban lévő hibás mezők pulzáló skálázási animációját is.
+  - A piros hibajelzések letisztultak, jól láthatóak és statikusak maradtak (finom `box-shadow` árnyékkal), így a gyengébb, szerényebb teljesítményű raktári gépeken/táblagépeken is 100%-ban akadásmentesen és azonnal fut a felület.
+- **Unit Tesztek**:
+  - **338 / 338 zöld unit teszt** (`node tests/unit_tests.js`).
+
+### 2026. szeptember 5. (9. frissítés) - Sela Szállítási Határidő (14. Oszlop) Kapcsolhatóvá Tétele a CSV Exportban (`v4.1.1`)
+- **Felhasználói kérés**: „Tudjuk-e valahogy szuneteltetni azt a funkciót, hogy kiírja a selanak a szállítási határidőt az exportban? Legyen egy ki/be kapcsoló gomb az export modálban, amivel állítható, hogy be kerüljön-e a határidő a CSV-be”.
+- **Kapcsoló és Perzisztencia (`selaExportModal.js`)**:
+  - Az export modál láblécébe bekerült egy új jelölőnégyzet (checkbox): `Szállítási határidő (14. oszlop) belefoglalása a letöltött CSV-be`.
+  - A gomb állapotát a böngésző `localStorage` memóriája eltárolja (`sela_include_deadline`), alapértelmezetten **kikapcsolt (szüneteltetett)** állapotban van, így a Sela export letöltésekor nem kerül bele a 14. oszlop.
+  - Szükség esetén egyetlen kattintással bármikor visszakapcsolható.
+- **Paraméterezett CSV Generálás (`exporter.js`)**:
+  - A `generateSelaCsv(rows, includeDeadline)` függvény kiegészült az `includeDeadline` paraméterrel (alapértelmezett értéke `false`).
+  - Ha a kapcsoló ki van kapcsolva: a letöltött CSV tisztán **13 oszlopos** (ahogy a Sela rendszere korábban megszokta).
+  - Ha be van kapcsolva: a CSV kiegészül a 14. oszloppal (`Legkésőbbi kézbesítés`).
+- **Unit Tesztek Bővítése (`tests/unit_tests.js`)**:
+  - A tesztkészlet kibővült a 13 oszlopos (szüneteltetett) és 14 oszlopos (bekapcsolt) CSV generálás összehasonlító ellenőrzésével.
+  - Összesen **338 / 338 zöld unit teszt** (`node tests/unit_tests.js`).
 
 ### 2026. szeptember 5. (8. frissítés) - Automatikus E-mail Értesítő Számla Nélküli Rendelés Terítésbe Helyezésekor (`v4.1.0`)
 - **Felhasználói kérés**: „tudunk-e olyat, hogy ha valamit ugy teszünk bele terítésbe, hogy nincsen számlája, arról kapjak egy automatikus e-mailt az info@panelburkolat.com-ra [...] Ingyenes tranzakciós E-mail API (pl. Resend vagy Brevo) - ezt választom”.

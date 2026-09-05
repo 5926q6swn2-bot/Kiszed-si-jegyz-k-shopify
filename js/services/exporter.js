@@ -265,9 +265,9 @@ export const ExporterService = {
         return prepareSelaRowData(order, customCodMap, customWeights, dispatchDate);
     },
 
-    // 7. CSV szöveg legenerálása a 13 oszlopos sorokból
-    generateSelaCsv: function(rows) {
-        return generateSelaCsv(rows);
+    // 7. CSV szöveg legenerálása a sorokból (opcionális határidő oszloppal)
+    generateSelaCsv: function(rows, includeDeadline = false) {
+        return generateSelaCsv(rows, includeDeadline);
     },
 
     // 8. CSV fájl böngészős letöltése
@@ -276,14 +276,14 @@ export const ExporterService = {
     },
 
     // Szállítói (Sela) Rendelések Exportálása CSV-be (közvetlen vagy előnézetből)
-    exportSelaOrdersToCsv: async function(orders, customCodMap = {}, customWeights = null) {
+    exportSelaOrdersToCsv: async function(orders, customCodMap = {}, customWeights = null, includeDeadline = false) {
         if (!orders || orders.length === 0) {
             await CustomDialog.alert("Nincs exportálható rendelés kijelölve!", "Figyelmeztetés", "warning");
             return;
         }
 
         const rows = orders.map(o => prepareSelaRowData(o, customCodMap, customWeights));
-        const csvContent = generateSelaCsv(rows);
+        const csvContent = generateSelaCsv(rows, includeDeadline);
         downloadSelaCsv(csvContent);
     }
 };
@@ -833,7 +833,7 @@ export function prepareSelaRowData(order, customCodMap = {}, customWeights = nul
     };
 }
 
-export function generateSelaCsv(rows) {
+export function generateSelaCsv(rows, includeDeadline = false) {
     const headers = [
         "Dátum",
         "Rendelésszám",
@@ -847,9 +847,12 @@ export function generateSelaCsv(rows) {
         "Ragasztók, szilikonok (db)",
         "Profilok (db)",
         "Utánvét összege / tapadóhíd",
-        "Összsúly (kg)",
-        "Legkésőbbi kézbesítés"
+        "Összsúly (kg)"
     ];
+
+    if (includeDeadline) {
+        headers.push("Legkésőbbi kézbesítés");
+    }
 
     const clean = (val) => {
         if (val === undefined || val === null) return "";
@@ -871,9 +874,6 @@ export function generateSelaCsv(rows) {
             const s = String(rawWeight).trim();
             formattedWeight = s.toLowerCase().endsWith('kg') ? s : `${s} kg`;
         }
-        const deadlineVal = r.col14_deadline !== undefined && r.col14_deadline !== null && r.col14_deadline !== '' 
-            ? r.col14_deadline 
-            : (r.deadlineDate || '');
 
         const line = [
             clean(r.col1_date),
@@ -888,9 +888,16 @@ export function generateSelaCsv(rows) {
             clean(r.col10_adhesivesQty),
             clean(r.col11_profilesQty),
             clean(r.col12_codAndTapadohid),
-            clean(formattedWeight),
-            clean(deadlineVal)
+            clean(formattedWeight)
         ];
+
+        if (includeDeadline) {
+            const deadlineVal = r.col14_deadline !== undefined && r.col14_deadline !== null && r.col14_deadline !== '' 
+                ? r.col14_deadline 
+                : (r.deadlineDate || '');
+            line.push(clean(deadlineVal));
+        }
+
         csvLines.push(line.join(";"));
     });
 

@@ -243,11 +243,6 @@ export function ensureSelaModalStyles() {
             border: 2px solid #dc2626 !important;
             background: #fee2e2 !important;
             box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.3) !important;
-            animation: pulseError 0.8s ease-in-out infinite alternate;
-        }
-        @keyframes pulseError {
-            from { transform: scale(1); }
-            to { transform: scale(1.02); }
         }
         .sela-modal-footer {
             display: flex;
