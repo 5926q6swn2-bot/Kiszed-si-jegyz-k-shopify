@@ -432,25 +432,32 @@ export const ShopifyParser = {
                         isCOD = true;
                         codAmount = outstandingBalance;
                         
-                        // LAPPANGÓ UTÁNVÉT FIGYELMEZTETÉS
-                        if (!/ut[aá]nv[eé]t|\buv/i.test(notes) && noteCodAmount === null) {
-                            errors.push({
-                                id: Math.random().toString(36).substr(2, 9),
-                                type: 'cod',
-                                shopifyAmount: outstandingBalance,
-                                noteAmount: 0,
-                                title: "Lappangó Utánvét!",
-                                desc: `Shopify szerint van utánvét, de a Notes üres. Kérdéses összeg: ${outstandingBalance} Ft`
-                            });
-                        } else if (noteCodAmount !== null) {
+                        const isOver250k = (outstandingBalance > 250000 || totalAmount > 250000);
+
+                        if (noteCodAmount === null) {
+                            // Ha 250k feletti a rendelés és a Notes-ban nincs összeg, rákérdezünk az előlegre
+                            if (isOver250k) {
+                                const formattedOutstanding = new Intl.NumberFormat('hu-HU').format(outstandingBalance);
+                                errors.push({
+                                    id: Math.random().toString(36).substr(2, 9),
+                                    type: 'cod',
+                                    shopifyAmount: outstandingBalance,
+                                    noteAmount: 0,
+                                    title: "Nem volt előleg? (250e+ Ft)",
+                                    desc: `250.000 Ft feletti utánvét (${formattedOutstanding} Ft), de a Notes üres. Nem érkezett díjbekérős előleg?`
+                                });
+                            }
+                            // Normál (250k alatti) rendelésnél a Lappangó Utánvét kivezetve: nincs hiba, a Shopify összeg érvényes!
+                        } else {
+                            const diff = outstandingBalance - noteCodAmount;
+                            const isAllowedDepositDiff = [20000, 25000, 30000, 40000].some(deposit => Math.abs(diff - deposit) <= 10);
                             
-                            // Speciális 250k szabály
+                            // Speciális 250k szabály (szállítási díj levonás vagy 20k/25k/30k/40k előleg)
                             const shippingGross = Math.round(shippingCost * 1.27);
-                            let expectedAmount = outstandingBalance;
-                            
-                            // 10 Ft kerekítési tolerancia a sima egyenlegre vagy a szállítás nélküli egyenlegre
-                            if (Math.abs(outstandingBalance - noteCodAmount) <= 10 ||
-                                (outstandingBalance > 250000 && Math.abs((outstandingBalance - shippingGross) - noteCodAmount) <= 10)) {
+                            const isShippingGrossDiff = Math.abs((outstandingBalance - shippingGross) - noteCodAmount) <= 10;
+
+                            // 10 Ft kerekítési tolerancia a sima egyenlegre vagy az elfogadott 250k előlegre
+                            if (Math.abs(diff) <= 10 || (isOver250k && (isAllowedDepositDiff || isShippingGrossDiff))) {
                                 codAmount = noteCodAmount; // Helyes! Nincs hiba.
                             } else {
                                 // Shopify CSV bug: order edit után az Outstanding Balance nem frissül helyesen.

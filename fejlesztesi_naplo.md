@@ -27,25 +27,67 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
-- **Utolsó aktív modell**: Gemini 3.6 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris és stabil. ⚡ **Szedőlista Hibadoboz Animációk Eltávolítása a Gyengébb Gépek Teljesítményének Növelésére** (`v4.1.2`, 338/338 zöld unit teszt).
+- **Utolsó aktív modell**: Gemini 3.8 Flash (High)
+- **Státusz**: A rendszer 100%-ban moduláris, élesítve a Render felhőben és stabil. ⚡ **Utánvét-validáció finomhangolása: Lappangó UV kivezetése & 250k+ előleg levonás** (`v4.3.0`, 377/377 zöld unit teszt).
 
 ---
 
-## 📌 Holnapi Teendők (TODO Lista)
+## 📌 Aktív / Következő Teendők (TODO Lista)
 
 1. ✉️ **Számla Nélküli Rendelés E-mail Értesítő Finomhangolása**:
    - Resend fiók e-mail cím átírása `info@panelburkolat.com`-ra a [resend.com/settings](https://resend.com/settings) alatt (vagy domain hitelesítés), hogy a levelek közvetlenül a céges címre essenek be.
    - Az automatikus e-mail pontos tartalmának, elrendezésének és szövegezésének személyre szabása az `emailService.js` sablonban a felhasználó kérései alapján.
 
-2. ☁️ **Felhős Telepítés (Cloud Deployment - Render.com / Vercel)**:
-   - Összekötni a GitHub repót a Render.com-mal (vagy Vercellel).
-   - Beállítani az Environment Variables (`SHOPIFY_ACCESS_TOKEN`, `SHOPIFY_SHOP`, `RESEND_API_KEY`, stb.) értékeket.
-   - Biztosítani az állandó, bárhonnan és bármilyen gépről/telefonról elérhető HTTPS webcímet.
+2. 🔒 **Opcionális Céges PIN Kód / Belépési Védelem a Felhős Címhez**:
+   - Igény esetén egyszerű PIN kódos védelem hozzáadása, hogy idegenek ne láthassák a rendelési adatokat a publikus linken.
 
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. szeptember 7. (2. frissítés) - Utánvét-ellenőrzési Logika Módosítása: Lappangó UV Kivezetése & 250k+ Előleg Levonás Szabály (`v4.3.0`)
+- **Lappangó Utánvét Piros Figyelmeztetés Kivezetése (< 250 000 Ft)**:
+  - Felhasználói kérés alapján: ha a Shopify szerint utánvétes a rendelés (`outstandingBalance > 0`), de a Notes üres vagy nem szerepel benne összeg, nem keletkezik felesleges hibajelzés; a rendszer automatikusan a Shopify egyenleget tekinti érvényes utánvétnek.
+- **250.000 Ft Feletti Rendelések Előleg-levonás Szabálya (Díjbekérő Előlegek)**:
+  - 250 000 Ft feletti rendeléseknél, amennyiben a Notes-ban szereplő összeg pontosan **20 000 Ft**, **25 000 Ft**, **30 000 Ft** vagy **40 000 Ft** értékkel kevesebb a Shopify egyenlegnél (a szokásos előleg miatt), **NEM keletkezik „Utánvét Eltérés” hiba**, és az utánvét összegeként a rendszer automatikusan a Notes-ban szereplő csökkentett összeget fogadja el (`codAmount = noteCodAmount`).
+- **250.000 Ft Feletti Rendelések Üres Notes Ellenőrzése („Nem volt előleg?”)**:
+  - Ha a rendelés > 250 000 Ft, és a Notes üres (nincs benne levont előleg), a rendszer figyelmeztetést dob: `„Nem volt előleg? (250e+ Ft)”` - `„250.000 Ft feletti utánvét (X Ft), de a Notes üres. Nem érkezett díjbekérős előleg?”`. A hiba dobozban a szokásos gyorsjavító gombokkal és az „Ellenőrizve” gombbal azonnal jóváhagyható.
+- **Megmaradó Szabályok Érintetlensége**:
+  - `Utánvét Eltérés` (ha a Notes és a Shopify nem egyezik és nem a megengedett előleg), `Fizetési Anomália` (ha a Shopify-ban 0 Ft de Notes-ban van összeg), valamint a `Függő Utalás` szabályok változatlanul aktívak.
+- **Egységesített Segédfüggvény & Unit Tesztek (`orderUtils.js`, `unit_tests.js`)**:
+  - Létrehoztuk a `calculateOrderCodAndErrors` tiszta segédfüggvényt.
+  - Hozzáadtunk 23 új automatizált tesztesetet, a projekt **377/377 sikeres unit teszttel** zárult.
+
+### 2026. szeptember 7. (1. frissítés) - Felhős Élesítés (Render.com) & Automatikus Shopify Fizetési Státusz Elszámoláskor (`v4.2.0`)
+- **Felhős Telepítés & Folyamatos Elérhetőség Bármilyen Eszközről (Render.com)**:
+  - Sikeresen üzembe helyeztük a rendszert a Render.com ingyenes felhős platformján: **`https://kiszed-si-jegyz-k-shopify.onrender.com`**.
+  - Létrehoztuk a `package.json` indítási definíciót és a dinamikus portkezelést (`process.env.PORT || 8080` a `server.js`-ben).
+  - A környezeti változók (`SHOPIFY_ACCESS_TOKEN`, `RESEND_API_KEY`, stb.) biztonságosan beállítva.
+  - Automatikus telepítés (Auto-deploy): minden GitHub push után 20-30 mp alatt magától frissül a felhő.
+- **Automatikus Shopify Fizetés Elszámoláskor (Pending ➔ Paid)**:
+  - **Felhasználói kérés**: Amikor fizetettnek jelölünk egy rendelést elszámoláskor (nálunk van az összeg, beért a KP vagy kártyás utalás, vagy átutalás történt), a Shopify fizetési státusza automatikusan váltson `PAID`-re. Kivételt képez, ha nem fizeti ki teljesen (részleges). Osztott fizetésnél (fél kártya, fél KP) ha megvan a teljes összeg, szintén váltson `PAID`-re. Kártyás fizetésnél csak akkor, ha be van pipálva a "Nálunk van" (saját terminál), vagy ha a szállító utólag elutalta.
+  - **GraphQL Admin API Integráció (`server.js`)**:
+    - Új `POST /api/shopify/mark-as-paid` végpont.
+    - Hivatalos GraphQL `orderMarkAsPaid` mutációval és atomi tranzakcióval, duplikáció védelemmel (ha már eleve `paid`, nem terheli az API-t).
+  - **Kliensoldali Szolgáltatás (`shopifyApiService.js`)**:
+    - `ShopifyApiService.markOrderAsPaid` és `ShopifyApiService.bulkMarkOrdersAsPaid`.
+  - **Üzleti Logika & Számítás (`paymentUtils.js`)**:
+    - `getEligibleOrdersForMarkAsPaid(run, settlementData)`:
+      - Teljes készpénzes fizetés („Nálunk van”) ➔ `PAID`.
+      - Kártyás fizetés saját terminállal („Nálunk van”) ➔ `PAID`.
+      - Kártyás fizetés szállítói terminállal (utalásra vár) ➔ függőben marad.
+      - Utalás beérkezésekor („Kártyás utalás beérkezett”) ➔ `PAID`.
+      - Banki átutalás ➔ `PAID`.
+      - Osztott fizetés (Split) ➔ ha mindkét rész beérkezett és összege >= teljes érték ➔ `PAID`.
+      - Részleges fizetés (kevesebb a vártnál) ➔ **SZIGORÚAN KIZÁRVA**.
+      - Kiesett rendelés ➔ KIZÁRVA.
+  - **Elszámolás Integráció (`historyAccounting.js`)**:
+    - Összekötve az elszámolás rögzítésével (`btn-settle-run`), módosításával (`btn-modify-settlement`), valamint a kártyás utalás (`btn-settle-transfer`) és készpénz (`btn-settle-kp`) jóváhagyó gombokkal.
+  - **Firestore Szinkron Nyilvántartás (`history.js`)**:
+    - `recordShopifyPaidOrders(docId, orderIds)` tárolja a már elküldött rendeléseket a duplikáció elkerülésére.
+  - **Unit Tesztek Bővítése (`tests/unit_tests.js`)**:
+    - 16 új teszteset hozzáadva az összes fizetési kombinációra.
+    - Összesen **354 / 354 zöld unit teszt**.
 
 ### 2026. szeptember 5. (10. frissítés) - Hibadoboz Animációk Eltávolítása a Gyengébb Gépek Teljesítményének Növelésére (`v4.1.2`)
 - **Felhasználói kérés**: „szedőlista elkészítésénél, ha hibát dob, pl lappangó utánvét, meg minden ilyen, animáció van, hogy mozog a piros szövegdoboz. Ezt tűntessük el, ne legyen semmi animáció, könnyebben bírja el a egy gyengébb gagyibbakon laggol”.

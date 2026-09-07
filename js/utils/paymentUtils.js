@@ -260,3 +260,141 @@ export function getRunPaymentTotals(run) {
         isFullySettled
     };
 }
+
+/**
+ * Meghatározza azokat a rendeléseket egy elszámolásból, amelyek teljes mértékben
+ * kifizetésre kerültek (Nálunk van a KP, beért a kártyás utalás, banki átutalás történt, vagy osztottan teljesült),
+ * így a Shopify-ban PAID (kifizetve) státuszra állíthatók.
+ * 
+ * Kivételt képeznek:
+ * - A részlegesen fizetett rendelések (partialOrders)
+ * - A nem átadott / kiesett rendelések (uncollectedOrderIds)
+ * - A még függőben lévő (kártyás utalásra váró / futárnál lévő) tételek
+ * - A már korábban Shopify-ban kifizetettre szinkronizált rendelések
+ */
+export function getEligibleOrdersForMarkAsPaid(run, settlementData = null, options = {}) {
+    if (!run || !Array.isArray(run.orders) || run.orders.length === 0) {
+        return [];
+    }
+
+    const { forceAll = false } = options;
+
+    const effectiveRun = {
+        ...run,
+        ...(settlementData || {})
+    };
+
+    const isTransferSettled = (settlementData && typeof settlementData.isTransferSettled !== 'undefined')
+        ? (settlementData.isTransferSettled === true)
+        : (run.isTransferSettled === true);
+
+    const alreadySynced = new Set((run.shopifyPaidOrderIds || []).map(id => String(id).replace(/^#/, '').trim()));
+    const uncollectedSet = new Set((effectiveRun.uncollectedOrderIds || []).map(id => String(id).replace(/^#/, '').trim()));
+    const bankTransferredSet = new Set((effectiveRun.bankTransferredOrderIds || []).map(id => String(id).replace(/^#/, '').trim()));
+    const partialOrders = effectiveRun.partialOrders || {};
+    const paymentMethods = effectiveRun.paymentMethods || {};
+    const paymentStatusMap = effectiveRun.paymentStatusMap || {};
+
+    const eligible = [];
+
+    effectiveRun.orders.forEach(order => {
+        if (!order || !order.id) return;
+        const cleanId = String(order.id).replace(/^#/, '').trim();
+        const orderId = String(order.id);
+
+        // Ha nem utánvétes, alapból rendezett volt online a Shopify-ban
+        if (!order.isCOD) return;
+
+        // Visszáru tételt nem szinkronizálunk bevételként
+        if (order.isReturn) return;
+
+        // Kiesett / nem átadott rendelés -> KIZÁRVA
+        if (uncollectedSet.has(cleanId) || uncollectedSet.has(orderId)) return;
+
+        // Részleges fizetés (kevesebbet fizetett a teljesnél) -> KIZÁRVA
+        if (partialOrders[cleanId] || partialOrders[orderId]) return;
+
+        // Ha már szinkronizálva lett és nem kértünk force-ot -> KIZÁRVA
+        if (!forceAll && alreadySynced.has(cleanId)) return;
+
+        const codAmount = order.codAmount || 0;
+        if (codAmount <= 0) return;
+
+        // Banki átutalásos elszámolás (bankTransferredOrderIds)
+        if (bankTransferredSet.has(cleanId) || bankTransferredSet.has(orderId)) {
+            eligible.push({
+                orderId: order.id,
+                cleanId: cleanId,
+                shopifyId: order.shopifyId || null,
+                name: order.name || (`#${cleanId}`),
+                amount: codAmount,
+                methodText: 'Átutalás'
+            });
+            return;
+        }
+
+        const pm = paymentMethods[cleanId] || paymentMethods[orderId];
+        const ps = paymentStatusMap[cleanId] || paymentStatusMap[orderId];
+
+        if (typeof pm === 'object' && pm !== null) {
+            // Osztott fizetés
+            const valKp = Math.max(0, parseInt(pm.cash) || 0);
+            const valCard = Math.max(0, parseInt(pm.card) || 0);
+            const valBank = Math.max(0, parseInt(pm.bank) || 0);
+            const sum = valKp + valCard + valBank;
+
+            if (sum < codAmount) return; // Nem érte el a teljes összeget
+
+            const statusObj = (typeof ps === 'object' && ps !== null) ? ps : {};
+            const defaultStatus = (typeof ps === 'string') ? ps : 'pending';
+
+            const kpOk = valKp === 0 || (statusObj.cash || defaultStatus) === 'received';
+            const cardOk = valCard === 0 || (statusObj.card || defaultStatus) === 'received' || isTransferSettled;
+            const bankOk = valBank === 0 || (statusObj.bank || defaultStatus) === 'received' || isTransferSettled;
+
+            if (kpOk && cardOk && bankOk) {
+                eligible.push({
+                    orderId: order.id,
+                    cleanId: cleanId,
+                    shopifyId: order.shopifyId || null,
+                    name: order.name || (`#${cleanId}`),
+                    amount: codAmount,
+                    methodText: 'Bontott fizetés'
+                });
+            }
+        } else {
+            // Egyszerű fizetési mód (cash, card, bank)
+            const method = pm || 'cash';
+            let st = 'pending';
+            if (typeof ps === 'string') {
+                st = ps;
+            } else if (typeof ps === 'object' && ps !== null) {
+                st = ps[method] || ps.card || ps.cash || ps.bank || 'pending';
+            }
+
+            let isFullyReceived = false;
+            if (method === 'cash') {
+                isFullyReceived = (st === 'received');
+            } else if (method === 'card') {
+                // Kártyás fizetésnél: ha be van pipálva a "Nálunk van" (st === 'received') VAGY a banki átutalás beérkezett
+                isFullyReceived = (st === 'received' || isTransferSettled);
+            } else if (method === 'bank') {
+                isFullyReceived = (st === 'received' || isTransferSettled);
+            }
+
+            if (isFullyReceived) {
+                eligible.push({
+                    orderId: order.id,
+                    cleanId: cleanId,
+                    shopifyId: order.shopifyId || null,
+                    name: order.name || (`#${cleanId}`),
+                    amount: codAmount,
+                    methodText: method === 'card' ? 'Bankkártya' : (method === 'bank' ? 'Átutalás' : 'Készpénz')
+                });
+            }
+        }
+    });
+
+    return eligible;
+}
+

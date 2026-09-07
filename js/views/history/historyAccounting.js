@@ -5,7 +5,8 @@
 
 import { HistoryManager } from '../../services/history.js?v=3.2.2';
 import { CustomDialog } from '../../utils/dialog.js?v=3.2.2';
-import { getPaymentDetails, getRunPaymentTotals } from '../../utils/paymentUtils.js?v=3.2.2';
+import { getPaymentDetails, getRunPaymentTotals, getEligibleOrdersForMarkAsPaid } from '../../utils/paymentUtils.js?v=3.2.2';
+import { ShopifyApiService } from '../../services/shopifyApiService.js?v=3.2.2';
 
 export function showSettlementDialog(run, runCOD, existingState = null) {
     return new Promise((resolve) => {
@@ -1079,7 +1080,35 @@ export async function renderAccountingRuns(ctx) {
         accountingRunsContainer.appendChild(groupEl);
     });
 
+async function syncSettledOrdersToShopify(run, settlementData, docId) {
+    try {
+        const eligibleOrders = getEligibleOrdersForMarkAsPaid(run, settlementData);
+        if (!eligibleOrders || eligibleOrders.length === 0) return;
 
+        console.log(`💰 [Shopify Fizetési Szinkron] ${eligibleOrders.length} db rendelés küldése a Shopify felé...`, eligibleOrders);
+        
+        const payload = eligibleOrders.map(o => ({
+            orderId: o.name || ('#' + o.cleanId),
+            shopifyId: o.shopifyId
+        }));
+
+        const result = await ShopifyApiService.bulkMarkOrdersAsPaid({ orders: payload });
+        
+        if (result && result.success) {
+            const newlyPaid = result.successCount || 0;
+            const alreadyPaid = result.alreadyPaidCount || 0;
+            const syncedIds = eligibleOrders.map(o => o.cleanId);
+            
+            if (docId) {
+                await HistoryManager.recordShopifyPaidOrders(docId, syncedIds);
+            }
+
+            console.log(`✅ [Shopify Fizetési Szinkron Kész] ${newlyPaid} db újonnan PAID-re állítva, ${alreadyPaid} db már fizetve volt.`);
+        }
+    } catch (err) {
+        console.warn('⚠️ [Shopify Fizetési Szinkron Figyelmeztetés]', err.message);
+    }
+}
 
     accountingRunsContainer.querySelectorAll('.btn-settle-run').forEach(btn => {
         btn.addEventListener('click', async (e) => {
@@ -1106,7 +1135,10 @@ export async function renderAccountingRuns(ctx) {
                 result.paymentMethods,
                 null,
                 result.paymentStatusMap
-            )) renderAccountingRuns(ctx);
+            )) {
+                await syncSettledOrdersToShopify(run, result, docId);
+                renderAccountingRuns(ctx);
+            }
         });
     });
 
@@ -1192,16 +1224,28 @@ export async function renderAccountingRuns(ctx) {
                 result.paymentMethods,
                 null,
                 result.paymentStatusMap
-            )) renderAccountingRuns(ctx);
+            )) {
+                await syncSettledOrdersToShopify(run, result, docId);
+                renderAccountingRuns(ctx);
+            }
         });
     });
 
     accountingRunsContainer.querySelectorAll('.btn-settle-transfer').forEach(btn => {
         btn.addEventListener('click', async (e) => {
-            const docId = e.target.closest('button').getAttribute('data-doc-id');
+            const btnEl = e.target.closest('button');
+            const docId = btnEl.getAttribute('data-doc-id');
+            const card = btnEl.closest('.acc-run-card');
+            const runId = card ? card.getAttribute('data-run-id') : null;
             const ok = await CustomDialog.confirm('Megerősíted, hogy a kártyás utalás megérkezett a bankszámlára ehhez a terítéshez?');
             if (!ok) return;
             if (await HistoryManager.settlePaymentGroup(docId, 'card')) {
+                if (runId) {
+                    const updatedRun = await HistoryManager.getRunById(runId);
+                    if (updatedRun) {
+                        await syncSettledOrdersToShopify(updatedRun, null, docId);
+                    }
+                }
                 renderAccountingRuns(ctx);
             }
         });
@@ -1209,14 +1253,24 @@ export async function renderAccountingRuns(ctx) {
 
     accountingRunsContainer.querySelectorAll('.btn-settle-kp').forEach(btn => {
         btn.addEventListener('click', async (e) => {
-            const docId = e.target.closest('button').getAttribute('data-doc-id');
+            const btnEl = e.target.closest('button');
+            const docId = btnEl.getAttribute('data-doc-id');
+            const card = btnEl.closest('.acc-run-card');
+            const runId = card ? card.getAttribute('data-run-id') : null;
             const ok = await CustomDialog.confirm('Megerősíted, hogy a függő készpénz (KP) beérkezett ehhez a terítéshez?');
             if (!ok) return;
             if (await HistoryManager.settlePaymentGroup(docId, 'cash')) {
+                if (runId) {
+                    const updatedRun = await HistoryManager.getRunById(runId);
+                    if (updatedRun) {
+                        await syncSettledOrdersToShopify(updatedRun, null, docId);
+                    }
+                }
                 renderAccountingRuns(ctx);
             }
         });
     });
+
 
     accountingRunsContainer.querySelectorAll('.acc-expand-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {

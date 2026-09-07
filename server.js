@@ -1151,6 +1151,155 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // 8b. Shopify Rendelés Kifizetettre Állítása (Mark as Paid - GraphQL orderMarkAsPaid)
+  if (pathname === '/api/shopify/mark-as-paid' && req.method === 'POST') {
+    let bodyStr = '';
+    req.on('data', chunk => { bodyStr += chunk; });
+    req.on('end', async () => {
+      try {
+        const token = process.env.SHOPIFY_ACCESS_TOKEN;
+        const shop = process.env.SHOPIFY_SHOP || 'p4q0uj-2m.myshopify.com';
+
+        if (!token) {
+          res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ error: 'Nincs érvényes Shopify Access Token!' }));
+          return;
+        }
+
+        const body = JSON.parse(bodyStr || '{}');
+        const ordersToMark = body.orders || (body.orderId || body.shopifyId ? [{ orderId: body.orderId, shopifyId: body.shopifyId }] : []);
+
+        if (!Array.isArray(ordersToMark) || ordersToMark.length === 0) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ error: 'Nem lett megadva kifizetendő rendeléslista.' }));
+          return;
+        }
+
+        const results = {
+          total: ordersToMark.length,
+          successCount: 0,
+          alreadyPaidCount: 0,
+          failedCount: 0,
+          updatedOrders: [],
+          errors: []
+        };
+
+        for (const item of ordersToMark) {
+          let sId = item.shopifyId;
+          const oId = item.orderId || sId;
+          let currentStatus = null;
+
+          try {
+            // Ha nincs meg a numerikus Shopify ID vagy a státusz, megkeressük
+            if (!sId && oId) {
+              const cleanNum = String(oId).replace(/^#/, '').trim();
+              const findUrl = `https://${shop}/admin/api/2024-04/orders.json?name=${encodeURIComponent('#' + cleanNum)}&status=any&limit=1&fields=id,financial_status,name`;
+              const findRes = await fetch(findUrl, {
+                headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' }
+              });
+              const findData = await findRes.json();
+              if (findData.orders && findData.orders.length > 0) {
+                sId = findData.orders[0].id;
+                currentStatus = findData.orders[0].financial_status;
+              }
+            } else if (sId && !currentStatus) {
+              const findUrl = `https://${shop}/admin/api/2024-04/orders/${sId}.json?fields=id,financial_status,name`;
+              const findRes = await fetch(findUrl, {
+                headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' }
+              });
+              const findData = await findRes.json();
+              if (findData.order) {
+                currentStatus = findData.order.financial_status;
+              }
+            }
+
+            if (!sId) {
+              results.failedCount++;
+              results.errors.push({ orderId: oId, error: 'Shopify azonosító nem található.' });
+              continue;
+            }
+
+            // Ha már eleve PAID, nincs teendő, jelezzük sikeresként
+            if (currentStatus && String(currentStatus).toLowerCase() === 'paid') {
+              results.alreadyPaidCount++;
+              results.updatedOrders.push({ orderId: oId, shopifyId: sId, status: 'paid', alreadyPaid: true });
+              continue;
+            }
+
+            // GraphQL orderMarkAsPaid mutáció végrehajtása
+            const gqlQuery = `
+              mutation orderMarkAsPaid($input: OrderMarkAsPaidInput!) {
+                orderMarkAsPaid(input: $input) {
+                  order {
+                    id
+                    displayFinancialStatus
+                  }
+                  userErrors {
+                    field
+                    message
+                  }
+                }
+              }
+            `;
+            const gid = String(sId).startsWith('gid://') ? sId : `gid://shopify/Order/${sId}`;
+            const gqlRes = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
+              method: 'POST',
+              headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query: gqlQuery,
+                variables: { input: { id: gid } }
+              })
+            });
+
+            const gqlData = await gqlRes.json();
+            const mutationResult = gqlData.data?.orderMarkAsPaid;
+            const userErrors = mutationResult?.userErrors || [];
+
+            if (userErrors.length > 0) {
+              const errMsg = userErrors.map(e => e.message).join(', ');
+              // Ha a hiba az, hogy már ki van fizetve, nem tekintjük hibának
+              if (errMsg.toLowerCase().includes('already paid') || errMsg.toLowerCase().includes('no outstanding')) {
+                results.alreadyPaidCount++;
+                results.updatedOrders.push({ orderId: oId, shopifyId: sId, status: 'paid', alreadyPaid: true });
+              } else {
+                results.failedCount++;
+                results.errors.push({ orderId: oId, shopifyId: sId, error: errMsg });
+              }
+            } else if (mutationResult?.order) {
+              results.successCount++;
+              results.updatedOrders.push({
+                orderId: oId,
+                shopifyId: sId,
+                status: mutationResult.order.displayFinancialStatus || 'PAID'
+              });
+              console.log(`💰 [Shopify Paid] Rendelés: ${oId} (${sId}) -> PAID sikeresen beállítva.`);
+            } else {
+              results.failedCount++;
+              results.errors.push({ orderId: oId, shopifyId: sId, error: 'Ismeretlen GraphQL válasz' });
+            }
+          } catch (e) {
+            results.failedCount++;
+            results.errors.push({ orderId: oId, error: e.message });
+          }
+        }
+
+        console.log(`💰 [Shopify Mark As Paid Kész] Összes: ${results.total}, Újonnan fizetve: ${results.successCount}, Már fizetve volt: ${results.alreadyPaidCount}, Hibás: ${results.failedCount}`);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({
+          success: true,
+          ...results
+        }));
+        return;
+      } catch (err) {
+        console.error('[Shopify Mark As Paid Error]', err);
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: err.message }));
+        return;
+      }
+    });
+    return;
+  }
+
   // 9. Automatikus E-mail Értesítés Számla Nélküli Rendelés Terítésbe Helyezésekor
   if (pathname === '/api/notifications/missing-invoice' && req.method === 'POST') {
     let bodyStr = '';

@@ -328,6 +328,26 @@ export const HistoryManager = {
             }
         },
 
+        recordShopifyPaidOrders: async function(docId, orderIds) {
+            if (!docId || !Array.isArray(orderIds) || orderIds.length === 0) return false;
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                const docSnap = await getDoc(docRef);
+                if (!docSnap.exists()) return false;
+                const runData = docSnap.data();
+                const existing = new Set((runData.shopifyPaidOrderIds || []).map(String));
+                orderIds.forEach(id => existing.add(String(id)));
+                await updateDoc(docRef, {
+                    shopifyPaidOrderIds: Array.from(existing),
+                    shopifyPaidUpdatedAt: Date.now()
+                });
+                return true;
+            } catch (e) {
+                console.error("Hiba a shopifyPaidOrderIds frissítésénél: ", e);
+                return false;
+            }
+        },
+
         revertToPending: async function(docId) {
             try {
                 const docRef = doc(db, this.COLLECTION_NAME, docId);

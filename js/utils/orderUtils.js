@@ -368,3 +368,116 @@ export function filterOrdersWithoutInvoice(orders) {
     return orders.filter(isOrderMissingInvoice);
 }
 
+/**
+ * Kiszámolja és validálja a rendelés utánvét összegét és az esetleges hibákat / figyelmeztetéseket.
+ * 
+ * Szabályok:
+ * 1. Bank deposit (átutalás) esetén nem képez utánvét hibát.
+ * 2. Ha outstandingBalance > 0 és nincs Notes összeg (noteCodAmount === null):
+ *    - Ha >250 000 Ft: "Nem volt előleg? (250e+ Ft)" figyelmeztetés.
+ *    - Ha <=250 000 Ft: Nincs hiba, a Shopify tartozást tekintjük utánvétnek ("Lappangó Utánvét" kivezetve).
+ * 3. Ha outstandingBalance > 0 és van Notes összeg:
+ *    - 10 Ft tűréssel egyezik -> nincs hiba.
+ *    - >250 000 Ft rendelésnél pont 20 000, 25 000, 30 000 vagy 40 000 Ft az eltérés (levont előleg) -> nincs hiba, a Notes összeget fogadja el!
+ *    - Speciális szállítási díj levonás vagy Shopify CSV bug -> nincs hiba.
+ *    - Egyéb eltérés -> "Utánvét Eltérés" hiba.
+ * 4. Ha outstandingBalance === 0 és van Notes összeg (noteCodAmount > 0) -> "Fizetési Anomália" hiba.
+ */
+export function calculateOrderCodAndErrors({
+    outstandingBalance = 0,
+    totalAmount = 0,
+    notes = '',
+    isBankDeposit = false,
+    shippingCost = 0,
+    subtotal = 0,
+    vatRate = 0.27
+} = {}) {
+    const rawNotes = String(notes || '').toLowerCase();
+    const cleanNotes = rawNotes
+        .replace(/\b\d{4}[. -/]+\d{1,2}[. -/]+\d{1,2}(?!\d)\.?/g, '')
+        .replace(/\b\d{1,2}[.-/]\d{1,2}(?!\d)\.?/g, '');
+
+    let noteCodAmount = null;
+    const matchBefore = cleanNotes.match(/(\d[\d\s\.]*?)\s*(?:ft|huf)?\s*(?:ut[aá]nv[eé]t|\buv)/i);
+    const matchAfter = cleanNotes.match(/(?:ut[aá]nv[eé]t|\buv).*?(\d[\d\s\.]*)/i);
+    const matchFt = cleanNotes.match(/(\d(?:[\d .]*\d)?)\s*ft/i);
+
+    if (matchAfter) {
+        noteCodAmount = parseInt(matchAfter[1].replace(/[\s\.]/g, ''), 10);
+    } else if (matchFt) {
+        noteCodAmount = parseInt(matchFt[1].replace(/[\s\.]/g, ''), 10);
+    } else if (matchBefore) {
+        noteCodAmount = parseInt(matchBefore[1].replace(/[\s\.]/g, ''), 10);
+    }
+
+    let isCOD = false;
+    let codAmount = 0;
+    const errors = [];
+
+    if (!isBankDeposit) {
+        if (outstandingBalance > 0) {
+            isCOD = true;
+            codAmount = outstandingBalance;
+
+            const isOver250k = (outstandingBalance > 250000 || totalAmount > 250000);
+
+            if (noteCodAmount === null) {
+                if (isOver250k) {
+                    const formattedOutstanding = new Intl.NumberFormat('hu-HU').format(outstandingBalance);
+                    errors.push({
+                        id: Math.random().toString(36).substr(2, 9),
+                        type: 'cod',
+                        shopifyAmount: outstandingBalance,
+                        noteAmount: 0,
+                        title: "Nem volt előleg? (250e+ Ft)",
+                        desc: `250.000 Ft feletti utánvét (${formattedOutstanding} Ft), de a Notes üres. Nem érkezett díjbekérős előleg?`
+                    });
+                }
+            } else {
+                const diff = outstandingBalance - noteCodAmount;
+                const isAllowedDepositDiff = [20000, 25000, 30000, 40000].some(deposit => Math.abs(diff - deposit) <= 10);
+                const shippingGross = Math.round(shippingCost * 1.27);
+                const isShippingGrossDiff = Math.abs((outstandingBalance - shippingGross) - noteCodAmount) <= 10;
+
+                if (Math.abs(diff) <= 10 || (isOver250k && (isAllowedDepositDiff || isShippingGrossDiff))) {
+                    codAmount = noteCodAmount;
+                } else {
+                    const calculatedExclusive = Math.round((subtotal + shippingCost) * (1 + vatRate));
+                    const calculatedInclusive = Math.round(subtotal + shippingCost);
+                    const matchesCalc = subtotal > 0 && (Math.abs(calculatedExclusive - noteCodAmount) <= 10 || Math.abs(calculatedInclusive - noteCodAmount) <= 10);
+                    if (matchesCalc && Math.abs(outstandingBalance - noteCodAmount) > 10) {
+                        codAmount = noteCodAmount;
+                    } else {
+                        errors.push({
+                            id: Math.random().toString(36).substr(2, 9),
+                            type: 'cod',
+                            shopifyAmount: outstandingBalance,
+                            noteAmount: noteCodAmount,
+                            title: "Utánvét Eltérés",
+                            desc: `Utánvét a shopifyban: ${outstandingBalance} Ft, a Notes-ban ${noteCodAmount} Ft kérlek ellenőrizd!`
+                        });
+                    }
+                }
+            }
+        } else if (noteCodAmount !== null && noteCodAmount > 0) {
+            isCOD = true;
+            codAmount = noteCodAmount;
+            errors.push({
+                id: Math.random().toString(36).substr(2, 9),
+                type: 'cod',
+                shopifyAmount: 0,
+                noteAmount: noteCodAmount,
+                title: "Fizetési Anomália",
+                desc: `A shopify szerint nincs utánvét, de a Notes-ban szerepel egy összeg: ${noteCodAmount} Ft`
+            });
+        }
+    }
+
+    return {
+        isCOD,
+        codAmount,
+        noteCodAmount,
+        errors
+    };
+}
+

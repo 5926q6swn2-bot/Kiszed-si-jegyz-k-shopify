@@ -2,7 +2,7 @@
 // Standalone Node.js unit tesztek a címtisztításra, névtisztításra, telefonszám formázásra és fizetési státuszokra
 
 import { formatHungarianPhoneNumber } from '../js/utils/phoneFormatter.js';
-import { getPaymentDetails, getRunPaymentTotals } from '../js/utils/paymentUtils.js';
+import { getPaymentDetails, getRunPaymentTotals, getEligibleOrdersForMarkAsPaid } from '../js/utils/paymentUtils.js';
 import { 
     classifyItemForSela, 
     extractPhones, 
@@ -27,7 +27,8 @@ import {
     isEligibleForAutoPannonXp,
     checkBadShipping,
     isOrderMissingInvoice,
-    filterOrdersWithoutInvoice
+    filterOrdersWithoutInvoice,
+    calculateOrderCodAndErrors
 } from '../js/utils/orderUtils.js';
 import {
     generateMissingInvoiceEmailHtml,
@@ -1561,6 +1562,223 @@ const simResult = await sendMissingInvoiceAlertEmail({
 });
 assertEqual("Email Send - Missing API key runs in simulated mode", simResult.simulated, true);
 assertEqual("Email Send - Simulated mode success is true", simResult.success, true);
+
+// =========================================================================
+// Shopify Fizetési Státusz Automatizálás (Pending -> Paid) Tesztek
+// =========================================================================
+
+const orderPaidCash = { id: "1001", name: "#1001", isCOD: true, codAmount: 25000, shopifyId: 100101 };
+const orderPaidCardReceived = { id: "1002", name: "#1002", isCOD: true, codAmount: 40000, shopifyId: 100202 };
+const orderPaidCardPending = { id: "1003", name: "#1003", isCOD: true, codAmount: 30000, shopifyId: 100303 };
+const orderPaidSplitFull = { id: "1004", name: "#1004", isCOD: true, codAmount: 60000, shopifyId: 100404 };
+const orderPaidSplitPendingCard = { id: "1005", name: "#1005", isCOD: true, codAmount: 60000, shopifyId: 100505 };
+const orderPartial = { id: "1006", name: "#1006", isCOD: true, codAmount: 40000, shopifyId: 100606 };
+const orderUncollected = { id: "1007", name: "#1007", isCOD: true, codAmount: 50000, shopifyId: 100707 };
+const orderBankTransfer = { id: "1008", name: "#1008", isCOD: true, codAmount: 35000, shopifyId: 100808 };
+const orderNonCod = { id: "1009", name: "#1009", isCOD: false, codAmount: 0, shopifyId: 100909 };
+
+const testSettlementRun = {
+    id: "run-test-99",
+    docId: "doc-test-99",
+    orders: [
+        orderPaidCash,
+        orderPaidCardReceived,
+        orderPaidCardPending,
+        orderPaidSplitFull,
+        orderPaidSplitPendingCard,
+        orderPartial,
+        orderUncollected,
+        orderBankTransfer,
+        orderNonCod
+    ],
+    shopifyPaidOrderIds: []
+};
+
+const testSettlementData = {
+    uncollectedOrderIds: ["1007"],
+    partialOrders: {
+        "1006": { amount: 25000, comment: "Csak 25e Ft volt nála" }
+    },
+    bankTransferredOrderIds: ["1008"],
+    paymentMethods: {
+        "1001": "cash",
+        "1002": "card",
+        "1003": "card",
+        "1004": { cash: 30000, card: 30000, bank: 0 },
+        "1005": { cash: 30000, card: 30000, bank: 0 }
+    },
+    paymentStatusMap: {
+        "1001": "received", // Nálunk van
+        "1002": "received", // Nálunk van (saját terminál)
+        "1003": "pending",  // Szállító terminálja -> átutalásra várunk
+        "1004": { cash: "received", card: "received", bank: "pending" }, // Mindkettő nálunk van -> teljes összeg megvan!
+        "1005": { cash: "received", card: "pending", bank: "pending" }  // Kártya még függőben -> nem teljesült a beérkezés
+    },
+    isTransferSettled: false
+};
+
+const eligibleOrders = getEligibleOrdersForMarkAsPaid(testSettlementRun, testSettlementData);
+const eligibleIds = eligibleOrders.map(o => o.cleanId);
+
+// 1. Teljes KP fizetés (Nálunk van bepipálva) -> Kifizetett
+assertEqual("Mark As Paid - Cash received is eligible", eligibleIds.includes("1001"), true);
+
+// 2. Kártyás fizetés Nálunk van bepipálva (saját terminál) -> Kifizetett
+assertEqual("Mark As Paid - Card with 'Nálunk van' is eligible", eligibleIds.includes("1002"), true);
+
+// 3. Kártyás fizetés szállítói terminállal (még nem érkezett be az utalás) -> KIZÁRVA
+assertEqual("Mark As Paid - Card waiting for transfer is NOT eligible", eligibleIds.includes("1003"), false);
+
+// 4. Osztott fizetés (KP + Kártya), mindkettő nálunk van, eléri a teljes összeget -> Kifizetett!
+assertEqual("Mark As Paid - Split full payment (both received) is eligible", eligibleIds.includes("1004"), true);
+
+// 5. Osztott fizetés, ahol a kártyás rész még függőben van a futárnál -> KIZÁRVA
+assertEqual("Mark As Paid - Split with pending card part is NOT eligible", eligibleIds.includes("1005"), false);
+
+// 6. Részleges fizetés (kevesebbet fizetett mint az elvárt összeg) -> KIZÁRVA (ahogy a felhasználó kérte)
+assertEqual("Mark As Paid - Partial payment is strictly excluded", eligibleIds.includes("1006"), false);
+
+// 7. Kiesett / nem átadott rendelés -> KIZÁRVA
+assertEqual("Mark As Paid - Uncollected order is excluded", eligibleIds.includes("1007"), false);
+
+// 8. Banki átutalásos elszámolás -> Kifizetett
+assertEqual("Mark As Paid - Bank transfer settled is eligible", eligibleIds.includes("1008"), true);
+
+// 9. Nem utánvétes rendelés (alapból fizetve volt Shopify-ban) -> KIZÁRVA a duplikációból
+assertEqual("Mark As Paid - Non-COD order excluded", eligibleIds.includes("1009"), false);
+
+// 10. Összesített jogosult darabszám ellenőrzése
+assertEqual("Mark As Paid - Eligible count is exactly 4 (#1001, #1002, #1004, #1008)", eligibleOrders.length, 4);
+
+// 11. Későbbi kártyás utalás beérkezésekor (isTransferSettled: true) a #1003 és #1005 is jogosulttá válik
+const settledTransferData = {
+    ...testSettlementData,
+    isTransferSettled: true
+};
+const eligibleAfterTransfer = getEligibleOrdersForMarkAsPaid(testSettlementRun, settledTransferData);
+const eligibleAfterTransferIds = eligibleAfterTransfer.map(o => o.cleanId);
+assertEqual("Mark As Paid - After transfer settled, #1003 becomes eligible", eligibleAfterTransferIds.includes("1003"), true);
+assertEqual("Mark As Paid - After transfer settled, #1005 split becomes eligible", eligibleAfterTransferIds.includes("1005"), true);
+
+// 12. Már korábban szinkronizált rendelések kiszűrése (duplikáció védelem)
+const runWithAlreadySynced = {
+    ...testSettlementRun,
+    shopifyPaidOrderIds: ["1001", "1002"]
+};
+const eligibleFiltered = getEligibleOrdersForMarkAsPaid(runWithAlreadySynced, testSettlementData);
+const filteredIds = eligibleFiltered.map(o => o.cleanId);
+assertEqual("Mark As Paid - Already synced #1001 excluded", filteredIds.includes("1001"), false);
+assertEqual("Mark As Paid - Already synced #1002 excluded", filteredIds.includes("1002"), false);
+assertEqual("Mark As Paid - Unsynced #1004 still included", filteredIds.includes("1004"), true);
+
+// 13. Force módban az already synced is visszakapható
+const forcedEligible = getEligibleOrdersForMarkAsPaid(runWithAlreadySynced, testSettlementData, { forceAll: true });
+assertEqual("Mark As Paid - Force all includes #1001", forcedEligible.some(o => o.cleanId === "1001"), true);
+
+// ==========================================
+// UTÁNVÉT ÉS NOTES VALIDÁCIÓ TESZTEK (v4.3.0)
+// ==========================================
+
+// 1. Normál rendelés (< 250k) üres notes mezővel -> Nincs hiba, nincs Lappangó Utánvét, Shopify összeg érvényes!
+const normalCodNoNote = calculateOrderCodAndErrors({
+    outstandingBalance: 45000,
+    totalAmount: 45000,
+    notes: ""
+});
+assertEqual("COD Validáció - <250k üres notes isCOD true", normalCodNoNote.isCOD, true);
+assertEqual("COD Validáció - <250k üres notes codAmount 45k", normalCodNoNote.codAmount, 45000);
+assertEqual("COD Validáció - <250k üres notes Nincs Lappangó Utánvét hiba", normalCodNoNote.errors.length, 0);
+
+// 2. Normál rendelés (< 250k) egyező notes mezővel -> Nincs hiba
+const normalCodMatchNote = calculateOrderCodAndErrors({
+    outstandingBalance: 45000,
+    totalAmount: 45000,
+    notes: "uv: 45000 Ft"
+});
+assertEqual("COD Validáció - <250k egyező notes errors üres", normalCodMatchNote.errors.length, 0);
+assertEqual("COD Validáció - <250k egyező notes codAmount 45k", normalCodMatchNote.codAmount, 45000);
+
+// 3. Normál rendelés (< 250k) eltérő notes mezővel -> Utánvét Eltérés hiba!
+const normalCodMismatch = calculateOrderCodAndErrors({
+    outstandingBalance: 45000,
+    totalAmount: 45000,
+    notes: "uv 40000 Ft"
+});
+assertEqual("COD Validáció - <250k eltérő notes hiba van", normalCodMismatch.errors.length, 1);
+assertEqual("COD Validáció - <250k eltérő notes hiba címe Utánvét Eltérés", normalCodMismatch.errors[0]?.title, "Utánvét Eltérés");
+
+// 4. Fizetett rendelés (0 Ft tartozás) de Notes-ban van összeg -> Fizetési Anomália hiba!
+const paidWithNoteAmount = calculateOrderCodAndErrors({
+    outstandingBalance: 0,
+    totalAmount: 50000,
+    notes: "50000 Ft"
+});
+assertEqual("COD Validáció - 0 Ft egyenleg + notes összeg Fizetési Anomália", paidWithNoteAmount.errors[0]?.title, "Fizetési Anomália");
+
+// 5. 250k+ rendelés üres Notes mezővel -> "Nem volt előleg? (250e+ Ft)" figyelmeztetés!
+const over250kEmptyNote = calculateOrderCodAndErrors({
+    outstandingBalance: 320000,
+    totalAmount: 320000,
+    notes: ""
+});
+assertEqual("COD Validáció - 250k+ üres notes hiba van", over250kEmptyNote.errors.length, 1);
+assertEqual("COD Validáció - 250k+ üres notes hiba címe 'Nem volt előleg? (250e+ Ft)'", over250kEmptyNote.errors[0]?.title, "Nem volt előleg? (250e+ Ft)");
+assertEqual("COD Validáció - 250k+ üres notes codAmount alapból Shopify egyenleg", over250kEmptyNote.codAmount, 320000);
+
+// 6. 250k+ rendelés 20.000 Ft előleggel csökkentett Notes összeggel -> Nincs hiba, Notes összeg érvényes!
+const over250kMinus20k = calculateOrderCodAndErrors({
+    outstandingBalance: 280000,
+    totalAmount: 280000,
+    notes: "260000 Ft uv"
+});
+assertEqual("COD Validáció - 250k+ 20k előleg levonva: Nincs hiba", over250kMinus20k.errors.length, 0);
+assertEqual("COD Validáció - 250k+ 20k előleg levonva: Notes összeg érvényes (260k)", over250kMinus20k.codAmount, 260000);
+
+// 7. 250k+ rendelés 25.000 Ft előleggel csökkentett Notes összeggel -> Nincs hiba, Notes összeg érvényes!
+const over250kMinus25k = calculateOrderCodAndErrors({
+    outstandingBalance: 300000,
+    totalAmount: 300000,
+    notes: "díjbekérő kiállítva 25e, maradt: 275.000 Ft utánvét"
+});
+assertEqual("COD Validáció - 250k+ 25k előleg levonva: Nincs hiba", over250kMinus25k.errors.length, 0);
+assertEqual("COD Validáció - 250k+ 25k előleg levonva: Notes összeg érvényes (275k)", over250kMinus25k.codAmount, 275000);
+
+// 8. 250k+ rendelés 30.000 Ft előleggel csökkentett Notes összeggel -> Nincs hiba, Notes összeg érvényes!
+const over250kMinus30k = calculateOrderCodAndErrors({
+    outstandingBalance: 310000,
+    totalAmount: 310000,
+    notes: "uv 280000"
+});
+assertEqual("COD Validáció - 250k+ 30k előleg levonva: Nincs hiba", over250kMinus30k.errors.length, 0);
+assertEqual("COD Validáció - 250k+ 30k előleg levonva: Notes összeg érvényes (280k)", over250kMinus30k.codAmount, 280000);
+
+// 9. 250k+ rendelés 40.000 Ft előleggel csökkentett Notes összeggel -> Nincs hiba, Notes összeg érvényes!
+const over250kMinus40k = calculateOrderCodAndErrors({
+    outstandingBalance: 350000,
+    totalAmount: 350000,
+    notes: "310.000 Ft"
+});
+assertEqual("COD Validáció - 250k+ 40k előleg levonva: Nincs hiba", over250kMinus40k.errors.length, 0);
+assertEqual("COD Validáció - 250k+ 40k előleg levonva: Notes összeg érvényes (310k)", over250kMinus40k.codAmount, 310000);
+
+// 10. 250k+ rendelés nem engedélyezett összegű eltéréssel (pl. 15.000 Ft) -> Utánvét Eltérés hiba!
+const over250kMinus15k = calculateOrderCodAndErrors({
+    outstandingBalance: 300000,
+    totalAmount: 300000,
+    notes: "285.000 Ft"
+});
+assertEqual("COD Validáció - 250k+ 15k eltérés (nem megengedett) hiba van", over250kMinus15k.errors.length, 1);
+assertEqual("COD Validáció - 250k+ 15k eltérés hiba címe Utánvét Eltérés", over250kMinus15k.errors[0]?.title, "Utánvét Eltérés");
+
+// 11. Bank deposit (átutalás) esetén nincs utánvét hiba generálás
+const bankDepositOrder = calculateOrderCodAndErrors({
+    outstandingBalance: 120000,
+    totalAmount: 120000,
+    notes: "",
+    isBankDeposit: true
+});
+assertEqual("COD Validáció - Bank deposit esetén isCOD false", bankDepositOrder.isCOD, false);
+assertEqual("COD Validáció - Bank deposit esetén errors üres", bankDepositOrder.errors.length, 0);
 
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 

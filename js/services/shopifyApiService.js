@@ -465,18 +465,33 @@ export const ShopifyApiService = {
                 isCOD = true;
                 codAmount = outstandingBalance;
 
-                if (!/ut[aá]nv[eé]t|\buv/i.test(notes) && noteCodAmount === null) {
-                    errors.push({
-                        id: Math.random().toString(36).substr(2, 9),
-                        type: 'cod',
-                        shopifyAmount: outstandingBalance,
-                        noteAmount: 0,
-                        title: "Lappangó Utánvét!",
-                        desc: `Shopify szerint van utánvét, de a Notes üres. Kérdéses összeg: ${outstandingBalance} Ft`
-                    });
-                } else if (noteCodAmount !== null) {
-                    if (Math.abs(outstandingBalance - noteCodAmount) <= 10) {
-                        codAmount = noteCodAmount;
+                // 250k+ rendelések ellenőrzése
+                const isOver250k = (outstandingBalance > 250000 || totalAmount > 250000);
+
+                if (noteCodAmount === null) {
+                    // Ha 250k feletti a rendelés és a Notes-ban nincs összeg, rákérdezünk az előlegre
+                    if (isOver250k) {
+                        const formattedOutstanding = new Intl.NumberFormat('hu-HU').format(outstandingBalance);
+                        errors.push({
+                            id: Math.random().toString(36).substr(2, 9),
+                            type: 'cod',
+                            shopifyAmount: outstandingBalance,
+                            noteAmount: 0,
+                            title: "Nem volt előleg? (250e+ Ft)",
+                            desc: `250.000 Ft feletti utánvét (${formattedOutstanding} Ft), de a Notes üres. Nem érkezett díjbekérős előleg?`
+                        });
+                    }
+                    // Normál (250k alatti) rendelésnél a Lappangó Utánvét kivezetve: nincs hiba, a Shopify összeg érvényes!
+                } else {
+                    const diff = outstandingBalance - noteCodAmount;
+                    const isAllowedDepositDiff = [20000, 25000, 30000, 40000].some(deposit => Math.abs(diff - deposit) <= 10);
+                    const shippingGross = Math.round(shippingFee * 1.27);
+                    const isShippingGrossDiff = Math.abs((outstandingBalance - shippingGross) - noteCodAmount) <= 10;
+
+                    if (Math.abs(diff) <= 10) {
+                        codAmount = noteCodAmount; // Teljesen egyezik (10 Ft tűréssel)
+                    } else if (isOver250k && (isAllowedDepositDiff || isShippingGrossDiff)) {
+                        codAmount = noteCodAmount; // 250k+ rendelésnél levont 20k/25k/30k/40k előleg (vagy szállítási díj): a Notes összeget vesszük figyelembe, nincs hiba!
                     } else {
                         errors.push({
                             id: Math.random().toString(36).substr(2, 9),
@@ -698,5 +713,46 @@ export const ShopifyApiService = {
         }
 
         return data;
+    },
+
+    // 6. Shopify Rendelés Kifizetettre Állítása (Mark as Paid)
+    async markOrderAsPaid({ orderId, shopifyId } = {}) {
+        try {
+            const res = await fetch('/api/shopify/mark-as-paid', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId, shopifyId })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Nem sikerült fizetettre állítani a rendelést.');
+            }
+            return data;
+        } catch (err) {
+            console.error('[ShopifyApiService markOrderAsPaid]', err);
+            throw err;
+        }
+    },
+
+    // 7. Csoportos Kifizetettre Állítás (Bulk Mark as Paid)
+    async bulkMarkOrdersAsPaid({ orders = [] } = {}) {
+        if (!Array.isArray(orders) || orders.length === 0) {
+            return { success: true, total: 0, successCount: 0, alreadyPaidCount: 0, failedCount: 0, updatedOrders: [] };
+        }
+        try {
+            const res = await fetch('/api/shopify/mark-as-paid', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orders })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Nem sikerült a csoportos fizetettre állítás.');
+            }
+            return data;
+        } catch (err) {
+            console.error('[ShopifyApiService bulkMarkOrdersAsPaid]', err);
+            throw err;
+        }
     }
 };
