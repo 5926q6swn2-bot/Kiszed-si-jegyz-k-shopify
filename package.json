@@ -1,0 +1,13 @@
+{
+  "name": "kiszedesi-jegyzek-shopify",
+  "version": "4.1.2",
+  "description": "Kiszedési jegyzék és raktári kezelő Shopify-hoz",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/unit_tests.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
