@@ -275,9 +275,18 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
                     <i class="ph-bold ph-gear" style="color: var(--primary-color);"></i>
                     PannonXP Rendszerbeállítások
                 </h2>
-                <button id="pxp-settings-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b;">
-                    <i class="ph-bold ph-x"></i>
-                </button>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button type="button" id="pxp-settings-btn-export" class="btn btn-secondary btn-sm" title="Minden beállítás mentése JSON fájlba" style="padding: 6px 12px; font-size: 12px; display: flex; align-items: center; gap: 6px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; cursor: pointer;">
+                        <i class="ph-bold ph-download-simple"></i> Mentés fájlba
+                    </button>
+                    <button type="button" id="pxp-settings-btn-import" class="btn btn-secondary btn-sm" title="Beállítások visszatöltése fájlból" style="padding: 6px 12px; font-size: 12px; display: flex; align-items: center; gap: 6px; background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; cursor: pointer;">
+                        <i class="ph-bold ph-upload-simple"></i> Visszatöltés
+                    </button>
+                    <input type="file" id="pxp-settings-file-import" accept=".json" style="display: none;">
+                    <button id="pxp-settings-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b; margin-left: 8px;">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                </div>
             </div>
             
             <div style="display: flex; gap: 4px; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 15px;">
@@ -1179,6 +1188,58 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
         renderAbbreviationsTab();
     });
     
+    // Export all settings
+    const btnExport = overlay.querySelector('#pxp-settings-btn-export');
+    if (btnExport) {
+        btnExport.addEventListener('click', () => {
+            const config = PannonXPService.exportAllSettings();
+            const jsonStr = JSON.stringify(config, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const dateStr = new Date().toISOString().slice(0, 10);
+            a.href = url;
+            a.download = `pannonxp_beallitasok_mentes_${dateStr}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            CustomDialog.alert('A teljes PannonXP beállítás (profilok, súlyok, kategóriák, rövidítések) sikeresen lementve a számítógépedre!', 'Biztonsági Mentés Sikeres', 'info');
+        });
+    }
+
+    // Import all settings
+    const btnImport = overlay.querySelector('#pxp-settings-btn-import');
+    const fileImportInput = overlay.querySelector('#pxp-settings-file-import');
+    if (btnImport && fileImportInput) {
+        btnImport.addEventListener('click', () => {
+            fileImportInput.click();
+        });
+
+        fileImportInput.addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                try {
+                    const parsed = JSON.parse(ev.target.result);
+                    await PannonXPService.importAllSettings(parsed);
+                    await CustomDialog.alert('A beállítások sikeresen visszaállítva a fájlból, és elmentve a helyi tárhelyre, a szerverre és a felhőbe is!', 'Visszaállítás Sikeres', 'info');
+                    overlay.remove();
+                    showSettingsModal(container, orders, onExport, mainViewContext);
+                    if (mainViewContext && typeof mainViewContext.render === 'function') {
+                        mainViewContext.render(container, orders, onExport);
+                    }
+                } catch (err) {
+                    await CustomDialog.alert('Hiba a fájl betöltésekor: ' + err.message, 'Hiba', 'error');
+                }
+            };
+            reader.readAsText(file);
+            fileImportInput.value = '';
+        });
+    }
+
     overlay.querySelector('#pxp-settings-close').addEventListener('click', () => {
         overlay.remove();
     });

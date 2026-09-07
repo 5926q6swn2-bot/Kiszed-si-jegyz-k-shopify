@@ -12,13 +12,13 @@ import { initManualOrderController } from './controllers/manualOrderController.j
 import { renderStatistics } from './views/stats.js';
 import { ExporterService } from './services/exporter.js';
 import { AuditView } from './views/auditView.js';
-import { OrderOverviewView } from './views/orderOverviewView.js?v=4.4.0';
+import { OrderOverviewView } from './views/orderOverviewView.js?v=4.4.4';
 import { SelaExportModal } from './views/selaExportModal.js';
 import { SelaMissingWeightsModal } from './views/selaMissingWeightsModal.js';
 import { ShopifyApiService } from './services/shopifyApiService.js';
 import { generatePdfHtml, openPdfView, generateDeliveryNotesHtml } from './utils/printTemplates.js';
 import { getPaymentDetails, getRunPaymentTotals } from './utils/paymentUtils.js';
-import { filterOrdersWithoutInvoice } from './utils/orderUtils.js';
+import { filterOrdersWithoutInvoice, getOrdersInSelectionOrder } from './utils/orderUtils.js';
 function initApp() {
     console.log("KOPJ Rendszer: app.js elindult");
 
@@ -237,7 +237,7 @@ function initApp() {
             // Párhuzamosan lekérjük a Shopify élő rendeléseket és a Firebase-ben lévő kiszállítási járatokat
             const [res, savedRuns] = await Promise.all([
                 ShopifyApiService.fetchLiveOrders({ limit: 250 }),
-                HistoryManager.getAllRuns().catch(err => {
+                HistoryManager.getAllRuns(isManual).catch(err => {
                     console.warn('[HistoryManager getAllRuns error]', err);
                     return [];
                 })
@@ -578,12 +578,13 @@ function initApp() {
                 const selectedIds = Store.selectedHubOrderIds;
                 if (selectedIds.size === 0) return;
 
-                const selectedOrders = Store.shopifyHubOrders.filter(o => selectedIds.has(o.id));
+                // A felhasználói kijelölés PONTOS sorrendjének figyelembevétele
+                const selectedOrders = getOrdersInSelectionOrder(Store.shopifyHubOrders, selectedIds);
                 // Klónozzuk a rendeléseket, hogy a szedőlistán függetlenül módosíthatóak legyenek
                 const clonedOrders = JSON.parse(JSON.stringify(selectedOrders));
                 
                 Store.setOrders(clonedOrders);
-                CustomDialog.alert(`${clonedOrders.length} db rendelés sikeresen átkerült a Szedőlistába!`, 'Áthelyezés Sikeres', 'success');
+                CustomDialog.alert(`${clonedOrders.length} db rendelés sikeresen átkerült a Szedőlistába a kiválasztott sorrendben!`, 'Áthelyezés Sikeres', 'success');
                 switchMainTab('picking');
             });
         }
@@ -594,7 +595,7 @@ function initApp() {
                 const selectedIds = Store.selectedHubOrderIds;
                 if (selectedIds.size === 0) return;
 
-                const selectedOrders = Store.shopifyHubOrders.filter(o => selectedIds.has(o.id));
+                const selectedOrders = getOrdersInSelectionOrder(Store.shopifyHubOrders, selectedIds);
                 const clonedPxpOrders = JSON.parse(JSON.stringify(selectedOrders)).map(o => ({
                     ...o,
                     pxp_selected: true
@@ -616,7 +617,7 @@ function initApp() {
                     return;
                 }
 
-                const selectedOrders = Store.shopifyHubOrders.filter(o => selectedIds.has(o.id));
+                const selectedOrders = getOrdersInSelectionOrder(Store.shopifyHubOrders, selectedIds);
                 if (selectedOrders.length === 0) {
                     CustomDialog.alert('A kijelölt rendelések nem találhatók az aktuális listában!', 'Hiba', 'warning');
                     return;

@@ -101,6 +101,36 @@ function normalizeMappings(mappings) {
 
 export const PannonXPService = {
     sanitizeAbbreviation: sanitizeAbbreviation,
+
+    async saveToServerBackup(payload) {
+        if (typeof window !== 'undefined' && window.location && !window.location.hostname.includes('github.io')) {
+            try {
+                await fetch('/api/settings/pxp-all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } catch (err) {
+                console.warn('[PXP Server Backup Warning]', err);
+            }
+        }
+    },
+
+    async fetchServerBackup() {
+        if (typeof window !== 'undefined' && window.location && !window.location.hostname.includes('github.io')) {
+            try {
+                const res = await fetch('/api/settings/pxp-all');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.success) return data;
+                }
+            } catch (err) {
+                console.warn('[PXP Server Fetch Warning]', err);
+            }
+        }
+        return null;
+    },
+
     async initializeAllSettings() {
         try {
             await Promise.all([
@@ -177,14 +207,29 @@ export const PannonXPService = {
             this.consolidateMappings(newMappings);
             
             mappingsCache = newMappings;
+            localStorage.setItem('pxp_product_mappings', JSON.stringify(newMappings));
             
             // Save mappings to cloud if we migrated or if deduplication/consolidation changed the structure
             await setDoc(docRef, { mappings: newMappings });
             
             return newMappings;
         } catch (e) {
-            console.error("Hiba a felhős termék rövidítések betöltésekor:", e);
-            mappingsCache = mappingsCache || {};
+            console.warn("Hiba a felhős termék rövidítések betöltésekor, helyi tároló használata:", e);
+            let localMappings = null;
+            const stored = localStorage.getItem('pxp_product_mappings');
+            if (stored) {
+                try {
+                    localMappings = JSON.parse(stored);
+                } catch (err) {}
+            }
+            if (!localMappings) {
+                const serverData = await this.fetchServerBackup();
+                if (serverData && serverData.mappings) {
+                    localMappings = serverData.mappings;
+                    localStorage.setItem('pxp_product_mappings', JSON.stringify(localMappings));
+                }
+            }
+            mappingsCache = localMappings || mappingsCache || {};
             return mappingsCache;
         }
     },
@@ -274,6 +319,8 @@ export const PannonXPService = {
         } catch (e) {
             console.error("Hiba a felhős mentéskor:", e);
         }
+
+        await this.saveToServerBackup({ mappings });
     },
 
     async registerMissingProducts(orders) {
@@ -347,10 +394,33 @@ export const PannonXPService = {
             
             profilesCache = profiles;
             activeProfileIdCache = activeProfileId;
+            if (profiles) localStorage.setItem('pxp_sender_profiles', JSON.stringify(profiles));
+            if (activeProfileId) localStorage.setItem('pxp_active_profile_id', activeProfileId);
         } catch (e) {
-            console.error("Hiba a felhős feladó profilok betöltésekor:", e);
-            profilesCache = profilesCache || this.getDefaultProfiles();
-            activeProfileIdCache = activeProfileIdCache || 'capsula';
+            console.warn("Hiba a felhős feladó profilok betöltésekor, helyi tároló használata:", e);
+            let profiles = null;
+            let activeProfileId = null;
+            const localProfiles = localStorage.getItem('pxp_sender_profiles');
+            const localActiveId = localStorage.getItem('pxp_active_profile_id');
+            if (localProfiles) {
+                try {
+                    profiles = JSON.parse(localProfiles);
+                } catch (err) {}
+            }
+            if (localActiveId) {
+                activeProfileId = localActiveId;
+            }
+            if (!profiles) {
+                const serverData = await this.fetchServerBackup();
+                if (serverData && serverData.profiles && serverData.profiles.length > 0) {
+                    profiles = serverData.profiles;
+                    activeProfileId = serverData.activeProfileId || profiles[0].id;
+                    localStorage.setItem('pxp_sender_profiles', JSON.stringify(profiles));
+                    if (activeProfileId) localStorage.setItem('pxp_active_profile_id', activeProfileId);
+                }
+            }
+            profilesCache = profiles || profilesCache || this.getDefaultProfiles();
+            activeProfileIdCache = activeProfileId || activeProfileIdCache || 'capsula';
         }
     },
 
@@ -418,6 +488,8 @@ export const PannonXPService = {
         } catch (e) {
             console.error("Hiba a feladó profilok felhőbe mentésekor:", e);
         }
+
+        await this.saveToServerBackup({ profiles, activeProfileId: activeProfileIdCache || 'capsula' });
     },
 
     getActiveProfileId() {
@@ -437,6 +509,8 @@ export const PannonXPService = {
         } catch (e) {
             console.error("Hiba az aktív profil ID felhőbe mentésekor:", e);
         }
+
+        await this.saveToServerBackup({ activeProfileId: id });
     },
 
     getActiveProfile() {
@@ -475,9 +549,29 @@ export const PannonXPService = {
             }
             
             rulesCache = rules;
+            if (rules) localStorage.setItem('pxp_packaging_rules', JSON.stringify(rules));
         } catch (e) {
-            console.error("Hiba a felhős csomagolási szabályok betöltésekor:", e);
-            rulesCache = rulesCache || { categories: this.getDefaultCategories() };
+            console.warn("Hiba a felhős csomagolási szabályok betöltésekor, helyi tároló használata:", e);
+            let rules = null;
+            const localRules = localStorage.getItem('pxp_packaging_rules');
+            if (localRules) {
+                try {
+                    const parsed = JSON.parse(localRules);
+                    if (parsed && parsed.categories) {
+                        rules = parsed;
+                    } else {
+                        rules = this.migrateOldRulesToCategories(parsed);
+                    }
+                } catch (err) {}
+            }
+            if (!rules) {
+                const serverData = await this.fetchServerBackup();
+                if (serverData && serverData.packagingRules) {
+                    rules = serverData.packagingRules;
+                    localStorage.setItem('pxp_packaging_rules', JSON.stringify(rules));
+                }
+            }
+            rulesCache = rules || rulesCache || { categories: this.getDefaultCategories() };
         }
     },
 
@@ -665,6 +759,8 @@ export const PannonXPService = {
         } catch (e) {
             console.error("Hiba a csomagolási szabályok felhőbe mentésekor:", e);
         }
+
+        await this.saveToServerBackup({ packagingRules: rules });
     },
 
     // A PannonXP CSV oszlopainak listája (pontosan 54 oszlop)
@@ -1065,5 +1161,48 @@ export const PannonXPService = {
             str = '"' + str.replace(/"/g, '""') + '"';
         }
         return str;
+    },
+
+    exportAllSettings() {
+        return {
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            senderProfiles: this.getSenderProfiles(),
+            activeProfileId: this.getActiveProfileId(),
+            packagingRules: this.getPackagingRules(),
+            productMappings: this.getProductMappings()
+        };
+    },
+
+    async importAllSettings(data) {
+        if (!data || typeof data !== 'object') {
+            throw new Error('Érvénytelen konfigurációs fájl!');
+        }
+
+        let updated = false;
+
+        if (Array.isArray(data.senderProfiles) && data.senderProfiles.length > 0) {
+            await this.saveSenderProfiles(data.senderProfiles);
+            if (data.activeProfileId) {
+                await this.setActiveProfileId(data.activeProfileId);
+            }
+            updated = true;
+        }
+
+        if (data.packagingRules && Array.isArray(data.packagingRules.categories)) {
+            await this.savePackagingRules(data.packagingRules);
+            updated = true;
+        }
+
+        if (data.productMappings && typeof data.productMappings === 'object') {
+            await this.saveProductMappings(data.productMappings);
+            updated = true;
+        }
+
+        if (!updated) {
+            throw new Error('A fájl nem tartalmaz felismerhető PannonXP beállításokat.');
+        }
+
+        return true;
     }
 };

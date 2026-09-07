@@ -1,11 +1,19 @@
 import { db, auth, collection, query, orderBy, getDocs, addDoc, getDoc, setDoc, deleteDoc, updateDoc, doc, where, limit, deleteField, writeBatch, arrayUnion, arrayRemove, increment } from '../firebase-config.js';
 import { getPaymentDetails } from '../utils/paymentUtils.js';
 
+let runsCache = null;
+let lastRunsFetchTime = 0;
+const RUNS_CACHE_TTL = 5 * 60 * 1000; // 5 perces gyorsítótár
+
 export const HistoryManager = {
         COLLECTION_NAME: 'szedolista_history',
         TRASH_COLLECTION_NAME: 'szedolista_trash',
         
-        getAllRuns: async function() {
+        getAllRuns: async function(forceRefresh = false) {
+            const now = Date.now();
+            if (!forceRefresh && runsCache && (now - lastRunsFetchTime < RUNS_CACHE_TTL)) {
+                return runsCache;
+            }
             try {
                 const q = query(collection(db, this.COLLECTION_NAME), orderBy('timestamp', 'desc'));
                 const querySnapshot = await getDocs(q);
@@ -18,11 +26,19 @@ export const HistoryManager = {
                         docId: docSnap.id
                     });
                 });
+                runsCache = runs;
+                lastRunsFetchTime = now;
                 return runs;
             } catch (e) {
                 console.error("Hiba a Firebase lekérdezésnél: ", e);
+                if (runsCache) return runsCache;
                 return [];
             }
+        },
+
+        invalidateCache: function() {
+            runsCache = null;
+            lastRunsFetchTime = 0;
         },
         
         saveRun: async function(date, pickupDate, courier, company, sender, ordersList) {
@@ -42,6 +58,7 @@ export const HistoryManager = {
             try {
                 const docRef = await addDoc(collection(db, this.COLLECTION_NAME), newRun);
                 newRun.docId = docRef.id;
+                this.invalidateCache();
                 return newRun;
             } catch (e) {
                 console.error("Hiba a mentésnél: ", e);
@@ -98,6 +115,7 @@ export const HistoryManager = {
                     
                     // 2. Törlés az eredeti helyről
                     await deleteDoc(doc(db, this.COLLECTION_NAME, runToMove.docId));
+                    this.invalidateCache();
                     return true;
                 } catch(e) {
                     console.error("Hiba a szemetesbe mozgatásnál: ", e);
@@ -139,6 +157,7 @@ export const HistoryManager = {
                     
                     // 2. Törlés a szemetesből
                     await deleteDoc(docRef);
+                    this.invalidateCache();
                     return true;
                 }
             } catch (e) {
@@ -150,6 +169,7 @@ export const HistoryManager = {
         permanentDeleteRun: async function(docId) {
             try {
                 await deleteDoc(doc(db, this.TRASH_COLLECTION_NAME, docId));
+                this.invalidateCache();
                 return true;
             } catch (e) {
                 console.error("Hiba a végleges törlésnél: ", e);
@@ -216,6 +236,7 @@ export const HistoryManager = {
                 if (paymentMethods) updateData.paymentMethods = paymentMethods;
 
                 await updateDoc(docRef, updateData);
+                this.invalidateCache();
                 return true;
             } catch (e) {
                 console.error("Hiba az elszámolás állapot frissítésénél: ", e);
@@ -280,6 +301,7 @@ export const HistoryManager = {
                 updateData.isTransferSettled = allTransferSettled;
                 
                 await updateDoc(docRef, updateData);
+                this.invalidateCache();
                 return true;
             } catch (e) {
                 console.error("Hiba a fizetési csoport elszámolásánál: ", e);
@@ -293,6 +315,7 @@ export const HistoryManager = {
                 await updateDoc(docRef, {
                     [`uncollectedResponsibility.${orderId}`]: responsibility
                 });
+                this.invalidateCache();
                 return true;
             } catch (e) {
                 console.error("Hiba a felelősség frissítésénél: ", e);
@@ -321,6 +344,7 @@ export const HistoryManager = {
                     [`uncollectedReasons.${orderId}`]: deleteField(),
                     [`uncollectedResponsibility.${orderId}`]: deleteField()
                 });
+                this.invalidateCache();
                 return true;
             } catch (e) {
                 console.error("Hiba a banki utalás rögzítésénél: ", e);
@@ -341,6 +365,7 @@ export const HistoryManager = {
                     shopifyPaidOrderIds: Array.from(existing),
                     shopifyPaidUpdatedAt: Date.now()
                 });
+                this.invalidateCache();
                 return true;
             } catch (e) {
                 console.error("Hiba a shopifyPaidOrderIds frissítésénél: ", e);
@@ -367,6 +392,7 @@ export const HistoryManager = {
                     transferSettledAt: deleteField(),
                     paymentStatusMap: deleteField()
                 });
+                this.invalidateCache();
                 return true;
             } catch (e) {
                 console.error("Hiba a visszaállításnál: ", e);
@@ -395,6 +421,7 @@ export const HistoryManager = {
                         modifiedAt: Date.now(),
                         modifyCount: increment(1)
                     });
+                    this.invalidateCache();
                     return true;
                 } catch(e) {
                     console.error("Hiba a frissítésnél: ", e);

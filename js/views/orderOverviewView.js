@@ -477,7 +477,7 @@ export const OrderOverviewView = {
 
         // HTML Felépítés (Szuper Kompakt, Áramvonalas Elrendezés)
         containerElement.innerHTML = `
-            <div class="overview-layout" style="padding: 6px 14px 70px 300px; max-width: 1540px; margin: 0 auto; width: 100%;">
+            <div class="overview-layout" style="padding: 6px 14px 140px 300px; max-width: 1540px; margin: 0 auto; width: 100%;">
                 
                 <!-- 1. PRÉMIUM EGYBEÉPÍTETT FEJLÉC SÁV (Fülek, Keresés, Szűrők, Frissítés) -->
                 <div style="background: #fff; padding: 5px 8px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">

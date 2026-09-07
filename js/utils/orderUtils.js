@@ -197,12 +197,51 @@ export function isPickupOrder(order) {
 }
 
 /**
+ * Ellenőrzi, hogy egy tétel padlózat-e (pl. SPC padló, laminált padló).
+ * Akusztikus panelek, ragasztók és falpanelek kizárva.
+ * 
+ * @param {Object} item
+ * @returns {boolean}
+ */
+export function isFloorItem(item) {
+    if (!item) return false;
+    const name = String(item.name || item.title || '').trim();
+    const sku = String(item.sku || '').trim();
+    const text = `${name} ${sku}`.toLowerCase();
+
+    // 0. Explicit kizárások
+    if (text.includes('mamut') || text.includes('fix all')) return false;
+    if (text.includes('akusztik') || text.includes('akupanel') || /\baku\b/i.test(text)) return false;
+
+    // Padlózat felismerés (szavak: padló, padlo, padlózat, padlozat, vagy SPC/vinyl + wood/stone/parketta)
+    const isFloor = /padl[óo]zat|padl[óo]/i.test(text) ||
+                    ((text.includes('spc') || text.includes('vinyl')) && (text.includes('wood') || text.includes('stone') || text.includes('parketta')));
+
+    return Boolean(isFloor);
+}
+
+/**
+ * Ellenőrzi, hogy egy tétel nagyméretű PVC vagy SPC falpanel-e (PB, TR, LJ, falburkolat stb.).
+ * Akusztikus panelek és padlók kizárva!
+ * 
+ * @param {Object} item
+ * @returns {boolean}
+ */
+export function isWallPanelItem(item) {
+    if (!item) return false;
+    if (isFloorItem(item)) return false;
+    return isPvcSpcOrFloorItem(item);
+}
+
+/**
  * Ellenőrzi, hogy egy nyitott rendelés automatikusan jogosult-e a PannonXP címkére.
  * Feltételek:
  * 1. Nem törölt és nem teljesített (unfulfilled / partial).
  * 2. Nem személyes átvétel.
  * 3. Még nincs rajta sem PannonXP/PXP, sem Sela megr., sem terítésben tag.
- * 4. Van benne tétel, és EGYETLEN tétele sem PVC/SPC falpanel vagy padlózat.
+ * 4. Van benne tétel.
+ * 5. EGYETLEN tétele sem nagyméretű PVC/SPC falpanel (PB, TR, LJ, falburkolat).
+ * 6. Padlózatból legfeljebb 2 darab (<= 2 db) van a rendelésben (szabály: max 2 padlózat még kiküldhető PannonXP-vel).
  * 
  * @param {Object} order
  * @returns {boolean}
@@ -230,9 +269,22 @@ export function isEligibleForAutoPannonXp(order) {
     const items = order.line_items || order.items || [];
     if (items.length === 0) return false;
 
-    // Ha bármelyik tétel PVC/SPC falpanel vagy padlózat -> NEM jogosult
-    const hasLarge = items.some(isPvcSpcOrFloorItem);
-    if (hasLarge) return false;
+    // Ha bármelyik tétel nagyméretű PVC/SPC falpanel -> SZIGORÚAN KIZÁRVA
+    const hasWallPanel = items.some(isWallPanelItem);
+    if (hasWallPanel) return false;
+
+    // Padlózatok darabszámának összesítése: max 2 db megengedett
+    let floorCount = 0;
+    for (const item of items) {
+        if (isFloorItem(item)) {
+            const qty = Number(item.quantity ?? item.qty ?? 1) || 1;
+            floorCount += qty;
+        }
+    }
+
+    if (floorCount > 2) {
+        return false;
+    }
 
     return true;
 }
@@ -533,4 +585,29 @@ export function checkInvalidDeliveryAddress(order) {
     if (!hasHouseNumber) return true;
 
     return false;
+}
+
+/**
+ * Visszaadja a kiválasztott rendeléseket a felhasználói kijelölés PONTOS sorrendjében.
+ * (A Set vagy Array beszúrási sorrendjét követi a táblázat alapértelmezett sorrendje helyett).
+ * 
+ * @param {Array} allOrders - Az összes elérhető rendelés tömbje
+ * @param {Set|Array} selectedIds - A kiválasztott rendelések azonosítói
+ * @returns {Array} - A kijelölés sorrendjében rendezett rendelés objektumok
+ */
+export function getOrdersInSelectionOrder(allOrders, selectedIds) {
+    if (!Array.isArray(allOrders) || !selectedIds) return [];
+    const idList = Array.from(selectedIds);
+    if (idList.length === 0) return [];
+
+    const orderMap = new Map();
+    allOrders.forEach(o => {
+        if (o && o.id) {
+            orderMap.set(String(o.id), o);
+        }
+    });
+
+    return idList
+        .map(id => orderMap.get(String(id)))
+        .filter(Boolean);
 }

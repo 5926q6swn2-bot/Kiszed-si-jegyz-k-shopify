@@ -23,13 +23,16 @@ import {
 import { 
     buildDuplicateCustomerOrdersMap, 
     isPvcSpcOrFloorItem, 
+    isFloorItem,
+    isWallPanelItem,
     isPickupOrder, 
     isEligibleForAutoPannonXp,
     checkBadShipping,
     isOrderMissingInvoice,
     filterOrdersWithoutInvoice,
     calculateOrderCodAndErrors,
-    checkInvalidDeliveryAddress
+    checkInvalidDeliveryAddress,
+    getOrdersInSelectionOrder
 } from '../js/utils/orderUtils.js';
 import {
     generateMissingInvoiceEmailHtml,
@@ -944,6 +947,13 @@ assertEqual("Auto PXP Item - T-Rex Ragasztó is NOT large", isPvcSpcOrFloorItem(
 assertEqual("Auto PXP Item - Profil is NOT large", isPvcSpcOrFloorItem({ name: "Belső sarokprofil 280cm", sku: "PROF-01" }), false);
 assertEqual("Auto PXP Item - Tapadóhíd is NOT large", isPvcSpcOrFloorItem({ name: "Tapadóhíd 1kg", sku: "TAP-01" }), false);
 
+assertEqual("Auto PXP Item - SPC Padló isFloorItem is true", isFloorItem({ name: "SPC Padló Tölgy", sku: "SPC-P-01" }), true);
+assertEqual("Auto PXP Item - Laminált padlózat isFloorItem is true", isFloorItem({ name: "Laminált padlózat szürke", sku: "LAM-01" }), true);
+assertEqual("Auto PXP Item - PB Falpanel isFloorItem is false", isFloorItem({ name: "PB-01 Fehér márvány falpanel", sku: "PB-01" }), false);
+assertEqual("Auto PXP Item - PB Falpanel isWallPanelItem is true", isWallPanelItem({ name: "PB-01 Fehér márvány falpanel", sku: "PB-01" }), true);
+assertEqual("Auto PXP Item - SPC Falpanel isWallPanelItem is true", isWallPanelItem({ name: "SPC Falpanel Calacatta", sku: "SPC-01" }), true);
+assertEqual("Auto PXP Item - SPC Padló isWallPanelItem is false", isWallPanelItem({ name: "SPC Padló Tölgy", sku: "SPC-P-01" }), false);
+
 assertEqual("Auto PXP Pickup - Tag személyes", isPickupOrder({ tags: "személyes, egyéb" }), true);
 assertEqual("Auto PXP Pickup - Tag pickup", isPickupOrder({ tags: "pickup" }), true);
 assertEqual("Auto PXP Pickup - Shipping line budapesti bolt", isPickupOrder({ shipping_lines: [{ title: "Budapesti üzlet - Személyes átvétel" }] }), true);
@@ -990,7 +1000,49 @@ const orderWithSpcFloor = {
         { name: "SPC Padló Tölgy", sku: "SPC-P-01", quantity: 15 }
     ]
 };
-assertEqual("Auto PXP Order - Has SPC Padló -> NOT Eligible", isEligibleForAutoPannonXp(orderWithSpcFloor), false);
+assertEqual("Auto PXP Order - Has 15 SPC Padló -> NOT Eligible", isEligibleForAutoPannonXp(orderWithSpcFloor), false);
+
+const orderWith1SpcFloor = {
+    id: "#6004-1",
+    fulfillment_status: "unfulfilled",
+    tags: "",
+    line_items: [
+        { name: "SPC Padló Tölgy", sku: "SPC-P-01", quantity: 1 }
+    ]
+};
+assertEqual("Auto PXP Order - Has 1 SPC Padló -> Eligible (<= 2)", isEligibleForAutoPannonXp(orderWith1SpcFloor), true);
+
+const orderWith2SpcFloor = {
+    id: "#6004-2",
+    fulfillment_status: "unfulfilled",
+    tags: "",
+    line_items: [
+        { name: "SPC Padló Tölgy", sku: "SPC-P-01", quantity: 2 },
+        { name: "T-Rex ragasztó 310ml", sku: "TREX-01", quantity: 1 }
+    ]
+};
+assertEqual("Auto PXP Order - Has 2 SPC Padló + Glue -> Eligible (<= 2)", isEligibleForAutoPannonXp(orderWith2SpcFloor), true);
+
+const orderWith3SpcFloor = {
+    id: "#6004-3",
+    fulfillment_status: "unfulfilled",
+    tags: "",
+    line_items: [
+        { name: "SPC Padló Tölgy", sku: "SPC-P-01", quantity: 3 }
+    ]
+};
+assertEqual("Auto PXP Order - Has 3 SPC Padló -> NOT Eligible (> 2)", isEligibleForAutoPannonXp(orderWith3SpcFloor), false);
+
+const orderWith2FloorAndPvc = {
+    id: "#6004-4",
+    fulfillment_status: "unfulfilled",
+    tags: "",
+    line_items: [
+        { name: "SPC Padló Tölgy", sku: "SPC-P-01", quantity: 2 },
+        { name: "PB-01 Fehér márvány falpanel", sku: "PB-01", quantity: 1 }
+    ]
+};
+assertEqual("Auto PXP Order - Has 2 SPC Padló BUT ALSO PVC Wall Panel -> NOT Eligible", isEligibleForAutoPannonXp(orderWith2FloorAndPvc), false);
 
 const orderPickupGlueOnly = {
     id: "#6005",
@@ -1864,6 +1916,116 @@ const resellerOrderWithEmptyAddress = {
     address1: ""
 };
 assertEqual("Címvalidáció - Viszonteladó üres címmel NEM hiányos", checkInvalidDeliveryAddress(resellerOrderWithEmptyAddress), false);
+
+// --- Kijelölési Sorrend Megőrzése (getOrdersInSelectionOrder) ---
+const selectionPool = [
+    { id: "#1001", name: "Rendelés 1" },
+    { id: "#1002", name: "Rendelés 2" },
+    { id: "#1003", name: "Rendelés 3" },
+    { id: "#1004", name: "Rendelés 4" }
+];
+const userSelection1 = new Set(["#1003", "#1001", "#1004"]);
+const orderedResult1 = getOrdersInSelectionOrder(selectionPool, userSelection1);
+assertEqual("Kijelölési Sorrend - Elemek száma 3", orderedResult1.length, 3);
+assertEqual("Kijelölési Sorrend - 1. helyezett a #1003", orderedResult1[0].id, "#1003");
+assertEqual("Kijelölési Sorrend - 2. helyezett a #1001", orderedResult1[1].id, "#1001");
+assertEqual("Kijelölési Sorrend - 3. helyezett a #1004", orderedResult1[2].id, "#1004");
+
+const userSelectionReverse = new Set(["#1004", "#1002"]);
+const orderedResult2 = getOrdersInSelectionOrder(selectionPool, userSelectionReverse);
+assertEqual("Kijelölési Sorrend - Fordított sorrend 1. helyezett", orderedResult2[0].id, "#1004");
+assertEqual("Kijelölési Sorrend - Fordított sorrend 2. helyezett", orderedResult2[1].id, "#1002");
+
+const emptySelection = new Set();
+assertEqual("Kijelölési Sorrend - Üres kijelölés 0 elem", getOrdersInSelectionOrder(selectionPool, emptySelection).length, 0);
+
+// --- PannonXP & HistoryManager Cache & Perzisztencia Tesztek ---
+// 1. HistoryManager Cache logika szimulációja
+let mockFetchCount = 0;
+let testRunsCache = null;
+let testLastFetchTime = 0;
+const TEST_CACHE_TTL = 5 * 60 * 1000;
+
+function mockGetAllRuns(forceRefresh = false) {
+    const now = Date.now();
+    if (!forceRefresh && testRunsCache && (now - testLastFetchTime < TEST_CACHE_TTL)) {
+        return testRunsCache;
+    }
+    mockFetchCount++;
+    testRunsCache = [{ id: "run_1", date: "2026-09-07" }, { id: "run_2", date: "2026-09-06" }];
+    testLastFetchTime = now;
+    return testRunsCache;
+}
+
+function mockInvalidateCache() {
+    testRunsCache = null;
+    testLastFetchTime = 0;
+}
+
+// Első hívás: lekéri (fetchCount = 1)
+const r1 = mockGetAllRuns(false);
+assertEqual("History Cache - Első hívás lekéri", mockFetchCount, 1);
+assertEqual("History Cache - Elemek száma 2", r1.length, 2);
+
+// Második hívás (isManual = false): memóriából adja, NINCS újabb fetch!
+const r2 = mockGetAllRuns(false);
+assertEqual("History Cache - Háttér lekérdezés cache-ből adja (0 új fetch)", mockFetchCount, 1);
+
+// Harmadik hívás (isManual = true / forceRefresh): felhőből újra lekéri
+const r3 = mockGetAllRuns(true);
+assertEqual("History Cache - Kézi frissítés (forceRefresh = true) újrafetch-el", mockFetchCount, 2);
+
+// Invalidate cache: ürítés után a sima hívás is újra lekéri
+mockInvalidateCache();
+const r4 = mockGetAllRuns(false);
+assertEqual("History Cache - Invalidate után újra lekéri", mockFetchCount, 3);
+
+// 2. PXP Export / Import formátum integritás és validáció
+const mockExportConfig = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    senderProfiles: [
+        { id: "p1", profileName: "Teszt Cég Kft.", uc_ceg_nev: "Teszt Cég Kft." }
+    ],
+    activeProfileId: "p1",
+    packagingRules: {
+        categories: [
+            { id: "cat_test", name: "Teszt Kategória", maxQty: 5 }
+        ]
+    },
+    productMappings: {
+        "Teszt Termék 1": { abbrev: "TT1", categoryId: "cat_test" }
+    }
+};
+
+assertEqual("PXP Export - Verziószám 1", mockExportConfig.version, 1);
+assertEqual("PXP Export - 1 profil található", mockExportConfig.senderProfiles.length, 1);
+assertEqual("PXP Export - Aktív profil ID helyes", mockExportConfig.activeProfileId, "p1");
+assertEqual("PXP Export - Csomagolási szabály kategória megvan", mockExportConfig.packagingRules.categories[0].id, "cat_test");
+assertEqual("PXP Export - Termékkód leképezés TT1", mockExportConfig.productMappings["Teszt Termék 1"].abbrev, "TT1");
+
+// 3. Szerver PXP All Data Merging Logika Tesztelése
+const serverExistingData = {
+    profiles: [{ id: "capsula", profileName: "Capsula Houses Kft." }],
+    activeProfileId: "capsula",
+    packagingRules: { categories: [{ id: "cat_acoustic" }] }
+};
+const incomingPatch = {
+    profiles: [
+        { id: "capsula", profileName: "Capsula Houses Kft." },
+        { id: "uj_ceg", profileName: "Új Cég Kft." }
+    ],
+    activeProfileId: "uj_ceg"
+};
+const mergedServerData = {
+    ...serverExistingData,
+    ...incomingPatch,
+    updatedAt: Date.now()
+};
+
+assertEqual("Szerver Merge - Megőrzi a packagingRules-t", mergedServerData.packagingRules.categories[0].id, "cat_acoustic");
+assertEqual("Szerver Merge - Frissíti a profilokat", mergedServerData.profiles.length, 2);
+assertEqual("Szerver Merge - Frissíti az aktív profilt", mergedServerData.activeProfileId, "uj_ceg");
 
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 

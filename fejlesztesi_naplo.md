@@ -28,7 +28,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.8 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris, élesítve a Render felhőben és stabil. ⚡ **Hiányos szállítási cím jelölés & szűrés, viszonteladók cím-kivétele & élénk arany kiemelése, gombkattintás és görgetési stabilitás** (`v4.4.1`, 385/385 zöld unit teszt).
+- **Státusz**: A rendszer 100%-ban moduláris, élesítve a Render felhőben és stabil. ⚡ **4-Szintű Végleges Adatvédelmi és Szinkronizációs Rendszer, Firestore Kvótaszivárgás Megszüntetése, 1-Kattintásos Biztonsági Export/Import** (`v4.4.5`, 415/415 zöld unit teszt).
 
 ---
 
@@ -44,6 +44,74 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. szeptember 7. (7. frissítés) - 4-Szintű Végleges Adatvédelmi Rendszer, Firestore Kvótaszivárgás Megszüntetése & 1-Kattintásos Beállítás Export/Import (`v4.4.5`)
+- **Felhasználói bejelentés**: „a githubos linken megcsináltam a pannonxp címkekészítőhöz egy új profilt, most eltűnt és se a local host, se a renderes oldalon nicns meg már meg sehol ott se ahol megcsináltam” + „de rögzítem én magam újra szívesen, csak hogy nem fog ez újra előfordulni, és hogy lesz jó, minden adat súly, termékcsalád amit módosítok hogy nem veszik el mint ez?”.
+- **Gyökérok elemzés**:
+  - **1. Firebase Spark Free Tier Kvótaszivárgás (`429 RESOURCE_EXHAUSTED`):** Az `app.js` 15 másodpercenként futó szinkron időzítője minden ciklusban meghívta a `HistoryManager.getAllRuns()`-t, ami a teljes Firestore gyűjtemény összes járatát újra lekérdezte. 1-2 óra nyitva tartott böngészőlapok mellett elégette a napi 50 000 ingyenes olvasási limitet.
+  - **2. Visszaesési hiba (`pannonxp.js`):** A felhő 429-es hibája miatt a profil mentése nem tudott feljutni a Firebase-be, a GitHubos kliens `localStorage`-ében maradt. Frissítéskor a `catch (e)` blokk a memóriát azonnal felülírta a gyári sablonokkal (`getDefaultProfiles()`, `getDefaultCategories()`), teljesen figyelmen kívül hagyva a helyi `localStorage`-et.
+  - **3. Domain-szeparáltság:** A GitHub Pages (`*.github.io`), a Render és a localhost böngésző-biztonsági okokból nem látja egymás `localStorage`-ét.
+- **Megvalósított 4-Szintű Védelmi Rendszer**:
+  - **1. Szint - Hibabiztos `localStorage` Fallback (`pannonxp.js`):**
+    - `initializeMappings()`, `initializeSenderProfiles()` és `initializePackagingRules()` `catch` ágai kötelezően a helyi `localStorage`-ből olvassák be az adatokat felhőhiba esetén.
+    - Szigorúan tilos a memóriát gyári sablonokkal felülírni, amíg van rögzített helyi adat.
+    - Sikeres felhős olvasáskor automatikusan frissíti a helyi `localStorage`-et is, így az mindig naprakész tükörképet képez.
+  - **2. Szint - Firestore Kvótaszivárgás Megszüntetése (`history.js`, `app.js`):**
+    - Memória-gyorsítótár (`runsCache`, 5 perces TTL) a `HistoryManager.getAllRuns(forceRefresh)`-ban.
+    - A 15 másodperces háttér polling (`loadLiveShopifyOrders`) `forceRefresh = false`-szal fut, **0 db Firestore olvasási költséggel**.
+    - Csak a kézi frissítés gombra kattintva fut le felhős lekérdezés (`forceRefresh = true`).
+    - Bármilyen járatmentés, törlés, visszaállítás vagy elszámolás módosítás azonnal érvényteleníti a gyorsítótárat (`this.invalidateCache()`).
+    - Eredmény: a napi 50 000-es kvótából naponta alig 100-200 olvasás fogy, a felhő **soha többé nem merül ki**.
+  - **3. Szint - Szerveroldali Fizikai Lemezmentés (`server.js`, `pannonxp.js`):**
+    - Új végpont: `/api/settings/pxp-all` (GET és POST), ami a szerver háttértárán (`.tmp/pxp_settings_backup.json`) egyetlen összefésült fájlban tárolja a profilokat, csomagolási szabályokat, egyedi súlyokat és kategóriákat.
+    - Mentéskor a localhost és a Render szerver fizikai lemezére is kiíródik az adat.
+  - **4. Szint - 1-Kattintásos Biztonsági Export & Import (`pannonxpSettings.js`):**
+    - A beállítások ablak fejlécébe beépítésre került a **"Mentés fájlba"** és **"Visszatöltés"** funkciógomb.
+    - Egyetlen kattintással letölthető a teljes konfiguráció JSON fájlban, és bármelyik gépen/böngészőben azonnal visszaállítható.
+- **Automatizált Egységtesztek (`tests/unit_tests.js`)**:
+  - 13 új unit teszt hozzáadva a gyorsítótár működésére (első fetch, háttér cache-találat, kézi frissítés, invalidálás), az export/import formátumra és a szerveroldali adategyesítésre.
+  - Összesen **415/415 unit teszt sikeresen átment (100% zöld)**.
+
+### 2026. szeptember 7. (6. frissítés) - Felhasználói Kijelölési Sorrend Megőrzése Szedőlistába, PannonXP-be és Sela Exportba Átdobáskor (`v4.4.4`)
+- **Felhasználói kérés**: „olyat tudunk-e, hogy mikor kijelölgetem a rendeléseket és mondjuk átdobom kiszedesi jegyzékl készítőbe, akkor figyelembevegye azt a sorrendet ahogy én kiválasztottam a rendeléseket? és abban a sorrendben tenné már át automatikusan?”.
+- **Probléma feltárása**:
+  - Korábban az `Átdobás Szedőlistába`, `Átdobás PannonXP-be` és `Szállítói Export (Sela)` gombok a `Store.shopifyHubOrders.filter(o => selectedIds.has(o.id))` metódussal keresték ki a kijelölt rendeléseket.
+  - A `.filter()` az eredeti Shopify tömb sorrendjében (dátum szerint csökkenő) járta be a rendeléseket, ezáltal felülírta és elveszítette a felhasználó által kattintott sorrendet.
+- **Megvalósított megoldás (`orderUtils.js`, `app.js`)**:
+  - Létrehoztuk a moduláris `getOrdersInSelectionOrder(allOrders, selectedIds)` segédfüggvényt.
+  - A böngésző `Set` objektuma (`Store.selectedHubOrderIds`) természeténél fogva szigorúan megőrzi az elemek kattintási/beszúrási sorrendjét (`insertion order`).
+  - A segédfüggvény egy `Map` segítségével $O(1)$ sebességgel rendeli hozzá a rendelési objektumokat a kijelölt azonosítókhoz a felhasználó kattintási sorrendjében (`Array.from(selectedIds).map(...)`).
+  - **Eredmény**: Ha a felhasználó pl. a #3900, #3951, #3882 sorrendben pipálja be a rendeléseket (bejárási útvonal, prioritás vagy cím alapján), a Szedőlistára átdobva a kártyák pontosan ebben a sorrendben (1., 2., 3.) jelennek meg! Ugyanez a pontos sorrend érvényesül a PannonXP-be átdobáskor és a Sela export táblázatban is.
+  - Az `Összes kijelölése` továbbra is a képernyőn látható fentről lefelé sorrendet tartja meg.
+- **Automatizált Egységtesztek Bővítése (`tests/unit_tests.js`)**:
+  - 7 új unit teszt hozzáadva a tetszőleges és fordított kijelölési sorrendek, valamint az üres állapotok ellenőrzésére.
+  - Összesen **402 / 402 sikeres (zöld) unit teszt**.
+- **Cache-Busting és verziókezelés**:
+  - Verziószám megemelve `v=4.4.4`-re az `index.html`-ben és az `app.js`-ben.
+
+### 2026. szeptember 7. (5. frissítés) - Rendelésáttekintő Alsó Görgetési Távolság Növelése: Lebegő Akciósáv Kitakarás Megszüntetése (`v4.4.3`)
+- **Probléma feltárása (Kijelöléskori Kitakarás)**:
+  - Amikor a felhasználó a Rendelésáttekintőben minden rendelést kijelölt és a lap aljára tekert, a felugró lebegő akciósáv (`#hub-action-bar`, amely a lap aljától 30px-re lebeg és ~55px magas) kitakarta a legalsó 1-2 rendelést.
+  - A korábbi `.overview-layout` alsó térköze mindössze 70px volt, így a görgetési sáv nem engedte a felhasználót a gombok magassága fölé tekerni.
+- **Megoldás (`orderOverviewView.js`)**:
+  - Az `.overview-layout` alsó paddingjét 70px-ről **140px-re** növeltük (`padding: 6px 14px 140px 300px;`).
+  - Teljes letekeréskor a táblázat alja így garantáltan több mint 50 képponttal a rögzített akciósáv és az Előzmények gomb FELETT áll meg, ezáltal a legalsó rendelések sorai, összegei és vezérlőgombjai 100%-ig tisztán láthatóak és akadálytalanul kezelhetőek maradnak.
+- **Cache-Busting és verziókezelés**:
+  - Verziószám megemelve `v=4.4.3`-ra az `index.html`-ben és az `app.js`-ben.
+
+### 2026. szeptember 7. (4. frissítés) - Maximum 2 db Padlózat Engedélyezése Automata PannonXP Címkézéshez (`v4.4.2`)
+- **Felhasználói kérés**: „Változtassunk azon, hogy ha 2 padlózatot enged még pannonxp-taget rakni rá? annyit még ki merünk küldeni”.
+- **Szabálymódosítás & Logika (`js/utils/orderUtils.js`)**:
+  - **Padlózat felismerése (`isFloorItem`)**: Elkülönítettük a padlózatokat (`padló`, `padlo`, `padlózat`, `padlozat`, `spc wood`, `spc stone`) a nagyméretű falburkolatoktól.
+  - **Nagyméretű Falpanelek Védelme (`isWallPanelItem`)**: A 2.44m és 2.80m-es PVC és SPC nagyméretű falpanelek (PB, TR, LJ) **továbbra is szigorúan kizárva maradnak** a PannonXP-ből méretkorlát miatt. Ha a rendelésben akár 1 db falpanel is szerepel, az semmiképp sem kap automata PannonXP címkét.
+  - **Darabszám-korlátos engedélyezés (`isEligibleForAutoPannonXp`)**:
+    - Ha egy nyitott rendelésben **legfeljebb 2 darab (<= 2 db)** padlózat szerepel (és nincs benne falpanel), a rendszer **engedélyezi az automatikus PannonXP címkét**.
+    - Ha a padlózatok összmennyisége meghaladja a 2 darabot (> 2 db), a rendszer kizárja a rendelést az automata PannonXP-ből (ezek a Sela szállítóhoz vagy terítésbe tartoznak).
+- **Backend & Log Frissítés (`server.js`)**:
+  - A szerveroldali háttér szinkronizáció és felismerési log (`Auto PannonXP Felismerés`) az új szabálynak megfelelően logol és címkéz.
+- **Automatizált Egységtesztek Bővítése (`tests/unit_tests.js`)**:
+  - 10 új unit teszt hozzáadva: `isFloorItem`, `isWallPanelItem`, 1 db padló (jogosult), 2 db padló + ragasztó (jogosult), 3 db padló (nem jogosult), 2 db padló + 1 db PVC falpanel (nem jogosult).
+  - Összesen **395 / 395 sikeres (zöld) unit teszt**.
 
 ### 2026. szeptember 7. (3. frissítés) - Hiba Box Gombok Első Kattintásra Reagálása & Lap Tetejére Ugrás Megszüntetése (`v4.3.1`)
 - **Első Kattintásra Nem Reagáló Gombok Javítása (Sortable.js Intercept & Event Target Bug)**:

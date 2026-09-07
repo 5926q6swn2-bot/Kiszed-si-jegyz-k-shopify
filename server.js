@@ -509,7 +509,7 @@ const server = http.createServer(async (req, res) => {
         const eligibleForPxp = orders.filter(isEligibleForAutoPannonXp);
 
         if (eligibleForPxp.length > 0) {
-          console.log(`🏷️ [Auto PannonXP Felismerés] ${eligibleForPxp.length} db nyitott rendelés nem tartalmaz PVC/SPC-t vagy padlót -> PannonXP-re jelölve.`);
+          console.log(`🏷️ [Auto PannonXP Felismerés] ${eligibleForPxp.length} db nyitott rendelés nem tartalmaz falpanelt (vagy max 2 db padlózatot tartalmaz) -> PannonXP-re jelölve.`);
           
           // Optimista címkézés a visszaküldött válaszban (azonnali frissülés a felületen)
           eligibleForPxp.forEach(order => {
@@ -1350,6 +1350,58 @@ const server = http.createServer(async (req, res) => {
       }
     });
     return;
+  }
+
+  // 10. PannonXP Teljes Beállítások Mentése és Betöltése (Helyi / Render Szerver Fájl Tárhely)
+  if (pathname === '/api/settings/pxp-all') {
+    const PXP_BACKUP_FILE = path.join(__dirname, '.tmp', 'pxp_settings_backup.json');
+    if (req.method === 'GET') {
+      try {
+        if (fs.existsSync(PXP_BACKUP_FILE)) {
+          const data = JSON.parse(fs.readFileSync(PXP_BACKUP_FILE, 'utf8'));
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: true, ...data }));
+          return;
+        }
+      } catch (err) {
+        console.warn('[PXP Backup Read Warning]', err.message);
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, data: null }));
+      return;
+    }
+    if (req.method === 'POST') {
+      let bodyStr = '';
+      req.on('data', chunk => { bodyStr += chunk; });
+      req.on('end', () => {
+        try {
+          const body = JSON.parse(bodyStr || '{}');
+          const tmpDir = path.dirname(PXP_BACKUP_FILE);
+          if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+          
+          let existingData = {};
+          if (fs.existsSync(PXP_BACKUP_FILE)) {
+            try {
+              existingData = JSON.parse(fs.readFileSync(PXP_BACKUP_FILE, 'utf8'));
+            } catch (pErr) {}
+          }
+
+          const mergedData = {
+            ...existingData,
+            ...body,
+            updatedAt: Date.now()
+          };
+
+          fs.writeFileSync(PXP_BACKUP_FILE, JSON.stringify(mergedData, null, 2), 'utf8');
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: true }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, error: err.message }));
+        }
+      });
+      return;
+    }
   }
 
   // --- STATIKUS FÁJLOK KISZOLGÁLÁSA ---
