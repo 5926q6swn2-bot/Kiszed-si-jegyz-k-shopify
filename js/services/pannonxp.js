@@ -102,31 +102,44 @@ function normalizeMappings(mappings) {
 export const PannonXPService = {
     sanitizeAbbreviation: sanitizeAbbreviation,
 
+    getServerApiUrl() {
+        if (typeof window !== 'undefined' && window.location && window.location.hostname.includes('github.io')) {
+            return 'https://kiszed-si-jegyz-k-shopify.onrender.com/api/settings/pxp-all';
+        }
+        return '/api/settings/pxp-all';
+    },
+
     async saveToServerBackup(payload) {
-        if (typeof window !== 'undefined' && window.location && !window.location.hostname.includes('github.io')) {
-            try {
-                await fetch('/api/settings/pxp-all', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-            } catch (err) {
-                console.warn('[PXP Server Backup Warning]', err);
-            }
+        try {
+            const apiUrl = this.getServerApiUrl();
+            await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        } catch (err) {
+            console.warn('[PXP Server Backup Warning]', err);
         }
     },
 
     async fetchServerBackup() {
-        if (typeof window !== 'undefined' && window.location && !window.location.hostname.includes('github.io')) {
-            try {
-                const res = await fetch('/api/settings/pxp-all');
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data && data.success) return data;
-                }
-            } catch (err) {
-                console.warn('[PXP Server Fetch Warning]', err);
+        try {
+            const apiUrl = this.getServerApiUrl();
+            const res = await fetch(apiUrl);
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.success) return data;
             }
+            // Ha helyben még nincs lementett konfiguráció, fallback lekérdezés a Render éles szerverről
+            if (apiUrl !== 'https://kiszed-si-jegyz-k-shopify.onrender.com/api/settings/pxp-all') {
+                const renderRes = await fetch('https://kiszed-si-jegyz-k-shopify.onrender.com/api/settings/pxp-all');
+                if (renderRes.ok) {
+                    const rData = await renderRes.json();
+                    if (rData && rData.success) return rData;
+                }
+            }
+        } catch (err) {
+            console.warn('[PXP Server Fetch Warning]', err);
         }
         return null;
     },

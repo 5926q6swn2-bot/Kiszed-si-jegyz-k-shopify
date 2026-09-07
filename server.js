@@ -1354,6 +1354,16 @@ const server = http.createServer(async (req, res) => {
 
   // 10. PannonXP Teljes Beállítások Mentése és Betöltése (Helyi / Render Szerver Fájl Tárhely)
   if (pathname === '/api/settings/pxp-all') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
     const PXP_BACKUP_FILE = path.join(__dirname, '.tmp', 'pxp_settings_backup.json');
     if (req.method === 'GET') {
       try {
