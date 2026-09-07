@@ -50,6 +50,23 @@ function sortOrderItems(items) {
     });
 }
 
+export function getOrderBadgeHtml(order) {
+    if (order.isReturn) {
+        return `<span class="badge" style="background: #faf5ff; color: #6b21a8; border: 1px solid #d8b4fe; display: inline-flex; align-items: center; gap: 4px; font-weight: 700;" data-internal-id="${order.internalId}"><i class="ph-bold ph-arrow-counter-clockwise"></i>VISSZASZÁLLÍTÁS</span>`;
+    } else if (order.isBankDeposit) {
+        if (order.isPaid) {
+            return `<span class="badge badge-paid clickable-cod-badge" data-internal-id="${order.internalId}" title="Kattints az utánvét gyors átírásához" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">UTALVA (FIZETVE) <i class="ph-bold ph-pencil-simple" style="font-size: 11px;"></i></span>`;
+        } else {
+            return `<span class="badge badge-warning clickable-cod-badge" data-internal-id="${order.internalId}" title="Kattints az utánvét gyors átírásához" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">UTALÁST VÁRUNK <i class="ph-bold ph-pencil-simple" style="font-size: 11px;"></i></span>`;
+        }
+    } else if (order.isCOD) {
+        const formattedAmount = new Intl.NumberFormat('hu-HU').format(order.codAmount);
+        return `<span class="badge badge-cod clickable-cod-badge" data-internal-id="${order.internalId}" title="Kattints az utánvét gyors átírásához" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">UTÁNVÉT: ${formattedAmount} Ft <i class="ph-bold ph-pencil-simple" style="font-size: 11px;"></i></span>`;
+    } else {
+        return `<span class="badge badge-paid clickable-cod-badge" data-internal-id="${order.internalId}" title="Kattints az utánvét gyors átírásához" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">Fizetve / Nincs Utánvét <i class="ph-bold ph-pencil-simple" style="font-size: 11px;"></i></span>`;
+    }
+}
+
 export const OrdersView = {
     render: function(ctx) {
         const {
@@ -75,21 +92,7 @@ export const OrdersView = {
             card.setAttribute('data-id', order.id);
             card.setAttribute('data-internal-id', order.internalId);
 
-            let codHtml = '';
-            if (order.isReturn) {
-                codHtml = `<span class="badge" style="background: #faf5ff; color: #6b21a8; border: 1px solid #d8b4fe; display: inline-flex; align-items: center; gap: 4px; font-weight: 700;" data-internal-id="${order.internalId}"><i class="ph-bold ph-arrow-counter-clockwise"></i>VISSZASZÁLLÍTÁS</span>`;
-            } else if (order.isBankDeposit) {
-                if (order.isPaid) {
-                    codHtml = `<span class="badge badge-paid clickable-cod-badge" data-internal-id="${order.internalId}" title="Kattints az utánvét gyors átírásához" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">UTALVA (FIZETVE) <i class="ph-bold ph-pencil-simple" style="font-size: 11px;"></i></span>`;
-                } else {
-                    codHtml = `<span class="badge badge-warning clickable-cod-badge" data-internal-id="${order.internalId}" title="Kattints az utánvét gyors átírásához" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">UTALÁST VÁRUNK <i class="ph-bold ph-pencil-simple" style="font-size: 11px;"></i></span>`;
-                }
-            } else if (order.isCOD) {
-                const formattedAmount = new Intl.NumberFormat('hu-HU').format(order.codAmount);
-                codHtml = `<span class="badge badge-cod clickable-cod-badge" data-internal-id="${order.internalId}" title="Kattints az utánvét gyors átírásához" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">UTÁNVÉT: ${formattedAmount} Ft <i class="ph-bold ph-pencil-simple" style="font-size: 11px;"></i></span>`;
-            } else {
-                codHtml = `<span class="badge badge-paid clickable-cod-badge" data-internal-id="${order.internalId}" title="Kattints az utánvét gyors átírásához" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">Fizetve / Nincs Utánvét <i class="ph-bold ph-pencil-simple" style="font-size: 11px;"></i></span>`;
-            }
+            const codHtml = getOrderBadgeHtml(order);
 
             let errorsHtml = '';
             if (order.errors.length > 0) {
@@ -137,7 +140,7 @@ export const OrdersView = {
                             <div class="error-desc">${err.desc}</div>
                             ${quickActionsHtml}
                             <div style="display: flex; justify-content: flex-end; margin-top: 6px;">
-                                <button class="btn-ack" data-order-internal-id="${order.internalId}" data-err-id="${err.id}">Ellenőrizve</button>
+                                <button type="button" class="btn-ack" data-order-internal-id="${order.internalId}" data-err-id="${err.id}">Ellenőrizve</button>
                             </div>
                         </div>
                     `;

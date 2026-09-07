@@ -28,7 +28,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.8 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris, élesítve a Render felhőben és stabil. ⚡ **Utánvét-validáció finomhangolása: Lappangó UV kivezetése & 250k+ előleg levonás** (`v4.3.0`, 377/377 zöld unit teszt).
+- **Státusz**: A rendszer 100%-ban moduláris, élesítve a Render felhőben és stabil. ⚡ **Hiányos szállítási cím jelölés & szűrés, viszonteladók cím-kivétele & élénk arany kiemelése, gombkattintás és görgetési stabilitás** (`v4.4.1`, 385/385 zöld unit teszt).
 
 ---
 
@@ -44,6 +44,17 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. szeptember 7. (3. frissítés) - Hiba Box Gombok Első Kattintásra Reagálása & Lap Tetejére Ugrás Megszüntetése (`v4.3.1`)
+- **Első Kattintásra Nem Reagáló Gombok Javítása (Sortable.js Intercept & Event Target Bug)**:
+  - **Probléma gyökere**: A Sortable.js könyvtár a kártyák mozgatásához `mousedown` eseményfigyelőt futtatott a teljes `orderList` konténeren. Amikor a felhasználó a hiba dobozban egy gombra (`Ellenőrizve`, `[ Mentés ]`, gyorsgombok) kattintott, és az egér kattintás közben akár 1 pixelt is elmozdult, a Sortable drag kezdeményezésnek vette és elnyelte a kattintást, így csak a második, teljesen mozdulatlan kattintásra futott le. Másrészt a `btn-ack` az `e.target.getAttribute()`-ot vizsgálta, ami a gomb belsejére kattintva `null` értéket adott.
+  - **Megoldás**: A `Sortable` konfigurációjához hozzáadtuk a `filter: 'button, input, select, textarea, a, i, .btn-ack, .btn-quick-set-cod, .btn-quick-save-custom-cod, .quick-cod-custom-input, .clickable-cod-badge, .profile-toggle, .error-box'` szabályt (`preventOnFilter: false`), valamint `e.target.closest()`-t és `e.preventDefault()`-ot alkalmaztunk. A gombok mostantól az első érintésre 100%-os megbízhatósággal reagálnak.
+- **Lap Tetejére Ugrás Megszüntetése (In-Place DOM Frissítés & Scroll Retention)**:
+  - **Probléma gyökere**: Egyedi utánvét mentésekor vagy a gyorsgombok megnyomásakor a kód korábban a teljes rendeléslistát újrarajzolta (`renderOrders()`), ami törölte a DOM elemeket (`innerHTML = ''`), ezáltal a konténer magassága azonnal nullára ugrott és a böngésző visszadobta a felhasználót a lap tetejére.
+  - **Megoldás**:
+    1. Új `updateOrderCardCodInPlace` eljárás a `js/app.js`-ben: a gombra kattintáskor CSAK az érintett kártyán frissül a badge (`getOrderBadgeHtml`), a hiba doboz sima animációval eltűnik, és a többi 50-100 kártya érintetlen marad. A görgetési pozíció egyetlen millimétert sem mozdul el.
+    2. A `renderOrders()` függvénybe globális védőhálóként beépítettük a görgetési pozíció lementését és visszaállítását (`prevScrollTop`), így bármilyen teljes újrarajzolás esetén is a helyén marad a nézet.
+    3. Az egyedi Ft beviteli mezőben az `Enter` gomb lenyomására is automatikusan elmentődik az új összeg.
 
 ### 2026. szeptember 7. (2. frissítés) - Utánvét-ellenőrzési Logika Módosítása: Lappangó UV Kivezetése & 250k+ Előleg Levonás Szabály (`v4.3.0`)
 - **Lappangó Utánvét Piros Figyelmeztetés Kivezetése (< 250 000 Ft)**:
@@ -1515,6 +1526,43 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Unit Tesztek Bővítése**: 13 új unit teszttel bővítettük a `tests/unit_tests.js` tesztcsomagot az összes létező rövidítés és edge-case validálására (45 sikeres teszt).
 - **Cache-Busting és verziókezelés**: `index.html`-ben a verziót `app.js?v=3.3.1`-re emeltük.
 
+### 2026. szeptember 7. - Oldal Felugrás & Gomb Érzékenység Javítása (v4.3.3)
+- **Hiba oka (Görgetés felugrás és gomb elnyelés)**:
+  - Az `initSortable()` függvényben a `window.addEventListener('mouseup', cleanupDragState)` és `'touchend'` események minden egyes kattintás felengedésekor lefutottak (akkor is, ha semmilyen kártyahúzás nem történt).
+  - A `cleanupDragState` a böngésző reflow kényszerítéséhez az `orderList.style.display = 'none'` beállítást alkalmazta. Ennek hatására a konténer magassága egy pillanatra 0-ra esett, ami a böngésző belső motorja miatt a `.content-body` és az ablak görgetési pozícióját (`scrollTop`) azonnal 0-ra nullázta.
+  - Emiatt bármilyen gombra (pl. "Ellenőrizve", gyors-utánvét gombok) kattintva a `mouseup` még a `click` esemény előtt lefutott, azonnal a lap tetejére ugrott a tartalom, és az elem pillanatnyi eltűnése miatt a kattintás esemény is gyakran elveszett (csak másodjára működött).
+- **Megoldás**:
+  - A `cleanupDragState`-et állapotjelzőhöz (`isDraggingActive`) kötöttük: ha nincs aktív kártyamozgatás folyamatban, azonnal visszatér anélkül, hogy a DOM-hoz vagy a stílusokhoz nyúlna.
+  - Megszüntettük a görgetést nullázó `orderList.style.display = 'none'` reflow trükköt az `onEnd`-ből és a takarítóból.
+  - A hiba doboz animált eltávolításakor (`removeErrorBoxPreservingScroll`) folyamatos `requestAnimationFrame` zárolással rögzítjük a megőrzött görgetési koordinátát.
+### 2026. szeptember 7. - Hiányos Szállítási Cím (Házszám Hiány) Címkézés & Szűrés a Rendelésáttekintőben (v4.4.0)
+- **Cél és Igény**: A felhasználó kérésére a Rendelésáttekintőben (`OrderOverviewView`) a kiszállításos rendeléseknél bevezettük a hiányos szállítási címek (pl. hiányzó házszám) kiemelt címkézését, a *„Rossz szállítást választott!”* logikájával megegyezően.
+- **Logika és Szabályok**:
+  - A szedőlistában és PannonXP-ben már bevált `checkAddressValidity` motort integráltuk: ha az utca nem tartalmaz számjegyet (nincs házszám), vagy hiányzik a település/utca, hibásnak jelöljük.
+  - **Kizárások**: A személyes átvételes (`isPickup`) rendelések nem kapnak címkét, és a törölt / lemondott / már teljesített rendelésekre sem kerül fel figyelmeztetés.
+- **Megvalósítás és UI Komponensek**:
+  - **Gyorsszűrő Chip**: A fejlécben a teendők között megjelent a `[ 📍 Hiányos cím (db) ]` gomb, amivel egyetlen kattintással leszűrhető az összes hiányos című rendelés.
+  - **Bal oldali kilógó címke (Hanging Tag)**: A sor bal szélén feltűnő piros `Hiányos szállítási cím!` címke jelenik meg térkép ikonnal (`ph-map-pin-line`), részletes vevőértesítési tooltippel.
+  - **Sor-háttér kiemelés**: A hiányos című rendelések sora halvány figyelmeztető piros hátteret (`#fef2f2`) kap.
+  - **Cím oszlop & Lenyíló panel**: A cím oszlopban pirossal jelenik meg a házszám nélküli utcanév, a lenyíló részletes panelben pedig figyelmeztető sáv hívja fel a figyelmet a vevő felhívására.
+- **Adatréteg & Segédfüggvények**:
+  - `shopifyApiService.js` és `shopify.js`: az `orderObj.hasInvalidAddress` boolean mező automatikus kitöltése.
+  - `orderUtils.js`: új `checkInvalidDeliveryAddress(order)` függvény exportálása.
+  - `tests/unit_tests.js`: 6 új unit teszt a címvalidációra (összesen 383/383 teszt hibátlan).
+- **Cache-Busting és verziókezelés**: Verziók megemelve `v=4.4.0`-ra az `index.html`-ben és `app.js`-ben.
+
+### 2026. szeptember 7. - Viszonteladók Cím-Kivétele & Élénk Arany Kiemelése Kijelöléskor is (`v4.4.1`)
+- **Viszonteladók Kizárása a Címvalidációból**:
+  - A viszonteladók címe ismert, vagy személyesen veszik át a terméket, ezért esetükben sem a terítés készítésekor, sem a Rendelésáttekintőben nem jelenik meg hibás/hiányos szállítási cím jelzés.
+  - Frissítve: `orderOverviewView.js`, `orderUtils.js` (`checkInvalidDeliveryAddress`), `shopifyApiService.js`, `shopify.js` és `pannonxpTable.js`. A `viszonteladó` tag-gel rendelkező rendelések sosem kapnak piros címkét, piros utcanevet és nem növelik a „Hiányos cím” szűrőchip számlálóját sem.
+- **Élénk Arany/Sárga Kiemelés & Kijelölési Állapot Javítása**:
+  - Korábban a sorok kijelölésekor (`.selected` CSS osztály) a táblázat alapértelmezett halványzöld kijelölési háttere (`#f0fdf4 !important`) elnyomta a viszonteladói arany hátteret, emiatt pipáláskor teljesen eltűnt a megkülönböztetés.
+  - **Megoldás**:
+    - Bevezettük a `.hub-order-row.reseller-row` dedikált osztályt, amely unselected állapotban élénk, meleg aranysárga hátteret (`#fef08a !important`) és határozott arany szegélyt kap.
+    - Kijelöléskor (`.selected`) nem zöldül ki, hanem még karakteresebb, telítettebb meleg arany/borostyán árnyalatra vált (`#fde68a !important`) 5px-es bal oldali arany kiemeléssel (`box-shadow: inset 5px 0 0 #d97706`).
+    - Új `[🤝 Viszonteladó]` arany kitűző került a vevő neve mellé a Címzett oszlopban.
+- **Unit Tesztek**: 2 új unit teszt hozzáadva a viszonteladói címvalidációs kivételre (385/385 sikeres zöld teszt).
+- **Cache-Busting**: `index.html` és `app.js` verziószáma megemelve `v=4.4.1`-re.
 
 ---
 

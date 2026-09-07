@@ -555,18 +555,22 @@ export const ShopifyParser = {
                 });
 
                 const createdOrder = orderMap.get(orderNum);
-                if (createdOrder && checkAddressValidity(createdOrder)) {
-                    const parsedStreet = createdOrder.address1 || street || '';
-                    let reasonDesc = `A szállítási cím hiányos ("${parsedStreet || 'Üres'}"). Kérlek ellenőrizd!`;
-                    if (!parsedStreet || !/\d+/.test(parsedStreet)) {
-                        reasonDesc = `A szállítási címből hiányzik a házszám ("${parsedStreet || 'Üres utca'}"). Kérlek hívd fel a vevőt a házszámért!`;
+                if (createdOrder) {
+                    const isAddrInvalid = !createdOrder.isPickup && !createdOrder.isReseller && checkAddressValidity(createdOrder);
+                    createdOrder.hasInvalidAddress = isAddrInvalid;
+                    if (isAddrInvalid) {
+                        const parsedStreet = createdOrder.address1 || street || '';
+                        let reasonDesc = `A szállítási cím hiányos ("${parsedStreet || 'Üres'}"). Kérlek ellenőrizd!`;
+                        if (!parsedStreet || !/\d+/.test(parsedStreet)) {
+                            reasonDesc = `A szállítási címből hiányzik a házszám ("${parsedStreet || 'Üres utca'}"). Kérlek hívd fel a vevőt a házszámért!`;
+                        }
+                        createdOrder.errors.push({
+                            id: Math.random().toString(36).substr(2, 9),
+                            type: 'address',
+                            title: "Hiányos Szállítási Cím (Házszám)!",
+                            desc: reasonDesc
+                        });
                     }
-                    createdOrder.errors.push({
-                        id: Math.random().toString(36).substr(2, 9),
-                        type: 'address',
-                        title: "Hiányos Szállítási Cím (Házszám)!",
-                        desc: reasonDesc
-                    });
                 }
             }
 

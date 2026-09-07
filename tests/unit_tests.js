@@ -28,7 +28,8 @@ import {
     checkBadShipping,
     isOrderMissingInvoice,
     filterOrdersWithoutInvoice,
-    calculateOrderCodAndErrors
+    calculateOrderCodAndErrors,
+    checkInvalidDeliveryAddress
 } from '../js/utils/orderUtils.js';
 import {
     generateMissingInvoiceEmailHtml,
@@ -1779,6 +1780,90 @@ const bankDepositOrder = calculateOrderCodAndErrors({
 });
 assertEqual("COD Validáció - Bank deposit esetén isCOD false", bankDepositOrder.isCOD, false);
 assertEqual("COD Validáció - Bank deposit esetén errors üres", bankDepositOrder.errors.length, 0);
+
+// --- Címvalidáció (Hiányos Szállítási Cím / Házszám Hiány) Tesztek ---
+const validDeliveryOrder1 = {
+    id: "#9001",
+    isPickup: false,
+    isCancelled: false,
+    zip: "1132",
+    city: "Budapest",
+    address1: "Visegrádi utca 44."
+};
+assertEqual("Címvalidáció - Érvényes cím házszámmal NEM hiányos", checkInvalidDeliveryAddress(validDeliveryOrder1), false);
+
+const validDeliveryOrder2 = {
+    id: "#9002",
+    isPickup: false,
+    isCancelled: false,
+    zip: "2120",
+    city: "Dunakeszi",
+    address1: "Barátság útja 2/b. 1/19."
+};
+assertEqual("Címvalidáció - Összetett házszám (2/b. 1/19.) NEM hiányos", checkInvalidDeliveryAddress(validDeliveryOrder2), false);
+
+const missingHouseNumberOrder = {
+    id: "#9003",
+    isPickup: false,
+    isCancelled: false,
+    zip: "6600",
+    city: "Szentes",
+    address1: "Nagyhegyszéli"
+};
+assertEqual("Címvalidáció - Házszám nélküli utca ('Nagyhegyszéli') HIÁNYOS", checkInvalidDeliveryAddress(missingHouseNumberOrder), true);
+
+const emptyStreetOrder = {
+    id: "#9004",
+    isPickup: false,
+    isCancelled: false,
+    zip: "3022",
+    city: "Lőrinci",
+    address1: ""
+};
+assertEqual("Címvalidáció - Üres utca HIÁNYOS", checkInvalidDeliveryAddress(emptyStreetOrder), true);
+
+const pickupOrderWithNoAddress = {
+    id: "#9005",
+    isPickup: true,
+    isCancelled: false,
+    zip: "",
+    city: "",
+    address1: ""
+};
+assertEqual("Címvalidáció - Személyes átvétel cím nélkül NEM hiányos", checkInvalidDeliveryAddress(pickupOrderWithNoAddress), false);
+
+const cancelledOrderWithNoAddress = {
+    id: "#9006",
+    isPickup: false,
+    isCancelled: true,
+    zip: "1051",
+    city: "Budapest",
+    address1: "Váci utca"
+};
+assertEqual("Címvalidáció - Törölt rendelés NEM hiányos", checkInvalidDeliveryAddress(cancelledOrderWithNoAddress), false);
+
+const resellerOrderWithMissingHouseNumber = {
+    id: "#9007",
+    isPickup: false,
+    isCancelled: false,
+    isReseller: true,
+    tags: "viszonteladó",
+    zip: "5520",
+    city: "Szeghalom",
+    address1: "Kandó K. u."
+};
+assertEqual("Címvalidáció - Viszonteladó házszám nélkül NEM hiányos", checkInvalidDeliveryAddress(resellerOrderWithMissingHouseNumber), false);
+
+const resellerOrderWithEmptyAddress = {
+    id: "#9008",
+    isPickup: false,
+    isCancelled: false,
+    tags: "viszonterladó",
+    zip: "",
+    city: "",
+    address1: ""
+};
+assertEqual("Címvalidáció - Viszonteladó üres címmel NEM hiányos", checkInvalidDeliveryAddress(resellerOrderWithEmptyAddress), false);
 
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 

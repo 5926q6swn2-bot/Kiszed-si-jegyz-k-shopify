@@ -643,8 +643,10 @@ export const ShopifyApiService = {
             removedItems: removedItems
         };
 
-        // Címvalidáció (csak ha NEM személyes átvétel)
-        if (!isPickup && checkAddressValidity(orderObj)) {
+        // Címvalidáció (csak ha NEM személyes átvétel ÉS NEM viszonteladó)
+        const isAddrInvalid = !isCancelled && !isPickup && !isReseller && checkAddressValidity(orderObj);
+        orderObj.hasInvalidAddress = isAddrInvalid;
+        if (isAddrInvalid) {
             const parsedStreet = orderObj.address1 || street || '';
             let reasonDesc = `A szállítási cím hiányos ("${parsedStreet || 'Üres'}"). Kérlek ellenőrizd!`;
             if (!parsedStreet || !/\d+/.test(parsedStreet)) {

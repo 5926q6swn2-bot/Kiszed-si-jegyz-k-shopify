@@ -7,12 +7,12 @@ import { PannonXPService } from './services/pannonxp.js';
 import { PannonXPView } from './views/pannonxpView.js';
 import { initHistoryView, renderAccountingRuns, renderTrashRuns } from './views/historyView.js';
 import { Store } from './store/state.js';
-import { OrdersView } from './views/ordersView.js';
+import { OrdersView, getOrderBadgeHtml } from './views/ordersView.js?v=4.4.0';
 import { initManualOrderController } from './controllers/manualOrderController.js';
 import { renderStatistics } from './views/stats.js';
 import { ExporterService } from './services/exporter.js';
 import { AuditView } from './views/auditView.js';
-import { OrderOverviewView } from './views/orderOverviewView.js';
+import { OrderOverviewView } from './views/orderOverviewView.js?v=4.4.0';
 import { SelaExportModal } from './views/selaExportModal.js';
 import { SelaMissingWeightsModal } from './views/selaMissingWeightsModal.js';
 import { ShopifyApiService } from './services/shopifyApiService.js';
@@ -1136,11 +1136,26 @@ function initApp() {
 
     // --- UI Renderelés ---
     function renderOrders() {
+        const scrollContainer = document.querySelector('.content-body');
+        const prevScrollTop = scrollContainer ? scrollContainer.scrollTop : window.pageYOffset;
+
         OrdersView.render({
             orders: Store.orders, orderList, emptyState, btnPrint,
             needsMarkerLabel, getBusinessDaysCount,
             attachCardEvents, updatePrintButtonState, updateIndexes, initSortable,
             sortModeActive
+        });
+
+        if (scrollContainer) {
+            scrollContainer.scrollTop = prevScrollTop;
+        } else {
+            window.scrollTo(0, prevScrollTop);
+        }
+
+        requestAnimationFrame(() => {
+            if (scrollContainer && Math.abs(scrollContainer.scrollTop - prevScrollTop) > 2) {
+                scrollContainer.scrollTop = prevScrollTop;
+            }
         });
     }
 
@@ -1150,14 +1165,12 @@ function initApp() {
         }
         const scrollContainer = document.querySelector('.content-body');
 
+        let isDraggingActive = false;
         const cleanupDragState = () => {
+            if (!isDraggingActive) return;
+            isDraggingActive = false;
             if (orderList) {
                 orderList.classList.remove('dragging-active');
-                // Force a browser reflow to fix scrollHeight/columns layout recalculation bug
-                const originalDisplay = orderList.style.display;
-                orderList.style.display = 'none';
-                orderList.offsetHeight; // force reflow
-                orderList.style.display = originalDisplay || 'block';
             }
             document.body.style.userSelect = '';
             document.body.style.webkitUserSelect = '';
@@ -1170,6 +1183,8 @@ function initApp() {
             animation: 120,
             easing: "cubic-bezier(0.2, 0, 0, 1)",
             handle: sortModeActive ? '.order-card' : '.drag-handle',
+            filter: 'button, input, select, textarea, a, i, .btn-ack, .btn-quick-set-cod, .btn-quick-save-custom-cod, .quick-cod-custom-input, .clickable-cod-badge, .profile-toggle, .error-box',
+            preventOnFilter: false,
             ghostClass: 'sortable-ghost',
             chosenClass: 'sortable-chosen',
             scroll: scrollContainer || true,
@@ -1177,6 +1192,7 @@ function initApp() {
             scrollSpeed: 20,
             bubbleScroll: true,
             onStart: function() {
+                isDraggingActive = true;
                 orderList.classList.add('dragging-active');
                 document.body.style.userSelect = 'none';
                 document.body.style.webkitUserSelect = 'none';
@@ -1194,17 +1210,13 @@ function initApp() {
                 }
             },
             onEnd: function(evt) {
+                const savedScroll = scrollContainer ? scrollContainer.scrollTop : 0;
                 cleanupDragState();
                 const movedItem = Store.orders.splice(evt.oldIndex, 1)[0];
                 Store.orders.splice(evt.newIndex, 0, movedItem);
                 updateIndexes();
-                
-                // Extra layout recalculation safety
-                if (orderList) {
-                    const originalDisplay = orderList.style.display;
-                    orderList.style.display = 'none';
-                    orderList.offsetHeight; // force reflow
-                    orderList.style.display = originalDisplay || 'block';
+                if (scrollContainer) {
+                    scrollContainer.scrollTop = savedScroll;
                 }
             },
             onUnchoose: cleanupDragState,
@@ -1212,8 +1224,11 @@ function initApp() {
         });
 
         // Biztonsági eseménykezelők, ha a húzás váratlanul megszakadna
-        window.removeEventListener('mouseup', cleanupDragState);
-        window.removeEventListener('touchend', cleanupDragState);
+        if (window._sortableCleanupDragState) {
+            window.removeEventListener('mouseup', window._sortableCleanupDragState);
+            window.removeEventListener('touchend', window._sortableCleanupDragState);
+        }
+        window._sortableCleanupDragState = cleanupDragState;
         window.addEventListener('mouseup', cleanupDragState);
         window.addEventListener('touchend', cleanupDragState);
 
@@ -1269,10 +1284,121 @@ function initApp() {
             });
         });
 
+        // Segédfüggvény a hiba doboz görgetés-biztos eltávolításához
+        function removeErrorBoxPreservingScroll(errorBox, onComplete) {
+            if (!errorBox) {
+                if (onComplete) onComplete();
+                return;
+            }
+
+            const scrollContainer = document.querySelector('.content-body');
+            const getScroll = () => scrollContainer ? scrollContainer.scrollTop : (window.pageYOffset || document.documentElement.scrollTop);
+            const setScroll = (pos) => {
+                if (scrollContainer) scrollContainer.scrollTop = pos;
+                window.scrollTo(0, pos);
+            };
+
+            const savedScroll = getScroll();
+
+            // Aktív fókusz elvétele a doboz törlése előtt, hogy a böngésző ne ugorjon a body (0,0) pozícióra
+            if (document.activeElement && (errorBox.contains(document.activeElement) || errorBox === document.activeElement)) {
+                document.activeElement.blur();
+            }
+
+            errorBox.classList.add('shrink-out');
+
+            // Folytonos pozíció-zárolás az animáció alatt
+            let animFrames = 0;
+            const lockScroll = () => {
+                setScroll(savedScroll);
+                animFrames++;
+                if (animFrames < 25) {
+                    requestAnimationFrame(lockScroll);
+                }
+            };
+            requestAnimationFrame(lockScroll);
+
+            setTimeout(() => {
+                if (document.activeElement && (errorBox.contains(document.activeElement) || errorBox === document.activeElement)) {
+                    document.activeElement.blur();
+                }
+
+                errorBox.remove();
+                setScroll(savedScroll);
+
+                if (onComplete) onComplete();
+
+                requestAnimationFrame(() => {
+                    setScroll(savedScroll);
+                    requestAnimationFrame(() => {
+                        setScroll(savedScroll);
+                    });
+                });
+            }, 350);
+        }
+
+        // Kártya Utánvét és Hiba In-Place Frissítése (teljes újrarajzolás és ugrálás nélkül!)
+        function updateOrderCardCodInPlace(orderInternalId, errId, newAmount) {
+            const scrollContainer = document.querySelector('.content-body');
+            const getScroll = () => scrollContainer ? scrollContainer.scrollTop : (window.pageYOffset || document.documentElement.scrollTop);
+            const setScroll = (pos) => {
+                if (scrollContainer) scrollContainer.scrollTop = pos;
+                window.scrollTo(0, pos);
+            };
+            const savedScroll = getScroll();
+
+            const order = Store.orders.find(o => o.internalId === orderInternalId);
+            if (!order) return;
+
+            order.codAmount = newAmount;
+            order.isCOD = newAmount > 0;
+            if (newAmount > 0) order.isBankDeposit = false;
+            
+            if (errId) {
+                order.errors = order.errors.filter(err => err.id !== errId);
+            }
+
+            const card = document.querySelector(`.order-card[data-internal-id="${orderInternalId}"]`);
+            if (card) {
+                // Badge frissítése a kártyán
+                const badgeContainer = card.querySelector('.badge-container');
+                if (badgeContainer) {
+                    badgeContainer.innerHTML = getOrderBadgeHtml(order);
+                    const newBadge = badgeContainer.querySelector('.clickable-cod-badge');
+                    if (newBadge) {
+                        attachClickableBadgeEvent(newBadge);
+                    }
+                }
+
+                // Hiba doboz eltávolítása görgetés-biztosan
+                if (errId) {
+                    const errorBox = document.getElementById(`err-${errId}`);
+                    removeErrorBoxPreservingScroll(errorBox, () => {
+                        if (order.errors.length === 0) {
+                            card.classList.remove('has-error');
+                        }
+                        updatePrintButtonState();
+                    });
+                } else {
+                    if (order.errors.length === 0) {
+                        card.classList.remove('has-error');
+                    }
+                    updatePrintButtonState();
+                }
+                setScroll(savedScroll);
+            } else {
+                renderOrders();
+            }
+        }
+
         document.querySelectorAll('.btn-ack').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const orderInternalId = e.target.getAttribute('data-order-internal-id');
-                const errId = e.target.getAttribute('data-err-id');
+                e.preventDefault();
+                e.stopPropagation();
+                const btnEl = e.target.closest('.btn-ack') || btn;
+                btnEl.blur();
+                const orderInternalId = btnEl.getAttribute('data-order-internal-id');
+                const errId = btnEl.getAttribute('data-err-id');
                 
                 const order = Store.orders.find(o => o.internalId === orderInternalId);
                 if (order) {
@@ -1285,76 +1411,73 @@ function initApp() {
                     order.errors = order.errors.filter(err => err.id !== errId);
                     
                     const errorBox = document.getElementById(`err-${errId}`);
-                    if (errorBox) {
-                        errorBox.classList.add('shrink-out');
-                        setTimeout(() => {
-                            errorBox.remove();
-                            if(order.errors.length === 0) {
-                                const card = document.querySelector(`.order-card[data-internal-id="${orderInternalId}"]`);
-                                if(card) card.classList.remove('has-error');
+                    removeErrorBoxPreservingScroll(errorBox, () => {
+                        const card = document.querySelector(`.order-card[data-internal-id="${orderInternalId}"]`);
+                        if (card && order.errors.length === 0) {
+                            card.classList.remove('has-error');
+                        }
+                        if (order.isBankDeposit && order.isPaid && card) {
+                            const badgeContainer = card.querySelector('.badge-container');
+                            if (badgeContainer) {
+                                badgeContainer.innerHTML = getOrderBadgeHtml(order);
                             }
-                            if (order.isBankDeposit && order.isPaid) {
-                                const badge = document.querySelector(`.badge[data-internal-id="${orderInternalId}"]`);
-                                if (badge) {
-                                    badge.className = 'badge badge-paid nowrap';
-                                    badge.textContent = 'UTALVA (FIZETVE)';
-                                }
-                            }
-                            updatePrintButtonState();
-                        }, 400); 
-                    }
+                        }
+                        updatePrintButtonState();
+                    });
                 }
             });
         });
 
-        // Gyors Utánvét Beállítása Gombok az Hiba Boxban
+        // Gyors Utánvét Beállítása Gombok az Hiba Boxban (in-place)
         document.querySelectorAll('.btn-quick-set-cod').forEach(btn => {
             btn.addEventListener('click', (e) => {
+                e.preventDefault();
                 e.stopPropagation();
-                const orderInternalId = btn.getAttribute('data-order-internal-id');
-                const errId = btn.getAttribute('data-err-id');
-                const newAmount = parseFloat(btn.getAttribute('data-amount')) || 0;
+                const btnEl = e.target.closest('.btn-quick-set-cod') || btn;
+                const orderInternalId = btnEl.getAttribute('data-order-internal-id');
+                const errId = btnEl.getAttribute('data-err-id');
+                const newAmount = parseFloat(btnEl.getAttribute('data-amount')) || 0;
                 
-                const order = Store.orders.find(o => o.internalId === orderInternalId);
-                if (order) {
-                    order.codAmount = newAmount;
-                    order.isCOD = newAmount > 0;
-                    if (newAmount > 0) order.isBankDeposit = false;
-                    
-                    order.errors = order.errors.filter(err => err.id !== errId);
-                    renderOrders();
-                }
+                updateOrderCardCodInPlace(orderInternalId, errId, newAmount);
             });
         });
 
-        // Gyors Egyedi Utánvét Mentése Gomb az Hiba Boxban
+        // Gyors Egyedi Utánvét Mentése Gomb az Hiba Boxban (in-place)
         document.querySelectorAll('.btn-quick-save-custom-cod').forEach(btn => {
             btn.addEventListener('click', (e) => {
+                e.preventDefault();
                 e.stopPropagation();
-                const orderInternalId = btn.getAttribute('data-order-internal-id');
-                const errId = btn.getAttribute('data-err-id');
-                const errorBox = btn.closest('.error-box');
+                const btnEl = e.target.closest('.btn-quick-save-custom-cod') || btn;
+                const orderInternalId = btnEl.getAttribute('data-order-internal-id');
+                const errId = btnEl.getAttribute('data-err-id');
+                const errorBox = btnEl.closest('.error-box');
                 const input = errorBox ? errorBox.querySelector('.quick-cod-custom-input') : null;
                 if (!input) return;
                 
                 let val = parseFloat(input.value);
                 if (isNaN(val) || val < 0) val = 0;
                 
-                const order = Store.orders.find(o => o.internalId === orderInternalId);
-                if (order) {
-                    order.codAmount = val;
-                    order.isCOD = val > 0;
-                    if (val > 0) order.isBankDeposit = false;
-                    
-                    order.errors = order.errors.filter(err => err.id !== errId);
-                    renderOrders();
+                updateOrderCardCodInPlace(orderInternalId, errId, val);
+            });
+        });
+
+        // Egyedi összeg beírásakor Enter billentyű leütésére automatikus mentés
+        document.querySelectorAll('.quick-cod-custom-input').forEach(input => {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const errorBox = input.closest('.error-box');
+                    const saveBtn = errorBox ? errorBox.querySelector('.btn-quick-save-custom-cod') : null;
+                    if (saveBtn) saveBtn.click();
                 }
             });
         });
 
         // Gyors Utánvét Szerkesztés a Badge-re Kattintva
-        document.querySelectorAll('.clickable-cod-badge').forEach(badge => {
+        function attachClickableBadgeEvent(badge) {
             badge.addEventListener('click', async (e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 const internalId = badge.getAttribute('data-internal-id');
                 const order = Store.orders.find(o => o.internalId === internalId);
@@ -1376,11 +1499,35 @@ function initApp() {
                     if (val > 0) order.isBankDeposit = false;
                     
                     // Szűrjük ki az utánvéttel kapcsolatos hibákat, mivel a felhasználó kézzel felülírta
-                    order.errors = order.errors.filter(err => err.type !== 'cod' && !/utánvét|anomália/i.test(err.title));
+                    order.errors = order.errors.filter(err => err.type !== 'cod' && !/utánvét|anomália|előleg/i.test(err.title));
                     
-                    renderOrders();
+                    const card = document.querySelector(`.order-card[data-internal-id="${internalId}"]`);
+                    if (card) {
+                        const badgeContainer = card.querySelector('.badge-container');
+                        if (badgeContainer) {
+                            badgeContainer.innerHTML = getOrderBadgeHtml(order);
+                            const newBadge = badgeContainer.querySelector('.clickable-cod-badge');
+                            if (newBadge) attachClickableBadgeEvent(newBadge);
+                        }
+                        card.querySelectorAll('.error-box').forEach(eb => {
+                            const errTitle = eb.querySelector('.error-title')?.textContent || '';
+                            if (/utánvét|anomália|előleg/i.test(errTitle)) {
+                                eb.remove();
+                            }
+                        });
+                        if (order.errors.length === 0) {
+                            card.classList.remove('has-error');
+                        }
+                        updatePrintButtonState();
+                    } else {
+                        renderOrders();
+                    }
                 }
             });
+        }
+
+        document.querySelectorAll('.clickable-cod-badge').forEach(badge => {
+            attachClickableBadgeEvent(badge);
         });
 
         document.querySelectorAll('.profile-toggle').forEach(btn => {

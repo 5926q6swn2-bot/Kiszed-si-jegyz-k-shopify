@@ -1407,6 +1407,55 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
     background: #dcfce7 !important;
 }
 
+/* Viszonteladó Sor Kiemelés (Élénk arany/sárga, kijelölve is határozottan látható arany/borostyán!) */
+.hub-order-row.reseller-row {
+    background: #fef08a !important; /* Élénk meleg arany */
+    box-shadow: inset 4px 0 0 #f59e0b;
+}
+
+.hub-order-row.reseller-row:hover {
+    background: #fde68a !important;
+}
+
+.hub-order-row.reseller-row.selected {
+    background: #fde68a !important; /* Kijelölve még telítettebb, karakteres arany/borostyán */
+    box-shadow: inset 5px 0 0 #d97706;
+}
+
+.hub-order-row.reseller-row.selected:hover {
+    background: #fcd34d !important;
+}
+
+/* Személyes Átvétel Sor Kiemelés */
+.hub-order-row.pickup-row {
+    background: #f3e8ff !important;
+}
+
+.hub-order-row.pickup-row:hover {
+    background: #e9d5ff !important;
+}
+
+.hub-order-row.pickup-row.selected {
+    background: #ede9fe !important;
+}
+
+.hub-order-row.pickup-row.selected:hover {
+    background: #e0e7ff !important;
+}
+
+/* Hibás Cím vagy Hibás Szállítás Sor */
+.hub-order-row.danger-row {
+    background: #fef2f2 !important;
+}
+
+.hub-order-row.danger-row:hover {
+    background: #fee2e2 !important;
+}
+
+.hub-order-row.danger-row.selected {
+    background: #fee2e2 !important;
+}
+
 #hub-action-bar button:hover {
     transform: translateY(-1px);
     filter: brightness(1.08);

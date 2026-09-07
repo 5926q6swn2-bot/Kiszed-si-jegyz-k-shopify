@@ -3,8 +3,23 @@
 
 import { Store } from '../store/state.js';
 import { buildDuplicateCustomerOrdersMap } from '../utils/orderUtils.js';
+import { checkAddressValidity } from '../services/shopify.js';
 
 export { buildDuplicateCustomerOrdersMap };
+
+/**
+ * Ellenőrzi, hogy egy rendelés kiszállításos-e és hiányos-e a szállítási címe (pl. hiányzó házszám).
+ * Személyes átvételes vagy törölt rendelésekre mindig false-t ad vissza.
+ */
+export function hasInvalidDeliveryAddress(order) {
+    if (!order || order.isCancelled || order.isPickup) return false;
+    const tags = String(order.tags || '').toLowerCase();
+    if (order.isReseller === true || tags.includes('viszontelad') || tags.includes('viszonterlad')) return false;
+    if (typeof order.hasInvalidAddress === 'boolean') {
+        return order.hasInvalidAddress;
+    }
+    return checkAddressValidity(order);
+}
 
 // Nyitott sorok ID-jainak nyilvántartása
 const expandedOrderIds = new Set();
@@ -358,6 +373,7 @@ export const OrderOverviewView = {
             notInDelivery: tabOrders.filter(o => !o.isInDelivery && !o.isPickup && !o.isFulfilled).length,
             waitingShipment: tabOrders.filter(o => ((o.waitingTags && o.waitingTags.length > 0) || (o.tags && /(?:vár|var|szállítmány|szallitmany)/i.test(o.tags)))).length,
             badShipping: tabOrders.filter(o => o.hasBadShipping && !o.isFulfilled).length,
+            invalidAddress: tabOrders.filter(o => !o.isCancelled && !o.isFulfilled && !o.isPickup && !o.isReseller && hasInvalidDeliveryAddress(o)).length,
             needsProforma: tabOrders.filter(o => o.needsProforma).length,
             noInvoice: tabOrders.filter(o => o.hasNoInvoice).length,
             pickup: tabOrders.filter(o => o.isPickup).length,
@@ -396,6 +412,7 @@ export const OrderOverviewView = {
             if (currentChip === 'not_in_delivery' && (order.isInDelivery || order.isPickup || order.isFulfilled)) return false;
             if (currentChip === 'waiting_shipment' && (!order.waitingTags || order.waitingTags.length === 0) && (!order.tags || !/(?:vár|var|szállítmány|szallitmany)/i.test(order.tags))) return false;
             if (currentChip === 'bad_shipping' && (!order.hasBadShipping || order.isFulfilled)) return false;
+            if (currentChip === 'invalid_address' && (order.isCancelled || order.isFulfilled || order.isPickup || order.isReseller || !hasInvalidDeliveryAddress(order))) return false;
             if (currentChip === 'needs_proforma' && !order.needsProforma) return false;
             if (currentChip === 'no_invoice' && !order.hasNoInvoice) return false;
             if (currentChip === 'pickup' && !order.isPickup) return false;
@@ -606,7 +623,7 @@ export const OrderOverviewView = {
                     </div>
 
                     <!-- Elválasztó vonal (ha vannak teendők) -->
-                    ${(stats.waitingShipment > 0 || stats.badShipping > 0 || stats.noInvoice > 0 || stats.needsProforma > 0 || stats.pendingTransfer > 0) ? `
+                    ${(stats.waitingShipment > 0 || stats.badShipping > 0 || stats.invalidAddress > 0 || stats.noInvoice > 0 || stats.needsProforma > 0 || stats.pendingTransfer > 0) ? `
                         <div style="width: 1px; height: 16px; background: #cbd5e1; margin: 0 3px;"></div>
                     ` : ''}
 
@@ -626,6 +643,14 @@ export const OrderOverviewView = {
                                 <i class="ph-bold ph-warning-octagon"></i>
                                 <span>Rossz szállítás (2300 Ft)</span>
                                 <span style="background: ${currentChip === 'bad_shipping' ? 'rgba(255,255,255,0.25)' : '#dc2626'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.badShipping}</span>
+                            </button>
+                        ` : ''}
+
+                        ${stats.invalidAddress > 0 ? `
+                            <button class="hub-chip-btn ${currentChip === 'invalid_address' ? 'active' : ''}" data-chip="invalid_address" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'invalid_address' ? '#dc2626' : '#fca5a5'}; background: ${currentChip === 'invalid_address' ? '#dc2626' : '#fef2f2'}; color: ${currentChip === 'invalid_address' ? '#ffffff' : '#b91c1c'}; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px;">
+                                <i class="ph-bold ph-map-pin-line"></i>
+                                <span>Hiányos cím</span>
+                                <span style="background: ${currentChip === 'invalid_address' ? 'rgba(255,255,255,0.25)' : '#dc2626'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.invalidAddress}</span>
                             </button>
                         ` : ''}
 
@@ -836,26 +861,35 @@ export const OrderOverviewView = {
                             const fullCityLine = order.zip ? `${order.zip} ${order.city || ''}` : (order.city || '');
                             const streetAddress = order.address1 || order.address || '';
 
+                            const isResellerOrder = Boolean(order.isReseller || (order.tags && /(?:viszontelad|viszonterlad)/i.test(order.tags)));
+                            const isInvalidAddr = !order.isFulfilled && !order.isPickup && !isResellerOrder && hasInvalidDeliveryAddress(order);
+
                             // Sor háttér prioritások:
                             // 1. Törölt rendelés
-                            // 2. Rossz szállítási mód (halvány piros háttér)
-                            // 3. Viszonteladó tag (arany színű sor háttér)
+                            // 2. Rossz szállítási mód vagy Hiányos cím (halvány piros háttér)
+                            // 3. Viszonteladó tag (élénk meleg arany, kijelölve is határozott arany!)
                             // 4. Személyes átvétel (lila sor háttér)
                             // 5. Normál fehér sor
+                            let rowCustomClass = '';
                             let rowBg = isSelected ? '#f0fdf4' : (isExp ? '#f8fafc' : (order.isFulfilled ? '#fafbfc' : '#fff'));
                             let rowOpacity = order.isCancelled ? 'opacity: 0.65;' : '';
                             let rowWrapperBorder = 'border-bottom: 1px solid #f1f5f9;';
 
                             if (order.isCancelled) {
                                 if (!isSelected && !isExp) rowBg = '#f8fafc';
-                            } else if (!order.isFulfilled && order.hasBadShipping) {
+                            } else if (!order.isFulfilled && (order.hasBadShipping || isInvalidAddr)) {
+                                rowCustomClass = 'danger-row';
                                 if (!isSelected && !isExp) rowBg = '#fef2f2';
-                            } else if (order.isReseller) {
-                                // Viszonteladó: Arany színű sor
-                                rowWrapperBorder = 'border-bottom: 1px solid #fef08a;';
-                                if (!isSelected && !isExp) rowBg = '#fef9c3'; // Meleg, arany árnyalat
+                            } else if (isResellerOrder) {
+                                // Viszonteladó: Élénk, karakteres arany szín, kijelölve is határozott meleg arany / borostyán!
+                                rowCustomClass = 'reseller-row';
+                                rowWrapperBorder = isSelected
+                                    ? 'border-bottom: 1.5px solid #d97706;'
+                                    : 'border-bottom: 1.5px solid #f59e0b;';
+                                rowBg = isSelected ? '#fde68a' : (isExp ? '#fef9c3' : '#fef08a');
                             } else if (order.isPickup) {
                                 // Személyes átvétel: Karakteres lila háttér
+                                rowCustomClass = 'pickup-row';
                                 rowWrapperBorder = 'border-bottom: 1px solid #e9d5ff;';
                                 if (!isSelected && !isExp) rowBg = '#f3e8ff'; // Lila árnyalat
                             }
@@ -923,6 +957,20 @@ export const OrderOverviewView = {
                                                 </div>
                                             ` : ''}
 
+                                            <!-- 3b. Hiányos szállítási cím (Házszám hiányzik) (Csak ha NEM személyes átvétel és NEM teljesített) (Tűzpiros / #dc2626) -->
+                                            ${isInvalidAddr ? `
+                                                <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex; pointer-events: auto; cursor: help;">
+                                                    <div style="background: #dc2626; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; box-shadow: -1px 2px 5px rgba(220,38,38,0.35); display: flex; align-items: center; gap: 3px; white-space: nowrap; border: 1px solid #b91c1c;">
+                                                        <i class="ph-bold ph-map-pin-line" style="font-size: 10px; color: #fee2e2;"></i>
+                                                        <span>Hiányos szállítási cím!</span>
+                                                    </div>
+                                                    <div class="logi-tooltip-bubble" style="min-width: 240px; white-space: nowrap;">
+                                                        <i class="ph-bold ph-map-pin-line" style="color: #fca5a5; font-size: 12px;"></i>
+                                                        <span>Hiányzik a házszám a címből ("${order.address1 || order.address || 'Üres utca'}") — Hívni kell a vevőt!</span>
+                                                    </div>
+                                                </div>
+                                            ` : ''}
+
                                             <!-- 4. Több unfulfilled rendelése van ugyanannak a vevőnek (Lila / #7c3aed) -->
                                             ${hasDuplicateOrders ? `
                                                 <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex; pointer-events: auto; cursor: help;">
@@ -946,7 +994,7 @@ export const OrderOverviewView = {
                                     ` : ''}
 
                                     <!-- Fő Sor (9 oszlop: Checkbox, Chevron, Logisztikai Ikon, Rendelés, Dátum, Címzett, Cím, Összeg, Teljesítés) -->
-                                    <div class="hub-order-row ${isSelected ? 'selected' : ''}" data-order-id="${order.id}" style="display: grid; grid-template-columns: 32px 20px 32px 105px 85px minmax(160px, 1fr) minmax(190px, 1.2fr) 150px 130px; padding: 5px 10px; align-items: center; font-size: 11.5px; background: ${rowBg}; cursor: pointer; user-select: none;">
+                                    <div class="hub-order-row ${isSelected ? 'selected' : ''} ${rowCustomClass}" data-order-id="${order.id}" style="display: grid; grid-template-columns: 32px 20px 32px 105px 85px minmax(160px, 1fr) minmax(190px, 1.2fr) 150px 130px; padding: 5px 10px; align-items: center; font-size: 11.5px; background: ${rowBg}; cursor: pointer; user-select: none;">
                                         
                                         <!-- 1. Checkbox -->
                                         <div>
@@ -996,6 +1044,12 @@ export const OrderOverviewView = {
                                         <!-- 6. Címzett Neve -->
                                         <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px;">
                                             <span style="font-weight: 700; color: #0f172a; font-size: 12px;">${order.shippingName}</span>
+                                            ${isResellerOrder ? `
+                                                <span style="background: #f59e0b; color: #ffffff; padding: 1.5px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; margin-left: 5px; display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; box-shadow: 0 1px 2px rgba(245,158,11,0.3);">
+                                                    <i class="ph-bold ph-handshake" style="font-size: 10px;"></i>
+                                                    <span>Viszonteladó</span>
+                                                </span>
+                                            ` : ''}
                                             ${order.billingName && order.billingName !== order.shippingName ? `<div style="font-size: 10px; color: #64748b;">(Számla: ${order.billingName})</div>` : ''}
                                         </div>
 
@@ -1003,7 +1057,7 @@ export const OrderOverviewView = {
                                         <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px;">
                                             ${order.isPickup ? '' : `
                                                 <span style="font-weight: 700; color: #1e293b; margin-right: 4px;">${fullCityLine}</span>
-                                                ${streetAddress ? `<span style="color: #64748b; font-size: 11px;">— ${streetAddress}</span>` : ''}
+                                                ${streetAddress ? `<span style="color: ${isInvalidAddr ? '#dc2626; font-weight: 700;' : '#64748b;'} font-size: 11px;">— ${streetAddress}</span>` : `<span style="color: #dc2626; font-weight: 700; font-size: 11px;">— (Hiányzó utca!)</span>`}
                                             `}
                                         </div>
 
@@ -1026,7 +1080,7 @@ export const OrderOverviewView = {
                                             <div class="hub-order-details" style="padding: 12px 18px 14px 18px; background: #f8fafc; border-top: 1px solid #e2e8f0; border-bottom: 2px solid #cbd5e1; box-shadow: inset 0 2px 5px rgba(0,0,0,0.02);">
                                                 
                                                 <!-- 1. KOMPAKT STÁTUSZ & FIGYELMEZTETŐ SÁV (Csak ha van figyelmeztetés vagy terítés!) -->
-                                                ${(order.isCancelled || (!order.isFulfilled && order.hasBadShipping) || order.needsProforma || order.hasNoInvoice || order.deliveryInfo) ? `
+                                                ${(order.isCancelled || (!order.isFulfilled && order.hasBadShipping) || isInvalidAddr || order.needsProforma || order.hasNoInvoice || order.deliveryInfo) ? `
                                                     <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px dashed #e2e8f0;">
                                                         ${order.isCancelled ? `
                                                             <span style="display: inline-flex; align-items: center; gap: 5px; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; padding: 3px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700;">
@@ -1037,6 +1091,12 @@ export const OrderOverviewView = {
                                                         ${(!order.isFulfilled && order.hasBadShipping) ? `
                                                             <span style="display: inline-flex; align-items: center; gap: 5px; background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; padding: 3px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700;">
                                                                 <i class="ph-bold ph-warning"></i> Hibás szállítás: 2 300 Ft (${order.city || 'Vidéki cím'} - 9 900 Ft helyett)
+                                                            </span>
+                                                        ` : ''}
+
+                                                        ${isInvalidAddr ? `
+                                                            <span style="display: inline-flex; align-items: center; gap: 5px; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; padding: 3px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700;">
+                                                                <i class="ph-bold ph-map-pin-line"></i> Hiányos szállítási cím: hiányzik a házszám ("${order.address1 || order.address || 'Üres utca'}") — Hívni kell a vevőt a házszámért!
                                                             </span>
                                                         ` : ''}
 

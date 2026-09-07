@@ -481,3 +481,56 @@ export function calculateOrderCodAndErrors({
     };
 }
 
+/**
+ * Ellenőrzi, hogy egy kiszállításos rendelés szállítási címe hiányos-e (pl. hiányzó házszám).
+ * Kizárja a személyes átvételes és a törölt rendeléseket.
+ * 
+ * @param {Object} order Rendelés objektum
+ * @returns {boolean} Igaz, ha kiszállításos ÉS a címe hiányos (nincs házszám, vagy hiányzik a település/utca)
+ */
+export function checkInvalidDeliveryAddress(order) {
+    if (!order) return false;
+    if (order.isCancelled === true || order.cancelled_at) return false;
+    if (order.isPickup || isPickupOrder(order)) return false;
+    
+    // Viszonteladók kizárása (nekik tudjuk a címüket, vagy bejönnek érte)
+    const tags = String(order.tags || '').toLowerCase();
+    if (order.isReseller === true || tags.includes('viszontelad') || tags.includes('viszonterlad')) return false;
+
+    // Ha order.hasInvalidAddress már explicit boolean-ként be van állítva:
+    if (typeof order.hasInvalidAddress === 'boolean') {
+        return order.hasInvalidAddress;
+    }
+
+    let zip = String(order.zip || order.shipping_address?.zip || '').replace(/['"]/g, '').trim();
+    let city = String(order.city || order.shipping_address?.city || '').trim();
+    let street = String(order.address1 || order.address || order.shipping_address?.address1 || '').trim();
+
+    // Ha az utca mező tartalmazza az egész címet
+    const fullAddr = String(order.fullAddress || order.address || '').replace(/['"]/g, '').trim();
+    if (!zip || !city || !street || street.includes(',') || street === fullAddr) {
+        if (fullAddr) {
+            const zipMatch = fullAddr.match(/\b\d{4}\b/);
+            if (zipMatch && !zip) zip = zipMatch[0];
+            
+            const parts = fullAddr.split(',').map(p => p.trim()).filter(Boolean);
+            if (parts.length >= 2 && !street) {
+                street = parts[parts.length - 1];
+            }
+        }
+    }
+
+    if (!zip || !city || !street) return true;
+
+    const streetLower = street.toLowerCase();
+
+    // 1. Csak számok és írásjelek -> Hiányzó utcanév
+    const justNumbersAndSymbols = /^[\d\s\/\.,\\-–—a-fA-F]*$/.test(streetLower) && streetLower.length <= 6;
+    if (justNumbersAndSymbols) return true;
+
+    // 2. HÁZSZÁM ELLENŐRZÉS: Legalább 1 számjegyet tartalmaznia kell
+    const hasHouseNumber = /\d+/.test(streetLower);
+    if (!hasHouseNumber) return true;
+
+    return false;
+}
