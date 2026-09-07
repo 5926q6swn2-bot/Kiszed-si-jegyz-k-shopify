@@ -75,10 +75,19 @@ export const Store = {
     },
 
     toggleHubOrderSelection(orderId) {
-        if (state.selectedHubOrderIds.has(orderId)) {
-            state.selectedHubOrderIds.delete(orderId);
+        const idStr = String(orderId);
+        const cleanId = idStr.replace(/^#/, '');
+        const withHash = '#' + cleanId;
+
+        let foundKey = null;
+        if (state.selectedHubOrderIds.has(idStr)) foundKey = idStr;
+        else if (state.selectedHubOrderIds.has(cleanId)) foundKey = cleanId;
+        else if (state.selectedHubOrderIds.has(withHash)) foundKey = withHash;
+
+        if (foundKey !== null) {
+            state.selectedHubOrderIds.delete(foundKey);
         } else {
-            state.selectedHubOrderIds.add(orderId);
+            state.selectedHubOrderIds.add(idStr);
         }
     },
 

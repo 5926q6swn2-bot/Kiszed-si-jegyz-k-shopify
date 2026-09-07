@@ -28,7 +28,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.8 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris, élesítve a Render felhőben és stabil. ⚡ **4-Szintű Végleges Adatvédelmi és Szinkronizációs Rendszer, Firestore Kvótaszivárgás Megszüntetése, 1-Kattintásos Biztonsági Export/Import** (`v4.4.5`, 415/415 zöld unit teszt).
+- **Státusz**: A rendszer 100%-ban moduláris, élesítve a Render felhőben és stabil. ⚡ **Valós idejű Kijelölési Sorszám Jelvények a Shopify Hub Pipáknál, Görgetési Pozíció Megőrzése és Hash-Toleráns Sorrendkezelés** (`v4.4.6`, 417/417 zöld unit teszt).
 
 ---
 
@@ -44,6 +44,24 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. szeptember 7. (8. frissítés) - Valós Idejű Kijelölési Sorszám Jelvények a Pipáknál, Görgetés-Megőrzés és Hash-Toleráns Kijelölés (`v4.4.6`)
+- **Felhasználói visszajelzés**: „a sorrendes pipálás most nem működött? hogy van beállítva?” + jóváhagyás: „aha legyen így”.
+- **Megvalósított fejlesztések**:
+  - **1. Vizuális Sorszám Jelvény a Pipák Mellett (`orderOverviewView.js`):**
+    - A Shopify Rendelésáttekintő táblázatban a bepipált rendelések mellett mostantól azonnal, élőben megjelenik egy elegáns kék, kerek sorszám jelvény (`①`, `②`, `③`...).
+    - A felhasználó azonnal látja pipálás közben a kijelölési sorrendet, mielőtt még átdobná a szedőlistába.
+    - Ha egy rendelést kikapcsolnak, a sorszámok dinamikusan újraszámozódnak.
+  - **2. Görgetési Pozíció Megőrzése Pipáláskor (`app.js`):**
+    - A `renderOverview()` mostantól elmenti és visszaállítja az `orderOverviewContainer.scrollTop` pozíciót.
+    - Egy lejjebb lévő rendelés bepipálásakor az oldal nem ugrik vissza a lap tetejére.
+  - **3. Hash-Toleráns Kijelöléskezelés (`orderUtils.js`, `state.js`):**
+    - A `getOrdersInSelectionOrder()` és a `Store.toggleHubOrderSelection()` fel lett készítve a kettőskereszttel (`#4001`) és a kettőskereszt nélkül (`4001`) tárolt azonosítók zökkenőmentes egyeztetésére.
+  - **4. Verziószám Frissítés (`index.html`):**
+    - Az `app.js` verziószáma frissítve lett `?v=4.4.6`-ra a kliensoldali böngésző cache-ek frissítéséhez.
+- **Automatizált Egységtesztek (`tests/unit_tests.js`)**:
+  - 2 új unit teszt hozzáadva a vegyes formátumú (`#` előtaggal és anélküli) kijelölési sorrend tesztelésére.
+  - Összesen **417/417 unit teszt sikeresen átment (100% zöld)**.
 
 ### 2026. szeptember 7. (7. frissítés) - 4-Szintű Végleges Adatvédelmi Rendszer, Firestore Kvótaszivárgás Megszüntetése & 1-Kattintásos Beállítás Export/Import (`v4.4.5`)
 - **Felhasználói bejelentés**: „a githubos linken megcsináltam a pannonxp címkekészítőhöz egy új profilt, most eltűnt és se a local host, se a renderes oldalon nicns meg már meg sehol ott se ahol megcsináltam” + „de rögzítem én magam újra szívesen, csak hogy nem fog ez újra előfordulni, és hogy lesz jó, minden adat súly, termékcsalád amit módosítok hogy nem veszik el mint ez?”.

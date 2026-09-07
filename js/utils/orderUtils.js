@@ -603,11 +603,20 @@ export function getOrdersInSelectionOrder(allOrders, selectedIds) {
     const orderMap = new Map();
     allOrders.forEach(o => {
         if (o && o.id) {
-            orderMap.set(String(o.id), o);
+            const rawId = String(o.id);
+            const cleanId = rawId.replace(/^#/, '');
+            orderMap.set(rawId, o);
+            orderMap.set(cleanId, o);
+            orderMap.set('#' + cleanId, o);
         }
     });
 
     return idList
-        .map(id => orderMap.get(String(id)))
+        .map(id => {
+            const strId = String(id);
+            const cleanId = strId.replace(/^#/, '');
+            return orderMap.get(strId) || orderMap.get(cleanId) || orderMap.get('#' + cleanId);
+        })
         .filter(Boolean);
 }
+

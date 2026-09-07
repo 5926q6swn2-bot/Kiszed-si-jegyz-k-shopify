@@ -1936,8 +1936,14 @@ const orderedResult2 = getOrdersInSelectionOrder(selectionPool, userSelectionRev
 assertEqual("Kijelölési Sorrend - Fordított sorrend 1. helyezett", orderedResult2[0].id, "#1004");
 assertEqual("Kijelölési Sorrend - Fordított sorrend 2. helyezett", orderedResult2[1].id, "#1002");
 
+const userSelectionMixed = new Set(["1002", "#1001"]); // Vegyes hash formátum
+const orderedResultMixed = getOrdersInSelectionOrder(selectionPool, userSelectionMixed);
+assertEqual("Kijelölési Sorrend - Vegyes hash 1. helyezett (#1002)", orderedResultMixed[0].id, "#1002");
+assertEqual("Kijelölési Sorrend - Vegyes hash 2. helyezett (#1001)", orderedResultMixed[1].id, "#1001");
+
 const emptySelection = new Set();
 assertEqual("Kijelölési Sorrend - Üres kijelölés 0 elem", getOrdersInSelectionOrder(selectionPool, emptySelection).length, 0);
+
 
 // --- PannonXP & HistoryManager Cache & Perzisztencia Tesztek ---
 // 1. HistoryManager Cache logika szimulációja

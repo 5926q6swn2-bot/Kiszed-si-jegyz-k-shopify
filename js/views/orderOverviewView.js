@@ -473,7 +473,11 @@ export const OrderOverviewView = {
         });
 
         // Összes látható kijelölve van-e?
-        const isAllVisibleSelected = filteredOrders.length > 0 && filteredOrders.every(o => selectedIds.has(o.id));
+        const isAllVisibleSelected = filteredOrders.length > 0 && filteredOrders.every(o => {
+            const oId = String(o.id);
+            const clean = oId.replace(/^#/, '');
+            return selectedIds.has(oId) || selectedIds.has(clean) || selectedIds.has('#' + clean);
+        });
 
         // HTML Felépítés (Szuper Kompakt, Áramvonalas Elrendezés)
         containerElement.innerHTML = `
@@ -706,8 +710,8 @@ export const OrderOverviewView = {
                 <div class="overview-table-container" style="background: #fff; border-radius: 8px; border: 1px solid #e2e8f0; overflow: visible; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
                     
                     <!-- Táblázat Fejléc -->
-                    <div style="display: grid; grid-template-columns: 32px 20px 32px 105px 85px minmax(160px, 1fr) minmax(190px, 1.2fr) 150px 130px; padding: 5px 10px; background: #f8fafc; border-bottom: 1.5px solid #e2e8f0; font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase; align-items: center; border-radius: 8px 8px 0 0;">
-                        <div>
+                    <div style="display: grid; grid-template-columns: 42px 20px 32px 105px 85px minmax(160px, 1fr) minmax(190px, 1.2fr) 150px 130px; padding: 5px 10px; background: #f8fafc; border-bottom: 1.5px solid #e2e8f0; font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase; align-items: center; border-radius: 8px 8px 0 0;">
+                        <div style="display: flex; align-items: center;">
                             <input type="checkbox" id="hub-select-all" ${isAllVisibleSelected ? 'checked' : ''} style="width: 14px; height: 14px; cursor: pointer; accent-color: #2563eb;">
                         </div>
                         <div></div>
@@ -736,9 +740,14 @@ export const OrderOverviewView = {
                                 <div style="font-size: 13px; font-weight: 700; color: #475569;">Nincs találat a megadott szűrőkkel</div>
                             </div>
                         ` : (() => {
+                            const selectedIdsArray = Array.from(selectedIds).map(String);
                             const renderSingleRow = (order) => {
-                                const isSelected = selectedIds.has(order.id);
-                            const isExp = OrderOverviewView.isExpanded(order.id);
+                                const orderIdStr = String(order.id);
+                                const cleanId = orderIdStr.replace(/^#/, '');
+                                const selIdx = selectedIdsArray.findIndex(id => id === orderIdStr || id === cleanId || id === '#' + cleanId);
+                                const isSelected = selIdx !== -1;
+                                const selectionOrderNum = isSelected ? selIdx + 1 : null;
+                                const isExp = OrderOverviewView.isExpanded(order.id);
                             const formattedDate = order.orderDate ? new Date(order.orderDate).toLocaleString('hu-HU', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
                             const formattedTotal = new Intl.NumberFormat('hu-HU').format(order.totalAmount || 0);
                             const formattedCod = new Intl.NumberFormat('hu-HU').format(order.codAmount || 0);
@@ -994,11 +1003,14 @@ export const OrderOverviewView = {
                                     ` : ''}
 
                                     <!-- Fő Sor (9 oszlop: Checkbox, Chevron, Logisztikai Ikon, Rendelés, Dátum, Címzett, Cím, Összeg, Teljesítés) -->
-                                    <div class="hub-order-row ${isSelected ? 'selected' : ''} ${rowCustomClass}" data-order-id="${order.id}" style="display: grid; grid-template-columns: 32px 20px 32px 105px 85px minmax(160px, 1fr) minmax(190px, 1.2fr) 150px 130px; padding: 5px 10px; align-items: center; font-size: 11.5px; background: ${rowBg}; cursor: pointer; user-select: none;">
+                                    <div class="hub-order-row ${isSelected ? 'selected' : ''} ${rowCustomClass}" data-order-id="${order.id}" style="display: grid; grid-template-columns: 42px 20px 32px 105px 85px minmax(160px, 1fr) minmax(190px, 1.2fr) 150px 130px; padding: 5px 10px; align-items: center; font-size: 11.5px; background: ${rowBg}; cursor: pointer; user-select: none;">
                                         
-                                        <!-- 1. Checkbox -->
-                                        <div>
-                                            <input type="checkbox" class="hub-order-checkbox" data-order-id="${order.id}" ${isSelected ? 'checked' : ''} style="width: 14px; height: 14px; cursor: pointer; accent-color: #2563eb;">
+                                        <!-- 1. Checkbox & Kijelölési Sorszám -->
+                                        <div style="display: flex; align-items: center; gap: 4px;">
+                                            <input type="checkbox" class="hub-order-checkbox" data-order-id="${order.id}" ${isSelected ? 'checked' : ''} style="width: 14px; height: 14px; cursor: pointer; accent-color: #2563eb; flex-shrink: 0;">
+                                            ${isSelected ? `
+                                                <span class="hub-selection-badge" style="background: #2563eb; color: #ffffff; font-size: 9.5px; font-weight: 800; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(37,99,235,0.35); line-height: 1; flex-shrink: 0;" title="Kijelölési sorrend: ${selectionOrderNum}.">${selectionOrderNum}</span>
+                                            ` : ''}
                                         </div>
 
                                         <!-- 2. Chevron lenyitó -->

@@ -342,8 +342,12 @@ function initApp() {
     // --- RENDELÉSÁTTEKINTŐ RENDERELŐ & ESEMÉNYKEZELŐ ---
     function renderOverview() {
         if (!orderOverviewContainer) return;
+        const savedScroll = orderOverviewContainer.scrollTop || window.pageYOffset || 0;
         OrderOverviewView.renderOrderOverview(orderOverviewContainer);
         attachOverviewEvents();
+        if (savedScroll > 0) {
+            orderOverviewContainer.scrollTop = savedScroll;
+        }
     }
 
     function attachOverviewEvents() {
