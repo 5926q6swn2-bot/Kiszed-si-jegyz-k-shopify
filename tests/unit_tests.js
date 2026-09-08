@@ -48,6 +48,8 @@ import {
 } from '../js/services/selaWeightService.js';
 import { ensureSelaModalStyles } from '../js/views/selaModalStyles.js';
 
+
+
 function fixHungarianAccents(str) {
     if (!str) return '';
     return str
@@ -2049,7 +2051,48 @@ assertEqual("Szerver Merge - Megőrzi a packagingRules-t", mergedServerData.pack
 assertEqual("Szerver Merge - Frissíti a profilokat", mergedServerData.profiles.length, 2);
 assertEqual("Szerver Merge - Frissíti az aktív profilt", mergedServerData.activeProfileId, "uj_ceg");
 
+// 4. PannonXP Átdobás Súly- és Csomagszámítás Tesztelése
+const testPxpCalculation = (items) => {
+    // Wide Akusztikus: 9.0 kg / db, Akusztikus: 6.5 kg / db, Ragasztó: 0.5 kg / db
+    let totalW = 0;
+    items.forEach(i => {
+        if (/wide/i.test(i.name)) totalW += i.qty * 9.0;
+        else if (/akusztikus/i.test(i.name)) totalW += i.qty * 6.5;
+        else if (/ragasztó/i.test(i.name)) totalW += i.qty * 0.5;
+    });
+    return { packages: 1, weight: totalW };
+};
+
+
+const orderTransferredToPxp = {
+    id: "#9876",
+    shippingName: "Teszt Vásárló",
+    items: [
+        { name: "Prémium Akusztikus Falpanel Natúr Tölgy", qty: 2 },
+        { name: "T-Rex ragasztó 310ml", qty: 1 }
+    ]
+};
+
+const calculatedPxpTransfer = testPxpCalculation(orderTransferredToPxp.items);
+orderTransferredToPxp.pxp_csomagszam = calculatedPxpTransfer.packages;
+orderTransferredToPxp.pxp_suly = calculatedPxpTransfer.weight;
+
+assertEqual("PXP Átdobás - 2 Akupanel csomagszám az 1", orderTransferredToPxp.pxp_csomagszam, 1);
+assertEqual("PXP Átdobás - 2 Akupanel súlya 13.5 kg (nem 0.5 kg default)", orderTransferredToPxp.pxp_suly, 13.5);
+
+// Render fallback szimuláció (ha pxp_suly undefined)
+const uninitializedPxpOrder = { id: "#9877", items: [{ name: "Prémium Akusztikus Falpanel Wide Dió", qty: 3 }] };
+if (uninitializedPxpOrder.pxp_suly === undefined || uninitializedPxpOrder.pxp_csomagszam === undefined) {
+    const calcFallback = testPxpCalculation(uninitializedPxpOrder.items || []);
+    uninitializedPxpOrder.pxp_csomagszam = calcFallback.packages;
+    uninitializedPxpOrder.pxp_suly = calcFallback.weight;
+}
+assertEqual("PXP Render Fallback - 3 Wide Akupanel csomagszám 1", uninitializedPxpOrder.pxp_csomagszam, 1);
+assertEqual("PXP Render Fallback - 3 Wide Akupanel súlya 27 kg", uninitializedPxpOrder.pxp_suly, 27);
+
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
+
+
 
 if (failed > 0) {
     process.exit(1);

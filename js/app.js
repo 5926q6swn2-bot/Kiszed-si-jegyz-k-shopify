@@ -600,16 +600,32 @@ function initApp() {
                 if (selectedIds.size === 0) return;
 
                 const selectedOrders = getOrdersInSelectionOrder(Store.shopifyHubOrders, selectedIds);
-                const clonedPxpOrders = JSON.parse(JSON.stringify(selectedOrders)).map(o => ({
-                    ...o,
-                    pxp_selected: true
-                }));
+                const activeM = PannonXPService.getNormalizedProductMappings();
+                const clonedPxpOrders = JSON.parse(JSON.stringify(selectedOrders)).map(o => {
+                    const calc = PannonXPService.calculateWeightAndPackages(o.items || []);
+                    const ref = ShopifyParser.generateDefaultReference ? ShopifyParser.generateDefaultReference(o, 40) : (o.pxp_referencia || o.id);
+                    const hasUnmapped = (o.items || []).some(item => !activeM[cleanItemNameForMapping(item.name)]);
+                    const hasUnassignedCategory = (o.items || []).some(item => {
+                        const m = activeM[cleanItemNameForMapping(item.name)];
+                        return !m || !m.categoryId;
+                    });
+                    return {
+                        ...o,
+                        pxp_csomagszam: calc.packages,
+                        pxp_suly: calc.weight,
+                        pxp_packages: calc.packagesDetail,
+                        pxp_referencia: ref,
+                        pxp_has_unmatched: calc.hasUnmatched || hasUnmapped || hasUnassignedCategory,
+                        pxp_selected: true
+                    };
+                });
 
                 Store.setPxpOrders(clonedPxpOrders);
                 CustomDialog.alert(`${clonedPxpOrders.length} db rendelés sikeresen átkerült a PannonXP Címkekészítőbe!`, 'Áthelyezés Sikeres', 'success');
                 switchMainTab('pannonxp');
             });
         }
+
 
         // Szállítói Export (Sela) - Interaktív Előnézet és Szerkesztő Modal
         const btnExportSela = document.getElementById('btn-hub-export-sela');

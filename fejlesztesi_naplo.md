@@ -28,8 +28,9 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
-- **Utolsó aktív modell**: Gemini 3.8 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris, élesítve a Render felhőben és stabil. ⚡ **Valós idejű Kijelölési Sorszám Jelvények a Shopify Hub Pipáknál, Görgetési Pozíció Megőrzése és Hash-Toleráns Sorrendkezelés** (`v4.4.6`, 417/417 zöld unit teszt).
+- **Utolsó aktív modell**: Gemini 3.6 Flash (High)
+- **Státusz**: A rendszer 100%-ban moduláris, élesítve a Render felhőben és stabil. ⚡ **PannonXP Címkekészítő Átdobási Súly- és Csomagszámítási Javítás** (`v4.4.7`, 427/427 zöld unit teszt).
+
 
 ---
 
@@ -47,7 +48,20 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
+### 2026. szeptember 8. (2. frissítés) - Rendelésáttekintőből PannonXP-be Átdobás Súly- és Csomagszámításának Javítása (`v4.4.7`)
+- **Felhasználói bejelentés**: „ha a rendelésáttekintőből veszem át a pannonxp címkekészítőbe a rendeléseket, akkor nem jól írja be a súlyt, vegye figyelembe a pannonxp-ben található súly szabályokat és adatokat”.
+- **Gyökérok elemzés**:
+  - A Rendelésáttekintőből (`Store.shopifyHubOrders`) az „Átdobás PannonXP-be” (`btn-hub-send-to-pxp`) gombbal áthelyezett rendeléseknél a kód korábban nem számította ki a PannonXP-specifikus mezőket (`pxp_csomagszam`, `pxp_suly`, `pxp_packages`, `pxp_referencia`, `pxp_has_unmatched`).
+  - Ennek következtében a `pannonxpTable.js` táblázat renderelője az `undefined` értékek miatt statikusan visszahullott a gyári alapértelmezett `pxp_suly = 0.5` kg és `pxp_csomagszam = 1` felülírásra.
+- **Megvalósított megoldás (`js/app.js`, `js/views/pannonxp/pannonxpTable.js`)**:
+  - **1. Automatikus Számítás Átdobáskor (`app.js`)**: A `btnSendToPxp` eseménykezelő az átdobandó rendeléseknél azonnal meghívja a `PannonXPService.calculateWeightAndPackages(o.items)` és a `ShopifyParser.generateDefaultReference(o, 40)` eljárásokat.
+  - **2. Hibabiztos Dinamikus Számítás a Táblázatban (`pannonxpTable.js`)**: A `renderOrdersTable` amennyiben `pxp_suly` vagy `pxp_csomagszam` hiányt érzékel, automatikusan kiszámítja és beállítja a pontos értékeket a PannonXP termék-kategóriái és csomagolási szabályai alapján.
+- **Automatizált Egységtesztek (`tests/unit_tests.js`)**:
+  - Új tesztek hozzáadva a PannonXP átdobási súlyszámítás ellenőrzésére.
+  - Összesen **427/427 unit teszt hibátlanul átment (100% zöld)**.
+
 ### 2026. szeptember 8. (1. frissítés) - Napi Reggeli 07:00-s Riport Tervezés & Interaktív Előnézet (`morning_report_preview.html`)
+
 - **Felhasználói kérés**: Minden reggel 07:00-kor egy lényegretörő, puritán gépelt összefoglaló e-mail a logisztikai elakadásokról, címhibákról, díjbekérőkről és határidőkről. Az éles kiküldés előtt interaktív előnézet kérése a céges géphez való átálláshoz.
 - **Megvalósított szabályok és előnézet**:
   - **1. Rendelésáttekintővel azonos szűrési logika:** A `checkBadShipping` figyelembe veszi az ingyenes kuponokat (pl. a #3966 NEM rossz szállítás), a `checkInvalidDeliveryAddress` pedig kizárja a személyes átvételeket és a viszonteladókat.

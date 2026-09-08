@@ -86,9 +86,17 @@ export function renderOrdersTable(container, orders, onExport, mainViewContext) 
         const hasUnmatched = !!order.pxp_has_unmatched || hasUnmappedProduct || hasUnassignedCategory;
         const hasError = isAddrInvalid || !hasZip || hasUnmatched || hasRemovedError || isPendingDeposit;
         
-        if (order.pxp_csomagszam === undefined) order.pxp_csomagszam = 1;
-        if (order.pxp_suly === undefined) order.pxp_suly = 0.5;
+        if (order.pxp_suly === undefined || order.pxp_csomagszam === undefined || !order.pxp_packages) {
+            const calc = PannonXPService.calculateWeightAndPackages(order.items || []);
+            order.pxp_csomagszam = calc.packages;
+            order.pxp_suly = calc.weight;
+            order.pxp_packages = calc.packagesDetail;
+            if (!order.pxp_referencia && ShopifyParser.generateDefaultReference) {
+                order.pxp_referencia = ShopifyParser.generateDefaultReference(order, 40);
+            }
+        }
         if (order.pxp_selected === undefined) order.pxp_selected = true;
+
         
         let itemsPreviewHtml = '';
         if (order.items && order.items.length > 0) {
