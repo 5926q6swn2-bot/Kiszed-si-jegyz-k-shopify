@@ -681,7 +681,7 @@
                     { orderId: "#4020", billing: "Soproni István", city: "Sopron", tag: "Címke kész", note: "" }
                 ],
                 unsettledRuns: [
-                    { orderId: "#3950", driver: "Bábel", date: "2026. 09. 06.", note: "fuvar még nincs elszámolva" }
+                    { orderId: "#3950", driver: "Bábel", date: "2026. 09. 06.", codTotal: "148.500 Ft", note: "" }
                 ]
             },
 
@@ -1116,12 +1116,16 @@
             } else {
                 html += `<ul class="item-list">`;
                 unsettledRunsFiltered.forEach(item => {
+                    const codVal = item.codTotal || item.amount;
+                    const codText = codVal ? ` — Utánvét egyenleg: <strong>${codVal}</strong>` : '';
+                    const isGenericNote = item.note && /fuvar még nincs elszámolva|elszámolatlan/i.test(item.note);
+                    const noteHtml = (item.note && !isGenericNote) ? renderNotesBox(item.note) : '';
+
                     html += `
                         <li class="warn-item">
-                            <strong>${item.driver}</strong> fuvar - Kiszállítás napja: ${item.date}
-                            <span class="sub-tag tag-courier-run"><i class="ph-bold ph-truck"></i> Nyitott fuvar</span>
-                            <span class="meta-detail">— Utánvét egyenleg: <strong>${item.codTotal}</strong></span>
-                            ${renderNotesBox(item.note)}
+                            <strong>${item.driver}</strong> fuvar — Kiszállítás napja: ${item.date || 'Nincs dátum'}
+                            ${codText}
+                            ${noteHtml}
                         </li>
                     `;
                 });
