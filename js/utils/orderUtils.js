@@ -616,3 +616,73 @@ export function getOrdersInSelectionOrder(allOrders, selectedIds) {
         .filter(Boolean);
 }
 
+/**
+ * Ellenőrzi, hogy a megjegyzés tartalmazza-e a [ok] kifejezést.
+ * 
+ * @param {string} note 
+ * @returns {boolean}
+ */
+export function hasOkTag(note) {
+    if (!note) return false;
+    return String(note).toLowerCase().includes('[ok]');
+}
+
+/**
+ * Ellenőrzi, hogy egy rendelés viszonteladói rendelés-e.
+ * 
+ * @param {Object} order 
+ * @returns {boolean}
+ */
+export function isResellerOrder(order) {
+    if (!order) return false;
+    if (order.isReseller === true) return true;
+    const tags = String(order.tags || '').toLowerCase();
+    return tags.includes('viszontelad') ||
+           tags.includes('viszonterlad') ||
+           tags.includes('viszonteladó') ||
+           tags.includes('viszontelado');
+}
+
+/**
+ * Kiszámolja a reggeli riport statisztikáit a viszonteladók kizárásával.
+ * 
+ * @param {Array} orders - Shopify rendelések tömbje
+ * @param {Date|string} cutoff24h - A tegnapi 07:00 vágási dátum
+ * @returns {Object} { unfulfilledCount, newOrders24h, newUnfulfilled24h }
+ */
+export function calculateMorningReportStats(orders = [], cutoff24h = null) {
+    if (!Array.isArray(orders)) {
+        return { unfulfilledCount: 0, newOrders24h: 0, newUnfulfilled24h: 0 };
+    }
+
+    const cutoffTime = cutoff24h ? new Date(cutoff24h).getTime() : 0;
+
+    // Viszonteladók és törölt rendelések kizárása
+    const retailOrders = orders.filter(o => !o.isCancelled && !isResellerOrder(o));
+
+    // Lakossági unfulfilled rendelések
+    const unfulfilledCount = retailOrders.filter(o => !o.isFulfilled && (o.fulfillmentStatus === 'unfulfilled' || o.fulfillment_status === 'unfulfilled' || !o.fulfillmentStatus)).length;
+
+    let newOrders24h = 0;
+    let newUnfulfilled24h = 0;
+
+    if (cutoffTime > 0) {
+        retailOrders.forEach(o => {
+            const createdAtTime = new Date(o.created_at || o.createdAt || 0).getTime();
+            if (createdAtTime >= cutoffTime) {
+                newOrders24h++;
+                if (!o.isFulfilled && (o.fulfillmentStatus === 'unfulfilled' || o.fulfillment_status === 'unfulfilled' || !o.fulfillmentStatus)) {
+                    newUnfulfilled24h++;
+                }
+            }
+        });
+    }
+
+    return {
+        unfulfilledCount,
+        newOrders24h,
+        newUnfulfilled24h
+    };
+}
+
+

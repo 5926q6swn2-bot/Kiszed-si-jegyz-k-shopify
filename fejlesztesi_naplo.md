@@ -46,6 +46,11 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+### 2026. szeptember 8. (7. frissítés) - Viszonteladók Kizárása a Reggeli Riport Statisztikákból & Unit Tesztek Bővítése (`v4.5.1`)
+- **Viszonteladói Kizárás a Számlálókból**: A rendelési statisztikák (az összes nyitott unfulfilled rendelésszám és a tegnap 07:00 óta érkezett új rendelések száma) kizárólag a lakossági/normál rendeléseket veszik figyelembe. A viszonteladói (`viszonteladó` tag-es vagy `isReseller: true`) rendelések teljesen ki vannak zárva a számlálókból mind a riport statisztikai kártyáján, mind a szűrőfüggvényekben.
+- **`orderUtils.js` Bővítése**: Új segédfüggvények exportálva: `hasOkTag(note)`, `isResellerOrder(order)`, és `calculateMorningReportStats(orders, cutoff24h)`.
+- **442/442 Sikeres Unit Teszt**: 9 új unit teszt hozzáadva a `tests/unit_tests.js`-hez a `[ok]` tag felismerésére, a viszonteladók szűrésére és a reggeli riport lakossági statisztikáinak kiszámítására. Minden teszt 100%-osan zöld.
+
 ### 2026. szeptember 8. (6. frissítés) - Intelligens `[ok]` Megjegyzés Szűrés & Hétfői Felülvizsgálati Szekció (`morning_report_preview.html`)
 - **Felhasználói igény**: Ha a megjegyzésbe be van írva egy egyeztetés (pl. `09.09-ig átveszi [ok]`), a rendelés ne riasszon nap mint nap a reggeli riportban a hétköznapokon, és csak hétfőnként jelenjen meg egy külön felülvizsgálati szekcióban.
 - **Megvalósított logika & védelem**:

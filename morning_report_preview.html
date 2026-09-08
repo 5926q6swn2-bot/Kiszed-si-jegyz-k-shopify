@@ -582,11 +582,12 @@
 
     <!-- Tervezési és Szabály Jegyzetek -->
     <div class="notes-card">
-        <h3><i class="ph-bold ph-sliders" style="color: #2563eb;"></i> Intelligens <code>[ok]</code> Megjegyzés Szabályzat & PannonXP Logika:</h3>
+        <h3><i class="ph-bold ph-sliders" style="color: #2563eb;"></i> Intelligens <code>[ok]</code> Megjegyzés Szabályzat & Viszonteladó Kizárás:</h3>
         <ul>
+            <li><strong>Viszonteladók Kizárása a Statisztikákból:</strong> A rendelési statisztikák (tegnap óta érkezett új rendelések és az összes unfulfilled rendelésszám) kizárólag a lakossági/normál rendeléseket számolják. A viszonteladói (<code>viszonteladó</code> tag-es) rendelések <strong>teljesen ki vannak zárva</strong> a számlálókból!</li>
             <li><strong>Beírási formátum:</strong> Ha a megjegyzés tartalmazza a <code>[ok]</code> kifejezést (pl.: <em>"09.09-ig átveszi [ok]"</em> vagy <em>"győrben veszi fel [ok]"</em>).</li>
             <li><strong>Kedd – Vasárnap működés:</strong> A <code>[ok]</code> megjegyzéssel rendelkező tételek NIKOM nem riasztanak a napi piros/sárga szekciókban.</li>
-            <li><strong>PannonXP szekció szabálya:</strong> A 6. PannonXP szekcióban CSAK azok a csomagok szerepelnek, amelyekhez MÉG NEM készült címke (narancssárga ikonosok). A már felcímkézett (`címke` tag-es, pl. #3989, #3986) csomagok már feladás alatt vannak, így ott nem jelennek meg!</li>
+            <li><strong>PannonXP szekció szabálya:</strong> A 6. PannonXP szekcióban CSAK azok a csomagok szerepelnek, amelyekhez MÉG NEM készült címke (narancssárga ikonosok). A már felcímkézett csomagok (pl. #3989, #3986) már feladás alatt vannak, így ott nem jelennek meg!</li>
             <li><strong>Hétfő Reggeli Felülvizsgálat:</strong> Hétfőnként a még nyitva lévő <code>[ok]</code> megjegyzéses rendelések a riport alján megjelennek a <strong>"8. Egyeztetett rendelések (Hétfői felülvizsgálat) — [ok]"</strong> szekcióban.</li>
         </ul>
     </div>
@@ -596,12 +597,12 @@
         let currentReportDay = 'weekday'; // 'weekday' vagy 'monday'
 
         const scenarios = {
-            // 1. AKTUÁLIS ÉLES ADATOK (A Shopify-ból élőben beolvasott valós állapot)
+            // 1. AKTUÁLIS ÉLES ADATOK (A Shopify-ból élőben beolvasott valós lakossági állapot - viszonteladók kizárva!)
             actual: {
                 subject: "Reggeli riport - 2026. szeptember 8.",
-                unfulfilledCount: 58,
-                newOrders24h: 14,
-                newUnfulfilled24h: 12,
+                unfulfilledCount: 51, // 58 total - 7 viszonteladói unfulfilled = 51 lakossági unfulfilled!
+                newOrders24h: 8,       // Tegnap 07:00 óta 8 új lakossági rendelés érkezett
+                newUnfulfilled24h: 6,  // ebből 6 unfulfilled
                 dateTextWeekday: "2026. szeptember 8., kedd 07:00",
                 dateTextMonday: "2026. szeptember 7., hétfő 07:00",
                 missingInvoice: [],
@@ -629,9 +630,9 @@
             // 2. FORGALMAS NAP
             busy: {
                 subject: "Reggeli riport - 2026. szeptember 8.",
-                unfulfilledCount: 98,
-                newOrders24h: 28,
-                newUnfulfilled24h: 24,
+                unfulfilledCount: 88, // viszonteladók kizárva
+                newOrders24h: 24,
+                newUnfulfilled24h: 20,
                 dateTextWeekday: "2026. szeptember 8., kedd 07:00",
                 dateTextMonday: "2026. szeptember 7., hétfő 07:00",
                 missingInvoice: [
@@ -747,8 +748,8 @@
                 <div class="stats-summary-box">
                     Jó reggelt!<br><br>
                     ${isMonday ? '<strong>[HÉTFŐI REGGELI RIPORT]</strong><br>' : ''}
-                    Tegnap reggel 07:00 óta <strong>${data.newOrders24h} db új rendelés</strong> érkezett (ebből <span class="stat-pill"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#eab308;"></span> Unfulfilled: ${data.newUnfulfilled24h} db</span>).<br>
-                    Jelenleg összesen <strong>${data.unfulfilledCount} db unfulfilled (teljesítésre váró) rendelés</strong> van a Shopify-ban.<br><br>
+                    Tegnap reggel 07:00 óta <strong>${data.newOrders24h} db új rendelés</strong> érkezett (ebből <span class="stat-pill"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#eab308;"></span> Unfulfilled: ${data.newUnfulfilled24h} db</span> — <em>viszonteladói rendelések kizárva</em>).<br>
+                    Jelenleg összesen <strong>${data.unfulfilledCount} db unfulfilled (teljesítésre váró lakossági) rendelés</strong> van a Shopify-ban.<br><br>
                     ${isMonday 
                         ? 'Az alábbiakban találod a mai aktív teendőket, az e-mail alján pedig a <strong>Hétfői Felülvizsgálatra gyűjtött korábban egyeztetett [ok] rendeléseket</strong>:' 
                         : 'Az alábbiakban találod a mai napra vonatkozó aktív logisztikai és számlázási teendőket (a <code>[ok]</code> megjegyzéses rendelések elnémítva):'}
@@ -1040,7 +1041,7 @@
                             </span>
                         </div>
                         <div style="font-size: 12.5px; color: #6b21a8; margin-bottom: 12px; line-height: 1.45;">
-                            Ezeknél a rendeléseknél szerepel a <code>[ok]</code> megjegyzés. Kedd-Vasárnap között a riport elnémítja a riasztásaikat, de hétfőnként itt ellenőrizheted a heti státuszukat:
+                            Ezeknél a rendeléseknél szerepel a <code>[ok]</code> megjegyzés. Kedd-Vasárnap között a riport elnémítja a riasztásaikat, de hétfőnként itt ellenőrizhed a heti státuszukat:
                         </div>
                 `;
                 if (mondayHandledItems.length === 0) {

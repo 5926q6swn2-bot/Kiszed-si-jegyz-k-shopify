@@ -32,7 +32,10 @@ import {
     filterOrdersWithoutInvoice,
     calculateOrderCodAndErrors,
     checkInvalidDeliveryAddress,
-    getOrdersInSelectionOrder
+    getOrdersInSelectionOrder,
+    hasOkTag,
+    isResellerOrder,
+    calculateMorningReportStats
 } from '../js/utils/orderUtils.js';
 import {
     generateMissingInvoiceEmailHtml,
@@ -2135,6 +2138,30 @@ const hasLabelTagInDeliv = tagsLowerInDeliv.includes('címke');
 
 assertEqual("Terítésben Logi Status - in_delivery tipus", logiStatusInDelivWithLabel, 'in_delivery');
 assertEqual("Terítésben Logi Status - hasLabelTag true mini kék vonalkódhoz", hasLabelTagInDeliv, true);
+
+// 6. [ok] megjegyzés és Viszonteladó kizárási tesztek a Reggeli Riport adataihoz
+assertEqual("[ok] tag - megjegyzésben szerepel", hasOkTag("09.09-ig átveszi [ok]"), true);
+assertEqual("[ok] tag - kisbetűvel is működik", hasOkTag("100.000 előleg fizetve [OK]"), true);
+assertEqual("[ok] tag - hiányzó kifejezés esetén false", hasOkTag("sürgős kiszállítás"), false);
+
+const testOrderReseller1 = { id: "#5001", tags: "viszonteladó", isCancelled: false, fulfillmentStatus: "unfulfilled", created_at: "2026-09-07T10:00:00Z" };
+const testOrderReseller2 = { id: "#5002", isReseller: true, isCancelled: false, fulfillmentStatus: "unfulfilled", created_at: "2026-09-07T11:00:00Z" };
+const testOrderRetail1 = { id: "#5003", tags: "PannonXP", isCancelled: false, fulfillmentStatus: "unfulfilled", created_at: "2026-09-07T12:00:00Z" };
+const testOrderRetail2 = { id: "#5004", tags: "", isCancelled: false, fulfillmentStatus: "fulfilled", created_at: "2026-09-07T13:00:00Z" };
+const testOrderRetail3 = { id: "#5005", tags: "", isCancelled: false, fulfillmentStatus: "unfulfilled", created_at: "2026-09-06T10:00:00Z" };
+
+assertEqual("Viszonteladó tag felismerés - tags string", isResellerOrder(testOrderReseller1), true);
+assertEqual("Viszonteladó tag felismerés - isReseller flag", isResellerOrder(testOrderReseller2), true);
+assertEqual("Viszonteladó tag felismerés - lakossági rendelés", isResellerOrder(testOrderRetail1), false);
+
+const reportStats = calculateMorningReportStats(
+    [testOrderReseller1, testOrderReseller2, testOrderRetail1, testOrderRetail2, testOrderRetail3],
+    "2026-09-07T07:00:00Z"
+);
+
+assertEqual("Reggeli Riport Stat - Unfulfilled lakossági számláló (viszonteladók kizárva)", reportStats.unfulfilledCount, 2); // #5003 és #5005
+assertEqual("Reggeli Riport Stat - 24h új lakossági rendelések (viszonteladók kizárva)", reportStats.newOrders24h, 2); // #5003 és #5004
+assertEqual("Reggeli Riport Stat - 24h új lakossági unfulfilled (viszonteladók kizárva)", reportStats.newUnfulfilled24h, 1); // #5003
 
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 
