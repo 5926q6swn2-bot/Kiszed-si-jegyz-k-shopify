@@ -43,6 +43,11 @@ You are operating as an agent inside the **WAT framework** (Workflows, Agents, T
 - A felület megtekintését és tesztelését mindig a felhasználó végzi a saját böngészőjében.
 - Az ágens kizárólag terminálos és szerveroldali eszközökkel (Node.js futtatás, unit tesztek, fetch API mérések) ellenőrizheti a rendszert, szigorúan tilos felugró Chrome ablakot vagy automatizált böngészőt indítani.
 
+### 🚫 Szigorú Emoji Tilalom (MANDATORY)
+**A rendszerben, generált e-mailekben, UI felületeken, kódban és naplókban szigorúan TILOS bármilyen emoji használata!**
+- Egyetlen emoji sem jelenhet meg sem a kiküldött levelekben, sem a felületen.
+- Mindig tiszta, puritán, professzionális szövegezést kell alkalmazni ikonok és emojik nélkül.
+
 ---
 
 ## 3. Multi-Model & Resource Guidelines

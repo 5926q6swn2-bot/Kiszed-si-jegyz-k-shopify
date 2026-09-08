@@ -14,7 +14,7 @@ export { buildDuplicateCustomerOrdersMap };
 export function hasInvalidDeliveryAddress(order) {
     if (!order || order.isCancelled || order.isPickup) return false;
     const tags = String(order.tags || '').toLowerCase();
-    if (order.isReseller === true || tags.includes('viszontelad') || tags.includes('viszonterlad')) return false;
+    if (order.isReseller === true || tags.includes('viszontelad') || tags.includes('viszonterlad') || tags.includes('viszonteladó') || tags.includes('viszontelado')) return false;
     if (typeof order.hasInvalidAddress === 'boolean') {
         return order.hasInvalidAddress;
     }
@@ -870,7 +870,7 @@ export const OrderOverviewView = {
                             const fullCityLine = order.zip ? `${order.zip} ${order.city || ''}` : (order.city || '');
                             const streetAddress = order.address1 || order.address || '';
 
-                            const isResellerOrder = Boolean(order.isReseller || (order.tags && /(?:viszontelad|viszonterlad)/i.test(order.tags)));
+                            const isResellerOrder = Boolean(order.isReseller || (order.tags && /(?:viszontelad|viszonterlad|viszontelad[oó])/i.test(order.tags)));
                             const isInvalidAddr = !order.isFulfilled && !order.isPickup && !isResellerOrder && hasInvalidDeliveryAddress(order);
 
                             // Sor háttér prioritások:
@@ -1342,9 +1342,9 @@ export const OrderOverviewView = {
                                                         <span>${groupIndex}. Terítés</span>
                                                     </span>
                                                     <div style="font-size: 13px; color: #0c4a6e; font-weight: 700; display: flex; align-items: center; gap: 7px;">
-                                                        <span>📅 ${group.runDate}</span>
+                                                        <span><i class="ph-bold ph-calendar-blank"></i> ${group.runDate}</span>
                                                         <span style="color: #93c5fd;">•</span>
-                                                        <span style="color: #0369a1;">👤 ${group.courier}</span>
+                                                        <span style="color: #0369a1;"><i class="ph-bold ph-user"></i> ${group.courier}</span>
                                                         ${group.company ? `<span style="background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; padding: 1.5px 6px; border-radius: 4px; font-size: 11px; font-weight: 600;">${group.company}</span>` : ''}
                                                         ${group.runId ? `<span style="color: #64748b; font-size: 11px; font-weight: 500;">(#${group.runId})</span>` : ''}
                                                     </div>

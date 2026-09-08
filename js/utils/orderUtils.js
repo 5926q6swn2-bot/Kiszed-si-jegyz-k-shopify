@@ -393,21 +393,17 @@ export function isOrderMissingInvoice(order) {
     if (!order) return false;
     if (order.isCancelled === true || order.cancelled_at) return false;
 
-    // Viszonteladó tag kizárása
+    // Viszonteladó tag kizárása (viszonteladó, viszontelado, viszontelad, viszonterlad)
     const tags = String(order.tags || '').toLowerCase();
-    if (tags.includes('viszontelad') || tags.includes('viszonterlad')) return false;
-
-    // Személyes átvétel fizetetlen esetben nem számlázandó előre
-    const isPickup = order.isPickup || tags.includes('személyes') || tags.includes('pickup');
-    const isPaid = order.isPaid || order.financial_status === 'paid';
-    if (isPickup && !isPaid) return false;
+    if (
+        tags.includes('viszontelad') ||
+        tags.includes('viszonterlad') ||
+        tags.includes('viszonteladó') ||
+        tags.includes('viszontelado')
+    ) return false;
 
     // Ha van számla ki tag
     if (tags.includes('számla ki') || tags.includes('szamla ki')) return false;
-
-    // Ha a rendelés hibái között szerepel 'no_invoice' vagy hasNoInvoice flag
-    if (order.hasNoInvoice !== undefined) return order.hasNoInvoice;
-    if (Array.isArray(order.errors) && order.errors.some(e => e.type === 'no_invoice')) return true;
 
     return true;
 }
@@ -547,7 +543,7 @@ export function checkInvalidDeliveryAddress(order) {
     
     // Viszonteladók kizárása (nekik tudjuk a címüket, vagy bejönnek érte)
     const tags = String(order.tags || '').toLowerCase();
-    if (order.isReseller === true || tags.includes('viszontelad') || tags.includes('viszonterlad')) return false;
+    if (order.isReseller === true || tags.includes('viszontelad') || tags.includes('viszonterlad') || tags.includes('viszonteladó') || tags.includes('viszontelado')) return false;
 
     // Ha order.hasInvalidAddress már explicit boolean-ként be van állítva:
     if (typeof order.hasInvalidAddress === 'boolean') {

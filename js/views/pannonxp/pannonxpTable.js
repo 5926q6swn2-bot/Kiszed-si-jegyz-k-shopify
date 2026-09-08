@@ -42,7 +42,7 @@ export function renderOrdersTable(container, orders, onExport, mainViewContext) 
         const selectedOrders = orders.filter(o => o.pxp_selected);
         const hasErrors = selectedOrders.some(o => {
             const hasZip = !!o.zip;
-            const isReseller = Boolean(o.isReseller || (o.tags && /(?:viszontelad|viszonterlad)/i.test(o.tags)));
+            const isReseller = Boolean(o.isReseller || (o.tags && /(?:viszontelad|viszonterlad|viszontelad[oó])/i.test(o.tags)));
             const isAddrInvalid = !isReseller && checkAddressValidity(o);
             const activeM = PannonXPService.getNormalizedProductMappings();
             const hasUnmapped = o.items.some(item => !activeM[cleanItemNameForMapping(item.name)]);
@@ -80,7 +80,7 @@ export function renderOrdersTable(container, orders, onExport, mainViewContext) 
         const removedError = order.errors ? order.errors.find(err => err.title === "Törölt tétel!") : null;
         const hasRemovedError = !!removedError;
         const isPendingDeposit = order.isBankDeposit && !order.isPaid;
-        const isReseller = Boolean(order.isReseller || (order.tags && /(?:viszontelad|viszonterlad)/i.test(order.tags)));
+        const isReseller = Boolean(order.isReseller || (order.tags && /(?:viszontelad|viszonterlad|viszontelad[oó])/i.test(order.tags)));
         const isAddrInvalid = !isReseller && checkAddressValidity(order);
         
         const hasUnmatched = !!order.pxp_has_unmatched || hasUnmappedProduct || hasUnassignedCategory;

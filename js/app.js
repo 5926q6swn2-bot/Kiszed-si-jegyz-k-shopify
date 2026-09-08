@@ -511,7 +511,7 @@ function initApp() {
                             target.fulfillmentStatus = 'fulfilled';
                         }
                         renderOverview();
-                        CustomDialog.alert(`A(z) ${orderId} rendelés sikeresen le lett teljesítve a Shopify-ban! 🎉`, 'Sikeres Teljesítés', 'success');
+                        CustomDialog.alert(`A(z) ${orderId} rendelés sikeresen le lett teljesítve a Shopify-ban!`, 'Sikeres Teljesítés', 'success');
                     }
                 } catch (err) {
                     CustomDialog.alert(`Hiba történt a teljesítés során:\n${err.message}`, 'Teljesítési Hiba', 'danger');
@@ -562,7 +562,7 @@ function initApp() {
                     if (res.failedCount > 0) {
                         CustomDialog.alert(`Teljesítve: ${res.successCount} db rendelés.\nHibás / Már lezárt: ${res.failedCount} db.`, 'Részleges Eredmény', 'warning');
                     } else {
-                        CustomDialog.alert(`Mind a ${res.successCount} db rendelés sikeresen le lett teljesítve a Shopify-ban! 🎉`, 'Csoportos Teljesítés Kész', 'success');
+                        CustomDialog.alert(`Mind a ${res.successCount} db rendelés sikeresen le lett teljesítve a Shopify-ban!`, 'Csoportos Teljesítés Kész', 'success');
                     }
                 } catch (err) {
                     CustomDialog.alert(`Hiba a csoportos teljesítésnél:\n${err.message}`, 'Hiba', 'danger');
@@ -717,7 +717,7 @@ function initApp() {
                     await ShopifyApiService.markReadyForPickup({ orderId, shopifyId, notifyCustomer: true });
                     targetOrder.isReadyForPickup = true;
                     renderOverview();
-                    CustomDialog.alert(`A(z) ${orderId} rendelés sikeresen átállítva <strong>Ready for pickup</strong> (Átvehető) státuszra! 🎉`, 'Átvehetőre Állítva', 'success');
+                    CustomDialog.alert(`A(z) ${orderId} rendelés sikeresen átállítva <strong>Ready for pickup</strong> (Átvehető) státuszra!`, 'Átvehetőre Állítva', 'success');
                 } catch (err) {
                     console.error('[btn-ready-for-pickup error]', err);
                     CustomDialog.alert(`Nem sikerült átállítani a rendelést:\n${err.message}`, 'Hiba', 'danger');
@@ -780,7 +780,7 @@ function initApp() {
 
                     Store.clearHubOrderSelection();
                     renderOverview();
-                    CustomDialog.alert(`Mind a <strong>${selectedOrders.length} db</strong> rendelés sikeresen átállítva Ready for pickup státuszra! 🎉`, 'Sikeres Módosítás', 'success');
+                    CustomDialog.alert(`Mind a <strong>${selectedOrders.length} db</strong> rendelés sikeresen átállítva Ready for pickup státuszra!`, 'Sikeres Módosítás', 'success');
                 } catch (err) {
                     console.error('[btn-hub-bulk-ready-pickup error]', err);
                     CustomDialog.alert(`Hiba a csoportos módosításnál:\n${err.message}`, 'Hiba', 'danger');
@@ -919,7 +919,7 @@ function initApp() {
                 }
 
                 closeModal();
-                CustomDialog.alert(`A(z) ${orderId} rendelés megjegyzése sikeresen elmentve a Shopify-ba! 📝`, 'Megjegyzés Mentve', 'success');
+                CustomDialog.alert(`A(z) ${orderId} rendelés megjegyzése sikeresen elmentve a Shopify-ba!`, 'Megjegyzés Mentve', 'success');
             } catch (err) {
                 console.error('[updateOrderNote error]', err);
                 saveBtn.disabled = false;
@@ -950,6 +950,31 @@ function initApp() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+
+        // Számla nélküli PannonXP rendelések automatikus értesítője
+        // Kizárólag akkor, ha a Capsula Houses Kft. fiókkal exportálunk (a többi fiók külön webshop)
+        const profileId = String(senderSettings?.id || '').toLowerCase();
+        const profileName = String(senderSettings?.profileName || '').toLowerCase();
+        const companyName = String(senderSettings?.uc_ceg_nev || '').toLowerCase();
+        const clientCode = String(senderSettings?.uc_ugyfelkod || '').toUpperCase();
+
+        const isCapsulaProfile = 
+            profileId === 'capsula' ||
+            profileName.includes('capsula') ||
+            companyName.includes('capsula') ||
+            clientCode === 'PABU';
+
+        if (isCapsulaProfile) {
+            const formattedDate = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
+            checkAndSendMissingInvoiceAlert({
+                date: formattedDate,
+                courier: 'PannonXP',
+                company: 'PannonXP',
+                sender: 'PABU'
+            }, selectedOrders);
+        } else {
+            console.log(`[PannonXP Export] Számlaellenőrzés kihagyva: nem Capsula Houses Kft. a kiválasztott profil (${senderSettings?.profileName || senderSettings?.id || 'egyéb fiók'}).`);
+        }
     }
 
 
@@ -1778,10 +1803,10 @@ function initApp() {
 
             if (res.ok) {
                 const data = await res.json();
-                console.log('✉️ [Missing Invoice Alert Küldve]', data);
+                console.log('[Missing Invoice Alert Küldve]', data);
             }
         } catch (err) {
-            console.warn('⚠️ [Missing Invoice Alert Hiba]', err);
+            console.warn('[Missing Invoice Alert Hiba]', err);
         }
     }
 
@@ -1816,7 +1841,7 @@ function initApp() {
 
                 await HistoryManager.updateRun(currentLoadedRunId, date, pickupDate, courier, company, sender, cleanOrders);
                 originalLoadedRun = await HistoryManager.getRunById(currentLoadedRunId);
-                checkAndSendMissingInvoiceAlert({ id: currentLoadedRunId, date, courier, company }, changes.added);
+                checkAndSendMissingInvoiceAlert({ id: currentLoadedRunId, date, courier, company, sender }, changes.added);
 
                 if (hasChanges) {
                     let msg = `<div style="font-size:13px;color:#374151;line-height:1.5;text-align:left;">`;
@@ -1883,13 +1908,13 @@ function initApp() {
                 const newRun = await HistoryManager.saveRun(date, pickupDate, courier, company, sender, cleanOrders);
                 currentLoadedRunId = newRun ? newRun.id : currentLoadedRunId;
                 originalLoadedRun = newRun ? JSON.parse(JSON.stringify(newRun)) : null;
-                checkAndSendMissingInvoiceAlert({ id: currentLoadedRunId, date, courier, company }, cleanOrders);
+                checkAndSendMissingInvoiceAlert({ id: currentLoadedRunId, date, courier, company, sender }, cleanOrders);
             }
         } else {
             const newRun = await HistoryManager.saveRun(date, pickupDate, courier, company, sender, cleanOrders);
             currentLoadedRunId = newRun ? newRun.id : currentLoadedRunId;
             originalLoadedRun = newRun ? JSON.parse(JSON.stringify(newRun)) : null;
-            checkAndSendMissingInvoiceAlert({ id: currentLoadedRunId, date, courier, company }, cleanOrders);
+            checkAndSendMissingInvoiceAlert({ id: currentLoadedRunId, date, courier, company, sender }, cleanOrders);
         }
 
         if (printNone || (!printPicking && !printSummary && !printDelivery)) return;

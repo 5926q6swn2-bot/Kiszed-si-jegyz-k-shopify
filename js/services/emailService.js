@@ -7,142 +7,106 @@
  * 
  * @param {Object} run - A terítés adatai (date, courier, company, sender, etc.)
  * @param {Array} missingOrders - A számla nélküli rendelések listája
- * @param {string} shopDomain - A Shopify domain a közvetlen rendelés linkekhez
  * @returns {string} HTML tartalom
  */
 export function generateMissingInvoiceEmailHtml(run = {}, missingOrders = [], shopDomain = 'p4q0uj-2m.myshopify.com') {
-    const courier = run.courier || 'Nem megadott';
-    const date = run.date || 'Nem megadott';
-    const company = run.company || 'Capsula';
-    const orderCount = Array.isArray(missingOrders) ? missingOrders.length : 0;
+    const defaultCourier = run.courier || '';
+    const defaultDate = run.date || '';
+    const defaultCompany = run.company || 'Sela';
+    const defaultSender = run.sender || 'PABU';
 
-    const ordersHtml = (missingOrders || []).map(order => {
-        const orderIdClean = String(order.id || '').replace(/^#/, '');
-        const shopifyUrl = `https://${shopDomain}/admin/orders/${order.shopifyId || order.numericId || orderIdClean}`;
-        
-        const customerName = order.shippingName || order.customerName || 'Névtelen vásárló';
-        const billingName = order.billingName || customerName;
-        const totalFormatted = order.totalAmount 
-            ? `${new Intl.NumberFormat('hu-HU').format(order.totalAmount).replace(/\u00a0/g, ' ')} Ft` 
-            : '0 Ft';
-        
-        const paymentMethod = order.isCOD 
-            ? `Utánvét (${new Intl.NumberFormat('hu-HU').format(order.codAmount || 0).replace(/\u00a0/g, ' ')} Ft)` 
-            : (order.isPaid ? 'Előre kifizetve' : 'Fizetetlen / Átutalás');
+    // Terítésenkénti csoportosítás
+    const groupedRuns = new Map();
+    (missingOrders || []).forEach(order => {
+        const runKey = order.runKey || `${order.runDate || defaultDate}|${order.courier || defaultCourier}|${order.company || defaultCompany}|${order.sender || defaultSender}`;
+        if (!groupedRuns.has(runKey)) {
+            groupedRuns.set(runKey, {
+                date: order.runDate || defaultDate,
+                courier: order.courier || defaultCourier,
+                company: order.company || defaultCompany,
+                sender: order.sender || defaultSender,
+                orders: []
+            });
+        }
+        groupedRuns.get(runKey).orders.push(order);
+    });
 
-        const address = `${order.zip || ''} ${order.city || ''}, ${order.address1 || order.address || ''}`.trim();
+    if (groupedRuns.size === 0 && Array.isArray(missingOrders) && missingOrders.length > 0) {
+        groupedRuns.set('default', {
+            date: defaultDate,
+            courier: defaultCourier,
+            company: defaultCompany,
+            sender: defaultSender,
+            orders: missingOrders
+        });
+    }
 
-        const itemsHtml = Array.isArray(order.items) && order.items.length > 0
-            ? order.items.map(it => `<li style="margin-bottom: 2px;"><strong>${it.qty || 1} db</strong> - ${it.name || it.title || ''}</li>`).join('')
-            : '<li style="color: #94a3b8;">Nincs tételinformáció</li>';
+    let runsHtml = '';
+    for (const [, runGroup] of groupedRuns) {
+        const parts = [];
+        if (runGroup.date) parts.push(runGroup.date);
+        if (runGroup.company) parts.push(runGroup.company);
+        if (runGroup.courier && runGroup.courier.toLowerCase() !== (runGroup.company || '').toLowerCase()) parts.push(runGroup.courier);
+        const senderSuffix = (runGroup.sender && runGroup.sender.toLowerCase() !== (runGroup.company || '').toLowerCase() && runGroup.sender.toLowerCase() !== (runGroup.courier || '').toLowerCase()) ? ` (${runGroup.sender})` : '';
 
-        return `
-            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #ef4444; border-radius: 8px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; margin-bottom: 12px; flex-wrap: wrap;">
-                    <div style="font-size: 18px; font-weight: 700; color: #0f172a;">
-                        <a href="${shopifyUrl}" target="_blank" style="color: #0284c7; text-decoration: none;">
-                            ${order.id || `#${orderIdClean}`} ↗
-                        </a>
-                        <span style="font-size: 13px; font-weight: 600; color: #ef4444; background: #fee2e2; padding: 2px 8px; border-radius: 4px; margin-left: 8px;">
-                            HIÁNYZÓ SZÁMLA
-                        </span>
-                    </div>
-                    <div style="font-size: 16px; font-weight: 700; color: #0f172a;">
-                        ${totalFormatted}
-                    </div>
-                </div>
+        const runTitle = parts.length > 0 ? `Terítés: ${parts.join(' - ')}${senderSuffix}` : 'Terítés';
 
-                <table style="width: 100%; font-size: 13px; border-collapse: collapse; margin-bottom: 12px;">
-                    <tr>
-                        <td style="padding: 4px 0; color: #64748b; width: 140px;">Címzett neve:</td>
-                        <td style="padding: 4px 0; font-weight: 600; color: #1e293b;">${customerName}</td>
-                    </tr>
-                    ${billingName && billingName !== customerName ? `
-                    <tr>
-                        <td style="padding: 4px 0; color: #64748b;">Számlázási név:</td>
-                        <td style="padding: 4px 0; font-weight: 600; color: #b91c1c;">${billingName} (Külön számlázási név!)</td>
-                    </tr>
-                    ` : ''}
-                    <tr>
-                        <td style="padding: 4px 0; color: #64748b;">Szállítási cím:</td>
-                        <td style="padding: 4px 0; color: #334155;">${address || '-'}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 4px 0; color: #64748b;">Fizetési státusz:</td>
-                        <td style="padding: 4px 0; font-weight: 600; color: #334155;">${paymentMethod}</td>
-                    </tr>
-                    ${order.note ? `
-                    <tr>
-                        <td style="padding: 4px 0; color: #64748b;">Megjegyzés:</td>
-                        <td style="padding: 4px 0; color: #b45309; font-style: italic;">${order.note}</td>
-                    </tr>
-                    ` : ''}
-                </table>
+        const itemsHtml = runGroup.orders.map(order => {
+            const orderIdClean = String(order.id || '').replace(/^#/, '');
+            const shopifyUrl = `https://${shopDomain}/admin/orders/${order.shopifyId || order.numericId || orderIdClean}`;
+            const billingName = order.billingName || order.shippingName || order.customerName || '-';
+            const noteText = order.note ? String(order.note).trim() : '';
 
-                <div style="background: #f8fafc; border-radius: 6px; padding: 10px 14px; font-size: 12.5px; color: #334155;">
-                    <strong style="color: #475569; display: block; margin-bottom: 4px;">Rendelt tételek:</strong>
-                    <ul style="margin: 0; padding-left: 18px;">
-                        ${itemsHtml}
-                    </ul>
-                </div>
+            return `
+                <li style="margin-bottom: 8px;">
+                    <a href="${shopifyUrl}" target="_blank" style="color: #1d4ed8; text-decoration: underline; font-weight: bold;">
+                        ${order.id || `#${orderIdClean}`}
+                    </a>
+                    - ${billingName}
+                    ${noteText ? `<span style="color: #6b7280; font-size: 13px;"> (Megjegyzés: ${noteText})</span>` : ''}
+                </li>
+            `;
+        }).join('');
+
+        runsHtml += `
+            <div style="margin-bottom: 18px;">
+                <p style="margin: 0 0 6px 0; font-weight: bold; color: #111827;">
+                    ${runTitle} (${runGroup.orders.length} db):
+                </p>
+                <ul style="margin: 0; padding-left: 20px; color: #1f2937;">
+                    ${itemsHtml}
+                </ul>
             </div>
         `;
-    }).join('');
+    }
 
     return `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Számla nélküli rendelés került terítésbe</title>
+    <title>Számla nélküli rendelések terítésben</title>
 </head>
-<body style="margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; color: #0f172a;">
-    <div style="max-width: 680px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
-        <!-- Fejléc -->
-        <div style="background: linear-gradient(135deg, #b91c1c 0%, #ef4444 100%); color: #ffffff; padding: 24px 28px;">
-            <div style="font-size: 24px; font-weight: 800; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
-                ⚠️ Figyelem: Számla nélküli rendelés terítésben!
-            </div>
-            <p style="margin: 0; font-size: 14px; opacity: 0.95; line-height: 1.4;">
-                Az alábbi <strong>${orderCount} db</strong> rendelés terítésbe (kiszállítási jegyzékbe) lett mentve, de még <strong>nincs kiállítva a számlája</strong> (hiányzik a "számla ki" címke)!
-            </p>
-        </div>
+<body style="margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #111827; background-color: #ffffff;">
+    <div style="max-width: 600px;">
+        <p style="margin: 0 0 14px 0;">Szia,</p>
 
-        <!-- Terítés Info Doboz -->
-        <div style="padding: 20px 28px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-            <div style="font-size: 13px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 8px; letter-spacing: 0.5px;">
-                Terítés Adatai
-            </div>
-            <div style="display: flex; gap: 24px; flex-wrap: wrap; font-size: 14px;">
-                <div><strong>📅 Kiszállítás napja:</strong> <span style="color: #0284c7; font-weight: 600;">${date}</span></div>
-                <div><strong>🚚 Szállító:</strong> <span style="font-weight: 600;">${courier}</span></div>
-                <div><strong>🏢 Cég:</strong> <span style="font-weight: 600;">${company}</span></div>
-            </div>
-        </div>
+        <p style="margin: 0 0 16px 0;">
+            Ezek a rendelések terítésben vannak, de még nem készült róluk számla:
+        </p>
 
-        <!-- Rendelések listája -->
-        <div style="padding: 24px 28px; background: #fafafa;">
-            <div style="font-size: 14px; font-weight: 700; color: #334155; margin-bottom: 14px;">
-                Érintett rendelések (${orderCount} db):
-            </div>
-            ${ordersHtml}
-        </div>
+        ${runsHtml}
 
-        <!-- Teendő / Lábléc -->
-        <div style="padding: 18px 28px; background: #ffffff; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; line-height: 1.5; text-align: center;">
-            <p style="margin: 0 0 6px 0; font-weight: 600; color: #ef4444;">
-                Kérlek mielőbb állítsd ki a számlát és add hozzá a rendeléshez a "számla ki" taget a Shopify-ban!
-            </p>
-            <p style="margin: 0; font-size: 11px; color: #94a3b8;">
-                Ez egy automatikus biztonsági értesítés a Kiszedési Jegyzék és Shopify Hub rendszerből.
-            </p>
-        </div>
+        <p style="margin: 24px 0 4px 0;">Üdvözlettel,</p>
+        <p style="margin: 0; color: #6b7280;">Kiszedési Jegyzék Rendszer</p>
     </div>
 </body>
 </html>
     `;
 }
+
+
+
 
 /**
  * Kiküldi az automatikus e-mail értesítőt a megadott e-mail API-n keresztül (Resend vagy Brevo).
@@ -172,12 +136,12 @@ export async function sendMissingInvoiceAlertEmail({
 
     const orderCount = missingOrders.length;
     const orderNumbers = missingOrders.map(o => o.id || `#${o.numericId || ''}`).join(', ');
-    const subject = `⚠️ Számla nélküli rendelés terítésben (${orderCount} db: ${orderNumbers}) - ${run.courier || 'Terítés'}`;
+    const subject = 'nincs számlája ezeknek a rendeléseknek';
     const htmlContent = generateMissingInvoiceEmailHtml(run, missingOrders, shopDomain);
 
     // Ha nincs megadva API kulcs, szimulált módban futunk (nem dob hibát!)
     if (!apiKey || apiKey.trim() === '' || apiKey.includes('your_') || apiKey === 're_123456789') {
-        console.log(`ℹ️ [EmailService - Szimulált Mód] Levél küldése szimulálva:`);
+        console.log(`[EmailService - Szimulált Mód] Levél küldése szimulálva:`);
         console.log(`   Címzett: ${to}`);
         console.log(`   Tárgy: ${subject}`);
         console.log(`   Érintett rendelések: ${orderNumbers}`);
@@ -210,7 +174,7 @@ export async function sendMissingInvoiceAlertEmail({
 
             const data = await res.json();
             if (res.ok && data.id) {
-                console.log(`✅ [EmailService - Resend] Értesítő levél sikeresen elküldve (${to}), ID: ${data.id}`);
+                console.log(`[EmailService - Resend] Értesítő levél sikeresen elküldve (${to}), ID: ${data.id}`);
                 return { success: true, id: data.id, service: 'resend' };
             } else {
                 // Intelligens kezelés: Ha a Resend teszt módban van (még nincs saját domain verifikálva a resend.com/domains alatt)
@@ -219,12 +183,12 @@ export async function sendMissingInvoiceAlertEmail({
                     const fallbackTo = match && match[1] ? match[1] : null;
 
                     if (fallbackTo && fallbackTo !== to) {
-                        console.warn(`⚠️ [EmailService - Resend Domain Figyelmeztetés] A ${to} címre közvetlenül küldéshez a saját domain hitelesítése szükséges a resend.com/domains alatt.`);
-                        console.log(`🔄 [EmailService - Resend Fallback] Levél azonnali elküldése a regisztrált fiókcímedre (${fallbackTo})...`);
+                        console.warn(`[EmailService - Resend Domain Figyelmeztetés] A ${to} címre közvetlenül küldéshez a saját domain hitelesítése szükséges a resend.com/domains alatt.`);
+                        console.log(`[EmailService - Resend Fallback] Levél azonnali elküldése a regisztrált fiókcímedre (${fallbackTo})...`);
 
                         const fallbackNoticeHtml = `
-                            <div style="background: #fffbeb; border: 1px solid #fde68a; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; color: #92400e; line-height: 1.4;">
-                                <strong>ℹ️ Resend Teszt Mód:</strong> Ez az értesítő eredetileg az <code>${to}</code> címre szólt. Amíg a <code>panelburkolat.com</code> domaint nem hitelesíted a <a href="https://resend.com/domains" target="_blank" style="color: #b45309; font-weight: bold; text-decoration: underline;">resend.com/domains</a> alatt, a Resend a regisztrált fiókcímedre (<strong>${fallbackTo}</strong>) kézbesíti a leveleket.
+                            <div style="background: #fffbeb; border: 1px solid #fde68a; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: #92400e; line-height: 1.4;">
+                                <strong>Resend Teszt Mód:</strong> Ez az értesítő eredetileg az <code>${to}</code> címre szólt. Amíg a <code>panelburkolat.com</code> domaint nem hitelesíted a <a href="https://resend.com/domains" target="_blank" style="color: #b45309; font-weight: bold; text-decoration: underline;">resend.com/domains</a> alatt, a Resend a regisztrált fiókcímedre (<strong>${fallbackTo}</strong>) kézbesíti a leveleket.
                             </div>
                         `;
 
@@ -245,20 +209,20 @@ export async function sendMissingInvoiceAlertEmail({
 
                             const fallbackData = await fallbackRes.json();
                             if (fallbackRes.ok && fallbackData.id) {
-                                console.log(`✅ [EmailService - Resend Kézbesítve] Értesítő levél elküldve (${fallbackTo}), ID: ${fallbackData.id}`);
+                                console.log(`[EmailService - Resend Kézbesítve] Értesítő levél elküldve (${fallbackTo}), ID: ${fallbackData.id}`);
                                 return { success: true, id: fallbackData.id, service: 'resend', forwardedTo: fallbackTo };
                             }
                         } catch (fallbackErr) {
-                            console.error(`❌ [EmailService - Resend Fallback Hiba]`, fallbackErr);
+                            console.error(`[EmailService - Resend Fallback Hiba]`, fallbackErr);
                         }
                     }
                 }
 
-                console.error(`❌ [EmailService - Resend Hiba]`, data);
+                console.error(`[EmailService - Resend Hiba]`, data);
                 return { success: false, error: data.message || JSON.stringify(data), service: 'resend' };
             }
         } catch (err) {
-            console.error(`❌ [EmailService - Hálózati hiba Resend híváskor]`, err);
+            console.error(`[EmailService - Hálózati hiba Resend híváskor]`, err);
             return { success: false, error: err.message, service: 'resend' };
         }
     }
@@ -286,14 +250,14 @@ export async function sendMissingInvoiceAlertEmail({
 
             const data = await res.json();
             if (res.ok && (data.messageId || data.messageIds)) {
-                console.log(`✅ [EmailService - Brevo] Értesítő levél sikeresen elküldve (${to}), ID: ${data.messageId || data.messageIds}`);
+                console.log(`[EmailService - Brevo] Értesítő levél sikeresen elküldve (${to}), ID: ${data.messageId || data.messageIds}`);
                 return { success: true, id: data.messageId || data.messageIds, service: 'brevo' };
             } else {
-                console.error(`❌ [EmailService - Brevo Hiba]`, data);
+                console.error(`[EmailService - Brevo Hiba]`, data);
                 return { success: false, error: data.message || JSON.stringify(data), service: 'brevo' };
             }
         } catch (err) {
-            console.error(`❌ [EmailService - Hálózati hiba Brevo híváskor]`, err);
+            console.error(`[EmailService - Hálózati hiba Brevo híváskor]`, err);
             return { success: false, error: err.message, service: 'brevo' };
         }
     }

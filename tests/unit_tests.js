@@ -1577,7 +1577,7 @@ assertEqual("Missing Invoice - Order with 'számla ki' is NOT missing", isOrderM
 assertEqual("Missing Invoice - Order with 'szamla ki' is NOT missing", isOrderMissingInvoice(orderWithInvAlt), false);
 assertEqual("Missing Invoice - Reseller is excluded", isOrderMissingInvoice(orderReseller), false);
 assertEqual("Missing Invoice - Cancelled is excluded", isOrderMissingInvoice(orderCancelledForInv), false);
-assertEqual("Missing Invoice - Unpaid pickup is excluded", isOrderMissingInvoice(orderPickupUnpaid), false);
+assertEqual("Missing Invoice - Unpaid pickup in delivery is flagged", isOrderMissingInvoice(orderPickupUnpaid), true);
 assertEqual("Missing Invoice - Paid pickup without invoice is missing", isOrderMissingInvoice(orderPickupPaid), true);
 
 const filteredMissing = filterOrdersWithoutInvoice([
@@ -1589,9 +1589,10 @@ const filteredMissing = filterOrdersWithoutInvoice([
     orderPickupUnpaid,
     orderPickupPaid
 ]);
-assertEqual("Missing Invoice - Filter count is 2 (#8001 and #8007)", filteredMissing.length, 2);
+assertEqual("Missing Invoice - Filter count is 3 (#8001, #8006 and #8007)", filteredMissing.length, 3);
 assertEqual("Missing Invoice - 1st is #8001", filteredMissing[0].id, "#8001");
-assertEqual("Missing Invoice - 2nd is #8007", filteredMissing[1].id, "#8007");
+assertEqual("Missing Invoice - 2nd is #8006", filteredMissing[1].id, "#8006");
+assertEqual("Missing Invoice - 3rd is #8007", filteredMissing[2].id, "#8007");
 
 // HTML E-mail Sablon Tesztelése
 const sampleRun = { courier: "Nagy János", date: "2026.09.08", company: "Capsula" };
@@ -1600,9 +1601,24 @@ assertEqual("Email HTML - Contains Warning Title", emailHtml.includes("Számla n
 assertEqual("Email HTML - Contains Courier Name", emailHtml.includes("Nagy János"), true);
 assertEqual("Email HTML - Contains Date", emailHtml.includes("2026.09.08"), true);
 assertEqual("Email HTML - Contains Order ID #8001", emailHtml.includes("#8001"), true);
-assertEqual("Email HTML - Contains Customer Name", emailHtml.includes("Kovács Péter"), true);
+assertEqual("Email HTML - Contains Billing/Customer Name", emailHtml.includes("Kovács Péter"), true);
 assertEqual("Email HTML - Contains Shopify URL", emailHtml.includes("test-shop.myshopify.com/admin/orders/8001"), true);
-assertEqual("Email HTML - Contains Formatted Amount", emailHtml.includes("45 000 Ft"), true);
+assertEqual("Email HTML - Excludes Formatted Amount", emailHtml.includes("45 000 Ft"), false);
+assertEqual("Email HTML - Excludes All Emojis", /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(emailHtml), false);
+
+// PannonXP Export - Csak a Capsula Houses Kft fiók esetén küldünk értesítést
+const isProfileEligibleForInvoiceAlert = (sender) => {
+    const profileId = String(sender?.id || '').toLowerCase();
+    const profileName = String(sender?.profileName || '').toLowerCase();
+    const companyName = String(sender?.uc_ceg_nev || '').toLowerCase();
+    const clientCode = String(sender?.uc_ugyfelkod || '').toUpperCase();
+    return profileId === 'capsula' || profileName.includes('capsula') || companyName.includes('capsula') || clientCode === 'PABU';
+};
+
+assertEqual("PXP Profile - Capsula Houses Kft is eligible", isProfileEligibleForInvoiceAlert({ profileName: "Capsula Houses Kft.", uc_ugyfelkod: "PABU" }), true);
+assertEqual("PXP Profile - Házi-Szabó Sándor E.V. is excluded", isProfileEligibleForInvoiceAlert({ profileName: "Házi-Szabó Sándor E.V.", uc_ugyfelkod: "HSZS" }), false);
+assertEqual("PXP Profile - Minta cég Kft. is excluded", isProfileEligibleForInvoiceAlert({ profileName: "Minta cég Kft.", uc_ugyfelkod: "MINT" }), false);
+assertEqual("PXP Profile - Egyéni Vállalkozó is excluded", isProfileEligibleForInvoiceAlert({ profileName: "Egyéni Vállalkozó", id: "ev" }), false);
 
 // SendMissingInvoiceAlertEmail szimulált működés tesztelése
 const emptyResult = await sendMissingInvoiceAlertEmail({ run: sampleRun, missingOrders: [] });

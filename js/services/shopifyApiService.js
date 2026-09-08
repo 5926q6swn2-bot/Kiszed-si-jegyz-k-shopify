@@ -352,7 +352,7 @@ export const ShopifyApiService = {
         const isBudapest = cityLower === 'budapest' || cityLower.includes('budapest') || /^(1\d{3})$/.test(cleanZip);
 
         // Viszonteladó tag felismerése (nem kell díjbekérő, nem kell számla figyelmeztetés)
-        const isReseller = tagsLower.includes('viszontelad') || tagsLower.includes('viszonterlad');
+        const isReseller = tagsLower.includes('viszontelad') || tagsLower.includes('viszonterlad') || tagsLower.includes('viszonteladó') || tagsLower.includes('viszontelado');
 
         // Külön szállítási pótdíj vagy szállítási cikk a rendelési tételek között
         const hasShippingLineItem = (apiOrder.line_items || []).some(l => /szállít|kiszállít|pótdíj/i.test(l.title || l.name || ''));

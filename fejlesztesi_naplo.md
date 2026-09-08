@@ -16,6 +16,7 @@ Az ágensnek minden módosításkor tartania kell magát az alábbi stack-hez é
 - **Logika**: Vanilla JavaScript (Szigorúan **ES Modules** architektúra, lásd `ARCHITECTURE.md`).
 - **Adatbázis & Backend**: Google Firebase (Cloud Firestore & Authentication).
 - **Alapszabály**: Minden Firebase/Firestore hívást aszinkron módon, `await` kulcsszóval kell kezelni (különösen a `HistoryManager` objektumban).
+- **Emoji Tilalom (Szigorú szabály)**: A felületen, generált e-mailekben, kódban és naplókban szigorúan TILOS bármilyen emoji használata. Mindig tiszta, puritán, professzionális szövegezést kell alkalmazni.
 
 ---
 
@@ -34,12 +35,13 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📌 Aktív / Következő Teendők (TODO Lista)
 
-1. ✉️ **Számla Nélküli Rendelés E-mail Értesítő Finomhangolása**:
-   - Resend fiók e-mail cím átírása `info@panelburkolat.com`-ra a [resend.com/settings](https://resend.com/settings) alatt (vagy domain hitelesítés), hogy a levelek közvetlenül a céges címre essenek be.
-   - Az automatikus e-mail pontos tartalmának, elrendezésének és szövegezésének személyre szabása az `emailService.js` sablonban a felhasználó kérései alapján.
+1. ✉️ **Számla Nélküli Rendelés E-mail Értesítő**:
+   - ✅ **Resend fiók sikeresen összekötve**: Az `info@panelburkolat.com` fiók API kulcsa beállítva a `.env`-be, a közvetlen éles kézbesítés hibátlanul működik és tesztelve.
+   - Az automatikus e-mail pontos tartalmának, elrendezésének és szövegezésének személyre szabása az `emailService.js` sablonban a felhasználó kérései alapján (ha szükséges).
 
 2. 🔒 **Opcionális Céges PIN Kód / Belépési Védelem a Felhős Címhez**:
    - Igény esetén egyszerű PIN kódos védelem hozzáadása, hogy idegenek ne láthassák a rendelési adatokat a publikus linken.
+
 
 ---
 
@@ -213,22 +215,24 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 - **Felhasználói kérés**: „tudunk-e olyat, hogy ha valamit ugy teszünk bele terítésbe, hogy nincsen számlája, arról kapjak egy automatikus e-mailt az info@panelburkolat.com-ra [...] Ingyenes tranzakciós E-mail API (pl. Resend vagy Brevo) - ezt választom”.
 - **Natív, Külső Csomagok Nélküli E-mail Szolgáltatás (`emailService.js`)**:
   - Létrehoztuk a dedikált `emailService.js` modult, amely a Node.js natív `fetch` API-jával közvetlenül és aszinkron módon kommunikál a **Resend API-val** (`https://api.resend.com/emails`) és a **Brevo API-val** (`https://api.brevo.com/v3/smtp/email`).
-  - **Moduláris HTML levélsablon (`generateMissingInvoiceEmailHtml`)**:
-    - Fejléc: Figyelmeztető sáv (`⚠️ Figyelem: Számla nélküli rendelés terítésben!`).
-    - Terítés adatai: Kiszállítás napja, Szállító / futár neve, Cég.
-    - Érintett rendelések kártyái: Rendelésszám közvetlen, kattintható **Shopify admin linkkel**, címzett és számlázási név, szállítási cím, fizetési mód (utánvét összeggel), megjegyzés és a rendelt tételek felsorolása darabszámmal.
-    - A levél szövegezése külön moduláris sablonban van, így a későbbi igények szerint bármikor finomhangolható.
+  - **Puritán, Természetes "Megírt E-mail" Sablon (`generateMissingInvoiceEmailHtml`)**:
+    - **Tárgy**: Szigorúan `"nincs számlája ezeknek a rendeléseknek"`.
+    - **Szövegezés**: `Ezek a rendelések terítésben vannak, de még nem készült róluk számla:` (szóismétlés nélkül).
+    - **Terítés fejléc**: `Terítés: [Dátum] - [Cég] - [Futár] ([Sender]) ([Db] db):` (prefix címkék nélkül; cég és futár összefésülve, ha megegyeznek).
+    - **Listaelemek**: Közvetlen kattintható Shopify link `#<rendelésszám>`, számlázási név (`billingName`), és ha van, a vásárlói megjegyzés (`Megjegyzés: ...`). Semmilyen felesleges táblázat, összeg vagy lakcím nincs kiírva.
+    - **Szigorú Emoji Tilalom**: A sablonból, logokból és a felületről minden emoji száműzve lett.
   - **Szimulált Mód Védelmi Háló**: Ha a `.env` fájlban még nincs megadva az API kulcs (`RESEND_API_KEY`), a rendszer nem omlik össze és nem dob hibát: a szerver a konzolra kiírja a szimulált levélküldés adatait, így a terítés mentése és az alkalmazás zavartalanul működik a kulcs beírása előtt is.
 - **Backend API Végpont (`server.js`)**:
-  - Új `POST /api/notifications/missing-invoice` végpont, amely fogadja a terítés adatait és a hiányzó számlás rendeléseket, majd elindítja a levélküldést.
-- **Kliensoldali Automatikus Ellenőrzés és Mentés Integráció (`app.js`, `orderUtils.js`)**:
-  - `isOrderMissingInvoice`: Megbízhatóan kiszűri a számla nélküli rendeléseket (nincs rajta a `"számla ki"` vagy `"szamla ki"` címke, kizárva a viszonteladókat, a törölt rendeléseket és a még nem kifizetett személyes átvételeket).
-  - Új terítés mentésekor (`saveRun`) a teljes kört ellenőrzi; meglévő kör frissítésekor (`updateRun`) kizárólag az újonnan hozzáadott rendeléseket (`changes.added`) ellenőrzi, hogy ne történjen ismétlődő spamelés.
-- **Környezeti Változók Dokumentálása (`.env.example`)**:
-  - `EMAIL_SERVICE=resend`, `RESEND_API_KEY=...`, `EMAIL_FROM=onboarding@resend.dev`, `ALERT_EMAIL_RECIPIENT=info@panelburkolat.com`.
+  - `POST /api/notifications/missing-invoice` végpont, amely fogadja a terítés/export adatait és a hiányzó számlás rendeléseket, majd elindítja a levélküldést.
+- **Kliensoldali Automatikus Ellenőrzés és Esemény-Indítók (`app.js`, `orderUtils.js`)**:
+  - `isOrderMissingInvoice`: Megbízhatóan kiszűri a számla nélküli rendeléseket.
+    - **Viszonteladók kizárása**: Kiterjesztve a `"viszonteladó"` és `"viszontelado"` címkékre is minden ellenőrzési ponton.
+    - **Fizetetlen személyes átvételek**: Ha terítésbe kerülnek vagy címkekészítőben exportálásra kerülnek, mostantól automatikusan számlahiányként jelzi őket a rendszer, hiszen mégis kiszállításra kerülnek.
+  - **Terítés Mentése / Frissítése**: Új terítés mentésekor (`saveRun`) a teljes kört ellenőrzi; meglévő kör felülírásakor (`updateRun`) kizárólag az újonnan hozzáadott rendeléseket (`changes.added`) ellenőrzi.
+  - **PannonXP Címkekészítő Export**: A címkék CSV exportálásakor (`handlePxpExport`) kizárólag a **`Capsula Houses Kft.`** feladó profil kiválasztásakor fut le a számlaellenőrzés és a levélküldés. Bármely más profil (pl. Házi-Szabó Sándor E.V., Egyéni Vállalkozó, Minta cég Kft. vagy egyéb más webshop) esetén a rendszer csendben átugorja a vizsgálatot, megakadályozva az idegen rendelések miatti téves riasztásokat.
 - **Unit Tesztek Bővítése (`tests/unit_tests.js`)**:
-  - 20 új teszteset hozzáadva (számlaszűrési feltételek, HTML sablongenerálás, üres lista és szimulált küldés kezelése).
-  - **335 / 335 zöld unit teszt** (`node tests/unit_tests.js`).
+  - Kiegészítve az új viszonteladói és terítéses átvételi szabályokkal, valamint a PannonXP profil-specifikus szűréssel.
+  - **391 / 391 zöld unit teszt** (`node tests/unit_tests.js`).
 
 ### 2026. szeptember 5. (7. frissítés) - Sela Export Súlybeállítások Sáv Eltávolítása & Elem-szintű Pontos Súlyszámítás Garantálása (`v4.0.0`)
 - **Megtévesztő Kategória-Súly Sáv Eltávolítása (`selaExportModal.js`, `css/style.css`)**:

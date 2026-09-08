@@ -6,130 +6,130 @@ const url = require('url');
 
 const PORT = process.env.PORT || 8080;
 const MIME_TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.png': 'image/png',
-  '.jpg': 'image/jpg',
-  '.svg': 'image/svg+xml'
+ '.html': 'text/html; charset=utf-8',
+ '.js': 'text/javascript; charset=utf-8',
+ '.css': 'text/css; charset=utf-8',
+ '.json': 'application/json; charset=utf-8',
+ '.png': 'image/png',
+ '.jpg': 'image/jpg',
+ '.svg': 'image/svg+xml'
 };
 
 function loadEnv() {
-  const envPath = path.join(__dirname, '.env');
-  if (fs.existsSync(envPath)) {
-    const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
-      const eqIdx = trimmed.indexOf('=');
-      if (eqIdx !== -1) {
-        const key = trimmed.slice(0, eqIdx).trim();
-        const val = trimmed.slice(eqIdx + 1).trim();
-        process.env[key] = val;
-      }
-    }
-  }
+ const envPath = path.join(__dirname, '.env');
+ if (fs.existsSync(envPath)) {
+ const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+ for (const line of lines) {
+ const trimmed = line.trim();
+ if (!trimmed || trimmed.startsWith('#')) continue;
+ const eqIdx = trimmed.indexOf('=');
+ if (eqIdx !== -1) {
+ const key = trimmed.slice(0, eqIdx).trim();
+ const val = trimmed.slice(eqIdx + 1).trim();
+ process.env[key] = val;
+ }
+ }
+ }
 }
 
 function saveAccessToken(token) {
-  process.env.SHOPIFY_ACCESS_TOKEN = token;
-  const envPath = path.join(__dirname, '.env');
-  let content = '';
-  if (fs.existsSync(envPath)) {
-    content = fs.readFileSync(envPath, 'utf8');
-    if (content.includes('SHOPIFY_ACCESS_TOKEN=')) {
-      content = content.replace(/SHOPIFY_ACCESS_TOKEN=.*(\r?\n|$)/, `SHOPIFY_ACCESS_TOKEN=${token}$1`);
-    } else {
-      content += `\nSHOPIFY_ACCESS_TOKEN=${token}\n`;
-    }
-  } else {
-    content = `SHOPIFY_ACCESS_TOKEN=${token}\n`;
-  }
-  fs.writeFileSync(envPath, content, 'utf8');
-  console.log('✅ Shopify Access Token sikeresen elmentve a .env fájlba!');
+ process.env.SHOPIFY_ACCESS_TOKEN = token;
+ const envPath = path.join(__dirname, '.env');
+ let content = '';
+ if (fs.existsSync(envPath)) {
+ content = fs.readFileSync(envPath, 'utf8');
+ if (content.includes('SHOPIFY_ACCESS_TOKEN=')) {
+ content = content.replace(/SHOPIFY_ACCESS_TOKEN=.*(\r?\n|$)/, `SHOPIFY_ACCESS_TOKEN=${token}$1`);
+ } else {
+ content += `\nSHOPIFY_ACCESS_TOKEN=${token}\n`;
+ }
+ } else {
+ content = `SHOPIFY_ACCESS_TOKEN=${token}\n`;
+ }
+ fs.writeFileSync(envPath, content, 'utf8');
+ console.log(' Shopify Access Token sikeresen elmentve a .env fájlba!');
 }
 
 loadEnv();
 
 let orderUtilsModule = null;
 async function getOrderUtils() {
-  if (!orderUtilsModule) {
-    orderUtilsModule = await import('./js/utils/orderUtils.js');
-  }
-  return orderUtilsModule;
+ if (!orderUtilsModule) {
+ orderUtilsModule = await import('./js/utils/orderUtils.js');
+ }
+ return orderUtilsModule;
 }
 
 let emailServiceModule = null;
 async function getEmailService() {
-  if (!emailServiceModule) {
-    emailServiceModule = await import('./js/services/emailService.js');
-  }
-  return emailServiceModule;
+ if (!emailServiceModule) {
+ emailServiceModule = await import('./js/services/emailService.js');
+ }
+ return emailServiceModule;
 }
 
 let isPannonXpQueueRunning = false;
 
 async function queuePannonXpAutoTagging(targetOrders, token, shop) {
-  if (!token || !shop || !Array.isArray(targetOrders) || targetOrders.length === 0) return;
-  if (isPannonXpQueueRunning) {
-    console.log('[Auto PannonXP] Már fut egy címkéző háttérfolyamat, a mostani tételek várakoznak.');
-    return;
-  }
+ if (!token || !shop || !Array.isArray(targetOrders) || targetOrders.length === 0) return;
+ if (isPannonXpQueueRunning) {
+ console.log('[Auto PannonXP] Már fut egy címkéző háttérfolyamat, a mostani tételek várakoznak.');
+ return;
+ }
 
-  console.log(`🏷️ [Auto PannonXP Háttérfolyamat] ${targetOrders.length} db rendelés automatikus címkézése indul (PannonXP)...`);
-  isPannonXpQueueRunning = true;
+ console.log(` [Auto PannonXP Háttérfolyamat] ${targetOrders.length} db rendelés automatikus címkézése indul (PannonXP)...`);
+ isPannonXpQueueRunning = true;
 
-  setImmediate(async () => {
-    try {
-      for (const order of targetOrders) {
-        try {
-          const sId = order.id;
-          const oName = order.name || `#${sId}`;
+ setImmediate(async () => {
+ try {
+ for (const order of targetOrders) {
+ try {
+ const sId = order.id;
+ const oName = order.name || `#${sId}`;
 
-          let currentTagsStr = order.tags || '';
-          let tagsArr = currentTagsStr.split(',').map(t => t.trim()).filter(Boolean);
-          if (!tagsArr.some(t => t.toLowerCase() === 'pannonxp')) {
-            tagsArr.push('PannonXP');
-          }
-          const newTagsStr = tagsArr.join(', ');
+ let currentTagsStr = order.tags || '';
+ let tagsArr = currentTagsStr.split(',').map(t => t.trim()).filter(Boolean);
+ if (!tagsArr.some(t => t.toLowerCase() === 'pannonxp')) {
+ tagsArr.push('PannonXP');
+ }
+ const newTagsStr = tagsArr.join(', ');
 
-          const putUrl = `https://${shop}/admin/api/2024-04/orders/${sId}.json`;
-          const putRes = await fetch(putUrl, {
-            method: 'PUT',
-            headers: {
-              'X-Shopify-Access-Token': token,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              order: {
-                id: sId,
-                tags: newTagsStr
-              }
-            })
-          });
+ const putUrl = `https://${shop}/admin/api/2024-04/orders/${sId}.json`;
+ const putRes = await fetch(putUrl, {
+ method: 'PUT',
+ headers: {
+ 'X-Shopify-Access-Token': token,
+ 'Content-Type': 'application/json'
+ },
+ body: JSON.stringify({
+ order: {
+ id: sId,
+ tags: newTagsStr
+ }
+ })
+ });
 
-          if (putRes.ok) {
-            order.tags = newTagsStr;
-            console.log(`✅ [Auto PannonXP] ${oName} sikeresen felcímkézve: "PannonXP"`);
-          } else {
-            const errData = await putRes.json().catch(() => ({}));
-            console.warn(`⚠️ [Auto PannonXP Hiba] ${oName}:`, errData.errors || putRes.statusText);
-          }
-        } catch (itemErr) {
-          console.error(`❌ [Auto PannonXP Kivétel] #${order.name || order.id}:`, itemErr.message);
-        }
+ if (putRes.ok) {
+ order.tags = newTagsStr;
+ console.log(` [Auto PannonXP] ${oName} sikeresen felcímkézve: "PannonXP"`);
+ } else {
+ const errData = await putRes.json().catch(() => ({}));
+ console.warn(` [Auto PannonXP Hiba] ${oName}:`, errData.errors || putRes.statusText);
+ }
+ } catch (itemErr) {
+ console.error(` [Auto PannonXP Kivétel] #${order.name || order.id}:`, itemErr.message);
+ }
 
-        // Kíméletes rate-limit: 600 ms szünet a Shopify API védelmében
-        await new Promise(resolve => setTimeout(resolve, 600));
-      }
-    } catch (globalErr) {
-      console.error('❌ [Auto PannonXP Globális Hiba]', globalErr);
-    } finally {
-      isPannonXpQueueRunning = false;
-      console.log('🏷️ [Auto PannonXP Háttérfolyamat] Befejeződött.');
-    }
-  });
+ // Kíméletes rate-limit: 600 ms szünet a Shopify API védelmében
+ await new Promise(resolve => setTimeout(resolve, 600));
+ }
+ } catch (globalErr) {
+ console.error(' [Auto PannonXP Globális Hiba]', globalErr);
+ } finally {
+ isPannonXpQueueRunning = false;
+ console.log(' [Auto PannonXP Háttérfolyamat] Befejeződött.');
+ }
+ });
 }
 
 // ==========================================
@@ -143,188 +143,188 @@ const PRODUCT_CACHE_FILE = path.join(__dirname, '.tmp', 'products_cache.json');
 
 // Termékképek gyorsítótárazott lekérése (Memória -> Lemez -> Shopify API)
 async function getProductImageMaps(shop, token) {
-  // 1. Memória gyorsítótár vizsgálata
-  if (productImagesCache && (Date.now() - productImagesCacheTime < PRODUCT_CACHE_TTL_MS)) {
-    return productImagesCache;
-  }
+ // 1. Memória gyorsítótár vizsgálata
+ if (productImagesCache && (Date.now() - productImagesCacheTime < PRODUCT_CACHE_TTL_MS)) {
+ return productImagesCache;
+ }
 
-  // 2. Helyi lemezes cache vizsgálata (.tmp/products_cache.json)
-  try {
-    if (fs.existsSync(PRODUCT_CACHE_FILE)) {
-      const stat = fs.statSync(PRODUCT_CACHE_FILE);
-      if (Date.now() - stat.mtimeMs < PRODUCT_CACHE_TTL_MS) {
-        const fileData = JSON.parse(fs.readFileSync(PRODUCT_CACHE_FILE, 'utf8'));
-        if (fileData && fileData.productImageMap && fileData.variantImageMap) {
-          productImagesCache = fileData;
-          productImagesCacheTime = stat.mtimeMs;
-          return productImagesCache;
-        }
-      }
-    }
-  } catch (fErr) {
-    console.warn('[Product Cache Read Warning]', fErr.message);
-  }
+ // 2. Helyi lemezes cache vizsgálata (.tmp/products_cache.json)
+ try {
+ if (fs.existsSync(PRODUCT_CACHE_FILE)) {
+ const stat = fs.statSync(PRODUCT_CACHE_FILE);
+ if (Date.now() - stat.mtimeMs < PRODUCT_CACHE_TTL_MS) {
+ const fileData = JSON.parse(fs.readFileSync(PRODUCT_CACHE_FILE, 'utf8'));
+ if (fileData && fileData.productImageMap && fileData.variantImageMap) {
+ productImagesCache = fileData;
+ productImagesCacheTime = stat.mtimeMs;
+ return productImagesCache;
+ }
+ }
+ }
+ } catch (fErr) {
+ console.warn('[Product Cache Read Warning]', fErr.message);
+ }
 
-  // 3. Shopify API lekérés ha még nincs vagy lejárt
-  try {
-    const res = await fetch(`https://${shop}/admin/api/2024-04/products.json?limit=250&fields=id,image,images,variants`, {
-      headers: {
-        'X-Shopify-Access-Token': token,
-        'Content-Type': 'application/json'
-      }
-    });
+ // 3. Shopify API lekérés ha még nincs vagy lejárt
+ try {
+ const res = await fetch(`https://${shop}/admin/api/2024-04/products.json?limit=250&fields=id,image,images,variants`, {
+ headers: {
+ 'X-Shopify-Access-Token': token,
+ 'Content-Type': 'application/json'
+ }
+ });
 
-    if (res.ok) {
-      const prodData = await res.json();
-      const productImageMap = {};
-      const variantImageMap = {};
+ if (res.ok) {
+ const prodData = await res.json();
+ const productImageMap = {};
+ const variantImageMap = {};
 
-      (prodData.products || []).forEach(p => {
-        const mainImg = p.image ? p.image.src : (p.images && p.images[0] ? p.images[0].src : null);
-        if (mainImg) productImageMap[p.id] = mainImg;
+ (prodData.products || []).forEach(p => {
+ const mainImg = p.image ? p.image.src : (p.images && p.images[0] ? p.images[0].src : null);
+ if (mainImg) productImageMap[p.id] = mainImg;
 
-        (p.variants || []).forEach(v => {
-          if (v.image_id && p.images) {
-            const matched = p.images.find(img => img.id === v.image_id);
-            if (matched) variantImageMap[v.id] = matched.src;
-          }
-        });
-      });
+ (p.variants || []).forEach(v => {
+ if (v.image_id && p.images) {
+ const matched = p.images.find(img => img.id === v.image_id);
+ if (matched) variantImageMap[v.id] = matched.src;
+ }
+ });
+ });
 
-      productImagesCache = { productImageMap, variantImageMap };
-      productImagesCacheTime = Date.now();
+ productImagesCache = { productImageMap, variantImageMap };
+ productImagesCacheTime = Date.now();
 
-      // Mentés háttérben a .tmp könyvtárba
-      try {
-        const tmpDir = path.dirname(PRODUCT_CACHE_FILE);
-        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-        fs.writeFileSync(PRODUCT_CACHE_FILE, JSON.stringify(productImagesCache), 'utf8');
-      } catch (wErr) {
-        console.warn('[Product Cache Write Warning]', wErr.message);
-      }
+ // Mentés háttérben a .tmp könyvtárba
+ try {
+ const tmpDir = path.dirname(PRODUCT_CACHE_FILE);
+ if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+ fs.writeFileSync(PRODUCT_CACHE_FILE, JSON.stringify(productImagesCache), 'utf8');
+ } catch (wErr) {
+ console.warn('[Product Cache Write Warning]', wErr.message);
+ }
 
-      return productImagesCache;
-    }
-  } catch (err) {
-    console.warn('[Shopify Products Image Fetch Error]', err.message);
-  }
+ return productImagesCache;
+ }
+ } catch (err) {
+ console.warn('[Shopify Products Image Fetch Error]', err.message);
+ }
 
-  return productImagesCache || { productImageMap: {}, variantImageMap: {} };
+ return productImagesCache || { productImageMap: {}, variantImageMap: {} };
 }
 
 // Célzott, villámgyors GraphQL lekérdezés a személyes átvételes / Ready for pickup rendelésekhez
 // Esemény-lavina (events 10) nélkül -> 6.5 mp helyett ~1.2 mp!
 async function fetchGraphQLReadyOrders(shop, token) {
-  const readyOrderNames = new Set();
-  let hasNext = true;
-  let cursor = null;
-  let page = 0;
+ const readyOrderNames = new Set();
+ let hasNext = true;
+ let cursor = null;
+ let page = 0;
 
-  try {
-    while (hasNext && page < 5) {
-      page++;
-      const afterParam = cursor ? `, after: "${cursor}"` : '';
-      const query = `
-        query {
-          orders(first: 250, query: "status:open", sortKey: CREATED_AT, reverse: true${afterParam}) {
-            pageInfo {
-              hasNextPage
-              endCursor
-            }
-            edges {
-              node {
-                id
-                name
-                tags
-                displayFulfillmentStatus
-                fulfillmentOrders(first: 5) {
-                  edges {
-                    node {
-                      status
-                      requestStatus
-                      deliveryMethod {
-                        methodType
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      `;
+ try {
+ while (hasNext && page < 5) {
+ page++;
+ const afterParam = cursor ? `, after: "${cursor}"` : '';
+ const query = `
+ query {
+ orders(first: 250, query: "status:open", sortKey: CREATED_AT, reverse: true${afterParam}) {
+ pageInfo {
+ hasNextPage
+ endCursor
+ }
+ edges {
+ node {
+ id
+ name
+ tags
+ displayFulfillmentStatus
+ fulfillmentOrders(first: 5) {
+ edges {
+ node {
+ status
+ requestStatus
+ deliveryMethod {
+ methodType
+ }
+ }
+ }
+ }
+ }
+ }
+ }
+ }
+ `;
 
-      const gqlRes = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
-        method: 'POST',
-        headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query })
-      });
+ const gqlRes = await fetch(`https://${shop}/admin/api/2024-04/graphql.json`, {
+ method: 'POST',
+ headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
+ body: JSON.stringify({ query })
+ });
 
-      if (!gqlRes.ok) break;
+ if (!gqlRes.ok) break;
 
-      const gqlData = await gqlRes.json();
-      const ordersData = gqlData.data && gqlData.data.orders;
-      const edges = (ordersData && ordersData.edges) || [];
+ const gqlData = await gqlRes.json();
+ const ordersData = gqlData.data && gqlData.data.orders;
+ const edges = (ordersData && ordersData.edges) || [];
 
-      for (const edge of edges) {
-        const node = edge.node;
-        const hasReadyTag = (node.tags || []).some(t => /ready for pickup|átvehető|atveheto/i.test(t));
-        const hasReadyFO = (node.fulfillmentOrders && node.fulfillmentOrders.edges || []).some(foEdge => {
-          const fo = foEdge.node;
-          const isPickupMethod = fo.deliveryMethod && (fo.deliveryMethod.methodType === 'PICK_UP' || fo.deliveryMethod.methodType === 'PICKUP' || fo.deliveryMethod.methodType === 'LOCAL_PICKUP');
-          const isReadyStatus = fo.status === 'IN_PROGRESS' || fo.status === 'in_progress' || fo.requestStatus === 'PREPARED';
-          return isPickupMethod && isReadyStatus;
-        });
-        const isDisplayReady = String(node.displayFulfillmentStatus || '').toUpperCase() === 'READY_FOR_PICKUP';
+ for (const edge of edges) {
+ const node = edge.node;
+ const hasReadyTag = (node.tags || []).some(t => /ready for pickup|átvehető|atveheto/i.test(t));
+ const hasReadyFO = (node.fulfillmentOrders && node.fulfillmentOrders.edges || []).some(foEdge => {
+ const fo = foEdge.node;
+ const isPickupMethod = fo.deliveryMethod && (fo.deliveryMethod.methodType === 'PICK_UP' || fo.deliveryMethod.methodType === 'PICKUP' || fo.deliveryMethod.methodType === 'LOCAL_PICKUP');
+ const isReadyStatus = fo.status === 'IN_PROGRESS' || fo.status === 'in_progress' || fo.requestStatus === 'PREPARED';
+ return isPickupMethod && isReadyStatus;
+ });
+ const isDisplayReady = String(node.displayFulfillmentStatus || '').toUpperCase() === 'READY_FOR_PICKUP';
 
-        if (hasReadyTag || hasReadyFO || isDisplayReady) {
-          readyOrderNames.add(node.name);
-          readyOrderNames.add(String(node.id).replace('gid://shopify/Order/', ''));
-        }
-      }
+ if (hasReadyTag || hasReadyFO || isDisplayReady) {
+ readyOrderNames.add(node.name);
+ readyOrderNames.add(String(node.id).replace('gid://shopify/Order/', ''));
+ }
+ }
 
-      hasNext = ordersData && ordersData.pageInfo && ordersData.pageInfo.hasNextPage;
-      cursor = ordersData && ordersData.pageInfo && ordersData.pageInfo.endCursor;
-    }
-  } catch (eErr) {
-    console.warn('[Shopify Events ReadyForPickup Warning]', eErr.message);
-  }
+ hasNext = ordersData && ordersData.pageInfo && ordersData.pageInfo.hasNextPage;
+ cursor = ordersData && ordersData.pageInfo && ordersData.pageInfo.endCursor;
+ }
+ } catch (eErr) {
+ console.warn('[Shopify Events ReadyForPickup Warning]', eErr.message);
+ }
 
-  return readyOrderNames;
+ return readyOrderNames;
 }
 
 // Lapozásos REST rendelés lekérdezés segédfüggvény
 async function fetchPagedOrders(initialUrl, token, maxPages = 10) {
-  let results = [];
-  let nextUrl = initialUrl;
-  let pageCount = 0;
-  while (nextUrl && pageCount < maxPages) {
-    pageCount++;
-    console.log(`[Shopify API] Lapozás (${pageCount}. oldal): ${nextUrl}`);
-    const res = await fetch(nextUrl, {
-      headers: {
-        'X-Shopify-Access-Token': token,
-        'Content-Type': 'application/json'
-      }
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Shopify API hiba (${res.status}): ${errText}`);
-    }
-    const data = await res.json();
-    const pagedOrders = data.orders || [];
-    results = results.concat(pagedOrders);
+ let results = [];
+ let nextUrl = initialUrl;
+ let pageCount = 0;
+ while (nextUrl && pageCount < maxPages) {
+ pageCount++;
+ console.log(`[Shopify API] Lapozás (${pageCount}. oldal): ${nextUrl}`);
+ const res = await fetch(nextUrl, {
+ headers: {
+ 'X-Shopify-Access-Token': token,
+ 'Content-Type': 'application/json'
+ }
+ });
+ if (!res.ok) {
+ const errText = await res.text();
+ throw new Error(`Shopify API hiba (${res.status}): ${errText}`);
+ }
+ const data = await res.json();
+ const pagedOrders = data.orders || [];
+ results = results.concat(pagedOrders);
 
-    const linkHeader = res.headers.get('link') || res.headers.get('Link');
-    nextUrl = null;
-    if (linkHeader) {
-      const match = linkHeader.match(/<([^>]+)>;\s*rel="next"/i);
-      if (match) {
-        nextUrl = match[1];
-      }
-    }
-  }
-  return results;
+ const linkHeader = res.headers.get('link') || res.headers.get('Link');
+ nextUrl = null;
+ if (linkHeader) {
+ const match = linkHeader.match(/<([^>]+)>;\s*rel="next"/i);
+ if (match) {
+ nextUrl = match[1];
+ }
+ }
+ }
+ return results;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -360,7 +360,7 @@ const server = http.createServer(async (req, res) => {
 
     if (!code) {
       res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end('<h1>❌ Hiba: Nem érkezett autorizációs kód a Shopify-tól!</h1>');
+      res.end('<h1> Hiba: Nem érkezett autorizációs kód a Shopify-tól!</h1>');
       return;
     }
 
@@ -398,7 +398,7 @@ const server = http.createServer(async (req, res) => {
           </head>
           <body>
             <div class="card">
-              <h1>🎉 Sikeres Kapcsolódás!</h1>
+              <h1> Sikeres Kapcsolódás!</h1>
               <p>A Shopify boltod (<strong>${shop}</strong>) sikeresen összekapcsolódott a Kiszedési Jegyzék rendszerrel.</p>
               <div class="token-box">Access Token: ${data.access_token.substring(0, 10)}... (Elmentve a .env-be)</div>
               <p>Átirányítás 3 másodpercen belül a rendszerbe...</p>
@@ -419,7 +419,7 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       console.error('[Shopify Callback Error]', err);
       res.writeHead(500, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(`<h1>❌ Hiba történt a token beszerzésekor:</h1><pre>${err.message}</pre><a href="/">Vissza</a>`);
+      res.end(`<h1> Hiba történt a token beszerzésekor:</h1><pre>${err.message}</pre><a href="/">Vissza</a>`);
       return;
     }
   }
@@ -468,7 +468,7 @@ const server = http.createServer(async (req, res) => {
         getProductImageMaps(shop, token)
       ]);
 
-      console.log(`⚡ [Shopify API] Minden adat sikeresen lekérve ${(Date.now() - tFetchStart) / 1000}s alatt.`);
+      console.log(` [Shopify API] Minden adat sikeresen lekérve ${(Date.now() - tFetchStart) / 1000}s alatt.`);
 
       // Összefésülés és deduplikálás ID szerint
       const orderMap = new Map();
@@ -492,7 +492,7 @@ const server = http.createServer(async (req, res) => {
             o.is_ready_for_pickup = true;
           }
         });
-        console.log(`🟣 [Ready for pickup Felismerve] Összesen ${readyOrderNames.size} rendelés átvehetőre állítva a boltban.`);
+        console.log(` [Ready for pickup Felismerve] Összesen ${readyOrderNames.size} rendelés átvehetőre állítva a boltban.`);
       }
 
       // Képek csatolása a tételekhez a gyorsítótárból
@@ -509,7 +509,7 @@ const server = http.createServer(async (req, res) => {
         const eligibleForPxp = orders.filter(isEligibleForAutoPannonXp);
 
         if (eligibleForPxp.length > 0) {
-          console.log(`🏷️ [Auto PannonXP Felismerés] ${eligibleForPxp.length} db nyitott rendelés nem tartalmaz falpanelt (vagy max 2 db padlózatot tartalmaz) -> PannonXP-re jelölve.`);
+          console.log(` [Auto PannonXP Felismerés] ${eligibleForPxp.length} db nyitott rendelés nem tartalmaz falpanelt (vagy max 2 db padlózatot tartalmaz) -> PannonXP-re jelölve.`);
           
           // Optimista címkézés a visszaküldött válaszban (azonnali frissülés a felületen)
           eligibleForPxp.forEach(order => {
@@ -644,7 +644,7 @@ const server = http.createServer(async (req, res) => {
         const fulfillResult = await fulfillRes.json();
 
         if (fulfillRes.ok && fulfillResult.fulfillment) {
-          console.log(`✅ [Shopify Fulfillment] Rendelés (${orderId || shopifyId}) sikeresen teljesítve!`);
+          console.log(` [Shopify Fulfillment] Rendelés (${orderId || shopifyId}) sikeresen teljesítve!`);
           res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({
             success: true,
@@ -654,7 +654,7 @@ const server = http.createServer(async (req, res) => {
           }));
           return;
         } else {
-          console.error(`❌ [Shopify Fulfillment Hiba]`, fulfillResult);
+          console.error(` [Shopify Fulfillment Hiba]`, fulfillResult);
           res.writeHead(fulfillRes.status || 400, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({
             error: fulfillResult.errors ? JSON.stringify(fulfillResult.errors) : 'Hiba történt a teljesítés során.',
@@ -771,7 +771,7 @@ const server = http.createServer(async (req, res) => {
           }
         }
 
-        console.log(`📦 [Bulk Fulfillment Kész] Összes: ${results.total}, Sikeres: ${results.successCount}, Hibás: ${results.failedCount}`);
+        console.log(` [Bulk Fulfillment Kész] Összes: ${results.total}, Sikeres: ${results.successCount}, Hibás: ${results.failedCount}`);
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({
           success: true,
@@ -902,7 +902,7 @@ const server = http.createServer(async (req, res) => {
           }
         }
 
-        console.log(`🏷️ [Shopify Tags Frissítve] Összes: ${results.total}, Sikeres: ${results.successCount}, Hibás: ${results.failedCount}`);
+        console.log(` [Shopify Tags Frissítve] Összes: ${results.total}, Sikeres: ${results.successCount}, Hibás: ${results.failedCount}`);
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({
           success: true,
@@ -1022,7 +1022,7 @@ const server = http.createServer(async (req, res) => {
                     const gqlData = await gqlRes.json();
                     if (gqlData.data && gqlData.data.fulfillmentOrderLineItemsPreparedForPickup && (!gqlData.data.fulfillmentOrderLineItemsPreparedForPickup.userErrors || gqlData.data.fulfillmentOrderLineItemsPreparedForPickup.userErrors.length === 0)) {
                       nativePickupMarked = true;
-                      console.log(`🟣 [Shopify Ready for Pickup] Fulfillment Order (${fo.id}) sikeresen átállítva átvehetőre!`);
+                      console.log(` [Shopify Ready for Pickup] Fulfillment Order (${fo.id}) sikeresen átállítva átvehetőre!`);
                     } else {
                       const userErrors = gqlData.data?.fulfillmentOrderLineItemsPreparedForPickup?.userErrors;
                       const userErrMsg = userErrors && userErrors.map(e => e.message).join(', ');
@@ -1054,7 +1054,7 @@ const server = http.createServer(async (req, res) => {
           }
         }
 
-        console.log(`🟣 [Ready for pickup Kész] Összes: ${results.total}, Sikeres: ${results.successCount}, Hibás: ${results.failedCount}`);
+        console.log(` [Ready for pickup Kész] Összes: ${results.total}, Sikeres: ${results.successCount}, Hibás: ${results.failedCount}`);
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({
           success: true,
@@ -1126,7 +1126,7 @@ const server = http.createServer(async (req, res) => {
 
         const putData = await putRes.json();
         if (putRes.ok && putData.order) {
-          console.log(`📝 [Shopify Note Frissítve] Rendelés: ${orderId || shopifyId}, Megjegyzés hossza: ${note.length} karakter`);
+          console.log(` [Shopify Note Frissítve] Rendelés: ${orderId || shopifyId}, Megjegyzés hossza: ${note.length} karakter`);
           res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({
             success: true,
@@ -1272,7 +1272,7 @@ const server = http.createServer(async (req, res) => {
                 shopifyId: sId,
                 status: mutationResult.order.displayFinancialStatus || 'PAID'
               });
-              console.log(`💰 [Shopify Paid] Rendelés: ${oId} (${sId}) -> PAID sikeresen beállítva.`);
+              console.log(` [Shopify Paid] Rendelés: ${oId} (${sId}) -> PAID sikeresen beállítva.`);
             } else {
               results.failedCount++;
               results.errors.push({ orderId: oId, shopifyId: sId, error: 'Ismeretlen GraphQL válasz' });
@@ -1283,7 +1283,7 @@ const server = http.createServer(async (req, res) => {
           }
         }
 
-        console.log(`💰 [Shopify Mark As Paid Kész] Összes: ${results.total}, Újonnan fizetve: ${results.successCount}, Már fizetve volt: ${results.alreadyPaidCount}, Hibás: ${results.failedCount}`);
+        console.log(` [Shopify Mark As Paid Kész] Összes: ${results.total}, Újonnan fizetve: ${results.successCount}, Már fizetve volt: ${results.alreadyPaidCount}, Hibás: ${results.failedCount}`);
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({
           success: true,
@@ -1445,6 +1445,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🚀 Szerver fut: http://localhost:${PORT}/`);
-  console.log(`🔗 Shopify Auth URL: http://localhost:${PORT}/api/shopify/auth`);
+ console.log(` Szerver fut: http://localhost:${PORT}/`);
+ console.log(` Shopify Auth URL: http://localhost:${PORT}/api/shopify/auth`);
 });

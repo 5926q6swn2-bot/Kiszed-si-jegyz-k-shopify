@@ -365,10 +365,10 @@ export const ShopifyParser = {
                 // 1. Számla ki ellenőrzés (kivéve ha viszonteladó)
                 const tags = row['Tags'] || '';
                 const tagsLower = tags.toLowerCase();
-                const isReseller = tagsLower.includes('viszontelad') || tagsLower.includes('viszonterlad');
+                const isReseller = tagsLower.includes('viszontelad') || tagsLower.includes('viszonterlad') || tagsLower.includes('viszonteladó') || tagsLower.includes('viszontelado');
                 const shippingName = cleanName(row['Shipping Name'] || 'Ismeretlen');
                 const billingName = cleanName(row['Billing Name'] || row['Shipping Name'] || 'Ismeretlen');
-                if (!isReseller && !tagsLower.includes('számla ki')) {
+                if (!isReseller && !tagsLower.includes('számla ki') && !tagsLower.includes('szamla ki')) {
                     errors.push({
                         id: Math.random().toString(36).substr(2, 9),
                         title: "Hiányzó Számla",
