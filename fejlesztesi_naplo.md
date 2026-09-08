@@ -46,16 +46,11 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
-### 2026. szeptember 8. (11. frissítés) - Szigorú `[ok]` Szűrés Hétköznapokon & Szállítási Típus Jelzés (`v4.5.5`)
-- **Szigorú `[ok]` Tag Szűrés**: A hétköznapokon (Kedd-Vasárnap) az összes szekcióból (1-7. szekció, pl. a 3. Díjbekérős rendelésekből is) kiszűrésre kerülnek a `[ok]` tag-es megjegyzéssel rendelkező rendelések, és kizárólag Hétfő reggel jelennek meg a 8. Hétfői felülvizsgálati kártyán.
-- **Közvetlen Szállítási / Átvételi Jelzések**: Az időzített értesítések kártyáján a belső rendszerkategóriák ("Régi személyes átvétel", "Sela határidő") helyett közvetlenül a rendelés típusa jelenik meg: `Személyes átvétel` vagy `Kiszállítás (Város)`.
-- **Összefoglaló Mondat Törlése**: A riport összefoglaló kártyájának végéről eltávolítottuk a felesleges bevezető mondatot a felhasználó kérésére.
-
-### 2026. szeptember 8. (10. frissítés) - Riport Szövegezés Finomítása & Kompakt Dátum Időzítés Szekció (`v4.5.4`)
-- **Szövegezési Pontosítások**:
-  - *"— viszonteladói megrendeléseken kívül"* (korábbi *"kizárva"* helyett).
-  - *"Jelenleg összesen 51 db unfulfilled rendelés van a Shopify-ban."* (a felesleges *"teljesítésre váró lakossági"* magyarázat eltávolítva).
-- **Kompakt Időzített Értesítések Szekció**: A 0. Mai napra időzített értesítések szekció teljesen illeszkedik az e-mail többi szekciójának dizájnjához, letisztult, kis helyigényű `report-section` elrendezéssel.
+### 2026. szeptember 8. (10. frissítés) - Hétfői Hétvégi Visszatekintés (Péntek 07:00 óta) & Hétfő–Péntek Riport Ütemezés (`v4.5.4`)
+- **Hétfő Reggeli Visszatekintés (Péntek 07:00 óta)**: Hétfő reggel az új rendelési statisztika nem a vasárnapi 24 órát, hanem a **Péntek reggel 07:00 óta** (a teljes hétvégén) érkezett új rendeléseket összesíti (*"Péntek reggel 07:00 óta X db új rendelés érkezett..."*).
+- **Hétfőtől Péntekig Ütemezés**: A reggeli riport kizárólag munkanapokon, **Hétfőtől Péntekig reggel 07:00-kor** készül és kerül kiküldésre (szombaton és vasárnap nincs automatikus riport).
+- **`orderUtils.js` Cutoff Segédfüggvény**: `calculateReportCutoffDate(referenceDate)` hozzáadva és exportálva. Hétfőn 3 napos (72 órás) visszatekintést, Kedd–Péntek napokon 1 napos (24 órás) visszatekintést állít be.
+- **455/455 Sikeres Unit Teszt**: 6 új unit teszt hozzáadva a Hétfői (Péntek 07:00) és Kedd–Pénteki (Tegnap 07:00) cutoff dátumok és feliratok tesztelésére. Minden teszt 100%-osan zöld.
 
 ### 2026. szeptember 8. (9. frissítés) - Kritikus Működési Riasztások Garantált Megjelenítése (`v4.5.3`)
 - **Kritikus Riasztások Elsőbbsége**: Ha egy rendelésnek kritikus számlázási elakadása (Számla nélküli rendelés terítésben), szállítási címhibája (hiányzó házszám), hibás szállítási módja (2.300 Ft budapesti szállítás vidékre) vagy hiányzó díjbekérője van, az **MINDIG RIASZT** a megfelelő 1-3. szekcióban. Ezeket a kritikus elakadásokat sem a `[ok]`, sem a jövőbeli dátum tag (`[09.15]`) nem némíthatja el, mert az azonnali beavatkozást igénylő operatív információ.

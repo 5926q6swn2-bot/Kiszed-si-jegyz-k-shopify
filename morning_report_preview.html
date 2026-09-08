@@ -584,6 +584,8 @@
     <div class="notes-card">
         <h3><i class="ph-bold ph-sliders" style="color: #2563eb;"></i> Intelligens <code>[ok]</code> Megjegyzés, Dátum Időzítés & Kritikus Riasztási Szabályzat:</h3>
         <ul>
+            <li><strong>Riport Ütemezés (Hétfő – Péntek):</strong> Riport kizárólag munkanapokon, <strong>Hétfőtől Péntekig reggel 07:00-kor</strong> készül és kerül kiküldésre (szombaton és vasárnap nincs automatikus riport).</li>
+            <li><strong>Hétfő Reggeli Visszatekintés (Péntek 07:00 óta):</strong> Hétfő reggel az új rendelési statisztika nem a vasárnapi 24 órát, hanem a <strong>Péntek reggel 07:00 óta</strong> (a teljes hétvégén) érkezett új rendeléseket összesíti.</li>
             <li><strong>Kritikus Működési Riasztások (Számla hiány, Címhiba, Rossz szállítás, Díjbekérő hiány):</strong> Ha egy rendelésnek kritikus számlázási elakadása, szállítási címhibája vagy hiányzó díjbekérője van, az <strong>MINDIG RIASZT</strong> a megfelelő szekcióban (1-3. szekció), függetlenül attól, hogy van-e rajta <code>[ok]</code> tag vagy jövőbeli dátum (pl. <code>[09.15]</code>), mert az azonnali beavatkozást igénylő fontos információ!</li>
             <li><strong>Egyeztetett / Halasztható Tételek (Személyes átvétel, Sela határidő, Utalásra váró díjbekérő):</strong> Amennyiben nincs kritikus hiba és a megjegyzés tartalmazza a <code>[ok]</code> jelölést vagy egy jövőbeli dátumot, a tétel a hétköznapokon elnémul, és kizárólag a megadott dátumon (vagy Hétfő reggel a heti felülvizsgálatkor) riaszt.</li>
             <li><strong>Dátumhoz Kötött Időzített Értesítések:</strong> A megadott napon (pl.: <code>[09.08]</code>) a riport legtetején a kiemelt <strong>"0. Mai napra időzített emlékeztetők — [09.08]"</strong> szekcióban jelenik meg a rendelés, hiánytalanul kiírva a teljes megjegyzést.</li>
@@ -601,8 +603,10 @@
             actual: {
                 subject: "Reggeli riport - 2026. szeptember 8.",
                 unfulfilledCount: 51, // 58 total - 7 viszonteladói unfulfilled = 51 lakossági unfulfilled!
-                newOrders24h: 8,       // Tegnap 07:00 óta 8 új lakossági rendelés érkezett
-                newUnfulfilled24h: 6,  // ebből 6 unfulfilled
+                newOrders24h: 8,          // Tegnap 07:00 óta 8 új lakossági rendelés érkezett (Kedd - Péntek)
+                newUnfulfilled24h: 6,     // ebből 6 unfulfilled
+                newOrdersMonday: 19,      // Péntek 07:00 óta 19 új lakossági rendelés érkezett a hétvégén (Hétfő reggel)
+                newUnfulfilledMonday: 14, // ebből 14 unfulfilled
                 dateTextWeekday: "2026. szeptember 8., kedd 07:00",
                 dateTextMonday: "2026. szeptember 7., hétfő 07:00",
                 missingInvoice: [],
@@ -633,6 +637,8 @@
                 unfulfilledCount: 88, // viszonteladók kizárva
                 newOrders24h: 24,
                 newUnfulfilled24h: 20,
+                newOrdersMonday: 52,
+                newUnfulfilledMonday: 41,
                 dateTextWeekday: "2026. szeptember 8., kedd 07:00",
                 dateTextMonday: "2026. szeptember 7., hétfő 07:00",
                 missingInvoice: [
@@ -679,6 +685,8 @@
                 unfulfilledCount: 24, // viszonteladók kizárva
                 newOrders24h: 4,
                 newUnfulfilled24h: 2,
+                newOrdersMonday: 11,
+                newUnfulfilledMonday: 7,
                 dateTextWeekday: "2026. szeptember 8., kedd 07:00",
                 dateTextMonday: "2026. szeptember 7., hétfő 07:00",
                 missingInvoice: [],
@@ -747,12 +755,17 @@
             const adminBase = "https://p4q0uj-2m.myshopify.com/admin/orders/";
             const dateStr = isMonday ? data.dateTextMonday : data.dateTextWeekday;
             const currentTargetTag = isMonday ? '09.07' : '09.08';
+            const periodText = isMonday ? 'Péntek reggel 07:00 óta' : 'Tegnap reggel 07:00 óta';
+            const newOrdersCount = isMonday ? (data.newOrdersMonday || 19) : data.newOrders24h;
+            const newUnfulfilledCount = isMonday ? (data.newUnfulfilledMonday || 14) : data.newUnfulfilled24h;
 
-            // Hétköznapokon (Kedd-Vasárnap) minden [ok] megjegyzésű rendelés elnémítva a 1-7. szekciókból!
-            const missingInvoiceFiltered = data.missingInvoice.filter(i => !hasOkTag(i.note));
-            const wrongShippingFiltered = data.wrongShipping.filter(i => !hasOkTag(i.note));
-            const incompleteAddressFiltered = data.incompleteAddress.filter(i => !hasOkTag(i.note));
-            const dijbekKerendoFiltered = data.dijbekKerendo.filter(i => !hasOkTag(i.note));
+            // KRITIKUS RIASZTÁSOK (1-3. szekció): Számla hiány, Címhiba, Rossz szállítás, Díjbekérő hiány MINDIG RIASZTANAK!
+            const missingInvoiceFiltered = data.missingInvoice;
+            const wrongShippingFiltered = data.wrongShipping;
+            const incompleteAddressFiltered = data.incompleteAddress;
+            const dijbekKerendoFiltered = data.dijbekKerendo;
+
+            // HALASZTHATÓ / EGYEZTETETT RIASZTÁSOK (4-7. szekció): [ok] tag elnémítja a hétköznapokon
             const dijbekVarakozikFiltered = data.dijbekVarakozik.filter(i => !hasOkTag(i.note));
             const oldPickupsFiltered = data.oldPickups.filter(i => !hasOkTag(i.note));
             const selaDeadlinesFiltered = data.selaDeadlines.filter(i => !hasOkTag(i.note));
@@ -777,7 +790,7 @@
             checkScheduled(data.selaDeadlines, "Sela határidő");
             checkScheduled(data.unsettledRuns, "Nyitott fuvar", i => i.driver);
 
-            // Összes gyűjtött [ok] megjegyzéses rendelés a Hétfői Felülvizsgálati szekcióhoz (Section 8)
+            // Összes gyűjtött [ok] megjegyzéses rendelés a Hétfői Felülvizsgálati szekcióhoz
             const mondayHandledItems = [];
             data.missingInvoice.forEach(i => { if (hasOkTag(i.note)) mondayHandledItems.push({ ...i, category: "Számla hiány" }); });
             data.wrongShipping.forEach(i => { if (hasOkTag(i.note)) mondayHandledItems.push({ ...i, category: "Rossz szállítás" }); });
@@ -791,19 +804,22 @@
             let html = `
                 <div class="stats-summary-box">
                     Jó reggelt!<br><br>
-                    ${isMonday ? '<strong>[HÉTFŐI REGGELI RIPORT]</strong><br>' : ''}
-                    Tegnap reggel 07:00 óta <strong>${data.newOrders24h} db új rendelés</strong> érkezett (ebből <span class="stat-pill"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#eab308;"></span> Unfulfilled: ${data.newUnfulfilled24h} db</span> — <em>viszonteladói megrendeléseken kívül</em>).<br>
-                    Jelenleg összesen <strong>${data.unfulfilledCount} db unfulfilled rendelés</strong> van a Shopify-ban.
+                    ${isMonday ? '<strong>[HÉTFŐI REGGELI RIPORT - HÉTVEGI ÖSSZESÍTÉS]</strong><br>' : ''}
+                    ${periodText} <strong>${newOrdersCount} db új rendelés</strong> érkezett (ebből <span class="stat-pill"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#eab308;"></span> Unfulfilled: ${newUnfulfilledCount} db</span> — <em>viszonteladói rendelések kizárva</em>).<br>
+                    Jelenleg összesen <strong>${data.unfulfilledCount} db unfulfilled (teljesítésre váró lakossági) rendelés</strong> van a Shopify-ban.<br><br>
+                    ${isMonday 
+                        ? 'Az alábbiakban találod a mai aktív teendőket, az e-mail alján pedig a <strong>Hétfői Felülvizsgálatra gyűjtött korábban egyeztetett [ok] rendeléseket</strong>:' 
+                        : 'Az alábbiakban találod a mai napra vonatkozó aktív logisztikai és számlázási teendőket (a <code>[ok]</code> megjegyzéses rendelések elnémítva):'}
                 </div>
             `;
 
+
             // 0. DÁTUMHOZ KÖTÖTT ÉRTESÍTÉSEK
             html += `
-                <div class="report-section">
+                <div class="report-section" style="border-left: 4px solid #2563eb; background: #f0f9ff; margin-bottom: 22px;">
                     <div class="section-title">
-                        <span>Mai napra időzített értesítések — [${currentTargetTag}]</span>
-                        <span class="section-badge ${scheduledTodayItems.length ? 'badge-alert' : 'badge-ok'}">
-                            <i class="ph-bold ${scheduledTodayItems.length ? 'ph-bell-ringing' : 'ph-check-circle'}"></i>
+                        <span><i class="ph-bold ph-bell-ringing" style="color: #2563eb; font-size: 17px;"></i> Mai Napra Időzített Értesítések — [${currentTargetTag}]</span>
+                        <span class="section-badge ${scheduledTodayItems.length ? 'badge-alert' : 'badge-ok'}" style="background: ${scheduledTodayItems.length ? '#dbeafe' : '#f1f5f9'}; color: ${scheduledTodayItems.length ? '#1e40af' : '#64748b'};">
                             ${scheduledTodayItems.length ? scheduledTodayItems.length + ' db mai értesítés' : 'Nincs mai emlékeztető'}
                         </span>
                     </div>
@@ -814,20 +830,10 @@
                 html += `<ul class="item-list">`;
                 scheduledTodayItems.forEach(item => {
                     const cleanNum = item.orderId.replace('#', '');
-                    const isPickup = item.category === 'Régi személyes átvétel' || 
-                                     item.isPickup === true || 
-                                     /személyes|szemelyes|pickup|raktár|bolt/i.test(item.note || '') ||
-                                     /személyes|szemelyes|pickup/i.test(item.category || '');
-                    
-                    const deliveryTag = isPickup 
-                        ? `<span class="sub-tag tag-pickup" style="background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 1px 7px; border-radius: 5px; font-size: 11px; font-weight: 700;"><i class="ph-bold ph-storefront"></i> Személyes átvétel</span>`
-                        : `<span class="sub-tag tag-delivery" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; padding: 1px 7px; border-radius: 5px; font-size: 11px; font-weight: 700;"><i class="ph-bold ph-truck"></i> Kiszállítás${item.city ? ' (' + item.city + ')' : ''}</span>`;
-
                     html += `
-                        <li class="alert-item">
-                            <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - 
-                            <strong>${item.billing}</strong> 
-                            ${deliveryTag}
+                        <li class="alert-item" style="background: #ffffff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(37,99,235,0.08);">
+                            <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - <strong>${item.billing}</strong> 
+                            <span class="sub-tag" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">${item.category}</span>
                             ${renderNotesBox(item.note)}
                         </li>
                     `;
@@ -835,8 +841,6 @@
                 html += `</ul>`;
             }
             html += `</div>`;
-
-
 
             // 1. SZÁMLÁZÁSI ELAKADÁSOK
             html += `

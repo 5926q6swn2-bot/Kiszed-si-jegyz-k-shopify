@@ -37,7 +37,8 @@ import {
     isResellerOrder,
     calculateMorningReportStats,
     extractScheduledDateTag,
-    isScheduledDateToday
+    isScheduledDateToday,
+    calculateReportCutoffDate
 } from '../js/utils/orderUtils.js';
 import {
     generateMissingInvoiceEmailHtml,
@@ -2175,6 +2176,19 @@ const testDateToday = new Date(2026, 8, 8); // 2026.09.08
 assertEqual("Dátum Egyezés - Mai napra egyezik (09.08)", isScheduledDateToday("mai átvétel [09.08] [ok]", testDateToday), true);
 assertEqual("Dátum Egyezés - Nem mai nap (09.15)", isScheduledDateToday("későbbi kiszállítás [09.15]", testDateToday), false);
 assertEqual("Dátum Egyezés - Formázott string dátumra", isScheduledDateToday("09.08-ig átveszi [09.08]", "09.08"), true);
+
+// 8. Hétfői 72-órás (Péntek 07:00 óta) visszatekintés cutoff tesztek
+const monRef = new Date(2026, 8, 7, 7, 0); // 2026.09.07 Hétfő 07:00
+const monCutoff = calculateReportCutoffDate(monRef);
+assertEqual("Cutoff - Hétfő reggel isMonday true", monCutoff.isMonday, true);
+assertEqual("Cutoff - Hétfő reggel periodText 'Péntek reggel 07:00 óta'", monCutoff.periodText, "Péntek reggel 07:00 óta");
+assertEqual("Cutoff - Hétfő reggel dátum Péntek (2026.09.04)", monCutoff.cutoffDate.getDate(), 4);
+
+const tueRef = new Date(2026, 8, 8, 7, 0); // 2026.09.08 Kedd 07:00
+const tueCutoff = calculateReportCutoffDate(tueRef);
+assertEqual("Cutoff - Kedd reggel isMonday false", tueCutoff.isMonday, false);
+assertEqual("Cutoff - Kedd reggel periodText 'Tegnap reggel 07:00 óta'", tueCutoff.periodText, "Tegnap reggel 07:00 óta");
+assertEqual("Cutoff - Kedd reggel dátum Hétfő (2026.09.07)", tueCutoff.cutoffDate.getDate(), 7);
 
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 

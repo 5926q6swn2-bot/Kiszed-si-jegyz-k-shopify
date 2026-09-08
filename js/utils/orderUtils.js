@@ -731,5 +731,35 @@ export function isScheduledDateToday(note, targetDate = new Date()) {
     return scheduledTag === targetTag;
 }
 
+/**
+ * Kiszámolja a reggeli riport vágási dátumát (Cutoff Date).
+ * Hétfő reggel -> Péntek reggel 07:00 AM (72 órás hétvégi visszatekintés)
+ * Kedd - Péntek reggel -> Tegnap reggel 07:00 AM (24 órás visszatekintés)
+ * 
+ * @param {Date|string} referenceDate 
+ * @returns {{ cutoffDate: Date, periodText: string, isMonday: boolean }}
+ */
+export function calculateReportCutoffDate(referenceDate = new Date()) {
+    const d = referenceDate instanceof Date ? new Date(referenceDate) : new Date(referenceDate);
+    const dayOfWeek = d.getDay(); // 0 = Sunday, 1 = Monday, ..., 5 = Friday, 6 = Saturday
+    const isMonday = (dayOfWeek === 1);
+
+    const cutoff = new Date(d);
+    cutoff.setHours(7, 0, 0, 0);
+
+    if (isMonday) {
+        cutoff.setDate(cutoff.getDate() - 3);
+    } else {
+        cutoff.setDate(cutoff.getDate() - 1);
+    }
+
+    return {
+        cutoffDate: cutoff,
+        periodText: isMonday ? 'Péntek reggel 07:00 óta' : 'Tegnap reggel 07:00 óta',
+        isMonday
+    };
+}
+
+
 
 
