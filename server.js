@@ -1352,8 +1352,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 9b. Reggeli Riport Manuális / Azonnali Kiküldése
-  if (pathname === '/api/reports/morning-report/send' && req.method === 'POST') {
+  // 9b. Reggeli Riport Manuális / Azonnali Kiküldése (GET és POST egyaránt támogatva)
+  if ((pathname === '/api/reports/morning-report/send' || pathname === '/api/reports/morning-report') && (req.method === 'GET' || req.method === 'POST')) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
     let bodyStr = '';
     req.on('data', chunk => { bodyStr += chunk; });
     req.on('end', async () => {
@@ -1372,6 +1373,8 @@ const server = http.createServer(async (req, res) => {
         return;
       }
     });
+    return;
+  }
   // 9c. 06:50 AM Elő-ébresztés és PannonXP Automatikus Címkézés Endpoint
   if ((pathname === '/api/trigger/pre-morning-wakeup' || pathname === '/api/trigger/pre-wakeup') && (req.method === 'GET' || req.method === 'POST')) {
     res.setHeader('Access-Control-Allow-Origin', '*');
