@@ -129,13 +129,21 @@ export const OrderOverviewView = {
             const companyText = order.deliveryInfo.company ? ` • ${order.deliveryInfo.company}` : '';
             const runIdText = order.deliveryInfo.runId ? ` (#${order.deliveryInfo.runId})` : '';
 
+            const tagsLowerInDeliv = (order.tags || '').toLowerCase();
+            const hasLabelTagInDeliv = order.hasLabelTag || tagsLowerInDeliv.includes('címke') || tagsLowerInDeliv.includes('cimke') || tagsLowerInDeliv.includes('label') || tagsLowerInDeliv.includes('nyomtatva') || tagsLowerInDeliv.includes('feladva') || tagsLowerInDeliv.includes('pxp kész') || tagsLowerInDeliv.includes('pxp_kesz');
+
             return {
                 type: 'in_delivery',
-                tooltip: `Terítésben: ${runDateText} (${courierText})${companyText}${runIdText}`,
+                tooltip: `Terítésben: ${runDateText} (${courierText})${companyText}${runIdText}${hasLabelTagInDeliv ? ' • Címke kinyomtatva' : ''}`,
                 html: `
                     <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
-                        <span class="logi-icon-badge" style="width: 25px; height: 25px; border-radius: 6px; background: #e0f2fe; border: 1.5px solid #38bdf8; color: #0284c7; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(2,132,199,0.25); cursor: help;">
+                        <span class="logi-icon-badge" style="position: relative; width: 25px; height: 25px; border-radius: 6px; background: #e0f2fe; border: 1.5px solid #38bdf8; color: #0284c7; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(2,132,199,0.25); cursor: help;">
                             <i class="ph-bold ph-truck" style="font-size: 14px; color: #0284c7;"></i>
+                            ${hasLabelTagInDeliv ? `
+                                <span title="Címke kinyomtatva (címke tag)" style="position: absolute; bottom: -3.5px; right: -3.5px; background: #2563eb; color: white; border-radius: 50%; width: 12px; height: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 7.5px; border: 1.5px solid #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.25);">
+                                    <i class="ph-bold ph-barcode"></i>
+                                </span>
+                            ` : ''}
                         </span>
                         <div class="logi-tooltip-bubble" style="min-width: 190px; display: flex; flex-direction: column; align-items: stretch; white-space: normal; text-align: left;">
                             <div style="display: flex; align-items: center; gap: 5px; font-weight: 700; color: #38bdf8;">
@@ -147,6 +155,12 @@ export const OrderOverviewView = {
                                 <div><strong style="color: #bae6fd;">Futár:</strong> ${courierText}</div>
                                 ${order.deliveryInfo.company ? `<div><strong style="color: #bae6fd;">Cég:</strong> ${order.deliveryInfo.company}</div>` : ''}
                                 ${order.deliveryInfo.runId ? `<div style="color: #94a3b8; font-size: 10.5px; margin-top: 3px; font-style: italic;">Azonosító: #${order.deliveryInfo.runId}</div>` : ''}
+                                ${hasLabelTagInDeliv ? `
+                                    <div style="margin-top: 4px; padding-top: 3px; border-top: 1px solid rgba(255,255,255,0.2); color: #93c5fd; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                                        <i class="ph-bold ph-barcode"></i>
+                                        <span>Címke kinyomtatva (címke)</span>
+                                    </div>
+                                ` : ''}
                             </div>
                         </div>
                     </div>
@@ -263,11 +277,11 @@ export const OrderOverviewView = {
                     tooltip: 'PannonXP: Címke kinyomtatva / Csomag kész (Kiküldés után teljesíthető)',
                     html: `
                         <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
-                            <span class="logi-icon-badge" style="width: 25px; height: 25px; border-radius: 6px; background: #ecfdf5; border: 1.5px solid #a7f3d0; color: #047857; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(4,120,87,0.15); cursor: help;">
-                                <i class="ph-bold ph-barcode" style="font-size: 14px; color: #059669;"></i>
+                            <span class="logi-icon-badge" style="width: 25px; height: 25px; border-radius: 6px; background: #eff6ff; border: 1.5px solid #93c5fd; color: #2563eb; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(37,99,235,0.15); cursor: help;">
+                                <i class="ph-bold ph-barcode" style="font-size: 14px; color: #2563eb;"></i>
                             </span>
                             <div class="logi-tooltip-bubble" style="min-width: 190px; white-space: nowrap;">
-                                <i class="ph-bold ph-barcode" style="color: #6ee7b7; font-size: 13px;"></i>
+                                <i class="ph-bold ph-barcode" style="color: #93c5fd; font-size: 13px;"></i>
                                 <span>PannonXP: Címke kész / Feladásra kész</span>
                             </div>
                         </div>
@@ -1243,9 +1257,9 @@ export const OrderOverviewView = {
 
                                                             ${order.pxp_referencia ? `
                                                                 <div style="font-size: 11px; color: #64748b; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
-                                                                    <i class="ph-bold ph-barcode" style="color: #059669;"></i>
+                                                                    <i class="ph-bold ph-barcode" style="color: #2563eb;"></i>
                                                                     <span>PXP Ref:</span>
-                                                                    <strong style="font-family: monospace; color: #059669; font-size: 11.5px;">${order.pxp_referencia}</strong>
+                                                                    <strong style="font-family: monospace; color: #2563eb; font-size: 11.5px;">${order.pxp_referencia}</strong>
                                                                 </div>
                                                             ` : ''}
                                                         </div>

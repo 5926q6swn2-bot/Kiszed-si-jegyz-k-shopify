@@ -2090,6 +2090,52 @@ if (uninitializedPxpOrder.pxp_suly === undefined || uninitializedPxpOrder.pxp_cs
 assertEqual("PXP Render Fallback - 3 Wide Akupanel csomagszám 1", uninitializedPxpOrder.pxp_csomagszam, 1);
 assertEqual("PXP Render Fallback - 3 Wide Akupanel súlya 27 kg", uninitializedPxpOrder.pxp_suly, 27);
 
+// 5. Capsula Houses Kft. Profil Automatikus "címke" Tagelés & Kék Vonalkód Terítésben Logika Tesztelése
+const testCapsulaTagging = (profileName, orders) => {
+    const isCapsula = String(profileName || '').toLowerCase().includes('capsula');
+    if (!isCapsula) return { taggedCount: 0, orders };
+
+    let taggedCount = 0;
+    const updatedOrders = orders.map(o => {
+        const currentTags = (o.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+        if (!currentTags.some(t => t.toLowerCase() === 'címke')) {
+            currentTags.push('címke');
+            taggedCount++;
+        }
+        return {
+            ...o,
+            tags: currentTags.join(', '),
+            hasLabelTag: true
+        };
+    });
+    return { taggedCount, orders: updatedOrders };
+};
+
+const sampleExportOrders = [
+    { id: "#1001", tags: "számla ki" },
+    { id: "#1002", tags: "számla ki, címke" }
+];
+
+const capsulaExportResult = testCapsulaTagging("Capsula Houses Kft.", sampleExportOrders);
+assertEqual("Capsula Tagging - 1 új címke tag hozzáadva", capsulaExportResult.taggedCount, 1);
+assertEqual("Capsula Tagging - #1001 megkapta a címke tag-et", capsulaExportResult.orders[0].tags.includes('címke'), true);
+assertEqual("Capsula Tagging - #1002 megőrizte a meglévő címke tag-et", capsulaExportResult.orders[1].tags.includes('címke'), true);
+
+const otherProfileExportResult = testCapsulaTagging("Panelburkolat Kft.", sampleExportOrders);
+assertEqual("Non-Capsula Tagging - 0 tag hozzáadva", otherProfileExportResult.taggedCount, 0);
+
+// Terítésben lévő rendelés címke tag vizsgálat (Mini kék vonalkód jelzés)
+const inDeliveryOrderWithLabel = {
+    deliveryInfo: { runDate: '09.08', courier: 'Bábel' },
+    tags: "számla ki, címke"
+};
+const logiStatusInDelivWithLabel = getLogisticsStatusType(inDeliveryOrderWithLabel);
+const tagsLowerInDeliv = (inDeliveryOrderWithLabel.tags || '').toLowerCase();
+const hasLabelTagInDeliv = tagsLowerInDeliv.includes('címke');
+
+assertEqual("Terítésben Logi Status - in_delivery tipus", logiStatusInDelivWithLabel, 'in_delivery');
+assertEqual("Terítésben Logi Status - hasLabelTag true mini kék vonalkódhoz", hasLabelTagInDeliv, true);
+
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 
 

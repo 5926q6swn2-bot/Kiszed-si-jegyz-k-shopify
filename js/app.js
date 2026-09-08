@@ -988,10 +988,50 @@ function initApp() {
                 company: 'PannonXP',
                 sender: 'PABU'
             }, selectedOrders);
+
+            // Automatikus "címke" tag hozzáadása a Shopify-ban az exportált rendelésekhez
+            const ordersToTag = selectedOrders.map(o => ({ orderId: o.id, shopifyId: o.shopifyId }));
+            if (ordersToTag.length > 0) {
+                ShopifyApiService.bulkUpdateOrderTags({
+                    orders: ordersToTag,
+                    addTag: 'címke'
+                }).then(res => {
+                    console.log(`[PannonXP Export] Az automatikus "címke" tag sikeresen rögzítve ${res.successCount || ordersToTag.length} db rendelésen a Shopify-ban.`);
+                    const targetIdSet = new Set(selectedOrders.map(o => String(o.id)));
+                    
+                    // Frissítjük a memóriában lévő rendelési objektumok tagjeit
+                    const updateOrderTagsInMemory = (orderList) => {
+                        (orderList || []).forEach(o => {
+                            if (targetIdSet.has(String(o.id))) {
+                                const tagsArr = (o.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+                                if (!tagsArr.some(t => t.toLowerCase() === 'címke' || t.toLowerCase() === 'cimke')) {
+                                    tagsArr.push('címke');
+                                }
+                                o.tags = tagsArr.join(', ');
+                                o.hasLabelTag = true;
+                                o.isPxpReady = o.hasPxpTag && true;
+                                o.isPxpPending = false;
+                            }
+                        });
+                    };
+
+                    updateOrderTagsInMemory(Store.shopifyHubOrders);
+                    updateOrderTagsInMemory(Store.pxpOrders);
+
+                    if (Store.activeMainTab === 'overview') {
+                        renderOverview();
+                    } else if (Store.activeMainTab === 'pannonxp') {
+                        PannonXPView.renderOrders(null, Store.pxpOrders, handlePxpExport);
+                    }
+                }).catch(err => {
+                    console.warn('[PannonXP Export] Hiba a "címke" tag felrakásakor a Shopify-ban:', err.message);
+                });
+            }
         } else {
-            console.log(`[PannonXP Export] Számlaellenőrzés kihagyva: nem Capsula Houses Kft. a kiválasztott profil (${senderSettings?.profileName || senderSettings?.id || 'egyéb fiók'}).`);
+            console.log(`[PannonXP Export] Számlaellenőrzés és címke tag felrakás kihagyva: nem Capsula Houses Kft. a kiválasztott profil (${senderSettings?.profileName || senderSettings?.id || 'egyéb fiók'}).`);
         }
     }
+
 
 
     // --- Rendezési mód toggle ---

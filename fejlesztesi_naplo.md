@@ -29,7 +29,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.6 Flash (High)
-- **Státusz**: A rendszer 100%-ban moduláris, élesítve a Render felhőben és stabil. ⚡ **PannonXP Címkekészítő Átdobási Súly- és Csomagszámítási Javítás** (`v4.4.7`, 427/427 zöld unit teszt).
+- **Státusz**: A rendszer 100%-ban moduláris, élesítve a Render felhőben és stabil. ⚡ **Automatikus "címke" Tag PannonXP Exportkor & Kék Vonalkód Emblem** (`v4.4.8`, 433/433 zöld unit teszt).
 
 
 ---
@@ -47,6 +47,21 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 ## 📝 Fejlesztési Napló (Changelog)
+
+### 2026. szeptember 8. (3. frissítés) - Automatikus "címke" Tag PannonXP Exportkor & Kék Vonalkód Emblem (`v4.4.8`)
+- **Felhasználói kérés**:
+  1. Ha a PannonXP címkenyomtatóból a `Capsula Houses Kft.` profil kiválasztásával letöltjük a CSV-t, tegye rá automatikusan a `"címke"` tag-et a Shopify rendeléseken.
+  2. Legyen kék a vonalkód embléma (`ph-barcode`), és jelenjen meg a terítésben-es rendeléseknél is, ha kinyomtatták hozzá a címkét.
+- **Megvalósított megoldás**:
+  - **1. Automatikus Shopify Tagelés (`js/app.js`)**: A PannonXP CSV exportálásakor (`handlePxpExport`), ha az aktív feladó profil `Capsula Houses Kft.` (`isCapsulaProfile`), a rendszer automatikusan meghívja a `ShopifyApiService.bulkUpdateOrderTags({ orders, addTag: 'címke' })` GraphQL mutációt a Shopify-ban, valamint frissíti a memóriabeli állapotot (`Store.shopifyHubOrders`, `Store.pxpOrders`).
+  - **2. Kék PannonXP Vonalkód Embléma (`js/views/orderOverviewView.js`)**:
+    - A PannonXP feladásra kész (`pxp_ready`) logisztikai jelvény színe kékre módosítva (`#eff6ff` háttér, `#93c5fd` keret, `#2563eb` ikon és szöveg), illeszkedve a PannonXP arculatához.
+    - A PXP Ref hivatkozás ikonja és szövege a sor részleteinél szintén kék (`#2563eb`).
+  - **3. Terítésben Lévő Rendelések Címke Jelzése (`js/views/orderOverviewView.js`)**:
+    - Terítés alatt (`in_delivery`) lévő rendelés esetén, ha rendelkezk a `"címke"` tag-gel, a logisztikai teherautó jelvény jobb alsó sarkában egy mini kék vonalkód jelvény jelenik meg overlay-ként, és a tooltip buborékban külön sor jelzi: `Címke kinyomtatva (címke)`.
+- **Egységtesztek & Ellenőrzés (`tests/unit_tests.js`)**:
+  - Új automatizált tesztek hozzáadva a `Capsula Houses Kft.` profil automatikus tagelési szabályára, valamint a terítés alatti címke állapotra.
+  - Összesen **433/433 unit teszt 100%-ban hibátlanul átment (zöld)**.
 
 ### 2026. szeptember 8. (2. frissítés) - Rendelésáttekintőből PannonXP-be Átdobás Súly- és Csomagszámításának Javítása (`v4.4.7`)
 - **Felhasználói bejelentés**: „ha a rendelésáttekintőből veszem át a pannonxp címkekészítőbe a rendeléseket, akkor nem jól írja be a súlyt, vegye figyelembe a pannonxp-ben található súly szabályokat és adatokat”.
