@@ -181,15 +181,24 @@ export function isPickupOrder(order) {
         tagsLower.includes('szemelyes') || 
         tagsLower.includes('pickup') || 
         tagsLower.includes('raktári átvétel') || 
+        tagsLower.includes('raktari atvetel') || 
         tagsLower.includes('boltban átvétel') ||
+        tagsLower.includes('boltban atvetel') ||
         tagsLower.includes('ready for pickup') ||
-        tagsLower.includes('átvehető')) {
+        tagsLower.includes('ready_for_pickup') ||
+        tagsLower.includes('átvehető') ||
+        tagsLower.includes('atveheto') ||
+        tagsLower.includes('átvétel') ||
+        tagsLower.includes('atvetel')) {
         return true;
     }
 
     const shippingLines = order.shipping_lines || [];
-    const shippingLinesStr = (Array.isArray(shippingLines) ? shippingLines.map(sl => sl.title || '').join(' ') : String(order.shippingMethod || '')).toLowerCase();
-    if (/üzlet|bolt|pickup|raktár|személyes|helyszíni|store pickup/i.test(shippingLinesStr)) {
+    const shippingLinesStr = (Array.isArray(shippingLines) 
+        ? shippingLines.map(sl => `${sl.title || ''} ${sl.code || ''}`).join(' ') 
+        : String(order.shippingMethod || '')).toLowerCase();
+
+    if (/üzlet|bolt|pickup|raktár|raktar|személyes|szemelyes|helyszíni|helyszini|store pickup|atvetel|átvétel|bemutatóterem|bemutatoterem/i.test(shippingLinesStr)) {
         return true;
     }
 
@@ -209,13 +218,13 @@ export function isFloorItem(item) {
     const sku = String(item.sku || '').trim();
     const text = `${name} ${sku}`.toLowerCase();
 
-    // 0. Explicit kizárások
+    // 0. Explicit kizárások (falpanelek, akusztikus panelek, ragasztók)
+    if (text.includes('falpanel') || text.includes('falburkolat')) return false;
     if (text.includes('mamut') || text.includes('fix all')) return false;
     if (text.includes('akusztik') || text.includes('akupanel') || /\baku\b/i.test(text)) return false;
 
-    // Padlózat felismerés (szavak: padló, padlo, padlózat, padlozat, vagy SPC/vinyl + wood/stone/parketta)
-    const isFloor = /padl[óo]zat|padl[óo]/i.test(text) ||
-                    ((text.includes('spc') || text.includes('vinyl')) && (text.includes('wood') || text.includes('stone') || text.includes('parketta')));
+    // Padlózat felismerés (szavak: padló, padlo, padlózat, padlozat, laminált, parketta, SPC, LVT, vinyl)
+    const isFloor = /padl[óo]zat|padl[óo]|lamin[áa]lt|parketta|\bspc\b|\blvt\b|\bvinyl\b/i.test(text);
 
     return Boolean(isFloor);
 }

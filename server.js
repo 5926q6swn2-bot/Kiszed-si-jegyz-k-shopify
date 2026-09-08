@@ -503,15 +503,13 @@ const server = http.createServer(async (req, res) => {
         });
       });
 
-      // Automatikus PannonXP szűrés és optimista UI címke (0 ms késleltetés a kezelőfelületnek)
+      // Automatikus PannonXP szűrés és optimista UI megjelölés
       try {
         const { isEligibleForAutoPannonXp } = await getOrderUtils();
         const eligibleForPxp = orders.filter(isEligibleForAutoPannonXp);
 
         if (eligibleForPxp.length > 0) {
-          console.log(` [Auto PannonXP Felismerés] ${eligibleForPxp.length} db nyitott rendelés nem tartalmaz falpanelt (vagy max 2 db padlózatot tartalmaz) -> PannonXP-re jelölve.`);
-          
-          // Optimista címkézés a visszaküldött válaszban (azonnali frissülés a felületen)
+          // Optimista megjelölés a visszaküldött válaszban a kezelőfelületnek
           eligibleForPxp.forEach(order => {
             let tagsArr = (order.tags || '').split(',').map(t => t.trim()).filter(Boolean);
             if (!tagsArr.some(t => t.toLowerCase() === 'pannonxp')) {
@@ -519,9 +517,6 @@ const server = http.createServer(async (req, res) => {
               order.tags = tagsArr.join(', ');
             }
           });
-
-          // Háttérben futó kíméletes (600 ms rate-limit) Shopify API szinkronizáció indítása
-          queuePannonXpAutoTagging(eligibleForPxp, token, shop);
         }
       } catch (autoTagErr) {
         console.warn('[Auto PannonXP Init Warning]', autoTagErr.message);
@@ -1375,25 +1370,16 @@ const server = http.createServer(async (req, res) => {
     });
     return;
   }
-  // 9c. 06:50 AM Elő-ébresztés és PannonXP Automatikus Címkézés Endpoint
-  if ((pathname === '/api/trigger/pre-morning-wakeup' || pathname === '/api/trigger/pre-wakeup') && (req.method === 'GET' || req.method === 'POST')) {
+  // 9c. 06:50 AM Elő-ébresztés Endpoint (Egyszerű szerver ébresztő ping)
+  if ((pathname === '/api/trigger/pre-morning-wakeup' || pathname === '/api/trigger/pre-wakeup' || pathname === '/api/trigger/wakeup') && (req.method === 'GET' || req.method === 'POST')) {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    try {
-      console.log('[API 06:50 Pre-Wakeup Trigger] Ébresztő kérés érkezett. PannonXP automatikus szinkronizáció indítása...');
-      const syncResult = await runPreWakeupPannonXpSync();
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({
-        success: true,
-        message: '06:50 Elő-ébresztés és PannonXP szinkronizáció lefutott.',
-        result: syncResult
-      }));
-      return;
-    } catch (err) {
-      console.error('[API Pre-Wakeup Error]', err);
-      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ error: err.message }));
-      return;
-    }
+    console.log('[API Wakeup Trigger] Szerver ébresztő kérés érkezett. Render szerver aktív.');
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      success: true,
+      message: 'Render szerver sikeresen felébredt.'
+    }));
+    return;
   }
 
   // 10. PannonXP Teljes Beállítások Mentése és Betöltése (Helyi / Render Szerver Fájl Tárhely)
@@ -1489,40 +1475,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 let lastReportSentDateStr = '';
-let lastPreWakeDateStr = '';
-
-async function runPreWakeupPannonXpSync() {
-  try {
-    const shop = process.env.SHOPIFY_SHOP || 'p4q0uj-2m.myshopify.com';
-    const token = process.env.SHOPIFY_ACCESS_TOKEN;
-    if (!token) {
-      console.warn(' [06:50 Pre-Wakeup] Nincs SHOPIFY_ACCESS_TOKEN beállítva, PannonXP szinkron átugorva.');
-      return { success: false, reason: 'No token' };
-    }
-
-    console.log(' [06:50 Pre-Wakeup] Nyitott Shopify rendelések lekérése...');
-    const url = `https://${shop}/admin/api/2024-04/orders.json?status=open&fulfillment_status=unfulfilled&limit=250`;
-    const res = await fetch(url, { headers: { 'X-Shopify-Access-Token': token } });
-    if (!res.ok) {
-      throw new Error(`Shopify API hiba: ${res.statusText}`);
-    }
-    const data = await res.json();
-    const { isEligibleForAutoPannonXp } = await getOrderUtils();
-    const eligibleForPxp = orders.filter(isEligibleForAutoPannonXp);
-
-    if (eligibleForPxp.length > 0) {
-      console.log(` [06:50 Pre-Wakeup PannonXP] ${eligibleForPxp.length} db alkalmas rendelés felcímkézése indult...`);
-      queuePannonXpAutoTagging(eligibleForPxp, token, shop);
-    } else {
-      console.log(' [06:50 Pre-Wakeup PannonXP] Nincs új felcímkézendő PannonXP csomag.');
-    }
-
-    return { success: true, count: eligibleForPxp.length };
-  } catch (err) {
-    console.error(' [06:50 Pre-Wakeup Sync Error]', err.message);
-    return { success: false, error: err.message };
-  }
-}
 
 async function triggerMorningReportSend(customReportData = null) {
   try {
@@ -1575,28 +1527,26 @@ async function triggerMorningReportSend(customReportData = null) {
   }
 }
 
-function checkAndTriggerMorningReportCron() {
+function getBudapestTime() {
   const now = new Date();
-  const day = now.getDay(); // 1 = Mon, 2 = Tue, 3 = Wed, 4 = Thu, 5 = Fri
-  const hours = now.getHours();
-  const minutes = now.getMinutes();
+  const bpDateStr = now.toLocaleString('en-US', { timeZone: 'Europe/Budapest' });
+  const bpDate = new Date(bpDateStr);
+  return {
+    day: bpDate.getDay(),
+    hours: bpDate.getHours(),
+    minutes: bpDate.getMinutes(),
+    dateStr: bpDate.toISOString().slice(0, 10)
+  };
+}
 
-  // 06:50 AM - Elő-ébresztés és PannonXP szinkronizáció (minden nap)
-  if (hours === 6 && minutes >= 50 && minutes < 55) {
-    const todayPreStr = now.toISOString().slice(0, 10) + '_pre';
-    if (lastPreWakeDateStr !== todayPreStr) {
-      lastPreWakeDateStr = todayPreStr;
-      console.log(` [06:50 Elő-ébresztés] Szerver ébresztés és PannonXP szinkronizáció indult...`);
-      runPreWakeupPannonXpSync();
-    }
-  }
+function checkAndTriggerMorningReportCron() {
+  const { day, hours, minutes, dateStr } = getBudapestTime();
 
-  // 07:00 AM - Reggeli Riport generálása és küldése
-  if (day >= 1 && day <= 5 && hours >= 7 && hours < 12) {
-    const todayStr = now.toISOString().slice(0, 10);
-    if (lastReportSentDateStr !== todayStr) {
-      lastReportSentDateStr = todayStr;
-      console.log(` [Reggeli Riport Cron] Reggeli riport automatikus generálása és küldése indult (${todayStr}, ${hours}:${String(minutes).padStart(2, '0')})...`);
+  // Csak hétfőtől péntekig, szigorúan magyar idő szerint (Europe/Budapest) 07:00 és 07:05 között
+  if (day >= 1 && day <= 5 && hours === 7 && minutes >= 0 && minutes < 5) {
+    if (lastReportSentDateStr !== dateStr) {
+      lastReportSentDateStr = dateStr;
+      console.log(` [Reggeli Riport Cron] Reggeli riport automatikus generálása és küldése indult (${dateStr}, 07:00 AM Budapest idő)...`);
       triggerMorningReportSend();
     }
   }
@@ -1605,11 +1555,8 @@ function checkAndTriggerMorningReportCron() {
 // 60 másodpercenkénti automatikus időzítő ellenőrzés
 setInterval(checkAndTriggerMorningReportCron, 60 * 1000);
 
-// Szerver indulásakor is azonnal leellenőrizzük, hogy kell-e pótolni a mai riportot
-setTimeout(checkAndTriggerMorningReportCron, 5000);
-
 server.listen(PORT, () => {
- console.log(` Szerver fut: http://localhost:${PORT}/`);
- console.log(` Shopify Auth URL: http://localhost:${PORT}/api/shopify/auth`);
- console.log(` Reggeli Riport automatikus időzítés aktív (06:50 AM PannonXP elő-címkézés & 07:00 AM riport küldés)`);
+  console.log(` Szerver fut: http://localhost:${PORT}/`);
+  console.log(` Shopify Auth URL: http://localhost:${PORT}/api/shopify/auth`);
+  console.log(` Reggeli Riport automatikus időzítés aktív (07:00 AM Budapest idő szerint, H-P)`);
 });

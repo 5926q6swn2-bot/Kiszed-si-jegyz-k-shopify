@@ -965,11 +965,36 @@ assertEqual("Auto PXP Item - SPC Padló isWallPanelItem is false", isWallPanelIt
 assertEqual("Auto PXP Pickup - Tag személyes", isPickupOrder({ tags: "személyes, egyéb" }), true);
 assertEqual("Auto PXP Pickup - Tag pickup", isPickupOrder({ tags: "pickup" }), true);
 assertEqual("Auto PXP Pickup - Shipping line budapesti bolt", isPickupOrder({ shipping_lines: [{ title: "Budapesti üzlet - Személyes átvétel" }] }), true);
-assertEqual("Auto PXP Pickup - Delivery order is NOT pickup", isPickupOrder({ tags: "", shipping_lines: [{ title: "Házhozszállítás Sela Futárral" }] }), false);
+assertEqual("Auto PXP Pickup - Shipping line Átvétel üzletünkben", isPickupOrder({ shipping_lines: [{ title: "Átvétel üzletünkben" }] }), true);
+assertEqual("Auto PXP Pickup - isPickup flag is pickup", isPickupOrder({ isPickup: true }), true);
+assertEqual("Auto PXP Pickup - Delivery order is NOT pickup", isPickupOrder({ tags: "", shipping_address: { address1: "Fő utca 1." }, shipping_lines: [{ title: "Házhozszállítás Sela Futárral" }] }), false);
+
+const order3966Floor13 = {
+    id: "#3966",
+    fulfillment_status: "unfulfilled",
+    shipping_address: { address1: "Kossuth u. 5" },
+    tags: "",
+    line_items: [
+        { name: "SPC Padló Tölgy", sku: "SPC-P-3966", quantity: 13 }
+    ]
+};
+assertEqual("Auto PXP Order - #3966 with 13 floor items -> NOT Eligible", isEligibleForAutoPannonXp(order3966Floor13), false);
+
+const orderPickupPxpCheck = {
+    id: "#3967",
+    fulfillment_status: "unfulfilled",
+    tags: "személyes átvétel",
+    shipping_lines: [{ title: "Személyes átvétel a boltban" }],
+    line_items: [
+        { name: "Prémium Akusztikus Falpanel", sku: "W-PEC", quantity: 2 }
+    ]
+};
+assertEqual("Auto PXP Order - Personal Pickup Order -> NOT Eligible", isEligibleForAutoPannonXp(orderPickupPxpCheck), false);
 
 const orderAkupanel = {
     id: "#6001",
     fulfillment_status: "unfulfilled",
+    shipping_address: { address1: "Petőfi u. 2" },
     tags: "",
     line_items: [
         { name: "Prémium Akusztikus Falpanel - Wide Pecan", sku: "W-PEC", quantity: 2 },
