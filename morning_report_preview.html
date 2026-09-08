@@ -300,25 +300,31 @@
             font-size: 13px;
         }
 
-        /* Megjegyzés (Notes) callout box (Rendelésáttekintő Sárga Megjegyzés Doboz) */
-        .order-notes-box {
-            display: inline-flex;
-            align-items: flex-start;
-            gap: 6px;
-            background: #fefce8;
-            border: 1px solid #fef08a;
-            border-radius: 6px;
-            padding: 5px 10px;
-            margin-top: 5px;
-            font-size: 12px;
-            color: #854d0e;
-            line-height: 1.45;
-            box-shadow: 0 1px 2px rgba(217, 119, 6, 0.05);
+        /* Megjegyzés (Notes) diszkrét szöveges stílus (NEM sárga keretes doboz, kis betűméret) */
+        .order-notes-box,
+        .order-notes-clean {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+            margin-top: 2px;
+            font-size: 11px;
+            color: #64748b;
+            line-height: 1.35;
+            background: transparent;
+            border: none;
+            padding: 0;
+            box-shadow: none;
         }
 
-        .order-notes-box strong {
-            color: #854d0e;
-            font-weight: 700;
+        .order-notes-box strong,
+        .order-notes-clean .note-label {
+            color: #475569;
+            font-weight: 600;
+        }
+
+        .order-notes-clean .note-content {
+            color: #64748b;
+            font-style: italic;
         }
 
         /* 100% Rendelésáttekintő Sub-Tag Jelvények */
@@ -744,9 +750,10 @@
         function renderNotesBox(note) {
             if (!note || !note.trim()) return '';
             return `
-                <div class="order-notes-box">
-                    <i class="ph-bold ph-chat-text" style="color: #d97706; font-size: 13px; margin-top: 1px; flex-shrink: 0;"></i>
-                    <span><strong>Megjegyzés (Notes):</strong> "${note.trim()}"</span>
+                <div class="order-notes-clean">
+                    <i class="ph-bold ph-chat-text" style="color: #d97706; font-size: 11px;"></i>
+                    <span class="note-label">Megjegyzés:</span>
+                    <span class="note-content">"${note.trim()}"</span>
                 </div>
             `;
         }
@@ -810,10 +817,10 @@
 
             // 0. DÁTUMHOZ KÖTÖTT ÉRTESÍTÉSEK (Diszkrét, tiszta megjelenítés)
             html += `
-                <div class="report-section" style="border-left: 4px solid #2563eb; background: #f0f9ff; margin-bottom: 22px;">
+                <div class="report-section" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; margin-bottom: 22px;">
                     <div class="section-title">
-                        <span><i class="ph-bold ph-bell-ringing" style="color: #2563eb; font-size: 17px;"></i> Mai Napra Időzített Értesítések — [${currentTargetTag}]</span>
-                        <span class="section-badge ${scheduledTodayItems.length ? 'badge-alert' : 'badge-ok'}" style="background: ${scheduledTodayItems.length ? '#dbeafe' : '#f1f5f9'}; color: ${scheduledTodayItems.length ? '#1e40af' : '#64748b'};">
+                        <span><i class="ph-bold ph-bell-ringing" style="color: #2563eb; font-size: 15px;"></i> Mai Napra Időzített Értesítések — [${currentTargetTag}]</span>
+                        <span class="section-badge ${scheduledTodayItems.length ? 'badge-alert' : 'badge-ok'}">
                             ${scheduledTodayItems.length ? scheduledTodayItems.length + ' db mai értesítés' : 'Nincs mai emlékeztető'}
                         </span>
                     </div>
@@ -828,15 +835,15 @@
                     
                     let typeTagHtml = '';
                     if (isPickup) {
-                        typeTagHtml = `<span class="sub-tag" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;"><i class="ph-bold ph-storefront"></i> Személyes átvétel</span>`;
+                        typeTagHtml = `<span class="sub-tag" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 2px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 700;"><i class="ph-bold ph-storefront"></i> Személyes átvétel</span>`;
                     } else {
                         const cityStr = item.city ? ` - ${item.city}` : '';
                         const payStr = item.paid === true ? ' (Kifizetve)' : (item.amount ? ` (Utánvét: ${item.amount})` : '');
-                        typeTagHtml = `<span class="sub-tag" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;"><i class="ph-bold ph-truck"></i> Kiszállítás${cityStr}${payStr}</span>`;
+                        typeTagHtml = `<span class="sub-tag" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; padding: 2px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 700;"><i class="ph-bold ph-truck"></i> Kiszállítás${cityStr}${payStr}</span>`;
                     }
 
                     html += `
-                        <li class="alert-item" style="background: #ffffff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(37,99,235,0.08);">
+                        <li class="alert-item">
                             <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - <strong>${item.billing || item.city}</strong> 
                             ${typeTagHtml}
                             ${renderNotesBox(item.note)}
