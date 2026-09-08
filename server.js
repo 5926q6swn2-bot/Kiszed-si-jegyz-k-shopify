@@ -1352,6 +1352,29 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // 9b. Reggeli Riport Manuális / Azonnali Kiküldése
+  if (pathname === '/api/reports/morning-report/send' && req.method === 'POST') {
+    let bodyStr = '';
+    req.on('data', chunk => { bodyStr += chunk; });
+    req.on('end', async () => {
+      try {
+        const body = JSON.parse(bodyStr || '{}');
+        const reportData = body.reportData || null;
+        const result = await triggerMorningReportSend(reportData);
+
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(result));
+        return;
+      } catch (err) {
+        console.error('[API Morning Report Send Error]', err);
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: err.message }));
+        return;
+      }
+    });
+    return;
+  }
+
   // 10. PannonXP Teljes Beállítások Mentése és Betöltése (Helyi / Render Szerver Fájl Tárhely)
   if (pathname === '/api/settings/pxp-all') {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1444,7 +1467,81 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
+let lastReportSentDateStr = '';
+
+async function triggerMorningReportSend(customReportData = null) {
+  try {
+    const emailModule = await getEmailService();
+    const orderUtils = await getOrderUtils();
+
+    const now = new Date();
+    const cutoffInfo = orderUtils.calculateReportCutoffDate(now);
+    const targetTag = `${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
+
+    const service = process.env.EMAIL_SERVICE || 'resend';
+    const apiKey = process.env.RESEND_API_KEY || process.env.EMAIL_API_KEY || process.env.BREVO_API_KEY || '';
+    const from = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+    const to = process.env.ALERT_EMAIL_RECIPIENT || 'info@panelburkolat.com';
+    const shopDomain = process.env.SHOPIFY_SHOP || 'p4q0uj-2m.myshopify.com';
+
+    const reportData = customReportData || {
+      dateText: `${now.getFullYear()}. ${String(now.getMonth() + 1).padStart(2, '0')}. ${String(now.getDate()).padStart(2, '0')}.`,
+      targetTag,
+      unfulfilledCount: 0,
+      newOrdersCount: 0,
+      newUnfulfilledCount: 0,
+      missingInvoice: [],
+      wrongShipping: [],
+      incompleteAddress: [],
+      dijbekKerendo: [],
+      dijbekVarakozik: [],
+      oldPickups: [],
+      selaDeadlines: [],
+      pxpBudapest: [],
+      pxpNational: [],
+      unsettledRuns: []
+    };
+
+    const res = await emailModule.sendMorningReportEmail({
+      reportData,
+      isMonday: cutoffInfo.isMonday,
+      service,
+      apiKey,
+      from,
+      to,
+      shopDomain
+    });
+
+    console.log(` [Reggeli Riport] Sikeresen lefutott (${cutoffInfo.isMonday ? 'Hétfő' : 'Hétköznap'}), Eredmény:`, res);
+    return res;
+  } catch (err) {
+    console.error(' [Reggeli Riport Hiba]', err);
+    return { success: false, error: err.message };
+  }
+}
+
+function checkAndTriggerMorningReportCron() {
+  const now = new Date();
+  const day = now.getDay(); // 1 = Mon, 2 = Tue, 3 = Wed, 4 = Thu, 5 = Fri
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+
+  // Csak hétfőtől péntekig, reggel 07:00-kor
+  if (day >= 1 && day <= 5 && hours === 7 && minutes === 0) {
+    const todayStr = now.toISOString().slice(0, 10);
+    if (lastReportSentDateStr !== todayStr) {
+      lastReportSentDateStr = todayStr;
+      console.log(` [Reggeli Riport Cron] 07:00 AM reggeli riport automatikus generálása és küldése indult (${todayStr})...`);
+      triggerMorningReportSend();
+    }
+  }
+}
+
+// 60 másodpercenkénti automatikus időzítő ellenőrzés
+setInterval(checkAndTriggerMorningReportCron, 60 * 1000);
+
 server.listen(PORT, () => {
  console.log(` Szerver fut: http://localhost:${PORT}/`);
  console.log(` Shopify Auth URL: http://localhost:${PORT}/api/shopify/auth`);
+ console.log(` Reggeli Riport automatikus időzítés aktív (Minden hétköznap 07:00 AM)`);
 });
