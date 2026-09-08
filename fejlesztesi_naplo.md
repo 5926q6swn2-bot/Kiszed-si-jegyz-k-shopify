@@ -46,6 +46,10 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+### 2026. szeptember 8. (9. frissítés) - Kritikus Működési Riasztások Garantált Megjelenítése (`v4.5.3`)
+- **Kritikus Riasztások Elsőbbsége**: Ha egy rendelésnek kritikus számlázási elakadása (Számla nélküli rendelés terítésben), szállítási címhibája (hiányzó házszám), hibás szállítási módja (2.300 Ft budapesti szállítás vidékre) vagy hiányzó díjbekérője van, az **MINDIG RIASZT** a megfelelő 1-3. szekcióban. Ezeket a kritikus elakadásokat sem a `[ok]`, sem a jövőbeli dátum tag (`[09.15]`) nem némíthatja el, mert az azonnali beavatkozást igénylő operatív információ.
+- **Egyeztetett / Halasztható Tételek Elnémítása**: A `[ok]` és jövőbeli dátum tag-ek kizárólag a halasztható, megbeszélt tételeket (pl. elnapolt személyes átvételt vagy Sela határidőt) némítják el hétköznapokon az időzített napig.
+
 ### 2026. szeptember 8. (8. frissítés) - Dátumhoz Kötött Időzített Értesítések (`[MM.DD]`) a Reggeli Riportban (`v4.5.2`)
 - **Dátumhoz Kötött Emlékeztetők (`[09.08]`)**: Ha a Shopify rendelési megjegyzésben szögletes zárójelben dátum szerepel (pl. `[09.08]`, `[09.08.]`, `[2026.09.08]`), akkor azon a megadott napon a reggeli riport elején kiemelt **"0. Mai Napra Időzített Értesítések — [09.08]"** szekció jelenik meg.
 - **Teljes Megjegyzés Megjelenítése**: Az időzített értesítések kártyáján a rendszer hiánytalanul kiírja a megjegyzést (`Megjegyzés (Notes): "..."`), mert abban található az értesítés oka és a vevővel történt megállapodás.

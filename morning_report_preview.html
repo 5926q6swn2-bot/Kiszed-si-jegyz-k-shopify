@@ -582,14 +582,13 @@
 
     <!-- Tervezési és Szabály Jegyzetek -->
     <div class="notes-card">
-        <h3><i class="ph-bold ph-sliders" style="color: #2563eb;"></i> Intelligens <code>[ok]</code> Megjegyzés Szabályzat, Dátum Időzítés & Viszonteladó Kizárás:</h3>
+        <h3><i class="ph-bold ph-sliders" style="color: #2563eb;"></i> Intelligens <code>[ok]</code> Megjegyzés, Dátum Időzítés & Kritikus Riasztási Szabályzat:</h3>
         <ul>
-            <li><strong>Viszonteladók Kizárása a Statisztikákból:</strong> A rendelési statisztikák (tegnap óta érkezett új rendelések és az összes unfulfilled rendelésszám) kizárólag a lakossági/normál rendeléseket számolják. A viszonteladói (<code>viszonteladó</code> tag-es) rendelések <strong>teljesen ki vannak zárva</strong> a számlálókból!</li>
-            <li><strong>Dátumhoz Kötött Időzített Értesítések:</strong> Ha a megjegyzésbe szögletes zárójelben egy dátum van írva (pl.: <code>[09.08]</code>, <code>[09.08.]</code> vagy <code>[2026.09.08]</code>), akkor az adott napon a riport elején kiemelt <strong>"Mai napra időzített emlékeztetők — [09.08]"</strong> értesítés jelenik meg, kiírva a teljes megjegyzést.</li>
-            <li><strong>Beírási formátum az [ok]-hoz:</strong> Ha a megjegyzés tartalmazza a <code>[ok]</code> kifejezést (pl.: <em>"09.09-ig átveszi [ok]"</em> vagy <em>"győrben veszi fel [ok]"</em>).</li>
-            <li><strong>Kedd – Vasárnap működés:</strong> A <code>[ok]</code> megjegyzéssel rendelkező tételek NIKOM nem riasztanak a napi piros/sárga szekciókban.</li>
+            <li><strong>Kritikus Működési Riasztások (Számla hiány, Címhiba, Rossz szállítás, Díjbekérő hiány):</strong> Ha egy rendelésnek kritikus számlázási elakadása, szállítási címhibája vagy hiányzó díjbekérője van, az <strong>MINDIG RIASZT</strong> a megfelelő szekcióban (1-3. szekció), függetlenül attól, hogy van-e rajta <code>[ok]</code> tag vagy jövőbeli dátum (pl. <code>[09.15]</code>), mert az azonnali beavatkozást igénylő fontos információ!</li>
+            <li><strong>Egyeztetett / Halasztható Tételek (Személyes átvétel, Sela határidő, Utalásra váró díjbekérő):</strong> Amennyiben nincs kritikus hiba és a megjegyzés tartalmazza a <code>[ok]</code> jelölést vagy egy jövőbeli dátumot, a tétel a hétköznapokon elnémul, és kizárólag a megadott dátumon (vagy Hétfő reggel a heti felülvizsgálatkor) riaszt.</li>
+            <li><strong>Dátumhoz Kötött Időzített Értesítések:</strong> A megadott napon (pl.: <code>[09.08]</code>) a riport legtetején a kiemelt <strong>"0. Mai napra időzített emlékeztetők — [09.08]"</strong> szekcióban jelenik meg a rendelés, hiánytalanul kiírva a teljes megjegyzést.</li>
+            <li><strong>Viszonteladók Kizárása a Statisztikákból:</strong> A rendelési statisztikák (új rendelések és unfulfilled számláló) kizárólag a lakossági rendeléseket számolják. A <code>viszonteladó</code> tag-es rendelések teljesen ki vannak zárva.</li>
             <li><strong>PannonXP szekció szabálya:</strong> A 6. PannonXP szekcióban CSAK azok a csomagok szerepelnek, amelyekhez MÉG NEM készült címke (narancssárga ikonosok). A már felcímkézett csomagok (pl. #3989, #3986) már feladás alatt vannak, így ott nem jelennek meg!</li>
-            <li><strong>Hétfő Reggeli Felülvizsgálat:</strong> Hétfőnként a még nyitva lévő <code>[ok]</code> megjegyzéses rendelések a riport alján megjelennek a <strong>"8. Egyeztetett rendelések (Hétfői felülvizsgálat) — [ok]"</strong> szekcióban.</li>
         </ul>
     </div>
 
@@ -749,11 +748,13 @@
             const dateStr = isMonday ? data.dateTextMonday : data.dateTextWeekday;
             const currentTargetTag = isMonday ? '09.07' : '09.08';
 
-            // Szűrés: Minden [ok] megjegyzéssel ellátott tétel KISZŰRVE a 1-7 riasztási szekciókból!
-            const missingInvoiceFiltered = data.missingInvoice.filter(i => !hasOkTag(i.note));
-            const wrongShippingFiltered = data.wrongShipping.filter(i => !hasOkTag(i.note));
-            const incompleteAddressFiltered = data.incompleteAddress.filter(i => !hasOkTag(i.note));
-            const dijbekKerendoFiltered = data.dijbekKerendo.filter(i => !hasOkTag(i.note));
+            // KRITIKUS RIASZTÁSOK (1-3. szekció): Számla hiány, Címhiba, Rossz szállítás, Díjbekérő hiány MINDIG RIASZTANAK!
+            const missingInvoiceFiltered = data.missingInvoice;
+            const wrongShippingFiltered = data.wrongShipping;
+            const incompleteAddressFiltered = data.incompleteAddress;
+            const dijbekKerendoFiltered = data.dijbekKerendo;
+
+            // HALASZTHATÓ / EGYEZTETETT RIASZTÁSOK (4-7. szekció): [ok] tag elnémítja a hétköznapokon
             const dijbekVarakozikFiltered = data.dijbekVarakozik.filter(i => !hasOkTag(i.note));
             const oldPickupsFiltered = data.oldPickups.filter(i => !hasOkTag(i.note));
             const selaDeadlinesFiltered = data.selaDeadlines.filter(i => !hasOkTag(i.note));
@@ -768,6 +769,7 @@
                     }
                 });
             };
+
 
             checkScheduled(data.missingInvoice, "Számla hiány");
             checkScheduled(data.wrongShipping, "Rossz szállítás", i => i.city);
