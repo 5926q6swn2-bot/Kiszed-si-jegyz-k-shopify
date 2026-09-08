@@ -365,6 +365,12 @@
             border: 1.5px solid #c7d2fe;
         }
 
+        .tag-pxp-pending {
+            background: #fff7ed;
+            color: #ea580c;
+            border: 1.5px solid #fed7aa;
+        }
+
         .tag-pxp-ready {
             background: #eff6ff;
             color: #2563eb;
@@ -538,7 +544,7 @@
         <div class="control-group-title">2. Teszt Adatállapot</div>
         <div class="tab-controls">
             <button class="tab-btn scenario-btn active" id="btn-scen-actual" onclick="setScenario('actual')">
-                <i class="ph-bold ph-database"></i> Aktuális Éles Adatok (Valós Shopify State)
+                <i class="ph-bold ph-database"></i> Aktuális Éles Adatok (Valós Shopify Állapot)
             </button>
             <button class="tab-btn scenario-btn" id="btn-scen-busy" onclick="setScenario('busy')">
                 <i class="ph-bold ph-fire"></i> Forgalmas Nap
@@ -576,12 +582,12 @@
 
     <!-- Tervezési és Szabály Jegyzetek -->
     <div class="notes-card">
-        <h3><i class="ph-bold ph-sliders" style="color: #2563eb;"></i> Intelligens <code>[ok]</code> Megjegyzés Szabályzat:</h3>
+        <h3><i class="ph-bold ph-sliders" style="color: #2563eb;"></i> Intelligens <code>[ok]</code> Megjegyzés Szabályzat & PannonXP Logika:</h3>
         <ul>
             <li><strong>Beírási formátum:</strong> Ha a megjegyzés tartalmazza a <code>[ok]</code> kifejezést (pl.: <em>"09.09-ig átveszi [ok]"</em> vagy <em>"győrben veszi fel [ok]"</em>).</li>
-            <li><strong>Kedd – Vasárnap működés:</strong> A <code>[ok]</code> megjegyzéssel rendelkező tételek NIKOM nem riasztanak a napi piros/sárga szekciókban (így nem terhelik feleslegesen a napi feladatlistát).</li>
+            <li><strong>Kedd – Vasárnap működés:</strong> A <code>[ok]</code> megjegyzéssel rendelkező tételek NIKOM nem riasztanak a napi piros/sárga szekciókban.</li>
+            <li><strong>PannonXP szekció szabálya:</strong> A 6. PannonXP szekcióban CSAK azok a csomagok szerepelnek, amelyekhez MÉG NEM készült címke (narancssárga ikonosok). A már felcímkézett (`címke` tag-es, pl. #3989, #3986) csomagok már feladás alatt vannak, így ott nem jelennek meg!</li>
             <li><strong>Hétfő Reggeli Felülvizsgálat:</strong> Hétfőnként a még nyitva lévő <code>[ok]</code> megjegyzéses rendelések a riport alján megjelennek a <strong>"8. Egyeztetett rendelések (Hétfői felülvizsgálat) — [ok]"</strong> szekcióban.</li>
-            <li><strong>Garantált 0% Téves Találat:</strong> A szögletes zárójeles <code>[ok]</code> formátum miatt közönséges mondatok (pl.: <em>"nem sikerült egyeztetni"</em>) véletlenül sem némítanak el riasztást.</li>
         </ul>
     </div>
 
@@ -614,11 +620,9 @@
                     { orderId: "#3881", billing: "Somogyi katalin", city: "Monor", status: "Túllépve (7. munkanap)", isExpired: true, note: "PÉNTEKI/SZOMBAT KISZÁLLÍTÁS CSAK A MEGFELELŐ\n[ok]" },
                     { orderId: "#3833", billing: "Tóth István", city: "Boconád", status: "Túllépve (10. munkanap)", isExpired: true, note: "kiszálíltás szeptember 15-től lehetséges, azon a héten\n[ok]" }
                 ],
+                // A #3989 és #3986 mindkettőn rajta van a "címke" tag, így már el vannak intézve (címke nyomtatva) -> Nincs címkézésre váró PannonXP csomag!
                 pxpBudapest: [],
-                pxpNational: [
-                    { orderId: "#3989", city: "Szigetvár", workdays: "1. munkanap (ma érkezett 07:09-kor)", note: "SÜRGŐS" },
-                    { orderId: "#3986", city: "Nagyesztergár", workdays: "2. munkanap (tegnap 15:43-kor jött, így ma indult az 1. napja)", note: "" }
-                ],
+                pxpNational: [],
                 unsettledRuns: []
             },
 
@@ -661,14 +665,12 @@
                     { orderId: "#3944", billing: "Mihály Varga", city: "Jászszentandrás", status: "HOLNAP jár le az 5 munkanap", isExpired: false, note: "" },
                     { orderId: "#3833", billing: "Kiss Ferenc", city: "Boconád", status: "Túllépve (10. munkanap)", isExpired: true, note: "kiszállítás szeptember 15-től lehetséges, azon a héten [ok]" }
                 ],
+                // Forgalmas napon van 2 db még címkézésre/exportra váró narancssárga ikonos csomag:
                 pxpBudapest: [
-                    { orderId: "#4016", city: "Budapest 11. ker.", workdays: "1. munkanap", note: "lift van" },
-                    { orderId: "#4007", city: "Budapest 14. ker.", workdays: "2. munkanap", note: "" }
+                    { orderId: "#4016", city: "Budapest 11. ker.", workdays: "1. munkanap (Még nincs kinyomtatva a címke)", note: "lift van" }
                 ],
                 pxpNational: [
-                    { orderId: "#4015", city: "Szeged", workdays: "1. munkanap", wrongShip: "Tévesen budapesti díjjal leadva", note: "" },
-                    { orderId: "#3989", city: "Szigetvár", workdays: "1. munkanap", note: "" },
-                    { orderId: "#3986", city: "Nagyesztergár", workdays: "2. munkanap", note: "" }
+                    { orderId: "#4015", city: "Szeged", workdays: "1. munkanap (Még nincs kinyomtatva a címke)", wrongShip: "Tévesen budapesti díjjal leadva", note: "" }
                 ],
                 unsettledRuns: [
                     { driver: "ÁdámFuvar", date: "2026. 09. 03. (3 munkanapja)", codTotal: "145.000 Ft (3 cím)", note: "ígérte hogy ma hozza a pénzt [ok]" },
@@ -693,12 +695,8 @@
                 ],
                 oldPickups: [],
                 selaDeadlines: [],
-                pxpBudapest: [
-                    { orderId: "#4022", city: "Budapest 3. ker.", workdays: "1. munkanap", note: "" }
-                ],
-                pxpNational: [
-                    { orderId: "#4021", city: "Győr", workdays: "1. munkanap", note: "" }
-                ],
+                pxpBudapest: [],
+                pxpNational: [],
                 unsettledRuns: []
             }
         };
@@ -947,19 +945,19 @@
             }
             html += `</div>`;
 
-            // 6. PANNONXP CSOMAGOK SZÁMA ÉS BONTÁSA
+            // 6. PANNONXP CSOMAGOK (CSAK A CÍMKÉZÉSRE / EXPORTRA VÁRÓK, AMIKHEZ MÉG NICS KINYOMTATVA A CÍMKE!)
             const pxpTotal = data.pxpBudapest.length + data.pxpNational.length;
             html += `
                 <div class="report-section">
                     <div class="section-title">
-                        <span>6. PannonXP Csomagok (Exportra / Címkenyomtatásra vár)</span>
-                        <span class="section-badge badge-info">
-                            <i class="ph-bold ph-barcode"></i> Összesen: ${pxpTotal} csomag
+                        <span>6. PannonXP Csomagok (Címkézésre / Exportra vár)</span>
+                        <span class="section-badge ${pxpTotal ? 'badge-info' : 'badge-ok'}">
+                            <i class="ph-bold ph-barcode"></i> ${pxpTotal ? pxpTotal + ' csomag feladásra vár' : 'Minden csomag felcímkézve'}
                         </span>
                     </div>
             `;
             if (pxpTotal === 0) {
-                html += `<div class="empty-state">Jelenleg nincs PannonXP feladásra váró csomag.</div>`;
+                html += `<div class="empty-state">Jelenleg nincs feladásra/címkézésre váró PannonXP csomag (minden csomagra kinyomtatásra került a címke).</div>`;
             } else {
                 html += `<div style="margin-bottom: 8px; font-weight: 700; font-size: 13px; color: #0f172a;">Budapesti szállítások (${data.pxpBudapest.length} db):</div>`;
                 if (data.pxpBudapest.length === 0) {
@@ -972,7 +970,7 @@
                             <li>
                                 <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - 
                                 <strong>${item.city}</strong> <span class="meta-detail">(${item.workdays})</span>
-                                <span class="sub-tag tag-pxp-ready"><i class="ph-bold ph-barcode"></i> PannonXP</span>
+                                <span class="sub-tag tag-pxp-pending"><i class="ph-bold ph-barcode"></i> Címkézésre vár</span>
                                 ${renderNotesBox(item.note)}
                             </li>
                         `;
@@ -991,7 +989,7 @@
                             <li>
                                 <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - 
                                 <strong>${item.city}</strong> <span class="meta-detail">(${item.workdays})</span>
-                                <span class="sub-tag tag-pxp-ready"><i class="ph-bold ph-barcode"></i> PannonXP</span>
+                                <span class="sub-tag tag-pxp-pending"><i class="ph-bold ph-barcode"></i> Címkézésre vár</span>
                                 ${item.wrongShip ? `<span class="sub-tag tag-wrong-ship"><i class="ph-bold ph-warning-octagon"></i> ${item.wrongShip}</span>` : ''}
                                 ${renderNotesBox(item.note)}
                             </li>
