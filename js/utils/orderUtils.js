@@ -685,4 +685,51 @@ export function calculateMorningReportStats(orders = [], cutoff24h = null) {
     };
 }
 
+/**
+ * Kinyeri a szögletes zárójelbe írt dátumot a megjegyzésből (pl. [09.08], [09.08.], [2026.09.08]).
+ * 
+ * @param {string} note 
+ * @returns {string|null} Visszaadja a formázott MM.DD dátumot (pl. "09.08") vagy null-t
+ */
+export function extractScheduledDateTag(note) {
+    if (!note) return null;
+    const str = String(note);
+    const match = str.match(/\[(?:(\d{4})[\.\/-])?(\d{1,2})[\.\/-](\d{1,2})\.?\]/);
+    if (!match) return null;
+
+    const month = String(match[2]).padStart(2, '0');
+    const day = String(match[3]).padStart(2, '0');
+    return `${month}.${day}`;
+}
+
+/**
+ * Ellenőrzi, hogy a megjegyzésben lévő időzített dátum egyezik-e a megadott nap dátumával (pl. "09.08").
+ * 
+ * @param {string} note 
+ * @param {Date|string} targetDate 
+ * @returns {boolean}
+ */
+export function isScheduledDateToday(note, targetDate = new Date()) {
+    const scheduledTag = extractScheduledDateTag(note);
+    if (!scheduledTag) return false;
+
+    let d;
+    if (targetDate instanceof Date) {
+        d = targetDate;
+    } else if (typeof targetDate === 'string' && /^\d{2}\.\d{2}$/.test(targetDate)) {
+        return scheduledTag === targetDate;
+    } else {
+        d = new Date(targetDate);
+    }
+
+    if (isNaN(d.getTime())) return false;
+
+    const targetMonth = String(d.getMonth() + 1).padStart(2, '0');
+    const targetDay = String(d.getDate()).padStart(2, '0');
+    const targetTag = `${targetMonth}.${targetDay}`;
+
+    return scheduledTag === targetTag;
+}
+
+
 

@@ -582,10 +582,11 @@
 
     <!-- Tervezési és Szabály Jegyzetek -->
     <div class="notes-card">
-        <h3><i class="ph-bold ph-sliders" style="color: #2563eb;"></i> Intelligens <code>[ok]</code> Megjegyzés Szabályzat & Viszonteladó Kizárás:</h3>
+        <h3><i class="ph-bold ph-sliders" style="color: #2563eb;"></i> Intelligens <code>[ok]</code> Megjegyzés Szabályzat, Dátum Időzítés & Viszonteladó Kizárás:</h3>
         <ul>
             <li><strong>Viszonteladók Kizárása a Statisztikákból:</strong> A rendelési statisztikák (tegnap óta érkezett új rendelések és az összes unfulfilled rendelésszám) kizárólag a lakossági/normál rendeléseket számolják. A viszonteladói (<code>viszonteladó</code> tag-es) rendelések <strong>teljesen ki vannak zárva</strong> a számlálókból!</li>
-            <li><strong>Beírási formátum:</strong> Ha a megjegyzés tartalmazza a <code>[ok]</code> kifejezést (pl.: <em>"09.09-ig átveszi [ok]"</em> vagy <em>"győrben veszi fel [ok]"</em>).</li>
+            <li><strong>Dátumhoz Kötött Időzített Értesítések:</strong> Ha a megjegyzésbe szögletes zárójelben egy dátum van írva (pl.: <code>[09.08]</code>, <code>[09.08.]</code> vagy <code>[2026.09.08]</code>), akkor az adott napon a riport elején kiemelt <strong>"Mai napra időzített emlékeztetők — [09.08]"</strong> értesítés jelenik meg, kiírva a teljes megjegyzést.</li>
+            <li><strong>Beírási formátum az [ok]-hoz:</strong> Ha a megjegyzés tartalmazza a <code>[ok]</code> kifejezést (pl.: <em>"09.09-ig átveszi [ok]"</em> vagy <em>"győrben veszi fel [ok]"</em>).</li>
             <li><strong>Kedd – Vasárnap működés:</strong> A <code>[ok]</code> megjegyzéssel rendelkező tételek NIKOM nem riasztanak a napi piros/sárga szekciókban.</li>
             <li><strong>PannonXP szekció szabálya:</strong> A 6. PannonXP szekcióban CSAK azok a csomagok szerepelnek, amelyekhez MÉG NEM készült címke (narancssárga ikonosok). A már felcímkézett csomagok (pl. #3989, #3986) már feladás alatt vannak, így ott nem jelennek meg!</li>
             <li><strong>Hétfő Reggeli Felülvizsgálat:</strong> Hétfőnként a még nyitva lévő <code>[ok]</code> megjegyzéses rendelések a riport alján megjelennek a <strong>"8. Egyeztetett rendelések (Hétfői felülvizsgálat) — [ok]"</strong> szekcióban.</li>
@@ -615,11 +616,11 @@
                     { orderId: "#3973", billing: "Bagyura Kft.", amount: "554.300 Ft", date: "2026. 09. 05.", note: "" }
                 ],
                 oldPickups: [
-                    { orderId: "#3452", billing: "József Takács", days: "38 napja", paid: false, phone: "06204445566", note: "09.09-ig átveszi\n[ok]" }
+                    { orderId: "#3452", billing: "József Takács", days: "38 napja", paid: false, phone: "06204445566", note: "09.08-ig átveszi a raktárban [09.08] [ok]" }
                 ],
                 selaDeadlines: [
-                    { orderId: "#3881", billing: "Somogyi katalin", city: "Monor", status: "Túllépve (7. munkanap)", isExpired: true, note: "PÉNTEKI/SZOMBAT KISZÁLLÍTÁS CSAK A MEGFELELŐ\n[ok]" },
-                    { orderId: "#3833", billing: "Tóth István", city: "Boconád", status: "Túllépve (10. munkanap)", isExpired: true, note: "kiszálíltás szeptember 15-től lehetséges, azon a héten\n[ok]" }
+                    { orderId: "#3881", billing: "Somogyi katalin", city: "Monor", status: "Túllépve (7. munkanap)", isExpired: true, note: "PÉNTEKI KISZÁLLÍTÁS DÁTUMA [09.08] [ok]" },
+                    { orderId: "#3833", billing: "Tóth István", city: "Boconád", status: "Túllépve (10. munkanap)", isExpired: true, note: "kiszálíltás szeptember 15-től lehetséges [09.15] [ok]" }
                 ],
                 // A #3989 és #3986 mindkettőn rajta van a "címke" tag, így már el vannak intézve (címke nyomtatva) -> Nincs címkézésre váró PannonXP csomag!
                 pxpBudapest: [],
@@ -649,51 +650,43 @@
                     { orderId: "#4011", city: "Pécs", address: "Rákóczi út", billing: "Németh Klára", phone: "06309876543", note: "" }
                 ],
                 dijbekKerendo: [
-                    { orderId: "#4020", billing: "Modern Otthon Kft.", amount: "320.000 Ft", date: "2026. 09. 07.", note: "Átutalásos előleget kért [ok]" },
-                    { orderId: "#3695", billing: "generál kivitelezés", amount: "539.775 Ft", date: "2026. 08. 15.", note: "100.000 ft előleg fizetve, valszeg Győrben felveszi a cuccot [ok]" }
+                    { orderId: "#4005", billing: "Nagy és Társa Kft.", amount: "420.000 Ft", date: "2026. 09. 07.", note: "250e Ft feletti rendelés! Díjbekérőt generálni." }
                 ],
                 dijbekVarakozik: [
-                    { orderId: "#3973", billing: "Bagyura Kft.", amount: "554.300 Ft", date: "2026. 09. 05.", note: "Díjbekérő elküldve emailben" },
-                    { orderId: "#3950", billing: "Bau-Team Kft.", amount: "285.000 Ft", date: "2026. 09. 02.", note: "" }
+                    { orderId: "#3990", billing: "Kreatív Stúdió Kft.", amount: "310.500 Ft", date: "2026. 09. 04.", note: "díjbekérő kiküldve, utalásra várunk" }
                 ],
                 oldPickups: [
-                    { orderId: "#3650", billing: "Fehér László", days: "25 napja", paid: true, phone: "06301112233", note: "Kifizetve kártyával, szólni neki hogy vigye el [ok]" },
-                    { orderId: "#3452", billing: "József Takács", days: "38 napja", paid: false, phone: "06204445566", note: "09.09-ig átveszi [ok]" },
-                    { orderId: "#3717", billing: "Tímea Lányi", days: "22 napja", paid: false, phone: "06709998877", note: "" }
+                    { orderId: "#3980", billing: "Molnár Béla", days: "14 napja", paid: true, phone: "06701234567", note: "kifizetve, de még nem jött érte" },
+                    { orderId: "#3965", billing: "Tóth Gábor", days: "22 napja", paid: false, phone: "06209876543", note: "átvételkor fizet [09.08]" }
                 ],
                 selaDeadlines: [
-                    { orderId: "#3945", billing: "Láng Bt.", city: "Veszprém", status: "MA jár le az 5 munkanap!", isExpired: false, note: "reggel 8-ra kérték" },
-                    { orderId: "#3944", billing: "Mihály Varga", city: "Jászszentandrás", status: "HOLNAP jár le az 5 munkanap", isExpired: false, note: "" },
-                    { orderId: "#3833", billing: "Kiss Ferenc", city: "Boconád", status: "Túllépve (10. munkanap)", isExpired: true, note: "kiszállítás szeptember 15-től lehetséges, azon a héten [ok]" }
+                    { orderId: "#3978", billing: "Fekete Anna", city: "Kecskemét", status: "Ma jár le (5. munkanap)", isExpired: false, note: "ma kell átadni a Selának" },
+                    { orderId: "#3960", billing: "Kiss Lajos", city: "Miskolc", status: "Túllépve (8. munkanap)", isExpired: true, note: "késésben lévő tétel" }
                 ],
-                // Forgalmas napon van 2 db még címkézésre/exportra váró narancssárga ikonos csomag:
                 pxpBudapest: [
-                    { orderId: "#4016", city: "Budapest 11. ker.", workdays: "1. munkanap (Még nincs kinyomtatva a címke)", note: "lift van" }
+                    { orderId: "#4019", billing: "Budai Péter", city: "Budapest", tag: "Címke kész", note: "" }
                 ],
                 pxpNational: [
-                    { orderId: "#4015", city: "Szeged", workdays: "1. munkanap (Még nincs kinyomtatva a címke)", wrongShip: "Tévesen budapesti díjjal leadva", note: "" }
+                    { orderId: "#4020", billing: "Soproni István", city: "Sopron", tag: "Címke kész", note: "" }
                 ],
                 unsettledRuns: [
-                    { driver: "ÁdámFuvar", date: "2026. 09. 03. (3 munkanapja)", codTotal: "145.000 Ft (3 cím)", note: "ígérte hogy ma hozza a pénzt [ok]" },
-                    { driver: "FákóTrans", date: "2026. 09. 04. (2 munkanapja)", codTotal: "220.000 Ft (5 cím)", note: "" }
+                    { orderId: "#3950", driver: "Bábel", date: "2026. 09. 06.", note: "fuvar még nincs elszámolva" }
                 ]
             },
 
-            // 3. NYUGODT NAP
+            // 3. TISZTA NAP
             clean: {
                 subject: "Reggeli riport - 2026. szeptember 8.",
-                unfulfilledCount: 42,
-                newOrders24h: 6,
-                newUnfulfilled24h: 5,
+                unfulfilledCount: 24, // viszonteladók kizárva
+                newOrders24h: 4,
+                newUnfulfilled24h: 2,
                 dateTextWeekday: "2026. szeptember 8., kedd 07:00",
                 dateTextMonday: "2026. szeptember 7., hétfő 07:00",
                 missingInvoice: [],
                 wrongShipping: [],
                 incompleteAddress: [],
                 dijbekKerendo: [],
-                dijbekVarakozik: [
-                    { orderId: "#3973", billing: "Bagyura Kft.", amount: "554.300 Ft", date: "2026. 09. 05.", note: "" }
-                ],
+                dijbekVarakozik: [],
                 oldPickups: [],
                 selaDeadlines: [],
                 pxpBudapest: [],
@@ -702,12 +695,45 @@
             }
         };
 
-        // Segédfunkció: Van-e [ok] tag a megjegyzésben?
-        function hasOkTag(note) {
-            return Boolean(note && note.toLowerCase().includes('[ok]'));
+        function setScenario(key) {
+            currentScenarioKey = key;
+            document.querySelectorAll('.scenario-btn').forEach(btn => {
+                if (btn.dataset.key === key) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+            updateView();
         }
 
-        // Segédfunkció: Sárga Megjegyzés (Notes) Kiemelő Doboz
+        function setReportDay(day) {
+            currentReportDay = day;
+            document.querySelectorAll('.day-btn').forEach(btn => {
+                if (btn.id === 'btn-day-' + day) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+            updateView();
+        }
+
+        function hasOkTag(note) {
+            if (!note) return false;
+            return String(note).toLowerCase().includes('[ok]');
+        }
+
+        function extractScheduledDateTag(note) {
+            if (!note) return null;
+            const str = String(note);
+            const match = str.match(/\[(?:(\d{4})[\.\/-])?(\d{1,2})[\.\/-](\d{1,2})\.?\]/);
+            if (!match) return null;
+            const month = String(match[2]).padStart(2, '0');
+            const day = String(match[3]).padStart(2, '0');
+            return `${month}.${day}`;
+        }
+
+        function isScheduledDateToday(note, targetTag = '09.08') {
+            const scheduledTag = extractScheduledDateTag(note);
+            if (!scheduledTag) return false;
+            return scheduledTag === targetTag;
+        }
+
         function renderNotesBox(note) {
             if (!note || !note.trim()) return '';
             return `
@@ -721,6 +747,7 @@
         function renderEmail(data, isMonday) {
             const adminBase = "https://p4q0uj-2m.myshopify.com/admin/orders/";
             const dateStr = isMonday ? data.dateTextMonday : data.dateTextWeekday;
+            const currentTargetTag = isMonday ? '09.07' : '09.08';
 
             // Szűrés: Minden [ok] megjegyzéssel ellátott tétel KISZŰRVE a 1-7 riasztási szekciókból!
             const missingInvoiceFiltered = data.missingInvoice.filter(i => !hasOkTag(i.note));
@@ -732,9 +759,27 @@
             const selaDeadlinesFiltered = data.selaDeadlines.filter(i => !hasOkTag(i.note));
             const unsettledRunsFiltered = data.unsettledRuns.filter(i => !hasOkTag(i.note));
 
-            // Összes gyűjtött [ok] megjegyzéses rendelés a Hétfői Felülvizsgálati szekcióhoz (Section 8)
+            // Összes mai napra időzített emlékeztető gyűjtése
+            const scheduledTodayItems = [];
+            const checkScheduled = (arr, categoryName, getBilling = i => i.billing || i.city || '') => {
+                (arr || []).forEach(item => {
+                    if (isScheduledDateToday(item.note, currentTargetTag)) {
+                        scheduledTodayItems.push({ ...item, category: categoryName, billing: getBilling(item) });
+                    }
+                });
+            };
+
+            checkScheduled(data.missingInvoice, "Számla hiány");
+            checkScheduled(data.wrongShipping, "Rossz szállítás", i => i.city);
+            checkScheduled(data.incompleteAddress, "Hiányos cím");
+            checkScheduled(data.dijbekKerendo, "Díjbekérőt kell kérni");
+            checkScheduled(data.dijbekVarakozik, "Díjbekérőt várjuk");
+            checkScheduled(data.oldPickups, "Régi személyes átvétel");
+            checkScheduled(data.selaDeadlines, "Sela határidő");
+            checkScheduled(data.unsettledRuns, "Nyitott fuvar", i => i.driver);
+
+            // Összes gyűjtött [ok] megjegyzéses rendelés a Hétfői Felülvizsgálati szekcióhoz
             const mondayHandledItems = [];
-            
             data.missingInvoice.forEach(i => { if (hasOkTag(i.note)) mondayHandledItems.push({ ...i, category: "Számla hiány" }); });
             data.wrongShipping.forEach(i => { if (hasOkTag(i.note)) mondayHandledItems.push({ ...i, category: "Rossz szállítás" }); });
             data.incompleteAddress.forEach(i => { if (hasOkTag(i.note)) mondayHandledItems.push({ ...i, category: "Hiányos cím" }); });
@@ -755,6 +800,34 @@
                         : 'Az alábbiakban találod a mai napra vonatkozó aktív logisztikai és számlázási teendőket (a <code>[ok]</code> megjegyzéses rendelések elnémítva):'}
                 </div>
             `;
+
+            // 0. DÁTUMHOZ KÖTÖTT ÉRTESÍTÉSEK
+            html += `
+                <div class="report-section" style="border-left: 4px solid #2563eb; background: #f0f9ff; margin-bottom: 22px;">
+                    <div class="section-title">
+                        <span><i class="ph-bold ph-bell-ringing" style="color: #2563eb; font-size: 17px;"></i> Mai Napra Időzített Értesítések — [${currentTargetTag}]</span>
+                        <span class="section-badge ${scheduledTodayItems.length ? 'badge-alert' : 'badge-ok'}" style="background: ${scheduledTodayItems.length ? '#dbeafe' : '#f1f5f9'}; color: ${scheduledTodayItems.length ? '#1e40af' : '#64748b'};">
+                            ${scheduledTodayItems.length ? scheduledTodayItems.length + ' db mai értesítés' : 'Nincs mai emlékeztető'}
+                        </span>
+                    </div>
+            `;
+            if (scheduledTodayItems.length === 0) {
+                html += `<div class="empty-state">Nincs a mai napra ([${currentTargetTag}]) időzített megjegyzéses emlékeztető.</div>`;
+            } else {
+                html += `<ul class="item-list">`;
+                scheduledTodayItems.forEach(item => {
+                    const cleanNum = item.orderId.replace('#', '');
+                    html += `
+                        <li class="alert-item" style="background: #ffffff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(37,99,235,0.08);">
+                            <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - <strong>${item.billing}</strong> 
+                            <span class="sub-tag" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">${item.category}</span>
+                            ${renderNotesBox(item.note)}
+                        </li>
+                    `;
+                });
+                html += `</ul>`;
+            }
+            html += `</div>`;
 
             // 1. SZÁMLÁZÁSI ELAKADÁSOK
             html += `

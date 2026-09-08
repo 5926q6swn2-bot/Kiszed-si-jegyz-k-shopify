@@ -35,7 +35,9 @@ import {
     getOrdersInSelectionOrder,
     hasOkTag,
     isResellerOrder,
-    calculateMorningReportStats
+    calculateMorningReportStats,
+    extractScheduledDateTag,
+    isScheduledDateToday
 } from '../js/utils/orderUtils.js';
 import {
     generateMissingInvoiceEmailHtml,
@@ -2162,6 +2164,17 @@ const reportStats = calculateMorningReportStats(
 assertEqual("Reggeli Riport Stat - Unfulfilled lakossági számláló (viszonteladók kizárva)", reportStats.unfulfilledCount, 2); // #5003 és #5005
 assertEqual("Reggeli Riport Stat - 24h új lakossági rendelések (viszonteladók kizárva)", reportStats.newOrders24h, 2); // #5003 és #5004
 assertEqual("Reggeli Riport Stat - 24h új lakossági unfulfilled (viszonteladók kizárva)", reportStats.newUnfulfilled24h, 1); // #5003
+
+// 7. Dátumhoz kötött időzített megjegyzések tesztelése ([09.08], [09.08.], [2026.09.08])
+assertEqual("Dátum Tag Kinyerés - standard [09.08]", extractScheduledDateTag("09.08-ig átveszi [09.08] [ok]"), "09.08");
+assertEqual("Dátum Tag Kinyerés - ponttal [09.08.]", extractScheduledDateTag("Győrben veszi fel [09.08.]"), "09.08");
+assertEqual("Dátum Tag Kinyerés - évszámmal [2026.09.08]", extractScheduledDateTag("100k előleg fizetve [2026.09.08]"), "09.08");
+assertEqual("Dátum Tag Kinyerés - hiányzó dátum esetén null", extractScheduledDateTag("sima megjegyzés [ok]"), null);
+
+const testDateToday = new Date(2026, 8, 8); // 2026.09.08
+assertEqual("Dátum Egyezés - Mai napra egyezik (09.08)", isScheduledDateToday("mai átvétel [09.08] [ok]", testDateToday), true);
+assertEqual("Dátum Egyezés - Nem mai nap (09.15)", isScheduledDateToday("későbbi kiszállítás [09.15]", testDateToday), false);
+assertEqual("Dátum Egyezés - Formázott string dátumra", isScheduledDateToday("09.08-ig átveszi [09.08]", "09.08"), true);
 
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 

@@ -46,6 +46,12 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+### 2026. szeptember 8. (8. frissítés) - Dátumhoz Kötött Időzített Értesítések (`[MM.DD]`) a Reggeli Riportban (`v4.5.2`)
+- **Dátumhoz Kötött Emlékeztetők (`[09.08]`)**: Ha a Shopify rendelési megjegyzésben szögletes zárójelben dátum szerepel (pl. `[09.08]`, `[09.08.]`, `[2026.09.08]`), akkor azon a megadott napon a reggeli riport elején kiemelt **"0. Mai Napra Időzített Értesítések — [09.08]"** szekció jelenik meg.
+- **Teljes Megjegyzés Megjelenítése**: Az időzített értesítések kártyáján a rendszer hiánytalanul kiírja a megjegyzést (`Megjegyzés (Notes): "..."`), mert abban található az értesítés oka és a vevővel történt megállapodás.
+- **`orderUtils.js` Dátum Segédfüggvények**: `extractScheduledDateTag(note)` és `isScheduledDateToday(note, targetDate)` exportálva és integrálva.
+- **449/449 Sikeres Unit Teszt**: 7 új unit teszt hozzáadva a dátum tag-ek kinyerésére (`[09.08]`, `[09.08.]`, `[2026.09.08]`) és az adott napra való egyezés validálására.
+
 ### 2026. szeptember 8. (7. frissítés) - Viszonteladók Kizárása a Reggeli Riport Statisztikákból & Unit Tesztek Bővítése (`v4.5.1`)
 - **Viszonteladói Kizárás a Számlálókból**: A rendelési statisztikák (az összes nyitott unfulfilled rendelésszám és a tegnap 07:00 óta érkezett új rendelések száma) kizárólag a lakossági/normál rendeléseket veszik figyelembe. A viszonteladói (`viszonteladó` tag-es vagy `isReseller: true`) rendelések teljesen ki vannak zárva a számlálókból mind a riport statisztikai kártyáján, mind a szűrőfüggvényekben.
 - **`orderUtils.js` Bővítése**: Új segédfüggvények exportálva: `hasOkTag(note)`, `isResellerOrder(order)`, és `calculateMorningReportStats(orders, cutoff24h)`.
