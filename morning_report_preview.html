@@ -759,13 +759,11 @@
             const newOrdersCount = isMonday ? (data.newOrdersMonday || 19) : data.newOrders24h;
             const newUnfulfilledCount = isMonday ? (data.newUnfulfilledMonday || 14) : data.newUnfulfilled24h;
 
-            // KRITIKUS RIASZTÁSOK (1-3. szekció): Számla hiány, Címhiba, Rossz szállítás, Díjbekérő hiány MINDIG RIASZTANAK!
-            const missingInvoiceFiltered = data.missingInvoice;
-            const wrongShippingFiltered = data.wrongShipping;
-            const incompleteAddressFiltered = data.incompleteAddress;
-            const dijbekKerendoFiltered = data.dijbekKerendo;
-
-            // HALASZTHATÓ / EGYEZTETETT RIASZTÁSOK (4-7. szekció): [ok] tag elnémítja a hétköznapokon
+            // SZŰRÉS: Minden [ok] megjegyzéssel ellátott tétel KISZŰRVE a 1-7 riasztási szekciókból!
+            const missingInvoiceFiltered = data.missingInvoice.filter(i => !hasOkTag(i.note));
+            const wrongShippingFiltered = data.wrongShipping.filter(i => !hasOkTag(i.note));
+            const incompleteAddressFiltered = data.incompleteAddress.filter(i => !hasOkTag(i.note));
+            const dijbekKerendoFiltered = data.dijbekKerendo.filter(i => !hasOkTag(i.note));
             const dijbekVarakozikFiltered = data.dijbekVarakozik.filter(i => !hasOkTag(i.note));
             const oldPickupsFiltered = data.oldPickups.filter(i => !hasOkTag(i.note));
             const selaDeadlinesFiltered = data.selaDeadlines.filter(i => !hasOkTag(i.note));
@@ -804,17 +802,13 @@
             let html = `
                 <div class="stats-summary-box">
                     Jó reggelt!<br><br>
-                    ${isMonday ? '<strong>[HÉTFŐI REGGELI RIPORT - HÉTVEGI ÖSSZESÍTÉS]</strong><br>' : ''}
+                    ${isMonday ? '<strong>[HÉTFŐI REGGELI RIPORT - HÉTVÉGI ÖSSZESÍTÉS]</strong><br>' : ''}
                     ${periodText} <strong>${newOrdersCount} db új rendelés</strong> érkezett (ebből <span class="stat-pill"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#eab308;"></span> Unfulfilled: ${newUnfulfilledCount} db</span> — <em>viszonteladói rendelések kizárva</em>).<br>
-                    Jelenleg összesen <strong>${data.unfulfilledCount} db unfulfilled (teljesítésre váró lakossági) rendelés</strong> van a Shopify-ban.<br><br>
-                    ${isMonday 
-                        ? 'Az alábbiakban találod a mai aktív teendőket, az e-mail alján pedig a <strong>Hétfői Felülvizsgálatra gyűjtött korábban egyeztetett [ok] rendeléseket</strong>:' 
-                        : 'Az alábbiakban találod a mai napra vonatkozó aktív logisztikai és számlázási teendőket (a <code>[ok]</code> megjegyzéses rendelések elnémítva):'}
+                    Jelenleg összesen <strong>${data.unfulfilledCount} db unfulfilled (teljesítésre váró lakossági) rendelés</strong> van a Shopify-ban.
                 </div>
             `;
 
-
-            // 0. DÁTUMHOZ KÖTÖTT ÉRTESÍTÉSEK
+            // 0. DÁTUMHOZ KÖTÖTT ÉRTESÍTÉSEK (Diszkrét, tiszta megjelenítés)
             html += `
                 <div class="report-section" style="border-left: 4px solid #2563eb; background: #f0f9ff; margin-bottom: 22px;">
                     <div class="section-title">
@@ -830,10 +824,21 @@
                 html += `<ul class="item-list">`;
                 scheduledTodayItems.forEach(item => {
                     const cleanNum = item.orderId.replace('#', '');
+                    const isPickup = item.category === "Régi személyes átvétel" || item.isPickup === true || /átvétel|pickup/i.test(item.note || '');
+                    
+                    let typeTagHtml = '';
+                    if (isPickup) {
+                        typeTagHtml = `<span class="sub-tag" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;"><i class="ph-bold ph-storefront"></i> Személyes átvétel</span>`;
+                    } else {
+                        const cityStr = item.city ? ` - ${item.city}` : '';
+                        const payStr = item.paid === true ? ' (Kifizetve)' : (item.amount ? ` (Utánvét: ${item.amount})` : '');
+                        typeTagHtml = `<span class="sub-tag" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;"><i class="ph-bold ph-truck"></i> Kiszállítás${cityStr}${payStr}</span>`;
+                    }
+
                     html += `
                         <li class="alert-item" style="background: #ffffff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(37,99,235,0.08);">
-                            <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - <strong>${item.billing}</strong> 
-                            <span class="sub-tag" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">${item.category}</span>
+                            <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - <strong>${item.billing || item.city}</strong> 
+                            ${typeTagHtml}
                             ${renderNotesBox(item.note)}
                         </li>
                     `;
@@ -841,6 +846,7 @@
                 html += `</ul>`;
             }
             html += `</div>`;
+
 
             // 1. SZÁMLÁZÁSI ELAKADÁSOK
             html += `

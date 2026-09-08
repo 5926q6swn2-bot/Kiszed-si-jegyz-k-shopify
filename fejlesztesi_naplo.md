@@ -46,6 +46,13 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+### 2026. szeptember 8. (11. frissítés) - Riport UI Tisztítás, Diszkrét Időzített Tag-ek & Díjbekérő `[ok]` Szűrés (`v4.5.5`)
+- **Felesleges Zárómondat Törlése**: A riport fejléci statisztikai kártyájából törölve lett a felesleges magyarázó mondat (*"Az alábbiakban találod a mai napra vonatkozó aktív logisztikai és számlázási teendőket..."*).
+- **Diszkrét Dátum Időzített Tag-ek (0. szekció)**: A 0. Mai Napra Időzített Értesítések szekcióban az elavult belső kategória feliratok ("Sela határidő", "Régi személyes átvétel") helyett letisztult, diszkrét tag-ek jelennek meg:
+  - **Személyes átvétel**: `<span class="sub-tag tag-pickup">Személyes átvétel</span>`
+  - **Kiszállítás**: `<span class="sub-tag tag-delivery">Kiszállítás - [Város] (Utánvét: [Összeg] / Kifizetve)</span>`
+- **Díjbekérős Rendelések `[ok]` Szűrése (3. szekció)**: A hétköznapi 3. szekcióból (Díjbekérős rendelések) a `[ok]` megjegyzéssel rendelkező tételek (pl. `#3695` - *"100.000 ft előleg fizetve [ok]"*) ki vannak szűrve, mert azok már egyeztetve vannak. Ezek a tételek Hétfő reggel a Hétfői felülvizsgálati szekcióban jelennek meg.
+
 ### 2026. szeptember 8. (10. frissítés) - Hétfői Hétvégi Visszatekintés (Péntek 07:00 óta) & Hétfő–Péntek Riport Ütemezés (`v4.5.4`)
 - **Hétfő Reggeli Visszatekintés (Péntek 07:00 óta)**: Hétfő reggel az új rendelési statisztika nem a vasárnapi 24 órát, hanem a **Péntek reggel 07:00 óta** (a teljes hétvégén) érkezett új rendeléseket összesíti (*"Péntek reggel 07:00 óta X db új rendelés érkezett..."*).
 - **Hétfőtől Péntekig Ütemezés**: A reggeli riport kizárólag munkanapokon, **Hétfőtől Péntekig reggel 07:00-kor** készül és kerül kiküldésre (szombaton és vasárnap nincs automatikus riport).
