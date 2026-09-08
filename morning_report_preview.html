@@ -538,7 +538,7 @@
         <div class="control-group-title">2. Teszt Adatállapot</div>
         <div class="tab-controls">
             <button class="tab-btn scenario-btn active" id="btn-scen-actual" onclick="setScenario('actual')">
-                <i class="ph-bold ph-database"></i> Aktuális Éles Adatok
+                <i class="ph-bold ph-database"></i> Aktuális Éles Adatok (Valós Shopify State)
             </button>
             <button class="tab-btn scenario-btn" id="btn-scen-busy" onclick="setScenario('busy')">
                 <i class="ph-bold ph-fire"></i> Forgalmas Nap
@@ -590,10 +590,10 @@
         let currentReportDay = 'weekday'; // 'weekday' vagy 'monday'
 
         const scenarios = {
-            // 1. AKTUÁLIS ÉLES ADATOK
+            // 1. AKTUÁLIS ÉLES ADATOK (A Shopify-ból élőben beolvasott valós állapot)
             actual: {
                 subject: "Reggeli riport - 2026. szeptember 8.",
-                unfulfilledCount: 66,
+                unfulfilledCount: 58,
                 newOrders24h: 14,
                 newUnfulfilled24h: 12,
                 dateTextWeekday: "2026. szeptember 8., kedd 07:00",
@@ -602,25 +602,21 @@
                 wrongShipping: [], 
                 incompleteAddress: [], 
                 dijbekKerendo: [
-                    { orderId: "#3695", billing: "generál kivitelezés", amount: "539.775 Ft", date: "2026. 08. 15.", note: "100.000 ft előleg fizetve, valszeg Győrben felveszi a cuccot [ok]" }
+                    { orderId: "#3695", billing: "generál kivitelezés", amount: "539.775 Ft", date: "2026. 08. 15.", note: "100.000 ft előleg fizetve, valszeg Győrben felveszi a cuccot\n[ok]" }
                 ],
                 dijbekVarakozik: [
                     { orderId: "#3973", billing: "Bagyura Kft.", amount: "554.300 Ft", date: "2026. 09. 05.", note: "" }
                 ],
                 oldPickups: [
-                    { orderId: "#3782", billing: "János Kecskés", days: "18 napja", paid: false, phone: "", note: "" },
-                    { orderId: "#3717", billing: "Tímea Lányi", days: "22 napja", paid: false, phone: "", note: "" },
-                    { orderId: "#3713", billing: "László Gulyás", days: "22 napja", paid: false, phone: "", note: "" },
-                    { orderId: "#3452", billing: "József Takács", days: "38 napja", paid: false, phone: "06204445566", note: "09.09-ig átveszi [ok]" }
+                    { orderId: "#3452", billing: "József Takács", days: "38 napja", paid: false, phone: "06204445566", note: "09.09-ig átveszi\n[ok]" }
                 ],
                 selaDeadlines: [
-                    { orderId: "#3917", billing: "Kovács Anna", city: "Budapest", status: "Túllépve (6. munkanap)", isExpired: true, note: "ráér, kedves hölgy [ok]" },
-                    { orderId: "#3881", billing: "Nagy Zoltán", city: "Monor", status: "Túllépve (7. munkanap)", isExpired: true, note: "PÉNTEKI/SZOMBAT KISZÁLLÍTÁS CSAK A MEGFELELŐ" },
-                    { orderId: "#3833", billing: "Kiss Ferenc", city: "Boconád", status: "Túllépve (10. munkanap)", isExpired: true, note: "kiszállítás szeptember 15-től lehetséges, azon a héten" }
+                    { orderId: "#3881", billing: "Somogyi katalin", city: "Monor", status: "Túllépve (7. munkanap)", isExpired: true, note: "PÉNTEKI/SZOMBAT KISZÁLLÍTÁS CSAK A MEGFELELŐ\n[ok]" },
+                    { orderId: "#3833", billing: "Tóth István", city: "Boconád", status: "Túllépve (10. munkanap)", isExpired: true, note: "kiszálíltás szeptember 15-től lehetséges, azon a héten\n[ok]" }
                 ],
                 pxpBudapest: [],
                 pxpNational: [
-                    { orderId: "#3989", city: "Szigetvár", workdays: "1. munkanap (ma érkezett 07:09-kor)", note: "" },
+                    { orderId: "#3989", city: "Szigetvár", workdays: "1. munkanap (ma érkezett 07:09-kor)", note: "SÜRGŐS" },
                     { orderId: "#3986", city: "Nagyesztergár", workdays: "2. munkanap (tegnap 15:43-kor jött, így ma indult az 1. napja)", note: "" }
                 ],
                 unsettledRuns: []
@@ -1088,7 +1084,7 @@
                 </div>
             `;
 
-            document.getElementById('email-subject-display').innerText = "Tárgy: " + data.subject + (isMonday ? " [HÉT FŐI FELÜLVIZSGÁLAT]" : "");
+            document.getElementById('email-subject-display').innerText = "Tárgy: " + data.subject + (isMonday ? " [HÉTFŐI FELÜLVIZSGÁLAT]" : "");
             document.getElementById('email-date-display').innerText = dateStr;
             document.getElementById('email-body-content').innerHTML = html;
         }
