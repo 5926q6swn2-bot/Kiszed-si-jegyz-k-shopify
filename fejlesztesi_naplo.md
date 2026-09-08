@@ -46,7 +46,29 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
-## 📝 Fejlesztési Napló (Changelog)
+### 2026. szeptember 8. (5. frissítés) - Rendelésáttekintő Szín- és UI Logika 100%-os Harmonizációja (`morning_report_preview.html`)
+- **Felhasználói visszajelzés**: A színek és a UI logika passzoljon 100%-ban a Rendelésáttekintő felületéhez.
+- **Végrehajtott finomhangolások**:
+  - **Arculat & Háttér**: A reggeli riport előnézeti oldala megkapta a Rendelésáttekintő Apple Sonoma mesh háttér-gradientjét (`radial-gradient`), üveg hatású (Glassmorphism) fejléc kártyát, és a fő gombokat megegyező formázással.
+  - **100% Identikus Sub-Tag Jelvények & Ikonok**:
+    - Rossz szállítás (2.300 Ft): Tűzpiros tag (`#fef2f2` bg, `1.5px solid #fca5a5`, `#dc2626` text) a Phosphor `<i class="ph-bold ph-warning-octagon"></i>` ikonnal.
+    - Hiányos szállítási cím: Tűzpiros tag (`#fef2f2` bg, `1.5px solid #fca5a5`, `#dc2626` text) a Phosphor `<i class="ph-bold ph-map-pin-line"></i>` ikonnal.
+    - Számlázni!: Borostyán tag (`#fffbeb` bg, `1.5px solid #fde68a`, `#d97706` text) a Phosphor `<i class="ph-bold ph-receipt"></i>` ikonnal.
+    - Díjbekérőt kell kérni / Díjbekérőt várjuk: Indigó tag (`#eef2ff` bg, `1.5px solid #c7d2fe`, `#4f46e5` text) a Phosphor `<i class="ph-bold ph-file-text"></i>` és `<i class="ph-bold ph-receipt"></i>` ikonokkal.
+    - PannonXP: Kék tag (`#eff6ff` bg, `1.5px solid #93c5fd`, `#2563eb` text) a Phosphor `<i class="ph-bold ph-barcode"></i>` ikonnal.
+    - Személyes átvétel: Lila tag (`#f5f3ff` bg, `1.5px solid #c4b5fd`, `#7c3aed` text) a Phosphor `<i class="ph-bold ph-storefront"></i>` ikonnal.
+  - **Sárga Megjegyzés (Notes) Dobozok**: Egységesítve az összes szekcióban (1-től 7-ig) a Rendelésáttekintő halványsárga (`#fefce8` bg, `1px solid #fef08a`, `#854d0e` text) kiemelésével és a `<i class="ph-bold ph-chat-text"></i>` ikonnal.
+  - **24h Statisztikai Kártya & Szekció Badgek**: Az unfulfilled számláló megkapta a Rendelésáttekintő natív sárga badge-ét (`#ffea8a` bg, `#4a3800` text, `#eab308` tiszta sárga pötty).
+
+### 2026. szeptember 8. (4. frissítés) - Napi Reggeli Riport Előnézet Finomhangolása & 24h Statisztika (`morning_report_preview.html`)
+- **Felhasználói kérések**:
+  1. *Címhiba ellenőrzés*: A Rendelésáttekintő szigorú logikáját kövesse, mivel a példában szereplő rendeléseken (#3989, #3986, #3985, #3967, #3926) a házszámok az `address2` vagy `fullAddress` mezőben rendben megvannak.
+  2. *Sela 5 munkanapos határidők*: A Rendelésáttekintő CSV kiküldési logikáját alkalmazza (kizárva a bolti átvételeket, PannonXP tag-es, "sela megr." vagy terítésben lévő és szállítmányra váró rendeléseket).
+  3. *Előző 24h rendelések száma*: Jelenjen meg külön statisztikai sor a tegnap reggel 07:00 óta ma reggelig érkezett új rendelések számáról (összesen vs. ebből unfulfilled).
+  4. *Arculati illeszkedés*: A jelvények, keretek és színkódok 100%-ban illeszkedjenek a Rendelésáttekintő Apple-stílusú Glassmorphic dizájnjához.
+- **Megvalósítás**:
+  - `checkAddressValidity` frissítve az `address2` és `fullAddress` mezők együttes vizsgálatára.
+  - `morning_report_preview.html` frissítve az új 24 órás statisztikai sorra, az arculati színkódokra és az éles adatok téves címhiba-mentesítésére.
 
 ### 2026. szeptember 8. (3. frissítés) - Automatikus "címke" Tag PannonXP Exportkor & Kék Vonalkód Emblem (`v4.4.8`)
 - **Felhasználói kérés**:

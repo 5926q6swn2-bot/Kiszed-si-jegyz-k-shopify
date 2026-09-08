@@ -106,8 +106,9 @@ export function checkAddressValidity(order) {
     const justNumbersAndSymbols = /^[\d\s\/\.,\\-–—a-fA-F]*$/.test(streetLower) && streetLower.length <= 6;
     if (justNumbersAndSymbols) return true;
     
-    // 2. HÁZSZÁM ELLENŐRZÉS: Az utcának tartalmaznia kell legalább 1 számjegyet (pl. "166", "2/b", "11\a")
-    const hasHouseNumber = /\d+/.test(streetLower);
+    // 2. HÁZSZÁM ELLENŐRZÉS: Az utca1, utca2 vagy teljes cím valamelyikének tartalmaznia kell legalább 1 számjegyet (pl. "166", "2/b", "11\a")
+    const combinedAddressText = `${street} ${order.address2 || ''} ${fullAddr}`.toLowerCase();
+    const hasHouseNumber = /\d+/.test(combinedAddressText);
     if (!hasHouseNumber) return true;
     
     // 3. HA A CÍM ÉRVÉNYES: Töröljük a címhibákat az order.errors tömbből
