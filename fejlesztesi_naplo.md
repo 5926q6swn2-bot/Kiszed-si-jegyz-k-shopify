@@ -46,6 +46,11 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+### 2026. szeptember 8. (11. frissítés) - Szigorú `[ok]` Szűrés Hétköznapokon & Szállítási Típus Jelzés (`v4.5.5`)
+- **Szigorú `[ok]` Tag Szűrés**: A hétköznapokon (Kedd-Vasárnap) az összes szekcióból (1-7. szekció, pl. a 3. Díjbekérős rendelésekből is) kiszűrésre kerülnek a `[ok]` tag-es megjegyzéssel rendelkező rendelések, és kizárólag Hétfő reggel jelennek meg a 8. Hétfői felülvizsgálati kártyán.
+- **Közvetlen Szállítási / Átvételi Jelzések**: Az időzített értesítések kártyáján a belső rendszerkategóriák ("Régi személyes átvétel", "Sela határidő") helyett közvetlenül a rendelés típusa jelenik meg: `Személyes átvétel` vagy `Kiszállítás (Város)`.
+- **Összefoglaló Mondat Törlése**: A riport összefoglaló kártyájának végéről eltávolítottuk a felesleges bevezető mondatot a felhasználó kérésére.
+
 ### 2026. szeptember 8. (10. frissítés) - Riport Szövegezés Finomítása & Kompakt Dátum Időzítés Szekció (`v4.5.4`)
 - **Szövegezési Pontosítások**:
   - *"— viszonteladói megrendeléseken kívül"* (korábbi *"kizárva"* helyett).
