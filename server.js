@@ -1507,16 +1507,8 @@ async function runPreWakeupPannonXpSync() {
       throw new Error(`Shopify API hiba: ${res.statusText}`);
     }
     const data = await res.json();
-    const orders = data.orders || [];
-
-    const eligibleForPxp = orders.filter(o => {
-      const tags = (o.tags || '').toLowerCase();
-      if (tags.includes('pannonxp')) return false;
-      const lineItems = o.line_items || [];
-      const hasWallPanel = lineItems.some(item => /falpanel|akupanel|léc|burkolat/i.test(item.name || item.title || ''));
-      if (hasWallPanel) return false;
-      return true;
-    });
+    const { isEligibleForAutoPannonXp } = await getOrderUtils();
+    const eligibleForPxp = orders.filter(isEligibleForAutoPannonXp);
 
     if (eligibleForPxp.length > 0) {
       console.log(` [06:50 Pre-Wakeup PannonXP] ${eligibleForPxp.length} db alkalmas rendelés felcímkézése indult...`);
