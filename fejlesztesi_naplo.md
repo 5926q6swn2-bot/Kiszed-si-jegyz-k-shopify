@@ -47,6 +47,17 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ## 📝 Fejlesztési Napló (Changelog)
 
+### 2026. szeptember 8. (1. frissítés) - Napi Reggeli 07:00-s Riport Tervezés & Interaktív Előnézet (`morning_report_preview.html`)
+- **Felhasználói kérés**: Minden reggel 07:00-kor egy lényegretörő, puritán gépelt összefoglaló e-mail a logisztikai elakadásokról, címhibákról, díjbekérőkről és határidőkről. Az éles kiküldés előtt interaktív előnézet kérése a céges géphez való átálláshoz.
+- **Megvalósított szabályok és előnézet**:
+  - **1. Rendelésáttekintővel azonos szűrési logika:** A `checkBadShipping` figyelembe veszi az ingyenes kuponokat (pl. a #3966 NEM rossz szállítás), a `checkInvalidDeliveryAddress` pedig kizárja a személyes átvételeket és a viszonteladókat.
+  - **2. Belső Notes mezők közvetlen megjelenítése:** Minden problémás vagy határidős rendelésnél látható a belső Notes feljegyzés (pl. *"09.09-ig átveszi"*, *"ráér, kedves hölgy"*, *"kiszállítás szeptember 15-től"*).
+  - **3. Személyes átvételek vizsgálata (2,5 hét):** Mind a fizetett, mind a fizetetlen bolti átvételeket figyeli 17,5 nap felett.
+  - **4. Sela határidők és terítés szűrés:** 10:30-as vágási idő szerinti munkanapszámítás. A már megtervezett / terítésben lévő vagy "sela megr." címkés rendelések (pl. #3944) automatikusan kizárva a határidős listából.
+  - **5. Tárgy formátuma:** Tömör és egyszerű: `Reggeli riport - [dátum]`.
+  - **6. Interaktív Előnézet (`morning_report_preview.html`):** 3 külön forgatókönyvvel (Aktuális valós állapot, Forgalmas nap, Nyugodt nap), nulla emoji használatával.
+  - **7. Kiküldés állapota:** Jelenleg 100%-ban inaktív (nincs automatikus kiküldés), amíg a céges gépről nem történik meg a végleges ellenőrzés és jóváhagyás.
+
 ### 2026. szeptember 7. (8. frissítés) - Valós Idejű Kijelölési Sorszám Jelvények a Pipáknál, Görgetés-Megőrzés és Hash-Toleráns Kijelölés (`v4.4.6`)
 - **Felhasználói visszajelzés**: „a sorrendes pipálás most nem működött? hogy van beállítva?” + jóváhagyás: „aha legyen így”.
 - **Megvalósított fejlesztések**:

@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reggeli Riport Előnézet (07:00)</title>
+    <style>
+        :root {
+            --bg-page: #0f172a;
+            --bg-card: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --accent: #2563eb;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-page);
+            color: var(--text-main);
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .preview-header {
+            max-width: 780px;
+            width: 100%;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .preview-header h1 {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+
+        .preview-header p {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* Váltógombok (Tabs) */
+        .tab-controls {
+            display: inline-flex;
+            background: #1e293b;
+            padding: 4px;
+            border-radius: 10px;
+            border: 1px solid #334155;
+            margin-top: 16px;
+            gap: 4px;
+        }
+
+        .tab-btn {
+            background: transparent;
+            color: #94a3b8;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 7px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-btn.active {
+            background: #2563eb;
+            color: #ffffff;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+        }
+
+        /* E-mail Kliens Szimuláció Keret */
+        .email-client-mockup {
+            max-width: 760px;
+            width: 100%;
+            background: #ffffff;
+            color: #1e293b;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.2);
+            overflow: hidden;
+            border: 1px solid #475569;
+        }
+
+        .email-header-bar {
+            background: #f1f5f9;
+            padding: 16px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 13px;
+        }
+
+        .email-meta-row {
+            display: flex;
+            margin-bottom: 6px;
+            line-height: 1.4;
+        }
+
+        .email-meta-label {
+            width: 80px;
+            font-weight: 600;
+            color: #64748b;
+        }
+
+        .email-meta-val {
+            color: #0f172a;
+            font-weight: 500;
+        }
+
+        .email-subject {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed #cbd5e1;
+        }
+
+        /* E-mail Szöveg Törzs (Megírt levél stílus) */
+        .email-body {
+            padding: 36px 32px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.65;
+            color: #1e293b;
+        }
+
+        .report-section {
+            margin-bottom: 26px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .report-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .section-title {
+            font-size: 13.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #0f172a;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .section-badge {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .badge-alert {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-info {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .badge-ok {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .item-list {
+            list-style: none;
+            margin-top: 8px;
+        }
+
+        .item-list li {
+            position: relative;
+            padding-left: 18px;
+            margin-bottom: 10px;
+            font-size: 13.5px;
+            line-height: 1.5;
+        }
+
+        .item-list li::before {
+            content: "•";
+            position: absolute;
+            left: 4px;
+            top: 0;
+            color: #64748b;
+            font-weight: bold;
+        }
+
+        .item-list li.alert-item::before {
+            color: #dc2626;
+        }
+
+        .item-list li.warn-item::before {
+            color: #d97706;
+        }
+
+        .order-link {
+            font-weight: 700;
+            color: #1d4ed8;
+            text-decoration: none;
+        }
+
+        .order-link:hover {
+            text-decoration: underline;
+        }
+
+        .meta-detail {
+            color: #475569;
+            font-size: 13px;
+        }
+
+        /* Megjegyzés (Notes) blokk kiemelés */
+        .order-notes-box {
+            display: inline-block;
+            background: #f8fafc;
+            border-left: 3px solid #64748b;
+            padding: 3px 8px;
+            margin-top: 3px;
+            font-size: 12.5px;
+            color: #334155;
+            border-radius: 0 4px 4px 0;
+            font-style: italic;
+        }
+
+        .order-notes-box strong {
+            font-style: normal;
+            color: #0f172a;
+        }
+
+        .sub-tag {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 1px 6px;
+            border-radius: 3px;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+
+        .tag-wrong-ship {
+            background: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fca5a5;
+        }
+
+        .tag-dijbek-kerendo {
+            background: #e0e7ff;
+            color: #3730a3;
+            border: 1px solid #c7d2fe;
+        }
+
+        .tag-dijbek-varakozik {
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fde68a;
+        }
+
+        .tag-address-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .tag-paid-status {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .tag-unpaid-status {
+            background: #fffbeb;
+            color: #92400e;
+            border: 1px solid #fde68a;
+        }
+
+        .empty-state {
+            color: #166534;
+            font-size: 13px;
+            font-style: italic;
+            padding-left: 6px;
+        }
+
+        .stats-summary-box {
+            background: #f8fafc;
+            border-left: 4px solid #2563eb;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+            font-size: 13.5px;
+            color: #334155;
+            line-height: 1.5;
+        }
+
+        .stats-summary-box strong {
+            color: #0f172a;
+        }
+
+        .footer-note {
+            margin-top: 30px;
+            padding-top: 16px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 12px;
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+
+        /* Megjegyzés sáv a preview alatt */
+        .notes-card {
+            max-width: 760px;
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 20px 24px;
+            margin-top: 24px;
+            font-size: 13px;
+            color: #cbd5e1;
+            line-height: 1.6;
+        }
+
+        .notes-card h3 {
+            font-size: 14px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 8px;
+        }
+
+        .notes-card ul {
+            padding-left: 18px;
+            margin-top: 6px;
+        }
+
+        .notes-card li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="preview-header">
+        <h1>Napi Reggeli Riport — E-mail Formátum Előnézet (07:00)</h1>
+        <p>A Rendelésáttekintővel 100%-ban megegyező validációk, unfulfilled számláló és kiemelt vevői Notes megjegyzések.</p>
+        
+        <div class="tab-controls">
+            <button class="tab-btn active" onclick="showScenario('actual')">Aktuális Éles Adatok (Ma reggeli valós állapot)</button>
+            <button class="tab-btn" onclick="showScenario('busy')">Forgalmas Nap (Sok tétel + Notes)</button>
+            <button class="tab-btn" onclick="showScenario('clean')">Nyugodt Nap (Minden tiszta)</button>
+        </div>
+    </div>
+
+    <!-- E-mail Kliens Makett -->
+    <div class="email-client-mockup">
+        <div class="email-header-bar">
+            <div class="email-meta-row">
+                <span class="email-meta-label">Feladó:</span>
+                <span class="email-meta-val">Panelburkolat Logisztika &lt;onboarding@resend.dev&gt;</span>
+            </div>
+            <div class="email-meta-row">
+                <span class="email-meta-label">Címzett:</span>
+                <span class="email-meta-val">info@panelburkolat.com</span>
+            </div>
+            <div class="email-meta-row">
+                <span class="email-meta-label">Dátum:</span>
+                <span class="email-meta-val" id="email-date-display">2026. szeptember 8. (Kedd) 07:00</span>
+            </div>
+            <div class="email-subject" id="email-subject-display">
+                Tárgy: Reggeli riport - 2026. szeptember 8.
+            </div>
+        </div>
+
+        <div class="email-body" id="email-body-content">
+            <!-- JavaScript tölti be a scenario-t -->
+        </div>
+    </div>
+
+    <!-- Tervezési és Szabály Jegyzetek -->
+    <div class="notes-card">
+        <h3>Finomhangolt szabályok és integráció:</h3>
+        <ul>
+            <li><strong>"Unfulfilled" kifejezés:</strong> A fejléc és a tárgy pontosan a Shopify `unfulfilled` fogalmát használja.</li>
+            <li><strong>Rendelésáttekintővel azonos cím- és szállítás-ellenőrzés:</strong> A `checkBadShipping` figyelembe veszi az ingyenes kuponokat (ezért pl. a #3966 NEM hibás szállítás), a `checkInvalidDeliveryAddress` pedig kizárja a bolti átvételeket és a viszonteladókat. Így csak a valós, cselekvésre szoruló hibák jelennek meg!</li>
+            <li><strong>Notes megjegyzések láthatósága:</strong> Ha a rendeléshez tartozik belső Notes feljegyzés, az közvetlenül a rendelés alatt olvasható (pl. <em>"09.09-ig átveszi"</em>, <em>"ráér, kedves hölgy"</em>, stb.).</li>
+            <li><strong>Személyes átvétel (2,5 hét):</strong> Mind a fizetett, mind a fizetetlen rendeléseknél jelez, ha 17,5 napnál régebbi, és nincs rajta várakozó tag.</li>
+            <li><strong>10:30-as vágási idő:</strong> Munkanapon 10:30 előtt érkező rendelésnél aznap van az 1. munkanap; 10:30 után a rákövetkező első munkanap számít 1. munkanapnak.</li>
+            <li><strong>Sela határidők:</strong> Csak a 4. munkanapos ("Holnap jár le") és 5. munkanapos ("Ma jár le"), valamint a lejárt fuvarokat mutatja. A már terítésben lévő vagy "sela megr." címkés rendelések automatikusan kizárva!</li>
+            <li><strong>Tárgy formátuma:</strong> Egyszerű és tömör: "Reggeli riport - [dátum]".</li>
+        </ul>
+    </div>
+
+    <script>
+        const scenarios = {
+            // 1. AKTUÁLIS ÉLES ADATOK (A ma reggeli pontos, szűrt Shopify valóság)
+            actual: {
+                subject: "Reggeli riport - 2026. szeptember 8.",
+                unfulfilledCount: 66,
+                dateText: "2026. szeptember 8., kedd 07:00",
+                missingInvoice: [],
+                wrongShipping: [], // A valódi checkBadShipping alapján a #3966 kuponos, így 0 db rossz szállítás van!
+                incompleteAddress: [
+                    { orderId: "#3989", city: "Szigetvár", address: "Hársfa utca", billing: "Rebeka Rajnai", phone: "06307773066", note: "" },
+                    { orderId: "#3986", city: "Nagyesztergár", address: "Ányos Pál utca", billing: "Dávid Berki", phone: "06703913271", note: "" },
+                    { orderId: "#3985", city: "Zagyvarékas", address: "Ponty", billing: "Olah imre", phone: "06207722018", note: "" },
+                    { orderId: "#3967", city: "Szolnok", address: "Tancsics Mihály u", billing: "Bence Rozgonyi", phone: "06702397770", note: "" },
+                    { orderId: "#3926", city: "Nagykanizsa", address: "Rózsa utca", billing: "Pfeifer Károly", phone: "06202679130", note: "" }
+                ],
+                dijbekKerendo: [
+                    { orderId: "#3695", billing: "generál kivitelezés", amount: "539.775 Ft", date: "2026. 08. 15.", note: "100.000 ft előleg fizetve, valszeg Győrben felveszi a cuccot" }
+                ],
+                dijbekVarakozik: [
+                    { orderId: "#3973", billing: "Bagyura Kft.", amount: "554.300 Ft", date: "2026. 09. 05.", note: "" }
+                ],
+                oldPickups: [
+                    { orderId: "#3782", billing: "János Kecskés", days: "18 napja", paid: false, phone: "", note: "" },
+                    { orderId: "#3717", billing: "Tímea Lányi", days: "22 napja", paid: false, phone: "", note: "" },
+                    { orderId: "#3713", billing: "László Gulyás", days: "22 napja", paid: false, phone: "", note: "" },
+                    { orderId: "#3452", billing: "József Takács", days: "38 napja", paid: false, phone: "", note: "09.09-ig átveszi" }
+                ],
+                selaDeadlines: [
+                    // A #3944 már terítésben van (sela megr.), így nem jelenik meg függő határidősként!
+                    { orderId: "#3917", billing: "Kovács Anna", city: "Budapest", status: "Túllépve (6. munkanap)", note: "ráér, kedves hölgy" },
+                    { orderId: "#3881", billing: "Nagy Zoltán", city: "Monor", status: "Túllépve (7. munkanap)", note: "PÉNTEKI/SZOMBAT KISZÁLLÍTÁS CSAK A MEGFELELŐ" },
+                    { orderId: "#3833", billing: "Kiss Ferenc", city: "Boconád", status: "Túllépve (10. munkanap)", note: "kiszállítás szeptember 15-től lehetséges, azon a héten" }
+                ],
+                pxpBudapest: [],
+                pxpNational: [
+                    { orderId: "#3989", city: "Szigetvár", workdays: "1. munkanap (ma érkezett 07:09-kor)", note: "" },
+                    { orderId: "#3986", city: "Nagyesztergár", workdays: "2. munkanap (tegnap 15:43-kor jött, így ma indult az 1. napja)", note: "" }
+                ],
+                unsettledRuns: []
+            },
+
+            // 2. FORGALMAS NAP (Sok tétel, bőséges notes feljegyzésekkel)
+            busy: {
+                subject: "Reggeli riport - 2026. szeptember 8.",
+                unfulfilledCount: 98,
+                dateText: "2026. szeptember 8., kedd 07:00",
+                missingInvoice: [
+                    { orderId: "#4012", billing: "Kovács Péter", tag: "címke kész", note: "sürgős kiszállítás, ma délig feladni!" },
+                    { orderId: "#4008", billing: "Horváth Éva", tag: "terítésben (Sela)", note: "telefonon egyeztetve a sofőrrel" },
+                    { orderId: "#3999", billing: "Varga Zoltán", tag: "címke kész", note: "" }
+                ],
+                wrongShipping: [
+                    { orderId: "#4015", city: "Szeged", zip: "6724", note: "2.300 Ft budapesti szállítás lett választva Szegedre (amúgy országos lenne)" },
+                    { orderId: "#4003", city: "Debrecen", zip: "4031", note: "2.300 Ft budapesti szállítás vidékre választva" }
+                ],
+                incompleteAddress: [
+                    { orderId: "#4018", city: "Győr", address: "Baross Gábor út", billing: "Szabó Tamás", phone: "06203334455", note: "kapucsengő 4-es, de a házszám hiányzik" },
+                    { orderId: "#4011", city: "Pécs", address: "Rákóczi út", billing: "Németh Klára", phone: "06309876543", note: "" },
+                    { orderId: "#3989", city: "Szigetvár", address: "Hársfa utca", billing: "Rebeka Rajnai", phone: "06307773066", note: "" }
+                ],
+                dijbekKerendo: [
+                    { orderId: "#4020", billing: "Modern Otthon Kft.", amount: "320.000 Ft", date: "2026. 09. 07.", note: "Átutalásos előleget kért" },
+                    { orderId: "#3695", billing: "generál kivitelezés", amount: "539.775 Ft", date: "2026. 08. 15.", note: "100.000 ft előleg fizetve, valszeg Győrben felveszi a cuccot" }
+                ],
+                dijbekVarakozik: [
+                    { orderId: "#3973", billing: "Bagyura Kft.", amount: "554.300 Ft", date: "2026. 09. 05.", note: "Díjbekérő elküldve emailben" },
+                    { orderId: "#3950", billing: "Bau-Team Kft.", amount: "285.000 Ft", date: "2026. 09. 02.", note: "" }
+                ],
+                oldPickups: [
+                    { orderId: "#3650", billing: "Fehér László", days: "25 napja", paid: true, phone: "06301112233", note: "Kifizetve kártyával, szólni neki hogy vigye el" },
+                    { orderId: "#3452", billing: "József Takács", days: "38 napja", paid: false, phone: "06204445566", note: "09.09-ig átveszi" },
+                    { orderId: "#3717", billing: "Tímea Lányi", days: "22 napja", paid: false, phone: "06709998877", note: "" }
+                ],
+                selaDeadlines: [
+                    { orderId: "#3945", billing: "Láng Bt.", city: "Veszprém", status: "MA jár le az 5 munkanap!", note: "reggel 8-ra kérték" },
+                    { orderId: "#3944", billing: "Mihály Varga", city: "Jászszentandrás", status: "HOLNAP jár le az 5 munkanap", note: "" },
+                    { orderId: "#3833", billing: "Kiss Ferenc", city: "Boconád", status: "Túllépve (10. munkanap)", note: "kiszállítás szeptember 15-től lehetséges, azon a héten" }
+                ],
+                pxpBudapest: [
+                    { orderId: "#4016", city: "Budapest 11. ker.", workdays: "1. munkanap", note: "lift van" },
+                    { orderId: "#4007", city: "Budapest 14. ker.", workdays: "2. munkanap", note: "" }
+                ],
+                pxpNational: [
+                    { orderId: "#4015", city: "Szeged", workdays: "1. munkanap", wrongShip: "Tévesen budapesti díjjal leadva (amúgy országos lenne)", note: "" },
+                    { orderId: "#3989", city: "Szigetvár", workdays: "1. munkanap", note: "" },
+                    { orderId: "#3986", city: "Nagyesztergár", workdays: "2. munkanap", note: "" }
+                ],
+                unsettledRuns: [
+                    { driver: "ÁdámFuvar", date: "2026. 09. 03. (3 munkanapja)", codTotal: "145.000 Ft (3 cím)", note: "ígérte hogy ma hozza a pénzt" },
+                    { driver: "FákóTrans", date: "2026. 09. 04. (2 munkanapja)", codTotal: "220.000 Ft (5 cím)", note: "" }
+                ]
+            },
+
+            // 3. NYUGODT NAP (Minden tiszta, kevés teendő)
+            clean: {
+                subject: "Reggeli riport - 2026. szeptember 8.",
+                unfulfilledCount: 42,
+                dateText: "2026. szeptember 8., kedd 07:00",
+                missingInvoice: [],
+                wrongShipping: [],
+                incompleteAddress: [],
+                dijbekKerendo: [],
+                dijbekVarakozik: [
+                    { orderId: "#3973", billing: "Bagyura Kft.", amount: "554.300 Ft", date: "2026. 09. 05.", note: "" }
+                ],
+                oldPickups: [],
+                selaDeadlines: [],
+                pxpBudapest: [
+                    { orderId: "#4022", city: "Budapest 3. ker.", workdays: "1. munkanap", note: "" }
+                ],
+                pxpNational: [
+                    { orderId: "#4021", city: "Győr", workdays: "1. munkanap", note: "" }
+                ],
+                unsettledRuns: []
+            }
+        };
+
+        function renderEmail(data) {
+            const adminBase = "https://p4q0uj-2m.myshopify.com/admin/orders/";
+
+            let html = `
+                <div class="stats-summary-box">
+                    Jó reggelt!<br><br>
+                    Jelenleg <strong>${data.unfulfilledCount} db unfulfilled (teljesítésre váró) rendelés</strong> van a Shopify-ban.
+                    Az alábbiakban találod a mai napra vonatkozó logisztikai és számlázási teendőket:
+                </div>
+            `;
+
+            // 1. SZÁMLÁZÁSI ELAKADÁSOK
+            html += `
+                <div class="report-section">
+                    <div class="section-title">
+                        <span>1. Számla nélküli rendelések (Címkézve vagy Terítésben)</span>
+                        <span class="section-badge ${data.missingInvoice.length ? 'badge-alert' : 'badge-ok'}">
+                            ${data.missingInvoice.length ? data.missingInvoice.length + ' db teendő' : 'Minden rendben'}
+                        </span>
+                    </div>
+            `;
+            if (data.missingInvoice.length === 0) {
+                html += `<div class="empty-state">Nincs feladásra kész számla nélküli rendelés.</div>`;
+            } else {
+                html += `<ul class="item-list">`;
+                data.missingInvoice.forEach(item => {
+                    const cleanNum = item.orderId.replace('#', '');
+                    html += `
+                        <li class="alert-item">
+                            <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - 
+                            <strong>${item.billing}</strong> 
+                            <span class="meta-detail">(${item.tag})</span>
+                            ${item.note ? `<br><span class="order-notes-box"><strong>Notes:</strong> ${item.note}</span>` : ''}
+                        </li>
+                    `;
+                });
+                html += `</ul>`;
+            }
+            html += `</div>`;
+
+            // 2. CÍMHIBÁK ÉS ROSSZ SZÁLLÍTÁSOK
+            const addressTotalCount = data.incompleteAddress.length + data.wrongShipping.length;
+            html += `
+                <div class="report-section">
+                    <div class="section-title">
+                        <span>2. Címhibák és Rossz Szállítási Módok</span>
+                        <span class="section-badge ${addressTotalCount ? 'badge-alert' : 'badge-ok'}">
+                            ${addressTotalCount ? addressTotalCount + ' db ellenőrizendő' : 'Nincs címhiba'}
+                        </span>
+                    </div>
+            `;
+            if (addressTotalCount === 0) {
+                html += `<div class="empty-state">Minden unfulfilled rendelés szállítási címe érvényes és a szállítási díj megfelelő.</div>`;
+            } else {
+                html += `<ul class="item-list">`;
+                // Rossz szállítások
+                data.wrongShipping.forEach(item => {
+                    const cleanNum = item.orderId.replace('#', '');
+                    html += `
+                        <li class="alert-item">
+                            <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - 
+                            <strong>${item.city} (${item.zip})</strong> 
+                            <span class="sub-tag tag-wrong-ship">Rossz szállítás</span>
+                            <span class="meta-detail">— ${item.note}</span>
+                        </li>
+                    `;
+                });
+                // Hiányos házszámok
+                data.incompleteAddress.forEach(item => {
+                    const cleanNum = item.orderId.replace('#', '');
+                    html += `
+                        <li class="alert-item">
+                            <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - 
+                            <strong>${item.city || 'Nincs város'}, ${item.address}</strong> 
+                            <span class="sub-tag tag-address-error">Hiányzik a házszám</span>
+                            <span class="meta-detail">— Vevő: ${item.billing} ${item.phone ? '(Tel: ' + item.phone + ')' : '(Nincs telefonszám!)'}</span>
+                            ${item.note ? `<br><span class="order-notes-box"><strong>Notes:</strong> ${item.note}</span>` : ''}
+                        </li>
+                    `;
+                });
+                html += `</ul>`;
+            }
+            html += `</div>`;
+
+            // 3. DÍJBEKÉRŐK (250e+ Ft utánvétes rendelések)
+            const proformaTotal = data.dijbekKerendo.length + data.dijbekVarakozik.length;
+            html += `
+                <div class="report-section">
+                    <div class="section-title">
+                        <span>3. Díjbekérős Rendelések (250.000 Ft feletti utánvét)</span>
+                        <span class="section-badge ${proformaTotal ? 'badge-warning' : 'badge-ok'}">
+                            ${proformaTotal ? proformaTotal + ' db rendelés' : 'Nincs függő díjbekérő'}
+                        </span>
+                    </div>
+            `;
+            if (proformaTotal === 0) {
+                html += `<div class="empty-state">Nincs 250.000 Ft feletti függőben lévő díjbekérős rendelés.</div>`;
+            } else {
+                html += `<ul class="item-list">`;
+                data.dijbekKerendo.forEach(item => {
+                    const cleanNum = item.orderId.replace('#', '');
+                    html += `
+                        <li class="warn-item">
+                            <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - 
+                            <strong>${item.billing}</strong> (${item.amount})
+                            <span class="sub-tag tag-dijbek-kerendo">Díjbekérőt kell kérni!</span>
+                            <span class="meta-detail">— Rendelve: ${item.date}</span>
+                            ${item.note ? `<br><span class="order-notes-box"><strong>Notes:</strong> ${item.note}</span>` : ''}
+                        </li>
+                    `;
+                });
+                data.dijbekVarakozik.forEach(item => {
+                    const cleanNum = item.orderId.replace('#', '');
+                    html += `
+                        <li>
+                            <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - 
+                            <strong>${item.billing}</strong> (${item.amount})
+                            <span class="sub-tag tag-dijbek-varakozik">Díjbekérőt várjuk</span>
+                            <span class="meta-detail">— Kiállítva: ${item.date} (utalásra várunk)</span>
+                            ${item.note ? `<br><span class="order-notes-box"><strong>Notes:</strong> ${item.note}</span>` : ''}
+                        </li>
+                    `;
+                });
+                html += `</ul>`;
+            }
+            html += `</div>`;
+
+            // 4. RÉGÓTA VÁRAKOZÓ SZEMÉLYES ÁTVÉTELEK (> 2,5 hét)
+            html += `
+                <div class="report-section">
+                    <div class="section-title">
+                        <span>4. Régóta Várakozó Személyes Átvételek (&gt; 2,5 hét)</span>
+                        <span class="section-badge ${data.oldPickups.length ? 'badge-warning' : 'badge-ok'}">
+                            ${data.oldPickups.length ? data.oldPickups.length + ' db ellenőrizendő' : 'Nincs elmaradt átvétel'}
+                        </span>
+                    </div>
+            `;
+            if (data.oldPickups.length === 0) {
+                html += `<div class="empty-state">Nincs 2,5 hétnél régebbi bolti személyes átvétel.</div>`;
+            } else {
+                html += `<ul class="item-list">`;
+                data.oldPickups.forEach(item => {
+                    const cleanNum = item.orderId.replace('#', '');
+                    const paidBadge = item.paid 
+                        ? `<span class="sub-tag tag-paid-status">Fizetve</span>` 
+                        : `<span class="sub-tag tag-unpaid-status">Fizetetlen</span>`;
+                    html += `
+                        <li class="warn-item">
+                            <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - 
+                            <strong>${item.billing}</strong> ${paidBadge}
+                            <span class="meta-detail">— ${item.days} várakozik ${item.phone ? '(Tel: ' + item.phone + ')' : ''}</span>
+                            ${item.note ? `<br><span class="order-notes-box"><strong>Notes:</strong> ${item.note}</span>` : ''}
+                        </li>
+                    `;
+                });
+                html += `</ul>`;
+            }
+            html += `</div>`;
+
+            // 5. SELA KÖZELGŐ 5 MUNKANAPOS HATÁRIDŐK
+            html += `
+                <div class="report-section">
+                    <div class="section-title">
+                        <span>5. Sela Kiszállítások — 5 munkanapos határidők</span>
+                        <span class="section-badge ${data.selaDeadlines.length ? 'badge-alert' : 'badge-ok'}">
+                            ${data.selaDeadlines.length ? data.selaDeadlines.length + ' db tétel' : 'Nincs lejáró határidő'}
+                        </span>
+                    </div>
+            `;
+            if (data.selaDeadlines.length === 0) {
+                html += `<div class="empty-state">Nincs határidő-közeli vagy lejárt Sela szállítási rendelés.</div>`;
+            } else {
+                html += `<ul class="item-list">`;
+                data.selaDeadlines.forEach(item => {
+                    const cleanNum = item.orderId.replace('#', '');
+                    html += `
+                        <li class="alert-item">
+                            <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - 
+                            <strong>${item.billing} (${item.city})</strong> 
+                            <span class="meta-detail">— <strong>${item.status}</strong></span>
+                            ${item.note ? `<br><span class="order-notes-box"><strong>Notes:</strong> ${item.note}</span>` : ''}
+                        </li>
+                    `;
+                });
+                html += `</ul>`;
+            }
+            html += `</div>`;
+
+            // 6. PANNONXP CSOMAGOK SZÁMA ÉS BONTÁSA
+            const pxpTotal = data.pxpBudapest.length + data.pxpNational.length;
+            html += `
+                <div class="report-section">
+                    <div class="section-title">
+                        <span>6. PannonXP Csomagok (Exportra / Címkenyomtatásra vár)</span>
+                        <span class="section-badge badge-info">
+                            Összesen: ${pxpTotal} csomag
+                        </span>
+                    </div>
+            `;
+            if (pxpTotal === 0) {
+                html += `<div class="empty-state">Jelenleg nincs PannonXP feladásra váró csomag.</div>`;
+            } else {
+                html += `<div style="margin-bottom: 8px; font-weight: 600; font-size: 13px; color: #334155;">Budapesti szállítások (${data.pxpBudapest.length} db):</div>`;
+                if (data.pxpBudapest.length === 0) {
+                    html += `<div class="empty-state" style="margin-bottom: 12px;">Nincs budapesti PannonXP csomag.</div>`;
+                } else {
+                    html += `<ul class="item-list" style="margin-bottom: 12px;">`;
+                    data.pxpBudapest.forEach(item => {
+                        const cleanNum = item.orderId.replace('#', '');
+                        html += `
+                            <li>
+                                <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - 
+                                ${item.city} <span class="meta-detail">(${item.workdays})</span>
+                                ${item.note ? `<br><span class="order-notes-box"><strong>Notes:</strong> ${item.note}</span>` : ''}
+                            </li>
+                        `;
+                    });
+                    html += `</ul>`;
+                }
+
+                html += `<div style="margin-bottom: 8px; font-weight: 600; font-size: 13px; color: #334155;">Országos szállítások (${data.pxpNational.length} db):</div>`;
+                if (data.pxpNational.length === 0) {
+                    html += `<div class="empty-state">Nincs országos PannonXP csomag.</div>`;
+                } else {
+                    html += `<ul class="item-list">`;
+                    data.pxpNational.forEach(item => {
+                        const cleanNum = item.orderId.replace('#', '');
+                        html += `
+                            <li>
+                                <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - 
+                                ${item.city} <span class="meta-detail">(${item.workdays})</span>
+                                ${item.wrongShip ? `<span class="sub-tag tag-wrong-ship">${item.wrongShip}</span>` : ''}
+                                ${item.note ? `<br><span class="order-notes-box"><strong>Notes:</strong> ${item.note}</span>` : ''}
+                            </li>
+                        `;
+                    });
+                    html += `</ul>`;
+                }
+            }
+            html += `</div>`;
+
+            // 7. LEZÁRATLAN FUTÁR ELSZÁMOLÁSOK (> 2 munkanap, nem LétaiSela)
+            html += `
+                <div class="report-section">
+                    <div class="section-title">
+                        <span>7. Lezáratlan Futár Elszámolások (&gt; 2 munkanap)</span>
+                        <span class="section-badge ${data.unsettledRuns.length ? 'badge-warning' : 'badge-ok'}">
+                            ${data.unsettledRuns.length ? data.unsettledRuns.length + ' fuvar' : 'Minden fuvar elszámolva'}
+                        </span>
+                    </div>
+            `;
+            if (data.unsettledRuns.length === 0) {
+                html += `<div class="empty-state">Nincs 2 munkanapnál régebbi nyitott, elszámolatlan fuvar (a LétaiSela fuvarok nem riasztanak).</div>`;
+            } else {
+                html += `<ul class="item-list">`;
+                data.unsettledRuns.forEach(item => {
+                    html += `
+                        <li class="warn-item">
+                            <strong>${item.driver}</strong> fuvar - Kiszállítás napja: ${item.date}
+                            <span class="meta-detail">— Utánvét egyenleg: <strong>${item.codTotal}</strong></span>
+                            ${item.note ? `<br><span class="order-notes-box"><strong>Notes:</strong> ${item.note}</span>` : ''}
+                        </li>
+                    `;
+                });
+                html += `</ul>`;
+            }
+            html += `</div>`;
+
+            html += `
+                <div class="footer-note">
+                    Ez egy automatikus reggeli összefoglaló a Kiszedési Jegyzék és Terítés rendszerből.<br>
+                    Generálva: ${data.dateText} — Panelburkolat
+                </div>
+            `;
+
+            document.getElementById('email-subject-display').innerText = "Tárgy: " + data.subject;
+            document.getElementById('email-body-content').innerHTML = html;
+        }
+
+        function showScenario(name) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            const btn = event ? event.target : document.querySelector('.tab-btn');
+            if (btn) btn.classList.add('active');
+
+            renderEmail(scenarios[name] || scenarios.actual);
+        }
+
+        // Kezdő renderelés az aktuális éles adatokkal
+        renderEmail(scenarios.actual);
+    </script>
+</body>
+</html>
