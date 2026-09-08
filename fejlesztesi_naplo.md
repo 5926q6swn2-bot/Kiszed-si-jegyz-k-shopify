@@ -46,6 +46,12 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+### 2026. szeptember 8. (10. frissítés) - Riport Szövegezés Finomítása & Kompakt Dátum Időzítés Szekció (`v4.5.4`)
+- **Szövegezési Pontosítások**:
+  - *"— viszonteladói megrendeléseken kívül"* (korábbi *"kizárva"* helyett).
+  - *"Jelenleg összesen 51 db unfulfilled rendelés van a Shopify-ban."* (a felesleges *"teljesítésre váró lakossági"* magyarázat eltávolítva).
+- **Kompakt Időzített Értesítések Szekció**: A 0. Mai napra időzített értesítések szekció teljesen illeszkedik az e-mail többi szekciójának dizájnjához, letisztult, kis helyigényű `report-section` elrendezéssel.
+
 ### 2026. szeptember 8. (9. frissítés) - Kritikus Működési Riasztások Garantált Megjelenítése (`v4.5.3`)
 - **Kritikus Riasztások Elsőbbsége**: Ha egy rendelésnek kritikus számlázási elakadása (Számla nélküli rendelés terítésben), szállítási címhibája (hiányzó házszám), hibás szállítási módja (2.300 Ft budapesti szállítás vidékre) vagy hiányzó díjbekérője van, az **MINDIG RIASZT** a megfelelő 1-3. szekcióban. Ezeket a kritikus elakadásokat sem a `[ok]`, sem a jövőbeli dátum tag (`[09.15]`) nem némíthatja el, mert az azonnali beavatkozást igénylő operatív információ.
 - **Egyeztetett / Halasztható Tételek Elnémítása**: A `[ok]` és jövőbeli dátum tag-ek kizárólag a halasztható, megbeszélt tételeket (pl. elnapolt személyes átvételt vagy Sela határidőt) némítják el hétköznapokon az időzített napig.

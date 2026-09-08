@@ -795,8 +795,8 @@
                 <div class="stats-summary-box">
                     Jó reggelt!<br><br>
                     ${isMonday ? '<strong>[HÉTFŐI REGGELI RIPORT]</strong><br>' : ''}
-                    Tegnap reggel 07:00 óta <strong>${data.newOrders24h} db új rendelés</strong> érkezett (ebből <span class="stat-pill"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#eab308;"></span> Unfulfilled: ${data.newUnfulfilled24h} db</span> — <em>viszonteladói rendelések kizárva</em>).<br>
-                    Jelenleg összesen <strong>${data.unfulfilledCount} db unfulfilled (teljesítésre váró lakossági) rendelés</strong> van a Shopify-ban.<br><br>
+                    Tegnap reggel 07:00 óta <strong>${data.newOrders24h} db új rendelés</strong> érkezett (ebből <span class="stat-pill"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#eab308;"></span> Unfulfilled: ${data.newUnfulfilled24h} db</span> — <em>viszonteladói megrendeléseken kívül</em>).<br>
+                    Jelenleg összesen <strong>${data.unfulfilledCount} db unfulfilled rendelés</strong> van a Shopify-ban.<br><br>
                     ${isMonday 
                         ? 'Az alábbiakban találod a mai aktív teendőket, az e-mail alján pedig a <strong>Hétfői Felülvizsgálatra gyűjtött korábban egyeztetett [ok] rendeléseket</strong>:' 
                         : 'Az alábbiakban találod a mai napra vonatkozó aktív logisztikai és számlázási teendőket (a <code>[ok]</code> megjegyzéses rendelések elnémítva):'}
@@ -805,10 +805,11 @@
 
             // 0. DÁTUMHOZ KÖTÖTT ÉRTESÍTÉSEK
             html += `
-                <div class="report-section" style="border-left: 4px solid #2563eb; background: #f0f9ff; margin-bottom: 22px;">
+                <div class="report-section">
                     <div class="section-title">
-                        <span><i class="ph-bold ph-bell-ringing" style="color: #2563eb; font-size: 17px;"></i> Mai Napra Időzített Értesítések — [${currentTargetTag}]</span>
-                        <span class="section-badge ${scheduledTodayItems.length ? 'badge-alert' : 'badge-ok'}" style="background: ${scheduledTodayItems.length ? '#dbeafe' : '#f1f5f9'}; color: ${scheduledTodayItems.length ? '#1e40af' : '#64748b'};">
+                        <span>Mai napra időzített értesítések — [${currentTargetTag}]</span>
+                        <span class="section-badge ${scheduledTodayItems.length ? 'badge-alert' : 'badge-ok'}">
+                            <i class="ph-bold ${scheduledTodayItems.length ? 'ph-bell-ringing' : 'ph-check-circle'}"></i>
                             ${scheduledTodayItems.length ? scheduledTodayItems.length + ' db mai értesítés' : 'Nincs mai emlékeztető'}
                         </span>
                     </div>
@@ -820,9 +821,10 @@
                 scheduledTodayItems.forEach(item => {
                     const cleanNum = item.orderId.replace('#', '');
                     html += `
-                        <li class="alert-item" style="background: #ffffff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(37,99,235,0.08);">
-                            <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - <strong>${item.billing}</strong> 
-                            <span class="sub-tag" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">${item.category}</span>
+                        <li class="alert-item">
+                            <a href="${adminBase}${cleanNum}" class="order-link" target="_blank">${item.orderId}</a> - 
+                            <strong>${item.billing}</strong> 
+                            <span class="sub-tag" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; padding: 1px 7px; border-radius: 5px; font-size: 11px; font-weight: 700;"><i class="ph-bold ph-clock"></i> ${item.category}</span>
                             ${renderNotesBox(item.note)}
                         </li>
                     `;
@@ -830,6 +832,7 @@
                 html += `</ul>`;
             }
             html += `</div>`;
+
 
             // 1. SZÁMLÁZÁSI ELAKADÁSOK
             html += `
