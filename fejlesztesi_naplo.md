@@ -46,6 +46,14 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+### 2026. szeptember 8. (6. frissítés) - Intelligens `[ok]` Megjegyzés Szűrés & Hétfői Felülvizsgálati Szekció (`morning_report_preview.html`)
+- **Felhasználói igény**: Ha a megjegyzésbe be van írva egy egyeztetés (pl. `09.09-ig átveszi [ok]`), a rendelés ne riasszon nap mint nap a reggeli riportban a hétköznapokon, és csak hétfőnként jelenjen meg egy külön felülvizsgálati szekcióban.
+- **Megvalósított logika & védelem**:
+  - **Garantáltan 0% téves találat (`[ok]` jelölés)**: Kizárólag a szögletes zárójeles `[ok]` jelölésre kapcsol be az elnémítás (így pl. a *"nem sikerült egyeztetni"* mondat véletlenül sem némítja el a riasztást).
+  - **Kedd – Vasárnap (Hétköznapi működés)**: A `[ok]` megjegyzésű nyitott rendelések el vannak némítva a napi piros/sárga riasztásokból (így a napi riport 100%-ban tiszta marad).
+  - **Hétfő Reggel (Heti felülvizsgálat)**: A nyitott `[ok]` megjegyzéses rendelések a riport alján megjelennek egy külön **"8. Egyeztetett rendelések (Hétfői felülvizsgálat) — [ok]"** szekcióban.
+  - **Interaktív Előnézet (`morning_report_preview.html`)**: Hozzáadva a *"Hétköznap (Kedd-Vasárnap)"* vs. *"Hétfő Reggel (Heti Felülvizsgálat)"* kapcsoló gombok, amelyekkel valós időben megtekinthető a két állapot közötti működés.
+
 ### 2026. szeptember 8. (5. frissítés) - Rendelésáttekintő Szín- és UI Logika 100%-os Harmonizációja (`morning_report_preview.html`)
 - **Felhasználói visszajelzés**: A színek és a UI logika passzoljon 100%-ban a Rendelésáttekintő felületéhez.
 - **Végrehajtott finomhangolások**:
