@@ -1586,8 +1586,8 @@ function checkAndTriggerMorningReportCron() {
   const hours = now.getHours();
   const minutes = now.getMinutes();
 
-  // 06:50 AM - Elő-ébresztés és PannonXP szinkronizáció
-  if (day >= 1 && day <= 5 && hours === 6 && minutes >= 50 && minutes < 55) {
+  // 06:50 AM - Elő-ébresztés és PannonXP szinkronizáció (minden nap)
+  if (hours === 6 && minutes >= 50 && minutes < 55) {
     const todayPreStr = now.toISOString().slice(0, 10) + '_pre';
     if (lastPreWakeDateStr !== todayPreStr) {
       lastPreWakeDateStr = todayPreStr;
