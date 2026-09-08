@@ -1003,6 +1003,17 @@ const orderAkupanel = {
 };
 assertEqual("Auto PXP Order - Akusztikus panel + Ragasztó -> Eligible", isEligibleForAutoPannonXp(orderAkupanel), true);
 
+const orderResellerPxpCheck = {
+    id: "#6002-R",
+    fulfillment_status: "unfulfilled",
+    tags: "viszonteladó",
+    shipping_address: { address1: "Petőfi u. 2" },
+    line_items: [
+        { name: "Prémium Akusztikus Falpanel - Wide Pecan", sku: "W-PEC", quantity: 2 }
+    ]
+};
+assertEqual("Auto PXP Order - Reseller Order -> NOT Eligible", isEligibleForAutoPannonXp(orderResellerPxpCheck), false);
+
 const orderGlueAndProfile = {
     id: "#6002",
     fulfillment_status: "unfulfilled",

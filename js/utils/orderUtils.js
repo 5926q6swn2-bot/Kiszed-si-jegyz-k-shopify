@@ -262,6 +262,9 @@ export function isEligibleForAutoPannonXp(order) {
     const fStatus = String(order.fulfillmentStatus || order.fulfillment_status || '').toLowerCase();
     if (fStatus === 'fulfilled') return false;
 
+    // Viszonteladói rendelések kizárása (csak lakossági rendelések kaphatnak automatikus PannonXP címkét)
+    if (isResellerOrder(order)) return false;
+
     const tagsLower = String(order.tags || '').toLowerCase();
     const tagsList = tagsLower.split(',').map(t => t.trim()).filter(Boolean);
 
