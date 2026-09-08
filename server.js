@@ -1524,14 +1524,13 @@ function checkAndTriggerMorningReportCron() {
   const now = new Date();
   const day = now.getDay(); // 1 = Mon, 2 = Tue, 3 = Wed, 4 = Thu, 5 = Fri
   const hours = now.getHours();
-  const minutes = now.getMinutes();
 
-  // Csak hétfőtől péntekig, reggel 07:00-kor
-  if (day >= 1 && day <= 5 && hours === 7 && minutes === 0) {
+  // Csak hétfőtől péntekig, reggel 07:00 óra után (ha aznap még nem futott le)
+  if (day >= 1 && day <= 5 && hours >= 7 && hours < 12) {
     const todayStr = now.toISOString().slice(0, 10);
     if (lastReportSentDateStr !== todayStr) {
       lastReportSentDateStr = todayStr;
-      console.log(` [Reggeli Riport Cron] 07:00 AM reggeli riport automatikus generálása és küldése indult (${todayStr})...`);
+      console.log(` [Reggeli Riport Cron] Reggeli riport automatikus generálása és küldése indult (${todayStr}, ${hours}:${String(now.getMinutes()).padStart(2, '0')})...`);
       triggerMorningReportSend();
     }
   }
@@ -1540,8 +1539,11 @@ function checkAndTriggerMorningReportCron() {
 // 60 másodpercenkénti automatikus időzítő ellenőrzés
 setInterval(checkAndTriggerMorningReportCron, 60 * 1000);
 
+// Szerver indulásakor is azonnal leellenőrizzük, hogy kell-e pótolni a mai riportot
+setTimeout(checkAndTriggerMorningReportCron, 5000);
+
 server.listen(PORT, () => {
  console.log(` Szerver fut: http://localhost:${PORT}/`);
  console.log(` Shopify Auth URL: http://localhost:${PORT}/api/shopify/auth`);
- console.log(` Reggeli Riport automatikus időzítés aktív (Minden hétköznap 07:00 AM)`);
+ console.log(` Reggeli Riport automatikus időzítés aktív (Minden hétköznap reggel 07:00-tól pótlási funkcióval)`);
 });
