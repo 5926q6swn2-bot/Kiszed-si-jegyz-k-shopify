@@ -243,7 +243,7 @@ export const ExporterService = {
     },
     SelaWeightService: SelaWeightService,
 
-    // 5b. 5 munkanapos szállítási határidő és feladási nap kalkulációja (10:30 levágási idővel)
+    // 5b. 5 munkanapos szállítási határidő és feladási nap kalkulációja (11:00 levágási idővel)
     calculateSelaDates: function(fromDate, cutoffHour, cutoffMinute) {
         return calculateSelaDates(fromDate, cutoffHour, cutoffMinute);
     },
@@ -646,13 +646,13 @@ export function formatSelaDate(date) {
  * 
  * Szabály:
  * 1. Oszlop ("Dátum"):
- *    - Ha munkanapon délelőtt 10:30-ig (10:30-at is beleértve) indítjuk: aznap a feladás dátuma.
- *    - Ha 10:30 után, vagy hétvégén / munkaszüneti napon indítjuk: a rákövetkező első munkanap a feladás dátuma.
+ *    - Ha munkanapon délelőtt 11:00-ig (11:00-at is beleértve) indítjuk: aznap a feladás dátuma.
+ *    - Ha 11:00 után, vagy hétvégén / munkaszüneti napon indítjuk: a rákövetkező első munkanap a feladás dátuma.
  * 
  * 14. Oszlop ("Legkésőbbi kézbesítés"):
  *    - A feladási naptól (ami az 1. munkanap) számított pontosan 5 munkanap (azaz még 4 további munkanap hozzáadása).
  */
-export function calculateSelaDates(fromDate = new Date(), cutoffHour = 10, cutoffMinute = 30) {
+export function calculateSelaDates(fromDate = new Date(), cutoffHour = 11, cutoffMinute = 0) {
     const current = fromDate instanceof Date ? fromDate : new Date(fromDate);
     const hours = current.getHours();
     const minutes = current.getMinutes();
@@ -687,16 +687,16 @@ export function calculateSelaDates(fromDate = new Date(), cutoffHour = 10, cutof
     };
 }
 
-export function calculateSelaDeliveryDeadline(fromDate = new Date(), cutoffHour = 10, cutoffMinute = 30) {
+export function calculateSelaDeliveryDeadline(fromDate = new Date(), cutoffHour = 11, cutoffMinute = 0) {
     return calculateSelaDates(fromDate, cutoffHour, cutoffMinute).deadlineDate;
 }
 
-export function calculateSelaDispatchDate(fromDate = new Date(), cutoffHour = 10, cutoffMinute = 30) {
+export function calculateSelaDispatchDate(fromDate = new Date(), cutoffHour = 11, cutoffMinute = 0) {
     return calculateSelaDates(fromDate, cutoffHour, cutoffMinute).dispatchDate;
 }
 
 export function prepareSelaRowData(order, customCodMap = {}, customWeights = null, dispatchDate = new Date()) {
-    // 1. oszlop: Feladási nap (aznap ha 10:30-ig munkanapon, vagy az első munkanap)
+    // 1. oszlop: Feladási nap (aznap ha 11:00-ig munkanapon, vagy az első munkanap)
     // 14. oszlop: 5 munkanapos legkésőbbi kézbesítési határidő
     const selaDates = calculateSelaDates(dispatchDate);
     const dateStr = selaDates.dispatchDate;

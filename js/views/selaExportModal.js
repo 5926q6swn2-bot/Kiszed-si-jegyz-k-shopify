@@ -38,7 +38,7 @@ export const SelaExportModal = {
             return;
         }
 
-        // 1. 5 munkanapos kézbesítési határidő és feladási nap kalkulációja (10:30 levágási idővel)
+        // 1. 5 munkanapos kézbesítési határidő és feladási nap kalkulációja (11:00 levágási idővel)
         const now = new Date();
         const selaDates = ExporterService.calculateSelaDates 
             ? ExporterService.calculateSelaDates(now)
@@ -96,7 +96,7 @@ export const SelaExportModal = {
                             <i class="ph ph-trash"></i>
                         </button>
                     </td>
-                    <td><input type="text" class="sela-cell-input col-date" data-field="col1_date" value="${r.col1_date}" style="width: 82px; text-align: center; font-weight: 600;" title="Indítás / feladás dátuma (aznap ha 10:30-ig, egyébként az első munkanap)"></td>
+                    <td><input type="text" class="sela-cell-input col-date" data-field="col1_date" value="${r.col1_date}" style="width: 82px; text-align: center; font-weight: 600;" title="Indítás / feladás dátuma (aznap ha 11:00-ig, egyébként az első munkanap)"></td>
                     <td>
                         <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
                             <input type="text" class="sela-cell-input col-order" data-field="col2_orderId" value="${r.col2_orderId}" style="width: 65px; font-weight:700;">
@@ -205,7 +205,7 @@ export const SelaExportModal = {
                             <div>
                                 <strong>Feladás (1. oszlop):</strong> 
                                 <span style="color: #15803d; font-weight: 600;">${defaultDispatchDate}</span>
-                                <span style="color: #64748b; font-size: 11px;">(${isWorkdayBeforeCutoff ? '✅ Mai nap, 10:30-ig indítva' : '⏰ 10:30 után / hétvége / munkaszünet: első munkanap'})</span>
+                                <span style="color: #64748b; font-size: 11px;">(${isWorkdayBeforeCutoff ? '✅ Mai nap, 11:00-ig indítva' : '⏰ 11:00 után / hétvége / munkaszünet: első munkanap'})</span>
                                 <span style="margin: 0 8px; color: #86efac;">|</span>
                                 <strong>5 munkanapos kézbesítés (utolsó oszlop):</strong>
                                 <strong style="color: #047857; font-size: 12.5px;">${defaultDeadline}</strong>
@@ -236,7 +236,7 @@ export const SelaExportModal = {
                             <tr>
                                 <th style="width:30px; text-align:center;">#</th>
                                 <th style="width:36px; text-align:center;" title="Rendelés kihagyása az exportból">Kuka</th>
-                                <th style="width:82px; text-align:center;" title="Indítás dátuma: aznap ha 10:30-ig küldjük, egyébként az első munkanap">Dátum</th>
+                                <th style="width:82px; text-align:center;" title="Indítás dátuma: aznap ha 11:00-ig küldjük, egyébként az első munkanap">Dátum</th>
                                 <th style="width:115px;">Rendelés</th>
                                 <th style="width:55px;">Irsz.</th>
                                 <th style="width:110px;">Település</th>

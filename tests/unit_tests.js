@@ -1524,28 +1524,28 @@ assertEqual("MultiCat Missing Sort - 3rd is PB-01", testMissingMultiCat[2].name,
 assertEqual("MultiCat Missing Sort - 4th is PB-02", testMissingMultiCat[3].name, "PB-02 Falpanel");
 assertEqual("MultiCat Missing Sort - 5th is T-Rex", testMissingMultiCat[4].name, "T-Rex ragasztó");
 
-// --- 5 Munkanapos Kézbesítési Határidő Kalkuláció Tesztek (10:30 levágási idővel) ---
-// Hétfő 09:00 (10:30 előtt) -> Hétfő még az 1. munkanap -> Péntek (2026.09.11)
+// --- 5 Munkanapos Kézbesítési Határidő Kalkuláció Tesztek (11:00 levágási idővel) ---
+// Hétfő 09:00 (11:00 előtt) -> Hétfő még az 1. munkanap -> Péntek (2026.09.11)
 const monBeforeCutoff = calculateSelaDeliveryDeadline(new Date(2026, 8, 7, 9, 0));
-assertEqual("Sela Deadline - Hétfő 09:00 (10:30 előtt) -> Péntek", monBeforeCutoff, "2026.09.11");
+assertEqual("Sela Deadline - Hétfő 09:00 (11:00 előtt) -> Péntek", monBeforeCutoff, "2026.09.11");
 
-// Hétfő 10:30 (pontosan a levágáskor) -> Hétfő még az 1. munkanap -> Péntek (2026.09.11)
-const monAtCutoff = calculateSelaDeliveryDeadline(new Date(2026, 8, 7, 10, 30));
-assertEqual("Sela Deadline - Hétfő 10:30 (határon) -> Péntek", monAtCutoff, "2026.09.11");
+// Hétfő 11:00 (pontosan a levágáskor) -> Hétfő még az 1. munkanap -> Péntek (2026.09.11)
+const monAtCutoff = calculateSelaDeliveryDeadline(new Date(2026, 8, 7, 11, 0));
+assertEqual("Sela Deadline - Hétfő 11:00 (határon) -> Péntek", monAtCutoff, "2026.09.11");
 
-// Hétfő 10:31 (10:30 után) -> Kedd az 1. munkanap -> Következő Hétfő (2026.09.14)
-const monAfterCutoff = calculateSelaDeliveryDeadline(new Date(2026, 8, 7, 10, 31));
-assertEqual("Sela Deadline - Hétfő 10:31 (10:30 után) -> Következő Hétfő", monAfterCutoff, "2026.09.14");
+// Hétfő 11:01 (11:00 után) -> Kedd az 1. munkanap -> Következő Hétfő (2026.09.14)
+const monAfterCutoff = calculateSelaDeliveryDeadline(new Date(2026, 8, 7, 11, 1));
+assertEqual("Sela Deadline - Hétfő 11:01 (11:00 után) -> Következő Hétfő", monAfterCutoff, "2026.09.14");
 
-// Hétfő délután 14:00 (10:30 után) -> Kedd az 1. munkanap -> Következő Hétfő (2026.09.14)
+// Hétfő délután 14:00 (11:00 után) -> Kedd az 1. munkanap -> Következő Hétfő (2026.09.14)
 const monAfternoon = calculateSelaDeliveryDeadline(new Date(2026, 8, 7, 14, 0));
 assertEqual("Sela Deadline - Hétfő 14:00 -> Következő Hétfő", monAfternoon, "2026.09.14");
 
-// Péntek 09:00 (10:30 előtt) -> Péntek az 1. munkanap -> Következő Csütörtök (2026.09.17)
+// Péntek 09:00 (11:00 előtt) -> Péntek az 1. munkanap -> Következő Csütörtök (2026.09.17)
 const friBeforeCutoff = calculateSelaDeliveryDeadline(new Date(2026, 8, 11, 9, 0));
 assertEqual("Sela Deadline - Péntek 09:00 -> Következő Csütörtök", friBeforeCutoff, "2026.09.17");
 
-// Péntek 14:00 (10:30 után) -> Hétfő az 1. munkanap -> Következő Péntek (2026.09.18)
+// Péntek 14:00 (11:00 után) -> Hétfő az 1. munkanap -> Következő Péntek (2026.09.18)
 const friAfternoon = calculateSelaDeliveryDeadline(new Date(2026, 8, 11, 14, 0));
 assertEqual("Sela Deadline - Péntek 14:00 -> Következő Péntek", friAfternoon, "2026.09.18");
 

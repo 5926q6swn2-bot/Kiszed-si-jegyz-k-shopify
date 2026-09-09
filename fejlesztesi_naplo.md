@@ -46,6 +46,16 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
+### 2026. szeptember 9. (1. frissítés) - Sela Export Vágási Idő Módosítása 11:00-ra (`v4.5.6`)
+- **Vágási idő frissítése (Cutoff time)**: A Sela szállítói export vágási ideje 10:30-ról **11:00**-ra lett módosítva.
+- **Logika és UI illeszkedés**:
+  - Munkanapon délelőtt **11:00-ig** (11:00:00-t is beleértve) történő indításkor a feladás dátuma (1. oszlop) a mai nap marad.
+  - **11:00 után** (vagy hétvégén/munkaszüneti napon) indítva a rendszer automatikusan a rákövetkező első munkanapra állítja a feladás dátumát.
+  - Az export modál tájékoztató szövegei és súgó buborékai frissítve lettek `11:00`-ra.
+- **460/460 Sikeres Unit Teszt**: A tesztkészlet frissítve lett az 11:00-s levágási időre, 100%-osan zöld.
+
+---
+
 ### 2026. szeptember 8. (11. frissítés) - Riport UI Tisztítás, Diszkrét Időzített Tag-ek & Díjbekérő `[ok]` Szűrés (`v4.5.5`)
 - **Felesleges Zárómondat Törlése**: A riport fejléci statisztikai kártyájából törölve lett a felesleges magyarázó mondat (*"Az alábbiakban találod a mai napra vonatkozó aktív logisztikai és számlázási teendőket..."*).
 - **Diszkrét Dátum Időzített Tag-ek (0. szekció)**: A 0. Mai Napra Időzített Értesítések szekcióban az elavult belső kategória feliratok ("Sela határidő", "Régi személyes átvétel") helyett letisztult, diszkrét tag-ek jelennek meg:
