@@ -43,6 +43,17 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 2. 🔒 **Opcionális Céges PIN Kód / Belépési Védelem a Felhős Címhez**:
    - Igény esetén egyszerű PIN kódos védelem hozzáadása, hogy idegenek ne láthassák a rendelési adatokat a publikus linken.
 
+3. 🛡️ **Feketelista Kezelő (Blacklist Manager) & Automata Kockázatos Vevő Szűrés**:
+   - Megbízhatatlan / lebeszélt időpontban át nem vett rendelések vevőinek központi rögzítése (többszörös telefonszámok, szállítási címek, nevek, e-mail címek + indoklás).
+   - Új Shopify rendelés letöltésekor automatikus egyeztetés a feketelistával, és azonnali piros figyelmeztető doboz generálása a raktári felületen (opcionális automatikus `feketelista` tageléssel a Shopify-ban).
+
+
+---
+
+### 2026. szeptember 9. (2. frissítés) - Gyorsított Valós Idejű Háttér-Szinkronizáció (6 mp Polling) (`v4.5.7`)
+- **Háttér-időzítő gyorsítása**: A rendszeres automatikus háttér-szinkronizáció időköze 15 másodpercről **6 másodpercre** lett lecsökkentve (`setInterval 6000ms`).
+- **Fókuszváltási throtling finomhangolás**: A böngészőlapra történő visszakattintáskor a fókuszváltási védelem 3 másodpercről **1 másodpercre** lett csökkentve, így ha a Shopify-ban végzett módosítás után visszatérsz az alkalmazásba, a frissítés azonnal lefut.
+- **Eredmény**: A Shopify-ban vagy másik gépen történt státusz-, tag- és megjegyzés változások csaknem valós időben (pár másodpercen belül) megjelennek a képernyőn.
 
 ---
 

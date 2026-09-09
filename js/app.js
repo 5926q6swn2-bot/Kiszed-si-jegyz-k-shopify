@@ -318,8 +318,8 @@ function initApp() {
     let lastFocusRefreshTime = 0;
     const triggerQuietRefresh = () => {
         const now = Date.now();
-        // Maximum 3 másodpercenként egyszer frissít fókuszváltáskor
-        if (now - lastFocusRefreshTime > 3000) {
+        // Maximum 1 másodpercenként egyszer frissít fókuszváltáskor
+        if (now - lastFocusRefreshTime > 1000) {
             lastFocusRefreshTime = now;
             loadLiveShopifyOrders(false);
         }
@@ -332,12 +332,12 @@ function initApp() {
         }
     });
 
-    // 2. Rendszeres 15 másodperces háttér-szinkronizáció (Heartbeat polling)
+    // 2. Rendszeres 6 másodperces háttér-szinkronizáció (Gyors Heartbeat polling)
     setInterval(() => {
         if (document.visibilityState === 'visible') {
             loadLiveShopifyOrders(false);
         }
-    }, 15000);
+    }, 6000);
 
     // --- RENDELÉSÁTTEKINTŐ RENDERELŐ & ESEMÉNYKEZELŐ ---
     function renderOverview() {
