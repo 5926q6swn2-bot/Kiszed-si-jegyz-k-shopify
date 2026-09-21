@@ -29,7 +29,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.8 Flash (High)
-- **Státusz**: A rendszer stabil, Render felhőre kész. Elszámolások egységes időrendi nézetben (függő terítések felül rögzítve, elszámoláskor automatikus visszaugrással), futárnevek egységesítve és céghez kötött legördülő választóval ellátva, Sela exportban az akusztikus panelek a sima panelekkel egyben számolva és külön oszlop kivezetve (v4.6.7, 522/522 zöld unit teszt).
+- **Státusz**: A rendszer stabil, Render felhőre kész. Elszámolások egységes időrendi nézetben (v4.6.7, 522/522 zöld unit teszt). Futár terminál utánvét elszámolások auditálva (3 Excel fájl vs. Előzmények adatbázis).
 
 
 ---
@@ -51,6 +51,14 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
    - Megbízhatatlan / lebeszélt időpontban át nem vett rendelések vevőinek központi rögzítése (többszörös telefonszámok, szállítási címek, nevek, e-mail címek + indoklás).
    - Új Shopify rendelés letöltésekor automatikus egyeztetés a feketelistával, és azonnali piros figyelmeztető doboz generálása a raktári felületen (opcionális automatikus `feketelista` tageléssel a Shopify-ban).
 
+### 2026. szeptember 21. (10. frissítés) - Terminál Utánvét Elszámolások Auditálása & History Sync Frissítés
+- **Futár Előzmények Szinkronizáció Részletezése (`js/services/history.js`)**:
+  - A `HistoryManager.doSync` metódus frissítésre került, hogy a felületről ne csak darabszámos összefoglalót, hanem a **teljes rendelési struktúrát** (rendelésszámok, kártyás/készpénzes összegek, vevőnevek, kiegyenlítési és átutalási státuszok) szinkronizálja a fejlesztői háttérszolgáltatás felé (`/api/debug/sync-couriers`).
+  - Unit tesztek lefutva és hiánytalanul zöldek (522 / 522 sikeres).
+- **3 Terminál Utánvét Excel Fájl Elemzése a Saját Előzmények Adatbázissal Szemben**:
+  - **Fájlok átvizsgálva**: 2026.06.30 - 07.31 (52 rendelés), 2026.08.03 - 08.13 (31 rendelés), 2026.08.17 - 08.31 (37 rendelés).
+  - **Feltárt eltérés (#3831 - Molnárné Kiszely Mária)**: A futár 2026.08.28-án átvett 13 920 Ft kártyás utánvétet, azonban a 3. Excel táblázat főtáblázatából kimaradt ez a tétel.
+  - **Duplázás feltárása (#3035 és #3247)**: A 3. Excel táblázat aljára lábjegyzetként hozzáfűzött 2 rendelés (275 739 Ft) az 1. táblázatban már szerepelt és el lett számolva, így a 3. időszak bruttó időszaki összege 4 890 180 Ft (35 rendelés), a valós kötelezettség pedig a kimaradt #3831-el együtt 4 904 100 Ft (36 rendelés).
 
 ### 2026. szeptember 21. (9. frissítés) - Sela Export: Akusztikus Panelek Összevonása Sima Panelekkel & Közös Oszlop (`v4.6.7`)
 - **Akusztikus Panelek Sima Panelként Történő Számolása (`exporter.js`)**:

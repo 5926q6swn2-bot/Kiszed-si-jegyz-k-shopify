@@ -13,20 +13,33 @@ export const HistoryManager = {
             const now = Date.now();
 
             const doSync = (list) => {
-                if (Array.isArray(list) && list.length > 0 && typeof window !== 'undefined' && window.fetch && !window._historyCouriersSynced) {
-                    window._historyCouriersSynced = true;
+                if (Array.isArray(list) && list.length > 0 && typeof window !== 'undefined' && window.fetch) {
                     try {
-                        const summary = list.map(r => ({
+                        const fullRuns = list.map(r => ({
                             id: r.id || r.docId,
+                            docId: r.docId,
                             date: r.date || '',
                             company: r.company || '',
                             courier: r.courier || '',
-                            ordersCount: (r.orders || []).length
+                            isSettled: r.isSettled || false,
+                            isTransferSettled: r.isTransferSettled || false,
+                            settledAmount: r.settledAmount || 0,
+                            bankTransferredOrderIds: r.bankTransferredOrderIds || [],
+                            uncollectedOrderIds: r.uncollectedOrderIds || [],
+                            paymentMethods: r.paymentMethods || {},
+                            paymentStatusMap: r.paymentStatusMap || {},
+                            orders: (r.orders || []).map(o => ({
+                                id: o.id,
+                                isCOD: o.isCOD,
+                                codAmount: o.codAmount,
+                                shippingName: o.shippingName,
+                                isReturn: o.isReturn || false
+                            }))
                         }));
                         window.fetch('/api/debug/sync-couriers', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(summary)
+                            body: JSON.stringify(fullRuns)
                         }).catch(() => {});
                     } catch (e) {}
                 }
