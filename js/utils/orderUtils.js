@@ -12,11 +12,12 @@ export function buildDuplicateCustomerOrdersMap(allOrders) {
     const duplicateMap = new Map();
     if (!Array.isArray(allOrders) || allOrders.length === 0) return duplicateMap;
 
-    // Csak a még NEM teljesített és NEM törölt rendeléseket vizsgáljuk
+    // Csak a még NEM teljesített, NEM törölt és NEM viszonteladói rendeléseket vizsgáljuk
     const activeOrders = allOrders.filter(o => 
         !o.isCancelled && 
         !o.isFulfilled && 
-        (o.fulfillmentStatus === 'unfulfilled' || o.fulfillmentStatus === 'partial' || !o.fulfillmentStatus)
+        (o.fulfillmentStatus === 'unfulfilled' || o.fulfillmentStatus === 'partial' || !o.fulfillmentStatus) &&
+        !isResellerOrder(o)
     );
 
     if (activeOrders.length < 2) return duplicateMap;

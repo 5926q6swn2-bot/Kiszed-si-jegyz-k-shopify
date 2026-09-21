@@ -53,6 +53,9 @@ import {
     SelaWeightService 
 } from '../js/services/selaWeightService.js';
 import { ensureSelaModalStyles } from '../js/views/selaModalStyles.js';
+import fs from 'fs';
+import cp from 'child_process';
+import path from 'path';
 
 
 
@@ -674,10 +677,10 @@ assertEqual("Sela Classify - SPC Falpanel", classifyItemForSela({ name: "SPC Fal
 assertEqual("Sela Classify - SPC Padlózat", classifyItemForSela({ name: "SPC Padlózat Natúr Tölgy" }), 'pvc_spc_floor');
 assertEqual("Sela Classify - Laminált Padló", classifyItemForSela({ name: "Laminált padló Vörös" }), 'pvc_spc_floor');
 assertEqual("Sela Classify - TR PVC Kombó (Egyetlen számlálás)", classifyItemForSela({ name: "TR PVC falpanel 280cm" }), 'pvc_spc_floor');
-assertEqual("Sela Classify - Akupanel", classifyItemForSela({ name: "Akupanel Dió 240cm" }), 'acoustic');
-assertEqual("Sela Classify - Prémium Akusztikus", classifyItemForSela({ name: "Prémium Akusztikus Falpanel - Tölgy" }), 'acoustic');
-assertEqual("Sela Classify - Wide Akusztikus", classifyItemForSela({ name: "Wide Akusztikus Falpanel Pecan" }), 'acoustic');
-assertEqual("Sela Classify - Wide Acoustic", classifyItemForSela({ name: "Wide Acoustic Panel Grey" }), 'acoustic');
+assertEqual("Sela Classify - Akupanel (Panelként számolva)", classifyItemForSela({ name: "Akupanel Dió 240cm" }), 'pvc_spc_floor');
+assertEqual("Sela Classify - Prémium Akusztikus (Panelként számolva)", classifyItemForSela({ name: "Prémium Akusztikus Falpanel - Tölgy" }), 'pvc_spc_floor');
+assertEqual("Sela Classify - Wide Akusztikus (Panelként számolva)", classifyItemForSela({ name: "Wide Akusztikus Falpanel Pecan" }), 'pvc_spc_floor');
+assertEqual("Sela Classify - Wide Acoustic (Panelként számolva)", classifyItemForSela({ name: "Wide Acoustic Panel Grey" }), 'pvc_spc_floor');
 assertEqual("Sela Classify - T-Rex Ragasztó", classifyItemForSela({ name: "T-Rex Gold ragasztó" }), 'adhesive');
 assertEqual("Sela Classify - HPR Ragasztó", classifyItemForSela({ name: "HPR ragasztó 290ml" }), 'adhesive');
 assertEqual("Sela Classify - Szilikon", classifyItemForSela({ name: "Szilikon transzparens" }), 'adhesive');
@@ -756,8 +759,8 @@ const orderWithCodAndTapadohid = {
     ]
 };
 const row1 = prepareSelaRowData(orderWithCodAndTapadohid);
-assertEqual("Sela Row 1 - PVC/SPC Qty", row1.col8_pvcSpcFloorQty, 4);
-assertEqual("Sela Row 1 - Acoustic Qty", row1.col9_acousticQty, 2);
+assertEqual("Sela Row 1 - PVC/SPC és Akusztikus Panel Qty (4+2=6)", row1.col8_pvcSpcFloorQty, 6);
+assertEqual("Sela Row 1 - Acoustic Qty is 0 (nem külön számolva)", row1.col9_acousticQty, 0);
 assertEqual("Sela Row 1 - Glue Qty", row1.col10_adhesivesQty, 3);
 assertEqual("Sela Row 1 - Profile Qty", row1.col11_profilesQty, 2);
 assertEqual("Sela Row 1 - COD and Tapadohid Text", row1.col12_codAndTapadohid, "45 000 Ft, 3db tapadóhíd");
@@ -822,16 +825,17 @@ assertEqual("Sela Custom Weights Calculation (2*20 + 1*8 + 3*1 + 4*1 + 1*2 = 57k
 
 const csvOutputDefault = generateSelaCsv([row1, row2, row3, rowNoNote]);
 assertEqual("Sela CSV Default - Has BOM", csvOutputDefault.startsWith("\ufeff"), true);
-assertEqual("Sela CSV Default - Header has 13 columns (deadline paused)", csvOutputDefault.split("\r\n")[0].split(";").length, 13);
-assertEqual("Sela CSV Default - Header col 13 (Weight)", csvOutputDefault.split("\r\n")[0].split(";")[12], "Összsúly (kg)");
+assertEqual("Sela CSV Default - Header has 12 columns (deadline paused)", csvOutputDefault.split("\r\n")[0].split(";").length, 12);
+assertEqual("Sela CSV Default - Header col 8 (Falpanelek)", csvOutputDefault.split("\r\n")[0].split(";")[7], "Falpanel és padlózatok (db)");
+assertEqual("Sela CSV Default - Header col 12 (Weight)", csvOutputDefault.split("\r\n")[0].split(";")[11], "Összsúly (kg)");
 
 const csvOutputWithDeadline = generateSelaCsv([row1, row2, row3, rowNoNote], true);
-assertEqual("Sela CSV With Deadline - Header has 14 columns", csvOutputWithDeadline.split("\r\n")[0].split(";").length, 14);
+assertEqual("Sela CSV With Deadline - Header has 13 columns", csvOutputWithDeadline.split("\r\n")[0].split(";").length, 13);
 assertEqual("Sela CSV With Deadline - Header col 1", csvOutputWithDeadline.split("\r\n")[0].split(";")[0], "\ufeffDátum");
-assertEqual("Sela CSV With Deadline - Header col 12", csvOutputWithDeadline.split("\r\n")[0].split(";")[11], "Utánvét összege / tapadóhíd");
-assertEqual("Sela CSV With Deadline - Header col 13 (Weight)", csvOutputWithDeadline.split("\r\n")[0].split(";")[12], "Összsúly (kg)");
-assertEqual("Sela CSV With Deadline - Header col 14 (Deadline)", csvOutputWithDeadline.split("\r\n")[0].split(";")[13], "Legkésőbbi kézbesítés");
-assertEqual("Sela CSV With Deadline - Row 1 contains calculated weight 90.55 kg", csvOutputWithDeadline.split("\r\n")[1].split(";")[12], "90.55 kg");
+assertEqual("Sela CSV With Deadline - Header col 11", csvOutputWithDeadline.split("\r\n")[0].split(";")[10], "Utánvét összege / tapadóhíd");
+assertEqual("Sela CSV With Deadline - Header col 12 (Weight)", csvOutputWithDeadline.split("\r\n")[0].split(";")[11], "Összsúly (kg)");
+assertEqual("Sela CSV With Deadline - Header col 13 (Deadline)", csvOutputWithDeadline.split("\r\n")[0].split(";")[12], "Legkésőbbi kézbesítés");
+assertEqual("Sela CSV With Deadline - Row 1 contains calculated weight 90.55 kg", csvOutputWithDeadline.split("\r\n")[1].split(";")[11], "90.55 kg");
 assertEqual("Sela CSV With Deadline - Row 3 contains nincs utánvét", csvOutputWithDeadline.includes("nincs utánvét"), true);
 
 // Függő utalás tesztek
@@ -1476,7 +1480,7 @@ const sampleRowForCsv = {
     col13_weight: 0.75
 };
 const csvWithKg = generateSelaCsv([sampleRowForCsv]);
-assertEqual("Sela CSV - Column 13 has '0.75 kg'", csvWithKg.split("\r\n")[1].split(";")[12], "0.75 kg");
+assertEqual("Sela CSV - Column 12 has '0.75 kg'", csvWithKg.split("\r\n")[1].split(";")[11], "0.75 kg");
 
 // Test Category ABC Sorting
 const testCategories = [
@@ -1601,11 +1605,11 @@ assertEqual("prepareSelaRowData - col14_deadline has 5-workday deadline (Friday)
 const customCsv = generateSelaCsv([rowWithCustomDate], true);
 const csvCols = customCsv.split("\r\n")[1].split(";");
 assertEqual("generateSelaCsv - col 1 is dispatch date", csvCols[0], "2026.09.07");
-assertEqual("generateSelaCsv - col 14 is latest delivery deadline", csvCols[13], "2026.09.11");
+assertEqual("generateSelaCsv - col 13 is latest delivery deadline", csvCols[12], "2026.09.11");
 
 const customCsvPaused = generateSelaCsv([rowWithCustomDate], false);
 const csvColsPaused = customCsvPaused.split("\r\n")[1].split(";");
-assertEqual("generateSelaCsv - 13 columns when deadline paused", csvColsPaused.length, 13);
+assertEqual("generateSelaCsv - 12 columns when deadline paused", csvColsPaused.length, 12);
 
 // --- HIÁNYZÓ SZÁMLA ÉS E-MAIL ÉRTESÍTŐ TESZTEK ---
 const orderMissingInv = { id: "#8001", shippingName: "Kovács Péter", tags: "pannonxp", totalAmount: 45000 };
@@ -2225,6 +2229,175 @@ const tueCutoff = calculateReportCutoffDate(tueRef);
 assertEqual("Cutoff - Kedd reggel isMonday false", tueCutoff.isMonday, false);
 assertEqual("Cutoff - Kedd reggel periodText 'Tegnap reggel 07:00 óta'", tueCutoff.periodText, "Tegnap reggel 07:00 óta");
 assertEqual("Cutoff - Kedd reggel dátum Hétfő (2026.09.07)", tueCutoff.cutoffDate.getDate(), 7);
+
+// 9. Terítés Törlés (Delete Run) Sanitization & Azonosító Egyeztetés Tesztek
+const sampleRunToDelete = {
+    id: "run_test_12345",
+    docId: "firestore_doc_abc",
+    date: "2026.09.21",
+    courier: "Bábel",
+    company: "LétaiSela",
+    orders: [
+        { id: "#4001", customerNotes: undefined, note: undefined, address2: undefined, shippingPhone: "06301234567" }
+    ],
+    quickDeliveryData: undefined,
+    uncollectedResponsibility: undefined
+};
+
+// 9a. Undefined értékek szanálása (JSON stringify/parse védelem)
+const rawTrash = { ...sampleRunToDelete, deletedAt: Date.now() };
+delete rawTrash.docId;
+const sanitizedTrash = JSON.parse(JSON.stringify(rawTrash));
+assertEqual("DeleteRun Szanálás - quickDeliveryData undefined eltávolítva", "quickDeliveryData" in sanitizedTrash, false);
+assertEqual("DeleteRun Szanálás - uncollectedResponsibility undefined eltávolítva", "uncollectedResponsibility" in sanitizedTrash, false);
+assertEqual("DeleteRun Szanálás - beágyazott address2 undefined eltávolítva", "address2" in sanitizedTrash.orders[0], false);
+assertEqual("DeleteRun Szanálás - docId nem került át a szemetesbe", "docId" in sanitizedTrash, false);
+assertEqual("DeleteRun Szanálás - érvényes mezők megmaradtak", sanitizedTrash.id, "run_test_12345");
+
+// 9b. Azonosító egyeztetés runId és docId alapján
+const mockRunsList = [
+    { id: "run_111", docId: "doc_aaa" },
+    { id: "run_222", docId: "doc_bbb" },
+    { id: undefined, docId: "doc_ccc_legacy" }
+];
+
+function findRunToMove(list, identifier, explicitDocId = null) {
+    return list.find(r => 
+        (r.id && r.id === identifier) || 
+        (r.docId && r.docId === identifier) || 
+        (explicitDocId && r.docId === explicitDocId)
+    );
+}
+
+assertEqual("DeleteRun Egyeztetés - runId alapján megtalálja", findRunToMove(mockRunsList, "run_111")?.docId, "doc_aaa");
+assertEqual("DeleteRun Egyeztetés - docId alapján megtalálja", findRunToMove(mockRunsList, "doc_bbb")?.id, "run_222");
+assertEqual("DeleteRun Egyeztetés - legacy hiányzó runId esetén explicit docId-val megtalálja", findRunToMove(mockRunsList, "", "doc_ccc_legacy")?.docId, "doc_ccc_legacy");
+
+// 9c. Optimista gyorsítótár szűrés multi-condition ellenőrzéssel
+let mockCache = [...mockRunsList];
+const targetRunId = "run_111";
+const targetDocId = "doc_aaa";
+const idStr = " run_111 ";
+const expDocStr = " doc_aaa ";
+const runToMoveRef = mockRunsList[0];
+
+const shouldFilterOut = (r) => {
+    if (!r) return false;
+    if (runToMoveRef && r === runToMoveRef) return true;
+    if (targetDocId && String(r.docId || '').trim() === String(targetDocId).trim()) return true;
+    if (targetRunId && String(r.id || '').trim() === String(targetRunId).trim()) return true;
+    if (idStr && (String(r.id || '').trim() === idStr.trim() || String(r.docId || '').trim() === idStr.trim())) return true;
+    if (expDocStr && String(r.docId || '').trim() === expDocStr.trim()) return true;
+    return false;
+};
+
+mockCache = mockCache.filter(r => !shouldFilterOut(r));
+assertEqual("DeleteRun Cache - Elemek száma 2 maradt törlés után", mockCache.length, 2);
+assertEqual("DeleteRun Cache - Törölt elem nincs a gyorsítótárban", mockCache.some(r => r.id === "run_111"), false);
+assertEqual("DeleteRun Cache - Whitespace trimming ellenére is törli", shouldFilterOut({ id: "run_111", docId: "other" }), true);
+assertEqual("DeleteRun Cache - Csak explicit docId egyezés esetén is törli", shouldFilterOut({ id: "other", docId: "doc_aaa" }), true);
+assertEqual("DeleteRun Cache - Referencia egyezés esetén törli", shouldFilterOut(runToMoveRef), true);
+assertEqual("DeleteRun Cache - Nem egyező elemet megőrzi", shouldFilterOut({ id: "run_999", docId: "doc_zzz" }), false);
+
+// --- Futárnév Normalizáció és Egységesítés Tesztek ---
+function normalizeCourierTest(courier) {
+    let cleanCourier = (courier || '').trim();
+    if (cleanCourier.toLowerCase() === 'bábel ádám') cleanCourier = 'Bábel Ádám';
+    return cleanCourier;
+}
+
+assertEqual("Courier Normalization - Kisbetűs 'Bábel ádám' -> 'Bábel Ádám'", normalizeCourierTest('Bábel ádám'), 'Bábel Ádám');
+assertEqual("Courier Normalization - Csupa kisbetűs 'bábel ádám' -> 'Bábel Ádám'", normalizeCourierTest('bábel ádám'), 'Bábel Ádám');
+assertEqual("Courier Normalization - Csupa nagybetűs 'BÁBEL ÁDÁM' -> 'Bábel Ádám'", normalizeCourierTest('BÁBEL ÁDÁM'), 'Bábel Ádám');
+assertEqual("Courier Normalization - Helyes 'Bábel Ádám' változatlan", normalizeCourierTest('Bábel Ádám'), 'Bábel Ádám');
+assertEqual("Courier Normalization - Szóközökkel ellátott '  Bábel ádám  ' -> 'Bábel Ádám'", normalizeCourierTest('  Bábel ádám  '), 'Bábel Ádám');
+assertEqual("Courier Normalization - Más futár 'Adrián' érintetlen", normalizeCourierTest('Adrián'), 'Adrián');
+assertEqual("Courier Normalization - Üres futár string esetén üres", normalizeCourierTest(''), '');
+
+// --- Elszámolások Függő / Elszámolt Rendezési Tesztek ---
+function sortRunsAccounting(runsList) {
+    const list = [...runsList];
+    list.sort((a, b) => {
+        const totalsA = getRunPaymentTotals(a);
+        const totalsB = getRunPaymentTotals(b);
+        const aUnsettled = !totalsA.isFullySettled;
+        const bUnsettled = !totalsB.isFullySettled;
+
+        if (aUnsettled !== bUnsettled) {
+            return aUnsettled ? -1 : 1;
+        }
+
+        const dateA = a.date || '';
+        const dateB = b.date || '';
+        if (dateA !== dateB) return dateB.localeCompare(dateA);
+        return (b.timestamp || 0) - (a.timestamp || 0);
+    });
+    return list;
+}
+
+const testRunSettledOld = {
+    id: 'run_old',
+    date: '2026-09-10',
+    timestamp: 1000,
+    isSettled: true,
+    paymentStatusMap: { '#1': 'received' },
+    orders: [{ id: '#1', isCOD: true, codAmount: 10000 }]
+};
+const testRunSettledNew = {
+    id: 'run_new',
+    date: '2026-09-20',
+    timestamp: 2000,
+    isSettled: true,
+    paymentStatusMap: { '#2': 'received' },
+    orders: [{ id: '#2', isCOD: true, codAmount: 20000 }]
+};
+const testRunUnsettledToday = {
+    id: 'run_unsettled_today',
+    date: '2026-09-21',
+    timestamp: 3000,
+    isSettled: false,
+    orders: [{ id: '#3', isCOD: true, codAmount: 30000 }]
+};
+const testRunUnsettledYesterday = {
+    id: 'run_unsettled_yesterday',
+    date: '2026-09-19',
+    timestamp: 1500,
+    isSettled: false,
+    orders: [{ id: '#4', isCOD: true, codAmount: 15000 }]
+};
+
+const sortedList = sortRunsAccounting([testRunSettledOld, testRunSettledNew, testRunUnsettledYesterday, testRunUnsettledToday]);
+assertEqual("Run Sorting - 1. hely: legújabb el nem számolt", sortedList[0].id, 'run_unsettled_today');
+assertEqual("Run Sorting - 2. hely: tegnapi el nem számolt", sortedList[1].id, 'run_unsettled_yesterday');
+assertEqual("Run Sorting - 3. hely: legújabb elszámolt", sortedList[2].id, 'run_new');
+assertEqual("Run Sorting - 4. hely: legrégebbi elszámolt", sortedList[3].id, 'run_old');
+
+// Amikor elszámolják a tegnapi futást:
+testRunUnsettledYesterday.isSettled = true;
+testRunUnsettledYesterday.paymentStatusMap = { '#4': 'received' };
+const reSortedList = sortRunsAccounting([testRunSettledOld, testRunSettledNew, testRunUnsettledYesterday, testRunUnsettledToday]);
+assertEqual("Run Sorting (Elszámolás után) - 1. hely továbbra is a mai el nem számolt", reSortedList[0].id, 'run_unsettled_today');
+assertEqual("Run Sorting (Elszámolás után) - 2. hely: run_new (2026-09-20)", reSortedList[1].id, 'run_new');
+assertEqual("Run Sorting (Elszámolás után) - 3. hely: tegnapi visszaugrott a helyére (2026-09-19)", reSortedList[2].id, 'run_unsettled_yesterday');
+assertEqual("Run Sorting (Elszámolás után) - 4. hely: run_old (2026-09-10)", reSortedList[3].id, 'run_old');
+
+// --- ESM Syntax and Duplicate Declaration Check for all JS files ---
+function checkJsSyntaxRecursively(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+            checkJsSyntaxRecursively(full);
+        } else if (entry.name.endsWith('.js')) {
+            const code = fs.readFileSync(full, 'utf8');
+            const res = cp.spawnSync(process.execPath, ['--input-type=module', '--check'], { input: code, encoding: 'utf8' });
+            const isOk = res.status === 0;
+            const errorMsg = isOk ? '' : res.stderr;
+            assertEqual(`ESM Syntax Check - ${entry.name}`, isOk ? 'VALID' : errorMsg, 'VALID');
+        }
+    }
+}
+checkJsSyntaxRecursively('js');
 
 console.log(`\n=== EREDMÉNY: ${passed} sikeres, ${failed} hibás ===`);
 

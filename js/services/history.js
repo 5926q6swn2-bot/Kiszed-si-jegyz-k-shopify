@@ -11,7 +11,29 @@ export const HistoryManager = {
         
         getAllRuns: async function(forceRefresh = false) {
             const now = Date.now();
+
+            const doSync = (list) => {
+                if (Array.isArray(list) && list.length > 0 && typeof window !== 'undefined' && window.fetch && !window._historyCouriersSynced) {
+                    window._historyCouriersSynced = true;
+                    try {
+                        const summary = list.map(r => ({
+                            id: r.id || r.docId,
+                            date: r.date || '',
+                            company: r.company || '',
+                            courier: r.courier || '',
+                            ordersCount: (r.orders || []).length
+                        }));
+                        window.fetch('/api/debug/sync-couriers', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(summary)
+                        }).catch(() => {});
+                    } catch (e) {}
+                }
+            };
+
             if (!forceRefresh && runsCache && (now - lastRunsFetchTime < RUNS_CACHE_TTL)) {
+                doSync(runsCache);
                 return runsCache;
             }
             try {
@@ -28,6 +50,42 @@ export const HistoryManager = {
                 });
                 runsCache = runs;
                 lastRunsFetchTime = now;
+
+                // Automatikus futárnév korrekció: kisbetűs 'Bábel ádám' -> nagybetűs 'Bábel Ádám'
+                const babelAdamRuns = runs.filter(r => r.courier && r.courier.trim().toLowerCase() === 'bábel ádám' && r.courier !== 'Bábel Ádám');
+                if (babelAdamRuns.length > 0) {
+                    try {
+                        await Promise.all(babelAdamRuns.map(async (r) => {
+                            if (r.docId) {
+                                const docRef = doc(db, this.COLLECTION_NAME, r.docId);
+                                await updateDoc(docRef, { courier: 'Bábel Ádám' });
+                                console.log(`[Auto-Fix] Futárnév sikeresen frissítve Firestore-ban: ${r.docId} (${r.date}) -> Bábel Ádám`);
+                            }
+                            r.courier = 'Bábel Ádám';
+                        }));
+                    } catch (fixErr) {
+                        console.error('[Auto-Fix] Hiba a Bábel Ádám futárnevek javításakor:', fixErr);
+                    }
+                }
+
+                // Automatikus háttér szinkron a szerver felé a cégek és futárok feltérképezéséhez
+                if (Array.isArray(runs) && runs.length > 0 && typeof window !== 'undefined' && window.fetch) {
+                    try {
+                        const summary = runs.map(r => ({
+                            id: r.id || r.docId,
+                            date: r.date || '',
+                            company: r.company || '',
+                            courier: r.courier || '',
+                            ordersCount: (r.orders || []).length
+                        }));
+                        window.fetch('/api/debug/sync-couriers', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(summary)
+                        }).catch(() => {});
+                    } catch (e) {}
+                }
+
                 return runs;
             } catch (e) {
                 console.error("Hiba a Firebase lekérdezésnél: ", e);
@@ -42,12 +100,15 @@ export const HistoryManager = {
         },
         
         saveRun: async function(date, pickupDate, courier, company, sender, ordersList) {
+            let cleanCourier = (courier || '').trim();
+            if (cleanCourier.toLowerCase() === 'bábel ádám') cleanCourier = 'Bábel Ádám';
+
             const newRun = {
                 id: 'run_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
                 date: date,
                 originalDate: date,
                 pickupDate: pickupDate || date,
-                courier: courier,
+                courier: cleanCourier,
                 company: company,
                 sender: sender || 'capsula',
                 timestamp: Date.now(),
@@ -96,33 +157,79 @@ export const HistoryManager = {
         
         getRunById: async function(runId) {
             const runs = await this.getAllRuns();
-            return runs.find(r => r.id === runId) || null;
+            const idStr = runId != null ? String(runId).trim() : '';
+            return runs.find(r => 
+                (r.id && (r.id === runId || String(r.id).trim() === idStr)) || 
+                (r.docId && (r.docId === runId || String(r.docId).trim() === idStr))
+            ) || null;
         },
         
-        deleteRun: async function(runId) {
-            const runs = await this.getAllRuns();
-            const runToMove = runs.find(r => r.id === runId);
-            if (runToMove && runToMove.docId) {
-                try {
-                    const trashData = {
-                        ...runToMove,
-                        deletedAt: Date.now()
-                    };
-                    delete trashData.docId; // Ne vigyük át a régi doksi azonosítót
-                    
-                    // 1. Áthelyezés a szemetesbe
-                    await addDoc(collection(db, this.TRASH_COLLECTION_NAME), trashData);
-                    
-                    // 2. Törlés az eredeti helyről
-                    await deleteDoc(doc(db, this.COLLECTION_NAME, runToMove.docId));
-                    this.invalidateCache();
-                    return true;
-                } catch(e) {
-                    console.error("Hiba a szemetesbe mozgatásnál: ", e);
-                    return false;
+        deleteRun: async function(identifier, explicitDocId = null) {
+            try {
+                const runs = await this.getAllRuns();
+                const idStr = identifier != null ? String(identifier).trim() : '';
+                const expDocStr = explicitDocId != null ? String(explicitDocId).trim() : '';
+
+                const runToMove = runs.find(r => 
+                    (idStr && r.id && (r.id === identifier || String(r.id).trim() === idStr)) || 
+                    (idStr && r.docId && (r.docId === identifier || String(r.docId).trim() === idStr)) || 
+                    (expDocStr && r.docId && (r.docId === explicitDocId || String(r.docId).trim() === expDocStr))
+                );
+
+                const targetDocId = expDocStr || (runToMove ? runToMove.docId : (idStr && !idStr.startsWith('run_') ? idStr : null));
+                const targetRunId = (runToMove ? runToMove.id : (idStr && idStr.startsWith('run_') ? idStr : null)) || targetDocId;
+
+                if (!targetDocId && !runToMove) {
+                    console.warn('[HistoryManager deleteRun] A torlendo kor nem talalhato:', identifier, explicitDocId);
+                    return { success: false, error: 'A kör nem található.' };
                 }
+
+                // 1. Áthelyezés a szemetesbe (szanálással az undefined értékek ellen)
+                if (runToMove) {
+                    try {
+                        const rawTrash = {
+                            ...runToMove,
+                            deletedAt: Date.now()
+                        };
+                        delete rawTrash.docId;
+                        // JSON stringify/parse automatikusan kiszűri a Firestore-t elgáncsoló undefined értékeket
+                        const cleanTrash = JSON.parse(JSON.stringify(rawTrash));
+                        await addDoc(collection(db, this.TRASH_COLLECTION_NAME), cleanTrash);
+                    } catch (trashErr) {
+                        console.warn('[HistoryManager deleteRun] Nem sikerult a szemetesbe archivalni, de a torles folytatodik:', trashErr);
+                    }
+                }
+
+                // 2. Törlés az eredeti helyről (szedolista_history)
+                if (targetDocId) {
+                    await deleteDoc(doc(db, this.COLLECTION_NAME, targetDocId));
+                }
+
+                // 3. Gyorsítótár azonnali frissítése a memóriában (optimista törlés)
+                // Szigorúan megőrizzük a szűrt runsCache-t és frissítjük az időbélyeget,
+                // hogy a következő lekérdezés véletlenül se hozza vissza a Firestore még indexelő szerveréről!
+                const shouldFilterOut = (r) => {
+                    if (!r) return false;
+                    if (runToMove && r === runToMove) return true;
+                    if (targetDocId && String(r.docId || '').trim() === String(targetDocId).trim()) return true;
+                    if (targetRunId && String(r.id || '').trim() === String(targetRunId).trim()) return true;
+                    if (idStr && (String(r.id || '').trim() === idStr || String(r.docId || '').trim() === idStr)) return true;
+                    if (expDocStr && String(r.docId || '').trim() === expDocStr) return true;
+                    return false;
+                };
+
+                if (runsCache && Array.isArray(runsCache)) {
+                    runsCache = runsCache.filter(r => !shouldFilterOut(r));
+                } else if (runs && Array.isArray(runs)) {
+                    runsCache = runs.filter(r => !shouldFilterOut(r));
+                }
+                lastRunsFetchTime = Date.now();
+
+                return { success: true, docId: targetDocId, runId: targetRunId };
+            } catch (e) {
+                console.error('[HistoryManager deleteRun hiba]:', e);
+                return { success: false, error: e.message };
             }
-            return false;
         },
 
         getTrashRuns: async function() {
@@ -405,6 +512,9 @@ export const HistoryManager = {
 
 
         updateRun: async function(runId, date, pickupDate, courier, company, sender, ordersList) {
+            let cleanCourier = (courier || '').trim();
+            if (cleanCourier.toLowerCase() === 'bábel ádám') cleanCourier = 'Bábel Ádám';
+
             const runs = await this.getAllRuns();
             const runToUpdate = runs.find(r => r.id === runId);
             if (runToUpdate && runToUpdate.docId) {
@@ -413,7 +523,7 @@ export const HistoryManager = {
                     await updateDoc(docRef, {
                         date: date,
                         pickupDate: pickupDate || date,
-                        courier: courier,
+                        courier: cleanCourier,
                         company: company,
                         sender: sender || 'capsula',
                         orders: ordersList,

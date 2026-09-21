@@ -320,10 +320,11 @@ export function classifyItemForSela(item) {
     }
 
     // 4. Akusztikus falpanelek (aku, akusztikus, wide akusztikus, wide acoustic, akupanel)
+    // A Sela szállítói exportban a sima panelekkel egyben (pvc_spc_floor) számolandó!
     if (text.includes('akusztik') || text.includes('akusztikus') || 
         text.includes('wide akusztikus') || text.includes('wide acoustic') || 
         text.includes('akupanel') || /\baku\b/i.test(text)) {
-        return 'acoustic';
+        return 'pvc_spc_floor';
     }
 
     // 5. PVC / SPC falpanelek és padlózatok (akusztikus kizárva!)
@@ -730,9 +731,7 @@ export function prepareSelaRowData(order, customCodMap = {}, customWeights = nul
             adhesiveQty += qty;
         } else if (cat === 'profile') {
             profileQty += qty;
-        } else if (cat === 'acoustic') {
-            acousticQty += qty;
-        } else if (cat === 'pvc_spc_floor') {
+        } else if (cat === 'pvc_spc_floor' || cat === 'acoustic') {
             pvcSpcFloorQty += qty;
         }
     });
@@ -842,8 +841,7 @@ export function generateSelaCsv(rows, includeDeadline = false) {
         "Utca és házszám",
         "Telefonszám",
         "Címzett Neve",
-        "PVC/SPC falpanel és padlózatok (db)",
-        "Akusztikus falpanelek (db)",
+        "Falpanel és padlózatok (db)",
         "Ragasztók, szilikonok (db)",
         "Profilok (db)",
         "Utánvét összege / tapadóhíd",
@@ -884,7 +882,6 @@ export function generateSelaCsv(rows, includeDeadline = false) {
             clean(r.col6_phone),
             clean(r.col7_customerName),
             clean(r.col8_pvcSpcFloorQty),
-            clean(r.col9_acousticQty),
             clean(r.col10_adhesivesQty),
             clean(r.col11_profilesQty),
             clean(r.col12_codAndTapadohid),

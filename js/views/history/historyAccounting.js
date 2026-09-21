@@ -3,10 +3,10 @@
  * Futár elszámolások kezelése, osztott fizetés és elszámolási státuszok rögzítése.
  */
 
-import { HistoryManager } from '../../services/history.js?v=3.2.2';
-import { CustomDialog } from '../../utils/dialog.js?v=3.2.2';
-import { getPaymentDetails, getRunPaymentTotals, getEligibleOrdersForMarkAsPaid } from '../../utils/paymentUtils.js?v=3.2.2';
-import { ShopifyApiService } from '../../services/shopifyApiService.js?v=3.2.2';
+import { HistoryManager } from '../../services/history.js';
+import { CustomDialog } from '../../utils/dialog.js';
+import { getPaymentDetails, getRunPaymentTotals, getEligibleOrdersForMarkAsPaid } from '../../utils/paymentUtils.js';
+import { ShopifyApiService } from '../../services/shopifyApiService.js';
 
 export function showSettlementDialog(run, runCOD, existingState = null) {
     return new Promise((resolve) => {
@@ -714,12 +714,6 @@ export async function renderAccountingRuns(ctx) {
     if (!accountingRunsContainer) return;
 
     let runs = await HistoryManager.getAllRuns();
-    runs.sort((a, b) => {
-        const dateA = a.date || '';
-        const dateB = b.date || '';
-        if (dateA !== dateB) return dateB.localeCompare(dateA);
-        return (b.timestamp || 0) - (a.timestamp || 0);
-    });
 
     runs.forEach(run => {
         const hasSettled = run.isSettled === true || typeof run.settledAt !== 'undefined';
@@ -763,6 +757,25 @@ export async function renderAccountingRuns(ctx) {
         });
     }
 
+    // RENDEZÉS:
+    // 1. Elsődleges szempont: El nem számolt terítések mindig legfelül (unsettled first)
+    // 2. Másodlagos szempont: Időrend szerint csökkenő (legújabb dátumú legfelül)
+    runs.sort((a, b) => {
+        const totalsA = getRunPaymentTotals(a);
+        const totalsB = getRunPaymentTotals(b);
+        const aUnsettled = !totalsA.isFullySettled;
+        const bUnsettled = !totalsB.isFullySettled;
+
+        if (aUnsettled !== bUnsettled) {
+            return aUnsettled ? -1 : 1;
+        }
+
+        const dateA = a.date || '';
+        const dateB = b.date || '';
+        if (dateA !== dateB) return dateB.localeCompare(dateA);
+        return (b.timestamp || 0) - (a.timestamp || 0);
+    });
+
     accountingRunsContainer.innerHTML = '';
 
     if(runs.length === 0) {
@@ -779,6 +792,9 @@ export async function renderAccountingRuns(ctx) {
         totalFilteredPendingCard += totals.pendingCard;
     });
 
+    const unsettledRuns = runs.filter(r => !getRunPaymentTotals(r).isFullySettled);
+    const settledRuns = runs.filter(r => getRunPaymentTotals(r).isFullySettled);
+
     const summaryCard = document.createElement('div');
     summaryCard.style.cssText = 'background: linear-gradient(135deg, #0f172a, #1e293b); color: white; padding: 4px 12px; border-radius: 7px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; gap: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); min-height: 28px; box-sizing: border-box;';
     summaryCard.innerHTML = `
@@ -787,6 +803,12 @@ export async function renderAccountingRuns(ctx) {
             <span style="font-size: 11px; font-weight: 800; color: #f8fafc; text-transform: uppercase; letter-spacing: 0.3px;">Szűrt követelések összesen</span>
         </div>
         <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            ${unsettledRuns.length > 0 ? `
+            <div style="display: flex; align-items: center; gap: 5px; background: rgba(255, 255, 255, 0.12); padding: 2px 8px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.2);">
+                <i class="ph-bold ph-hourglass-high" style="font-size: 12px; color: #f8fafc;"></i>
+                <span style="font-size: 10px; color: #cbd5e1; font-weight: 700; text-transform: uppercase;">Elszámolásra vár:</span>
+                <strong style="font-size: 12px; font-weight: 800; color: #f8fafc;">${unsettledRuns.length} db</strong>
+            </div>` : ''}
             <div style="display: flex; align-items: center; gap: 5px; background: rgba(249, 115, 22, 0.15); padding: 2px 8px; border-radius: 5px; border: 1px solid rgba(249, 115, 22, 0.3);">
                 <i class="ph-bold ph-hand-coins" style="font-size: 12px; color: #f97316;"></i>
                 <span style="font-size: 10px; color: #cbd5e1; font-weight: 700; text-transform: uppercase;">Függő KP:</span>
@@ -801,47 +823,50 @@ export async function renderAccountingRuns(ctx) {
     `;
     accountingRunsContainer.appendChild(summaryCard);
 
-    // Csoportosítás cégek szerint
-    const groups = {};
-    runs.forEach(run => {
-        const comp = run.company || 'Egyéb';
-        if (!groups[comp]) groups[comp] = [];
-        groups[comp].push(run);
-    });
+    // Egységes lista cégcsoportosítás nélkül: Időrendben, el nem számoltak legfelül
+    const runsListContainer = document.createElement('div');
+    runsListContainer.className = 'accounting-unified-runs';
+    runsListContainer.style.cssText = 'display: flex; flex-direction: column; gap: 8px;';
 
-    Object.keys(groups).sort().forEach(companyName => {
-        const companyRuns = groups[companyName];
-        let companyTotalCOD = 0;
-        companyRuns.forEach(r => {
-            const totals = getRunPaymentTotals(r);
-            if (!totals.isFullySettled) {
-                companyTotalCOD += (totals.pendingKp + totals.pendingCard);
-            }
-        });
+    let hasAddedSettledHeader = false;
 
-        const groupEl = document.createElement('div');
-        groupEl.className = 'accounting-company-group';
-        groupEl.style.marginBottom = '12px';
-
-        groupEl.innerHTML = `
-            <div style="background: #0f172a; color: white; padding: 6px 12px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-weight: 700; font-size: 12.5px; letter-spacing: 0.4px;">${companyName}</span>
-                <span style="font-size: 11.5px; background: #334155; padding: 1px 8px; border-radius: 12px;">Függőben: <strong>${companyTotalCOD.toLocaleString('hu-HU')} Ft</strong></span>
-            </div>
-            <div class="group-runs" style="border: 1px solid #cbd5e1; border-top: none; border-radius: 0 0 8px 8px; padding: 6px; background: #f8fafc; display: flex; flex-direction: column; gap: 6px;">
-            </div>
+    // Ha vannak el nem számolt körök, tiszta, visszafogott szöveges elválasztót jelenítünk meg
+    if (unsettledRuns.length > 0) {
+        const unsettledHeader = document.createElement('div');
+        unsettledHeader.style.cssText = 'display: flex; align-items: center; justify-content: space-between; margin: 4px 2px 2px; padding: 2px 0;';
+        unsettledHeader.innerHTML = `
+            <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 5px;">
+                <i class="ph-bold ph-hourglass-high" style="font-size: 12px;"></i> Elszámolásra váró terítések (${unsettledRuns.length} db)
+            </span>
         `;
+        runsListContainer.appendChild(unsettledHeader);
+    }
 
-        const runsContainer = groupEl.querySelector('.group-runs');
-        companyRuns.forEach(run => {
-            const el = document.createElement('div');
-            el.className = 'unified-card acc-run-card';
-            el.style.cssText = 'margin:0;overflow:hidden;';
+    runs.forEach(run => {
+        const totals = getRunPaymentTotals(run);
+        const isFullySettled = totals.isFullySettled;
 
-            const totals = getRunPaymentTotals(run);
-            const runCOD = totals.totalCod;
+        // Ha elérkeztünk az elszámolt körökhöz (és voltak el nem számoltak felette), kitesszük a tiszta elválasztót
+        if (isFullySettled && unsettledRuns.length > 0 && !hasAddedSettledHeader) {
+            hasAddedSettledHeader = true;
+            const settledHeader = document.createElement('div');
+            settledHeader.style.cssText = 'display: flex; align-items: center; justify-content: space-between; margin: 10px 2px 2px; padding: 2px 0;';
+            settledHeader.innerHTML = `
+                <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 5px;">
+                    <i class="ph-bold ph-check-circle" style="font-size: 12px;"></i> Korábbi elszámolt terítések (${settledRuns.length} db)
+                </span>
+            `;
+            runsListContainer.appendChild(settledHeader);
+        }
+
+        const el = document.createElement('div');
+        el.className = 'unified-card acc-run-card';
+        el.style.cssText = 'margin:0;overflow:hidden;';
+
+        const runCOD = totals.totalCod;
             el.setAttribute('data-total-cod', runCOD);
-            el.setAttribute('data-run-id', run.id);
+            el.setAttribute('data-run-id', run.id || '');
+            el.setAttribute('data-doc-id', run.docId || '');
 
             const uncollected    = run.uncollectedOrderIds || [];
             const reasons        = run.uncollectedReasons || {};
@@ -858,7 +883,6 @@ export async function renderAccountingRuns(ctx) {
             const hasCardWait = pendingCardAmount > 0;
             const hasKpWait = pendingKpAmount > 0;
             const hasUnsettledWait = pendingUnsettledAmount > 0;
-            const isFullySettled = totals.isFullySettled;
 
             const circleColor = isFullySettled ? '#22c55e' : (hasKpWait ? '#eab308' : (hasCardWait ? '#2563eb' : (hasUnsettledWait ? '#94a3b8' : (totals.isNeverSettled ? '#ef4444' : '#cbd5e1'))));
             const circleBg = isFullySettled ? '#22c55e' : (hasKpWait ? '#fef9c3' : (hasCardWait ? '#eff6ff' : (hasUnsettledWait ? '#ffffff' : (totals.isNeverSettled ? '#fee2e2' : '#fff'))));
@@ -1036,7 +1060,8 @@ export async function renderAccountingRuns(ctx) {
                             ${statusBadge}
                             ${uncollected.length > 0 ? `<span style="font-size:9.5px;font-weight:700;color:#f97316;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:0 5px;"><i class="ph-bold ph-warning" style="font-size:9px;"></i> ${uncollected.length} kiesett</span>` : ''}
                         </div>
-                        <div class="hac-meta" style="font-size:11px;">
+                        <div class="hac-meta" style="font-size:11px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+                            ${run.company ? `<span style="font-weight:700;color:#1e293b;background:#f1f5f9;border:1px solid #cbd5e1;padding:0 5px;border-radius:4px;font-size:10.5px;">${run.company}</span><span style="color:#cbd5e1;">·</span>` : ''}
                             <i class="ph-bold ph-user" style="font-size:10.5px;color:#374151;"></i>
                             <span style="font-weight:600;color:#374151;">${run.courier || '—'}</span>
                             <span style="color:#d1d5db;">·</span>
@@ -1062,8 +1087,8 @@ export async function renderAccountingRuns(ctx) {
                             <button class="hac-print-btn btn-print-summary" data-id="${run.id}" title="Összesítő nyomtatása" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#64748b;border-radius:4px;transition:all .15s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#64748b'"><i class="ph-bold ph-file-text" style="font-size:12px;"></i></button>
                             <button class="hac-print-btn btn-print-bundle" data-id="${run.id}" title="Teljes csomag nyomtatása" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#3b82f6;border-radius:4px;transition:all .15s;" onmouseover="this.style.background='#dbeafe';this.style.color='#1d4ed8'" onmouseout="this.style.background='none';this.style.color='#3b82f6'"><i class="ph-bold ph-printer" style="font-size:12px;"></i></button>
                             <div style="width:1px;height:14px;background:#cbd5e1;margin:0 1px;"></div>
-                            <button class="hac-btn-load btn-load-run" data-id="${run.id}" title="Kör betöltése" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#334155;border-radius:4px;transition:all .15s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#334155'"><i class="ph-bold ph-download-simple" style="font-size:12px;"></i></button>
-                            <button class="hac-btn-del btn-delete-run" data-id="${run.id}" title="Kör törlése" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#ef4444;border-radius:4px;transition:all .15s;" onmouseover="this.style.background='#fee2e2';this.style.color='#b91c1c'" onmouseout="this.style.background='none';this.style.color='#ef4444'"><i class="ph-bold ph-trash" style="font-size:12px;"></i></button>
+                            <button class="hac-btn-load btn-load-run" data-id="${run.id || ''}" data-doc-id="${run.docId || ''}" title="Kör betöltése" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#334155;border-radius:4px;transition:all .15s;" onmouseover="this.style.background='#e2e8f0';this.style.color='#0f172a'" onmouseout="this.style.background='none';this.style.color='#334155'"><i class="ph-bold ph-download-simple" style="font-size:12px;"></i></button>
+                            <button class="hac-btn-del btn-delete-run" data-id="${run.id || ''}" data-doc-id="${run.docId || ''}" title="Kör törlése" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#ef4444;border-radius:4px;transition:all .15s;" onmouseover="this.style.background='#fee2e2';this.style.color='#b91c1c'" onmouseout="this.style.background='none';this.style.color='#ef4444'"><i class="ph-bold ph-trash" style="font-size:12px;"></i></button>
                         </div>
                         <button class="acc-expand-btn" style="background:none;border:1px solid #cbd5e1;border-radius:6px;padding:4px 6px;cursor:pointer;color:#64748b;display:flex;align-items:center;transition:all .15s;" title="Rendelések mutatása">
                             <i class="ph-bold ph-caret-down" style="font-size:12px;transition:transform .2s;"></i>
@@ -1074,11 +1099,10 @@ export async function renderAccountingRuns(ctx) {
                     ${orderChips}
                 </div>
             `;
-            runsContainer.appendChild(el);
-        });
-
-        accountingRunsContainer.appendChild(groupEl);
+            runsListContainer.appendChild(el);
     });
+
+    accountingRunsContainer.appendChild(runsListContainer);
 
 async function syncSettledOrdersToShopify(run, settlementData, docId) {
     try {

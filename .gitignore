@@ -4,3 +4,5 @@ credentials/
 __pycache__/
 *.pyc
 .claude/
+scratch/
+.tmp_*.json

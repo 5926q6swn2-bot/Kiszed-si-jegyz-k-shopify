@@ -542,6 +542,25 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // Debug: Sync couriers from frontend Firestore runs
+  if (pathname === '/api/debug/sync-couriers' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        fs.writeFileSync(path.join(__dirname, '.tmp_couriers.json'), JSON.stringify(data, null, 2), 'utf8');
+        console.log('[Sync Couriers] Saved ' + (Array.isArray(data) ? data.length : 0) + ' runs.');
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: true, count: data.length }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
   // 4. Shopify Egyedi Rendelés Teljesítés (Fulfillment)
   if (pathname === '/api/shopify/fulfill' && req.method === 'POST') {
     let bodyStr = '';
@@ -1539,7 +1558,12 @@ function getBudapestTime() {
   };
 }
 
+// Automatikus reggeli riport kiküldési kapcsoló (felhasználói kérésre ideiglenesen leállítva a funkció kidolgozásáig)
+const ENABLE_MORNING_REPORT_CRON = false;
+
 function checkAndTriggerMorningReportCron() {
+  if (!ENABLE_MORNING_REPORT_CRON) return;
+
   const { day, hours, minutes, dateStr } = getBudapestTime();
 
   // Csak hétfőtől péntekig, szigorúan magyar idő szerint (Europe/Budapest) 07:00 és 07:05 között
@@ -1558,5 +1582,9 @@ setInterval(checkAndTriggerMorningReportCron, 60 * 1000);
 server.listen(PORT, () => {
   console.log(` Szerver fut: http://localhost:${PORT}/`);
   console.log(` Shopify Auth URL: http://localhost:${PORT}/api/shopify/auth`);
-  console.log(` Reggeli Riport automatikus időzítés aktív (07:00 AM Budapest idő szerint, H-P)`);
+  if (ENABLE_MORNING_REPORT_CRON) {
+    console.log(` Reggeli Riport automatikus időzítés aktív (07:00 AM Budapest idő szerint, H-P)`);
+  } else {
+    console.log(` Reggeli Riport automatikus időzítés szüneteltetve (TODO: részletes kidolgozás alatt)`);
+  }
 });

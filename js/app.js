@@ -7,12 +7,12 @@ import { PannonXPService } from './services/pannonxp.js';
 import { PannonXPView } from './views/pannonxpView.js';
 import { initHistoryView, renderAccountingRuns, renderTrashRuns } from './views/historyView.js';
 import { Store } from './store/state.js';
-import { OrdersView, getOrderBadgeHtml } from './views/ordersView.js?v=4.4.0';
+import { OrdersView, getOrderBadgeHtml } from './views/ordersView.js';
 import { initManualOrderController } from './controllers/manualOrderController.js';
 import { renderStatistics } from './views/stats.js';
 import { ExporterService } from './services/exporter.js';
 import { AuditView } from './views/auditView.js';
-import { OrderOverviewView } from './views/orderOverviewView.js?v=4.4.4';
+import { OrderOverviewView } from './views/orderOverviewView.js';
 import { SelaExportModal } from './views/selaExportModal.js';
 import { SelaMissingWeightsModal } from './views/selaMissingWeightsModal.js';
 import { ShopifyApiService } from './services/shopifyApiService.js';
@@ -104,8 +104,92 @@ function initApp() {
     const psPickupDateInput = document.getElementById('ps-pickup-date');
     const psDateInput = document.getElementById('ps-date');
     const psCourierInput = document.getElementById('ps-courier');
+    const psCourierSelect = document.getElementById('ps-courier-select');
+    const psCustomCourierGroup = document.getElementById('ps-custom-courier-group');
     const psCompanyInput = document.getElementById('ps-company');
     const psSenderInput = document.getElementById('ps-sender');
+
+    const COMPANY_COURIERS = {
+        'LétaiSela': ['Bábel Ádám', 'István', 'Csaba'],
+        'Sela': ['Adrián', 'Dévald', 'Ernő', 'Tomi', 'Kónya Gyuri', 'Kabai Gyuri', 'Tapasztó Zoltán'],
+        'ÁdámFuvar': ['Ádám'],
+        'FákóTrans': [],
+        'Mizsei': []
+    };
+
+    function updateCourierSelect(selectedCompany, preferredCourier = '') {
+        if (!psCourierSelect) return;
+        psCourierSelect.innerHTML = '';
+
+        const normPreferred = (preferredCourier || '').trim();
+
+        if (!selectedCompany || selectedCompany === 'new') {
+            if (selectedCompany === 'new') {
+                const opt = document.createElement('option');
+                opt.value = '__custom__';
+                opt.textContent = '-- Egyedi / Új futár beírása --';
+                opt.selected = true;
+                psCourierSelect.appendChild(opt);
+                psCourierSelect.disabled = false;
+                if (psCustomCourierGroup) psCustomCourierGroup.style.display = 'block';
+                if (psCourierInput) psCourierInput.value = normPreferred;
+            } else {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '-- Előbb válassz céget --';
+                psCourierSelect.appendChild(opt);
+                psCourierSelect.disabled = true;
+                if (psCustomCourierGroup) psCustomCourierGroup.style.display = 'none';
+                if (psCourierInput) psCourierInput.value = '';
+            }
+            return;
+        }
+
+        psCourierSelect.disabled = false;
+        const couriers = COMPANY_COURIERS[selectedCompany] || [];
+
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = couriers.length > 0 ? '-- Válassz futárt --' : '-- Új futár beírása --';
+        psCourierSelect.appendChild(defaultOpt);
+
+        let matchFound = false;
+        couriers.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = c;
+            if (normPreferred && normPreferred.toLowerCase() === c.toLowerCase()) {
+                opt.selected = true;
+                matchFound = true;
+            }
+            psCourierSelect.appendChild(opt);
+        });
+
+        const customOpt = document.createElement('option');
+        customOpt.value = '__custom__';
+        customOpt.textContent = '-- Új / Más futár beírása --';
+        psCourierSelect.appendChild(customOpt);
+
+        if (normPreferred) {
+            if (matchFound) {
+                if (psCustomCourierGroup) psCustomCourierGroup.style.display = 'none';
+                if (psCourierInput) psCourierInput.value = psCourierSelect.value;
+            } else {
+                customOpt.selected = true;
+                if (psCustomCourierGroup) psCustomCourierGroup.style.display = 'block';
+                if (psCourierInput) psCourierInput.value = normPreferred;
+            }
+        } else {
+            if (couriers.length === 0) {
+                customOpt.selected = true;
+                if (psCustomCourierGroup) psCustomCourierGroup.style.display = 'block';
+            } else {
+                defaultOpt.selected = true;
+                if (psCustomCourierGroup) psCustomCourierGroup.style.display = 'none';
+            }
+            if (psCourierInput) psCourierInput.value = '';
+        }
+    }
     const historySearchInput = document.getElementById('history-search-input');
     const historyDateStart = document.getElementById('history-date-start');
     const historyDateEnd = document.getElementById('history-date-end');
@@ -243,6 +327,22 @@ function initApp() {
                 })
             ]);
 
+            if (Array.isArray(savedRuns) && savedRuns.length > 0 && !window._couriersSynced) {
+                window._couriersSynced = true;
+                const summary = savedRuns.map(r => ({
+                    id: r.id || r.docId,
+                    date: r.date || '',
+                    company: r.company || '',
+                    courier: r.courier || '',
+                    ordersCount: (r.orders || []).length
+                }));
+                fetch('/api/debug/sync-couriers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(summary)
+                }).catch(() => {});
+            }
+
             if (res.success && res.rawOrders) {
                 // 1. Járatok feltérképezése (4 jegyű ID-k alapján)
                 const deliveryMap = new Map();
@@ -338,6 +438,85 @@ function initApp() {
             loadLiveShopifyOrders(false);
         }
     }, 6000);
+
+    // --- KÖZPONTI TERÍTÉS TÖRLÉS KEZELŐ (AZONNALI VISSZAJELZÉSSEL ÉS SZINKRONIZÁCIÓVAL) ---
+    async function executeRunDeletion(runId, docId, cardEl, btnEl, onDoneCallback) {
+        const confirm = await CustomDialog.confirm('Biztosan törlöd ezt a szállítási kört az előzményekből?', 'Kör Törlése', 'warning', true);
+        if (!confirm) return;
+
+        const rId = runId != null ? String(runId).trim() : '';
+        const dId = docId != null ? String(docId).trim() : '';
+
+        // 1. Azonnali vizuális eltüntetés / animáció a felületről
+        const groupEl = cardEl ? cardEl.closest('.accounting-company-group') : null;
+        const isOnlyInGroup = groupEl && groupEl.querySelectorAll('.acc-run-card').length <= 1;
+        const targetToRemove = isOnlyInGroup ? groupEl : cardEl;
+
+        if (btnEl) {
+            btnEl.disabled = true;
+        }
+        if (targetToRemove) {
+            targetToRemove.style.transition = 'all 0.25s ease';
+            targetToRemove.style.opacity = '0';
+            targetToRemove.style.transform = 'scale(0.96)';
+        }
+
+        try {
+            const result = await HistoryManager.deleteRun(rId, dId);
+            if (result && result.success !== false) {
+                // 2. Elem azonnali eltávolítása a DOM-ból
+                if (targetToRemove && targetToRemove.parentNode) {
+                    targetToRemove.remove();
+                }
+
+                // Ha az összes csoport eltűnt a konténerből, helykitöltő megjelenítése
+                if (accountingRunsContainer && accountingRunsContainer.querySelectorAll('.acc-run-card').length === 0) {
+                    accountingRunsContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">Nincsenek a feltételnek megfelelő elszámolások.</p>';
+                }
+
+                // 3. Ha az éppen betöltött kör volt a Szedőlistában, referenciák törlése
+                const curId = currentLoadedRunId != null ? String(currentLoadedRunId).trim() : '';
+                if (curId && (curId === rId || curId === dId)) {
+                    currentLoadedRunId = null;
+                    originalLoadedRun = null;
+                }
+
+                // 4. Valós idejű szinkronizáció a Shopify Rendelésáttekintővel
+                if (Store.shopifyHubOrders && Store.shopifyHubOrders.length > 0) {
+                    let hubChanged = false;
+                    Store.shopifyHubOrders.forEach(order => {
+                        if (order.deliveryInfo) {
+                            const ordRunId = order.deliveryInfo.runId != null ? String(order.deliveryInfo.runId).trim() : '';
+                            const ordDocId = order.deliveryInfo.docId != null ? String(order.deliveryInfo.docId).trim() : '';
+                            if ((rId && ordRunId === rId) || (dId && ordDocId === dId)) {
+                                order.deliveryInfo = null;
+                                order.isInDelivery = false;
+                                hubChanged = true;
+                            }
+                        }
+                    });
+                    if (hubChanged && Store.activeMainTab === 'overview') {
+                        renderOverview();
+                    }
+                }
+
+                // 5. Cég szűrők és nézet azonnali újrarajzolása a szűrt memóriából
+                await populateCompanyFilters();
+                if (typeof onDoneCallback === 'function') {
+                    await onDoneCallback();
+                }
+            } else {
+                throw new Error(result?.error || 'A kör törlése nem sikerült.');
+            }
+        } catch (err) {
+            console.error('[Kör törlés hiba]:', err);
+            // Hiba esetén visszaállítjuk a kártyát és a nézetet
+            if (typeof onDoneCallback === 'function') {
+                await onDoneCallback();
+            }
+            CustomDialog.alert('Nem sikerült törölni a szállítási kört: ' + (err.message || 'Hálózati hiba'), 'Hiba a törléskor', 'danger');
+        }
+    }
 
     // --- RENDELÉSÁTTEKINTŐ RENDERELŐ & ESEMÉNYKEZELŐ ---
     function renderOverview() {
@@ -574,6 +753,19 @@ function initApp() {
                 }
             });
         }
+
+        // Terítés közvetlen törlése a Rendelésáttekintő Terítés csoportfejlécéből
+        document.querySelectorAll('.btn-hub-delete-run').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const button = e.target.closest('button');
+                const runId = button.getAttribute('data-run-id');
+                const docId = button.getAttribute('data-doc-id');
+                const groupContainer = button.closest('.delivery-run-group-container');
+                await executeRunDeletion(runId, docId, groupContainer, button, () => {
+                    renderOverview();
+                });
+            });
+        });
 
         // Lebegő Akciógombok
         const btnSendToPicking = document.getElementById('btn-hub-send-to-picking');
@@ -1700,26 +1892,29 @@ function initApp() {
             if (run) {
                 psDateInput.value = run.date;
                 psPickupDateInput.value = run.pickupDate || run.date;
-                psCourierInput.value = run.courier;
                 psCompanyInput.value = run.company || '';
                 psSenderInput.value = run.sender || 'capsula';
+                psNewCompanyGroup.style.display = 'none';
+                psNewCompanyInput.value = '';
+                updateCourierSelect(run.company || '', run.courier || '');
             } else {
                 psDateInput.value = new Date().toISOString().split('T')[0];
                 psPickupDateInput.value = psDateInput.value;
-                psCourierInput.value = '';
                 psCompanyInput.value = '';
                 psSenderInput.value = 'capsula';
+                psNewCompanyGroup.style.display = 'none';
+                psNewCompanyInput.value = '';
+                updateCourierSelect('', '');
             }
         } else {
             psDateInput.value = new Date().toISOString().split('T')[0];
             psPickupDateInput.value = psDateInput.value;
-            psCourierInput.value = '';
             psCompanyInput.value = '';
             psSenderInput.value = 'capsula';
+            psNewCompanyGroup.style.display = 'none';
+            psNewCompanyInput.value = '';
+            updateCourierSelect('', '');
         }
-        psCompanyInput.value = '';
-        psNewCompanyGroup.style.display = 'none';
-        psNewCompanyInput.value = '';
         // Nyomtatási togglek visszaállítása: mind a 3 aktív, "csak mentés" ki
         ['picking', 'summary', 'delivery'].forEach(t => {
             const chk = document.getElementById(`ps-chk-${t}`);
@@ -1782,7 +1977,24 @@ function initApp() {
         } else {
             psNewCompanyGroup.style.display = 'none';
         }
+        updateCourierSelect(psCompanyInput.value);
     });
+
+    if (psCourierSelect) {
+        psCourierSelect.addEventListener('change', () => {
+            if (psCourierSelect.value === '__custom__') {
+                if (psCustomCourierGroup) psCustomCourierGroup.style.display = 'block';
+                if (psCourierInput) {
+                    psCourierInput.focus();
+                }
+            } else {
+                if (psCustomCourierGroup) psCustomCourierGroup.style.display = 'none';
+                if (psCourierInput) {
+                    psCourierInput.value = psCourierSelect.value;
+                }
+            }
+        });
+    }
 
     function detectRunChanges(originalRun, currentOrders) {
         if (!originalRun || !originalRun.orders) return { added: [], modified: [], deleted: [] };
@@ -1873,7 +2085,15 @@ function initApp() {
         if (company === 'new') {
             company = psNewCompanyInput.value.trim();
         }
-        const courier = psCourierInput.value.trim();
+        let courier = '';
+        if (psCourierSelect && psCourierSelect.value && psCourierSelect.value !== '__custom__') {
+            courier = psCourierSelect.value.trim();
+        } else if (psCourierInput) {
+            courier = psCourierInput.value.trim();
+        }
+        if (courier.toLowerCase() === 'bábel ádám') {
+            courier = 'Bábel Ádám';
+        }
         const sender = psSenderInput.value;
         
         if(!date || !pickupDate || !courier || !company) {
@@ -1995,6 +2215,9 @@ function initApp() {
         historySearchInput.value = '';
         trashDateStart.value = '';
         trashDateEnd.value = '';
+        if (accountingFilterPending) {
+            accountingFilterPending.checked = false;
+        }
         await populateCompanyFilters();
         trashView.style.display = 'none';
         if (modalTabsBar) modalTabsBar.style.display = 'flex';
@@ -2360,12 +2583,13 @@ function initApp() {
 
         document.querySelectorAll('.btn-delete-run').forEach(btn => {
             btn.addEventListener('click', async (e) => {
-                const runId = e.target.closest('button').getAttribute('data-id');
-                const confirm = await CustomDialog.confirm('Biztosan törlöd ezt a szállítási kört az előzményekből?', 'Kör Törlése', 'warning', true);
-                if(confirm) {
-                    await HistoryManager.deleteRun(runId);
+                const button = e.target.closest('button');
+                const card = button.closest('.acc-run-card') || button.closest('.history-apple-card');
+                const runId = button.getAttribute('data-id') || card?.getAttribute('data-run-id') || '';
+                const docId = button.getAttribute('data-doc-id') || card?.getAttribute('data-doc-id') || '';
+                await executeRunDeletion(runId, docId, card, button, () => {
                     renderAccountingRuns();
-                }
+                });
             });
         });
 

@@ -766,8 +766,9 @@ export const OrderOverviewView = {
                             const formattedTotal = new Intl.NumberFormat('hu-HU').format(order.totalAmount || 0);
                             const formattedCod = new Intl.NumberFormat('hu-HU').format(order.codAmount || 0);
                             const logisticsStatus = OrderOverviewView.getLogisticsStatus(order);
-                            const duplicateOrders = duplicateCustomerOrdersMap.get(order.id) || [];
-                            const hasDuplicateOrders = duplicateOrders.length > 0;
+                            const isResellerOrder = Boolean(order.isReseller || (order.tags && /(?:viszontelad|viszonterlad|viszontelad[oó])/i.test(order.tags)));
+                            const duplicateOrders = isResellerOrder ? [] : (duplicateCustomerOrdersMap.get(order.id) || []);
+                            const hasDuplicateOrders = !isResellerOrder && duplicateOrders.length > 0;
 
                             // Fizetési jelvény
                             let paymentBadge = '';
@@ -884,7 +885,6 @@ export const OrderOverviewView = {
                             const fullCityLine = order.zip ? `${order.zip} ${order.city || ''}` : (order.city || '');
                             const streetAddress = order.address1 || order.address || '';
 
-                            const isResellerOrder = Boolean(order.isReseller || (order.tags && /(?:viszontelad|viszonterlad|viszontelad[oó])/i.test(order.tags)));
                             const isInvalidAddr = !order.isFulfilled && !order.isPickup && !isResellerOrder && hasInvalidDeliveryAddress(order);
 
                             // Sor háttér prioritások:
@@ -1371,6 +1371,10 @@ export const OrderOverviewView = {
                                                         ${formattedGroupTotal} Ft
                                                         ${groupCod > 0 ? `<span style="color: #1d4ed8; font-size: 11px; font-weight: 700; margin-left: 4px; background: #eff6ff; border: 1px solid #bfdbfe; padding: 1.5px 5px; border-radius: 4px;">UV: ${formattedGroupCod} Ft</span>` : ''}
                                                     </span>
+                                                    <button class="btn-hub-delete-run" data-run-id="${group.runId || ''}" data-doc-id="${group.docId || ''}" title="Kör törlése az előzményekből" style="background: #ffffff; border: 1px solid #fca5a5; color: #dc2626; border-radius: 6px; padding: 2.5px 8px; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all .15s; margin-left: 4px;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#ffffff'">
+                                                        <i class="ph-bold ph-trash" style="font-size: 11px;"></i>
+                                                        <span>Kör törlése</span>
+                                                    </button>
                                                 </div>
                                             </div>
 

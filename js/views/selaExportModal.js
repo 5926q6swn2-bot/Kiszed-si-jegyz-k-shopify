@@ -109,8 +109,7 @@ export const SelaExportModal = {
                     <td><input type="text" class="sela-cell-input col-street" data-field="col5_street" value="${r.col5_street}" style="width: 180px;" title="${r.col5_street}"></td>
                     <td><input type="text" class="sela-cell-input col-phone" data-field="col6_phone" value="${r.col6_phone}" style="width: 165px;" title="${r.col6_phone}"></td>
                     <td><input type="text" class="sela-cell-input col-name" data-field="col7_customerName" value="${r.col7_customerName}" style="width: 135px;" title="${r.col7_customerName}"></td>
-                    <td><input type="number" class="sela-cell-input col-num" data-field="col8_pvcSpcFloorQty" value="${r.col8_pvcSpcFloorQty}" min="0" style="width: 48px; text-align:center;"></td>
-                    <td><input type="number" class="sela-cell-input col-num" data-field="col9_acousticQty" value="${r.col9_acousticQty}" min="0" style="width: 48px; text-align:center;"></td>
+                    <td><input type="number" class="sela-cell-input col-num" data-field="col8_pvcSpcFloorQty" value="${r.col8_pvcSpcFloorQty}" min="0" style="width: 52px; text-align:center;" title="Falpanelek és padlózatok összesen"></td>
                     <td><input type="number" class="sela-cell-input col-num" data-field="col10_adhesivesQty" value="${r.col10_adhesivesQty}" min="0" style="width: 48px; text-align:center;"></td>
                     <td><input type="number" class="sela-cell-input col-num" data-field="col11_profilesQty" value="${r.col11_profilesQty}" min="0" style="width: 48px; text-align:center;"></td>
                     <td>
@@ -243,8 +242,7 @@ export const SelaExportModal = {
                                 <th style="width:185px;">Utca, házszám</th>
                                 <th style="width:170px;">Telefonszám</th>
                                 <th style="width:140px;">Címzett Neve</th>
-                                <th style="width:50px; text-align:center;" title="PVC, SPC falpanelek és padlózatok">PVC/SPC</th>
-                                <th style="width:50px; text-align:center;" title="Akusztikus falpanelek">Akuszt.</th>
+                                <th style="width:55px; text-align:center;" title="Falpanelek és padlózatok (PVC, SPC és Akusztikus)">Panelek</th>
                                 <th style="width:50px; text-align:center;" title="Ragasztók, szilikonok">Ragasztó</th>
                                 <th style="width:50px; text-align:center;" title="Profilok és skirting szegélylécek">Profil</th>
                                 <th style="width:180px;">Utánvét / Tapadóhíd</th>
@@ -518,7 +516,7 @@ export const SelaExportModal = {
                         col6_phone: getVal('.col-phone'),
                         col7_customerName: getVal('.col-name'),
                         col8_pvcSpcFloorQty: getNum('[data-field="col8_pvcSpcFloorQty"]'),
-                        col9_acousticQty: getNum('[data-field="col9_acousticQty"]'),
+                        col9_acousticQty: 0,
                         col10_adhesivesQty: getNum('[data-field="col10_adhesivesQty"]'),
                         col11_profilesQty: getNum('[data-field="col11_profilesQty"]'),
                         col12_codAndTapadohid: getVal('.col-cod'),
