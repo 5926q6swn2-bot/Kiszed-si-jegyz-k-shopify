@@ -687,7 +687,7 @@ export function generatePdfHtml(run) {
 
             let totalOrderValue = 0;
             const itemsHtml = order.items.map(item => {
-                const itemTotal = item.price * item.qty;
+                const itemTotal = item.totalPrice !== undefined ? item.totalPrice : (item.price * item.qty);
                 totalOrderValue += itemTotal;
 
                 if (item.isCollapsedProfile && item.subItems && item.subItems.length > 0) {

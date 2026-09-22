@@ -10,6 +10,7 @@ import {
     ShopifyParser 
 } from './shopify.js';
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
+import { checkBadShipping, aggregateOrderLineItems } from '../utils/orderUtils.js';
 
 export const ShopifyApiService = {
     // Közös hitelesítési fejlécek kinyerése (Render védelemhez)
@@ -376,8 +377,8 @@ export const ShopifyApiService = {
         // Ha több szállítási sor van (shippingLinesRaw.length > 1), vagy a tényleges szállítási díj > 2300 Ft (pl. 5000 Ft, 9900 Ft), vagy van külön szállítás tétel
         const hasExtraShippingPaid = shippingLinesRaw.length > 1 || shippingFee > 2350 || hasShippingLineItem;
 
-        // Rossz szállítási mód felismerése: Nem törölt, nem teljesített, nem személyes átvétel, nem Budapest, NEM ingyenes kuponos, ÉS NEM fizetett rá (nincs hozzáütve extra szállítás), és a tényleges díj pontosan 2300 Ft
-        const hasBadShipping = !isCancelled && fulfillmentStatus !== 'fulfilled' && !isPickup && !isBudapest && !hasFreeShippingDiscount && !hasExtraShippingPaid && Math.round(shippingFee) === 2300;
+        // Rossz szállítási mód ellenőrzése (delegálva a központi konfigurálható checkBadShipping függvénynek)
+        const hasBadShipping = checkBadShipping(apiOrder);
 
         // Számla ki hiány ellenőrzése (csak ha nem törölt a rendelés ÉS NEM viszonteladó)
         // Személyes átvétel esetén CSAK AKKOR kell előre számlázni, ha már kifizette (pl. bankkártya). Ha utánvétes/helyszíni fizetés, nem írjuk ki!
@@ -532,59 +533,8 @@ export const ShopifyApiService = {
             }
         }
 
-        // Tételek és Törölt (Removed) tételek feldolgozása
-        const items = [];
-        const removedItems = [];
-
-        (apiOrder.line_items || []).forEach(item => {
-            const variantTitle = (item.variant_title || item.variantTitle || '').trim();
-            // Mindig a teljes nevet képezzük: Shopify-ban item.name tartalmazza a variánst ("Terméknév - Variáns")
-            // Ha mégis hiányozna a variáns a névből, automatikusan hozzáfűzzük a méretet/kiszerelést
-            let fullItemName = (item.name || item.title || '').trim();
-            if (variantTitle && variantTitle.toLowerCase() !== 'default title' && !fullItemName.toLowerCase().includes(variantTitle.toLowerCase())) {
-                fullItemName = `${item.title || fullItemName} - ${variantTitle}`;
-            }
-            const formattedName = ShopifyParser.formatItemName(fullItemName);
-            const origQty = parseInt(item.quantity) || 0;
-            const curQty = item.current_quantity !== undefined ? parseInt(item.current_quantity) : origQty;
-            const fulfillableQty = item.fulfillable_quantity !== undefined ? parseInt(item.fulfillable_quantity) : curQty;
-            const price = parseFloat(item.price) || 0;
-
-            // Ha a tétel törölve lett a rendelésből (current_quantity === 0)
-            if (curQty === 0 && origQty > 0) {
-                removedItems.push({
-                    name: formattedName,
-                    originalQty: origQty,
-                    qty: 0,
-                    price: price,
-                    sku: item.sku || '',
-                    variantTitle: item.variant_title || '',
-                    imageUrl: item.image_url || null
-                });
-                return;
-            }
-
-            // Ha a tétel aktív darabszámmal szerepel a rendelésben
-            if (curQty > 0 && formattedName) {
-                const existing = items.find(i => i.name === formattedName);
-                if (existing) {
-                    existing.qty += curQty;
-                    existing.fulfillableQty = (existing.fulfillableQty || 0) + fulfillableQty;
-                } else {
-                    items.push({
-                        name: formattedName,
-                        qty: curQty,
-                        originalQty: origQty,
-                        fulfillableQty: fulfillableQty,
-                        isQuantityModified: curQty !== origQty,
-                        price: price,
-                        sku: item.sku || '',
-                        variantTitle: item.variant_title || '',
-                        imageUrl: item.image_url || null
-                    });
-                }
-            }
-        });
+        // Tételek és Törölt (Removed) tételek feldolgozása (összefésülés, valós árak, kedvezmények és ajándékok)
+        const { items, removedItems } = aggregateOrderLineItems(apiOrder.line_items, ShopifyParser.formatItemName);
 
         // Ha nincs benne egyetlen aktív kiszedendő tétel sem (minden ki lett törölve belőle):
         const isCompletelyRemoved = items.length === 0 && (removedItems.length > 0 || (apiOrder.line_items || []).length > 0);
@@ -680,7 +630,7 @@ export const ShopifyApiService = {
             const profiles = orderObj.items.filter(item => ShopifyParser.isProfile(item.name));
             if (profiles.length > 0) {
                 orderObj.items = orderObj.items.filter(item => !ShopifyParser.isProfile(item.name));
-                let totalPrice = profiles.reduce((sum, item) => sum + (item.price * item.qty), 0);
+                let totalPrice = profiles.reduce((sum, item) => sum + (item.totalPrice !== undefined ? item.totalPrice : (item.price * item.qty)), 0);
                 orderObj.items.push({
                     name: "Összekészített profilok",
                     qty: 1,

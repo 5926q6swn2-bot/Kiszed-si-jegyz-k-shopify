@@ -28,6 +28,8 @@ import {
     isPickupOrder, 
     isEligibleForAutoPannonXp,
     checkBadShipping,
+    ENABLE_BAD_SHIPPING_CHECK,
+    aggregateOrderLineItems,
     isOrderMissingInvoice,
     filterOrdersWithoutInvoice,
     calculateOrderCodAndErrors,
@@ -1263,13 +1265,18 @@ assertEqual("Sela Unknown Items - VariantTitle preserved", unknownWithVariant[0]
 assertEqual("Sela Unknown Items - Suggested weight matches 5kg", unknownWithVariant[0].suggestedWeight, 5.0);
 
 // --- Bad Shipping (2300 Ft) Detection & Free Shipping Coupon Exclusion Tests ---
-// 1. Vidéki cím, 2300 Ft szállítás, nincs kedvezmény -> Rossz szállítás!
 const badShipOrder1 = {
     city: "Debrecen",
     zip: "4000",
     shipping_lines: [{ price: "2300.00", title: "Budapesti kiszállítás" }]
 };
-assertEqual("Bad Shipping - Countryside 2300 Ft without coupon is bad", checkBadShipping(badShipOrder1), true);
+
+// 0. Globális inaktiválás teszt (mivel a webshopban mostantól minden szállítás 9900 Ft)
+assertEqual("Bad Shipping - Deactivated globally by default", checkBadShipping(badShipOrder1), false);
+assertEqual("Bad Shipping - ENABLE_BAD_SHIPPING_CHECK flag is false", ENABLE_BAD_SHIPPING_CHECK, false);
+
+// 1. Vidéki cím, 2300 Ft szállítás, nincs kedvezmény -> Rossz szállítás! (forceCheck = true)
+assertEqual("Bad Shipping - Countryside 2300 Ft without coupon is bad (forced check)", checkBadShipping(badShipOrder1, true), true);
 
 // 2. Budapesti cím, 2300 Ft szállítás -> NEM rossz szállítás!
 const bpOrder = {
@@ -1277,7 +1284,7 @@ const bpOrder = {
     zip: "1118",
     shipping_lines: [{ price: "2300.00", title: "Budapesti kiszállítás" }]
 };
-assertEqual("Bad Shipping - Budapest 2300 Ft is NOT bad", checkBadShipping(bpOrder), false);
+assertEqual("Bad Shipping - Budapest 2300 Ft is NOT bad", checkBadShipping(bpOrder, true), false);
 
 // 3. Budapesti 1xxx irányítószám -> NEM rossz szállítás!
 const bpZipOrder = {
@@ -1285,7 +1292,7 @@ const bpZipOrder = {
     zip: "1037",
     shipping_lines: [{ price: "2300.00" }]
 };
-assertEqual("Bad Shipping - 1xxx zip is Budapest -> NOT bad", checkBadShipping(bpZipOrder), false);
+assertEqual("Bad Shipping - 1xxx zip is Budapest -> NOT bad", checkBadShipping(bpZipOrder, true), false);
 
 // 4. Vidéki cím, de 9900 Ft normál díj -> NEM rossz szállítás!
 const normalCountryOrder = {
@@ -1293,7 +1300,7 @@ const normalCountryOrder = {
     zip: "6720",
     shipping_lines: [{ price: "9900.00" }]
 };
-assertEqual("Bad Shipping - Countryside 9900 Ft is NOT bad", checkBadShipping(normalCountryOrder), false);
+assertEqual("Bad Shipping - Countryside 9900 Ft is NOT bad", checkBadShipping(normalCountryOrder, true), false);
 
 // 5. #3966 TESZT: Vidéki cím (Dunaföldvár), 2300 Ft alapár DE ingyenes szállítás kupon (discount_allocations: 2300 Ft) -> NEM rossz szállítás!
 const order3966 = {
@@ -1307,7 +1314,7 @@ const order3966 = {
         discount_allocations: [{ amount: "2300.00" }]
     }]
 };
-assertEqual("Bad Shipping - #3966 Free shipping coupon (Dunafoldvar) is NOT bad", checkBadShipping(order3966), false);
+assertEqual("Bad Shipping - #3966 Free shipping coupon (Dunafoldvar) is NOT bad", checkBadShipping(order3966, true), false);
 
 // 6. Vidéki cím, discounted_price: "0.00" -> NEM rossz szállítás!
 const freeDiscountedOrder = {
@@ -1318,16 +1325,16 @@ const freeDiscountedOrder = {
         discounted_price: "0.00"
     }]
 };
-assertEqual("Bad Shipping - Discounted to 0 Ft is NOT bad", checkBadShipping(freeDiscountedOrder), false);
+assertEqual("Bad Shipping - Discounted to 0 Ft is NOT bad", checkBadShipping(freeDiscountedOrder, true), false);
 
 // 7. Törölt rendelés -> NEM rossz szállítás
-assertEqual("Bad Shipping - Cancelled order is NOT bad", checkBadShipping({ isCancelled: true, city: "Pécs", shipping_lines: [{ price: "2300.00" }] }), false);
+assertEqual("Bad Shipping - Cancelled order is NOT bad", checkBadShipping({ isCancelled: true, city: "Pécs", shipping_lines: [{ price: "2300.00" }] }, true), false);
 
 // 8. Teljesített rendelés -> NEM rossz szállítás
-assertEqual("Bad Shipping - Fulfilled order is NOT bad", checkBadShipping({ fulfillmentStatus: 'fulfilled', city: "Pécs", shipping_lines: [{ price: "2300.00" }] }), false);
+assertEqual("Bad Shipping - Fulfilled order is NOT bad", checkBadShipping({ fulfillmentStatus: 'fulfilled', city: "Pécs", shipping_lines: [{ price: "2300.00" }] }, true), false);
 
 // 9. Személyes átvétel -> NEM rossz szállítás
-assertEqual("Bad Shipping - Pickup order is NOT bad", checkBadShipping({ isPickup: true, city: "Pécs", shipping_lines: [{ price: "2300.00" }] }), false);
+assertEqual("Bad Shipping - Pickup order is NOT bad", checkBadShipping({ isPickup: true, city: "Pécs", shipping_lines: [{ price: "2300.00" }] }, true), false);
 
 // 10. #3941 Eset: Ráfizetett a 2300 Ft-ra, hozzá van ütve egy másik szállítási sor (2300 + 7600 = 9900 Ft) -> NEM rossz szállítás!
 const order3941 = {
@@ -1339,7 +1346,7 @@ const order3941 = {
     ],
     total_shipping_price_set: { shop_money: { amount: "9900.00" } }
 };
-assertEqual("Bad Shipping - #3941 Multiple shipping lines (2300+7600 Ft) is NOT bad", checkBadShipping(order3941), false);
+assertEqual("Bad Shipping - #3941 Multiple shipping lines (2300+7600 Ft) is NOT bad", checkBadShipping(order3941, true), false);
 
 // 11. Megegyezés szerinti alacsonyabb ráfizetés (pl. 5000 Ft szállítás) -> NEM rossz szállítás!
 const agreedLowerShippingOrder = {
@@ -1351,7 +1358,7 @@ const agreedLowerShippingOrder = {
     ],
     total_shipping_price_set: { shop_money: { amount: "5000.00" } }
 };
-assertEqual("Bad Shipping - Agreed 5000 Ft shipping with 2 lines is NOT bad", checkBadShipping(agreedLowerShippingOrder), false);
+assertEqual("Bad Shipping - Agreed 5000 Ft shipping with 2 lines is NOT bad", checkBadShipping(agreedLowerShippingOrder, true), false);
 
 // 12. Egyetlen szállítási sor, de módosítva 5000 Ft-ra -> NEM rossz szállítás!
 const singleLine5000Order = {
@@ -1362,7 +1369,7 @@ const singleLine5000Order = {
     ],
     total_shipping_price_set: { shop_money: { amount: "5000.00" } }
 };
-assertEqual("Bad Shipping - Single line modified to 5000 Ft is NOT bad", checkBadShipping(singleLine5000Order), false);
+assertEqual("Bad Shipping - Single line modified to 5000 Ft is NOT bad", checkBadShipping(singleLine5000Order, true), false);
 
 // 13. Rendelési tételek között szereplő szállítási pótdíj cikk -> NEM rossz szállítás!
 const orderWithShippingLineItem = {
@@ -1374,7 +1381,55 @@ const orderWithShippingLineItem = {
         { name: "Kiszállítási pótdíj (vidék)", price: 7600 }
     ]
 };
-assertEqual("Bad Shipping - Surcharge line item present is NOT bad", checkBadShipping(orderWithShippingLineItem), false);
+assertEqual("Bad Shipping - Surcharge line item present is NOT bad", checkBadShipping(orderWithShippingLineItem, true), false);
+
+// --- Line Item Discounts, Free Gift Items & Total Price Tests (#4113) ---
+const rawLineItems4113 = [
+    {
+        name: "HPR Ragasztó",
+        price: "3810.00",
+        quantity: 3,
+        current_quantity: 3,
+        discount_allocations: []
+    },
+    {
+        name: "PB-TR032 Falpanel - 280x122cm",
+        price: "21340.00",
+        quantity: 7,
+        current_quantity: 7,
+        discount_allocations: []
+    },
+    {
+        name: "HPR Ragasztó",
+        price: "3810.00",
+        quantity: 7,
+        current_quantity: 7,
+        discount_allocations: [{ amount: "26670.00" }],
+        properties: [{ name: "_qbk-offer-type", value: "free-gift" }]
+    }
+];
+
+const { items: processedItems4113, removedItems: removed4113 } = aggregateOrderLineItems(rawLineItems4113);
+assertEqual("Order 4113 - Removed items count is 0", removed4113.length, 0);
+assertEqual("Order 4113 - Items count merged to 2 distinct items", processedItems4113.length, 2);
+
+const glueItem = processedItems4113.find(i => i.name.includes("Ragasztó"));
+assertEqual("Order 4113 - Glue item exists", !!glueItem, true);
+assertEqual("Order 4113 - Glue total qty is 10 db", glueItem.qty, 10);
+assertEqual("Order 4113 - Glue freeQty is 7 db", glueItem.freeQty, 7);
+assertEqual("Order 4113 - Glue paidQty is 3 db", glueItem.paidQty, 3);
+assertEqual("Order 4113 - Glue hasFreeGift flag is true", glueItem.hasFreeGift, true);
+assertEqual("Order 4113 - Glue totalDiscount is 26670 Ft", glueItem.totalDiscount, 26670);
+assertEqual("Order 4113 - Glue totalPrice is 11430 Ft (not 38100 Ft!)", glueItem.totalPrice, 11430);
+
+const panelItem = processedItems4113.find(i => i.name.includes("Falpanel"));
+assertEqual("Order 4113 - Panel item exists", !!panelItem, true);
+assertEqual("Order 4113 - Panel qty is 7 db", panelItem.qty, 7);
+assertEqual("Order 4113 - Panel totalPrice is 149380 Ft", panelItem.totalPrice, 149380);
+
+const sumItemsTotal = processedItems4113.reduce((sum, i) => sum + i.totalPrice, 0);
+assertEqual("Order 4113 - Sum of item totals is 160810 Ft", sumItemsTotal, 160810);
+assertEqual("Order 4113 - Sum with shipping equals grand total 170710 Ft", sumItemsTotal + 9900, 170710);
 
 // --- Delivery Run Grouping Logic Tests ---
 const testDeliveryOrders = [

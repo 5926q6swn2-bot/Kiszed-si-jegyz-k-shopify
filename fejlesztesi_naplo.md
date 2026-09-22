@@ -29,7 +29,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.8 Flash (High)
-- **Státusz**: A rendszer stabil, Render felhőre kész. Elszámolások egységes időrendi nézetben (v4.6.7, 522/522 zöld unit teszt). Futár terminál utánvét elszámolások auditálva (3 Excel fájl vs. Előzmények adatbázis).
+- **Státusz**: A rendszer stabil, Render felhőre kész. Fix 9900 Ft-os szállítási logika és pontos ingyenes ajándék / kedvezmény sorösszeg kezelés élesítve (v4.7.1, 540/540 zöld unit teszt).
 
 
 ---
@@ -50,6 +50,20 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 4. **Feketelista Kezelő (Blacklist Manager) & Automata Kockázatos Vevő Szűrés**:
    - Megbízhatatlan / lebeszélt időpontban át nem vett rendelések vevőinek központi rögzítése (többszörös telefonszámok, szállítási címek, nevek, e-mail címek + indoklás).
    - Új Shopify rendelés letöltésekor automatikus egyeztetés a feketelistával, és azonnali piros figyelmeztető doboz generálása a raktári felületen (opcionális automatikus `feketelista` tageléssel a Shopify-ban).
+
+### 2026. szeptember 22. (4. frissítés) - Fix 9900 Ft Szállítás & Ingyenes Ajándék / Tételkedvezmény Kezelés (`v4.7.1`)
+- **Fix 9900 Ft Szállítási Díj - Rossz Szállítás Ellenőrzés Inaktiválása**:
+  - `js/utils/orderUtils.js`: Létrehozva a moduláris `ENABLE_BAD_SHIPPING_CHECK = false` kapcsoló. A `checkBadShipping` alapértelmezetten `false`-t ad, a teljes 13 lépéses ellenőrző algoritmus 100%-ban megmaradt (`forceCheck = true` opcióval).
+  - `js/services/shopifyApiService.js`: A korábbi inlined szállítási ellenőrzés közvetlenül a központi `checkBadShipping` függvényre lett delegálva.
+  - `js/views/orderOverviewView.js`: A "Rossz szállítás (2300 Ft)" szűrőchip automatikusan eltűnt a felületről, a sorok nem színeződnek tévesen pirosra és a figyelmeztető badge sem jelenik meg.
+- **Ingyenes Ajándékok és Kedvezményes Tételek Pontos Kezelése (#4113)**:
+  - `js/utils/orderUtils.js`: Létrehozva a tiszta `aggregateOrderLineItems` segédfüggvény. A Shopify `discount_allocations` és `total_discount` adatait feldolgozva a tétel tényleges fizetendő összegét számolja (`totalPrice`).
+  - Az azonos cikkeket a raktári kiszedés megkönnyítésére egy sorban összegzi (`10 db HPR Ragasztó`), miközben nyilvántartja az ingyenes darabszámokat (`freeQty: 7 db`, `paidQty: 3 db`, `hasFreeGift: true`).
+  - `js/views/orderOverviewView.js`: A sorösszegnél a valós fizetendő összeg jelenik meg (`11 430 Ft`), kedvezmény esetén áthúzva a listaár (`38 100 Ft`), a tétel alatt pedig zöld jelvény mutatja a megoszlást (`7 db ingyenes ajándék (0 Ft) • 3 db fizetős`).
+  - `js/utils/printTemplates.js` és `js/services/shopify.js`: A szállítólevél és CSV parser szintén a valós `totalPrice` összegeket veszi alapul.
+- **Tesztelés & Minőségbiztosítás**:
+  - 540/540 egységteszt és ESM szintaxis-ellenőrzés sikeresen lefutva (100% zöld).
+  - Élő adatokkal (#4113) ellenőrizve: a tételsorok összege (160 810 Ft) + szállítás (9 900 Ft) = 170 710 Ft, fillérre megegyezik a rendelés végösszegével.
 
 ### 2026. szeptember 22. (3. frissítés) - Monolitikus Fájlok Modularizálása: Shopify Router és Vezérlők Kiszervezése (`v4.7.0`)
 - **Szerver Oldali Modularizáció (`server.js` -> `server/shopifyRoutes.js`)**:

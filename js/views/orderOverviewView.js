@@ -1156,7 +1156,16 @@ export const OrderOverviewView = {
                                                                                 ? `<span style="display: inline-block; margin-left: 6px; padding: 1.5px 7px; border-radius: 5px; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-size: 11px; font-weight: 700;">${item.variantTitle}</span>` 
                                                                                 : ''}
                                                                         </div>
-                                                                        ${item.sku ? `<div style="font-size: 10.5px; color: #64748b; font-family: monospace; margin-top: 2px;">SKU: ${item.sku}</div>` : ''}
+                                                                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px;">
+                                                                            ${item.sku ? `<span style="font-size: 10.5px; color: #64748b; font-family: monospace;">SKU: ${item.sku}</span>` : ''}
+                                                                            ${(item.freeQty > 0 || item.hasFreeGift) ? `
+                                                                                <span style="display: inline-flex; align-items: center; gap: 3.5px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 700;">
+                                                                                    <i class="ph-bold ph-gift" style="font-size: 11px;"></i>
+                                                                                    <span>${item.freeQty > 0 ? `${item.freeQty} db ingyenes ajándék (0 Ft)` : 'Ingyenes ajándék (0 Ft)'}</span>
+                                                                                    ${item.paidQty > 0 ? `<span style="color: #065f46; font-weight: 600; margin-left: 2px;">• ${item.paidQty} db fizetős</span>` : ''}
+                                                                                </span>
+                                                                            ` : ''}
+                                                                        </div>
                                                                     </div>
 
                                                                     <!-- Kiemelt Mennyiség BADGE & Ár -->
@@ -1165,8 +1174,15 @@ export const OrderOverviewView = {
                                                                             ${item.qty} db
                                                                         </span>
                                                                         ${item.isQuantityModified ? `<span style="font-size: 10px; color: #dc2626; font-weight: 600;">(volt: ${item.originalQty})</span>` : ''}
-                                                                        <div style="text-align: right; min-width: 80px; font-size: 12px; font-weight: 700; color: #1e293b;">
-                                                                            ${new Intl.NumberFormat('hu-HU').format(item.price * item.qty)} Ft
+                                                                        <div style="text-align: right; min-width: 85px;">
+                                                                            ${((item.totalDiscount > 0) || (item.totalPrice !== undefined && item.totalPrice < (item.price * item.qty))) ? `
+                                                                                <div style="font-size: 10px; color: #94a3b8; text-decoration: line-through; line-height: 1.1; margin-bottom: 2px;">
+                                                                                    ${new Intl.NumberFormat('hu-HU').format(item.price * item.qty)} Ft
+                                                                                </div>
+                                                                            ` : ''}
+                                                                            <div style="font-size: 12.5px; font-weight: 800; color: ${(item.totalPrice === 0 || (item.totalPrice === undefined && item.price === 0)) ? '#059669' : '#1e293b'}; line-height: 1.2;">
+                                                                                ${new Intl.NumberFormat('hu-HU').format(item.totalPrice !== undefined ? item.totalPrice : (item.price * item.qty))} Ft
+                                                                            </div>
                                                                         </div>
                                                                     </div>
                                                                 </div>

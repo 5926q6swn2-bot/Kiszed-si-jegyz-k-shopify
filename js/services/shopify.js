@@ -576,6 +576,13 @@ export const ShopifyParser = {
             }
 
             const lineFulfillmentStatus = (row['Lineitem fulfillment status'] || '').toLowerCase();
+            const itemDiscount = parseFloat(row['Lineitem discount'] || 0) || 0;
+            const rawLineTotal = itemPrice * itemQty;
+            const lineTotal = Math.max(0, Math.round(rawLineTotal - itemDiscount));
+            const isFreeGift = (lineTotal === 0 && rawLineTotal > 0) || itemPrice === 0;
+            const freeQty = isFreeGift ? itemQty : 0;
+            const paidQty = itemQty - freeQty;
+
             if (itemQty > 0 && itemName) {
                 const order = orderMap.get(orderNum);
                 // Ha a rendelés "fulfilled" de a tétel "pending" → el lett távolítva a rendelésből, kihagyjuk
@@ -583,11 +590,21 @@ export const ShopifyParser = {
                     const existingItem = order.items.find(i => i.name === itemName);
                     if (existingItem) {
                         existingItem.qty += itemQty;
+                        existingItem.totalPrice = (existingItem.totalPrice !== undefined ? existingItem.totalPrice : (existingItem.price * (existingItem.qty - itemQty))) + lineTotal;
+                        existingItem.totalDiscount = (existingItem.totalDiscount || 0) + itemDiscount;
+                        existingItem.freeQty = (existingItem.freeQty || 0) + freeQty;
+                        existingItem.paidQty = (existingItem.paidQty || 0) + paidQty;
+                        if (isFreeGift) existingItem.hasFreeGift = true;
                     } else {
                         order.items.push({
                             name: itemName,
                             qty: itemQty,
                             price: itemPrice,
+                            totalPrice: lineTotal,
+                            totalDiscount: itemDiscount,
+                            freeQty: freeQty,
+                            paidQty: paidQty,
+                            hasFreeGift: isFreeGift,
                             sku: itemSku,
                             variantTitle: variantName
                         });
@@ -605,11 +622,12 @@ export const ShopifyParser = {
                 const profiles = order.items.filter(item => ShopifyParser.isProfile(item.name));
                 if (profiles.length > 0) {
                     order.items = order.items.filter(item => !ShopifyParser.isProfile(item.name));
-                    let totalPrice = profiles.reduce((sum, item) => sum + (item.price * item.qty), 0);
+                    let totalPrice = profiles.reduce((sum, item) => sum + (item.totalPrice !== undefined ? item.totalPrice : (item.price * item.qty)), 0);
                     order.items.push({
                         name: "Összekészített profilok",
                         qty: 1,
                         price: totalPrice,
+                        totalPrice: totalPrice,
                         isCollapsedProfile: true,
                         subItems: profiles
                     });

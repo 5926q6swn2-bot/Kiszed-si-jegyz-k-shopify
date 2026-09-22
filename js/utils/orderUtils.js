@@ -304,18 +304,28 @@ export function isEligibleForAutoPannonXp(order) {
 }
 
 /**
+ * Konfigurációs kapcsoló: Ha a webshopban minden szállítás fix (pl. 9900 Ft),
+ * a rossz szállítás vizsgálat ideiglenesen inaktiválható.
+ * Későbbi visszakapcsoláshoz állítsd true-ra.
+ */
+export const ENABLE_BAD_SHIPPING_CHECK = false;
+
+/**
  * Ellenőrzi, hogy egy rendelés rossz szállítási díjjal (pl. 2.300 Ft-os budapesti díj vidéki címre) rendelkezik-e.
  * KIVÉTELEK:
+ * - Inaktivált állapot (ENABLE_BAD_SHIPPING_CHECK = false), hacsak a forceCheck nincs bekapcsolva
  * - Törölt vagy már teljesített rendelések
  * - Személyes átvételes rendelések
  * - Budapesti címek (Budapest város vagy 1xxx irányítószám)
  * - Ingyenes szállítási kuponnal / kedvezménnyel rendelkezők (ahol a kedvezmény miatt 0 Ft vagy lecsökkent a díj, pl. #3966)
  * 
  * @param {Object} order Shopify API vagy konvertált rendelés
+ * @param {boolean} [forceCheck=false] Ha true, a globális ENABLE_BAD_SHIPPING_CHECK kapcsolót figyelmen kívül hagyva lefuttatja az ellenőrzést
  * @returns {boolean}
  */
-export function checkBadShipping(order) {
+export function checkBadShipping(order, forceCheck = false) {
     if (!order) return false;
+    if (!forceCheck && !ENABLE_BAD_SHIPPING_CHECK) return false;
     if (order.isCancelled === true || order.cancelled_at) return false;
 
     const fStatus = String(order.fulfillmentStatus || order.fulfillment_status || '').toLowerCase();
@@ -779,4 +789,101 @@ export function calculateReportCutoffDate(referenceDate = new Date()) {
  * Személyes átvételes vagy törölt rendelésekre mindig false-t ad vissza.
  */
 export const hasInvalidDeliveryAddress = checkInvalidDeliveryAddress;
+
+/**
+ * Összefésüli és kiszámítja a Shopify rendelési tételek darabszámait, kedvezményeit és valós sorösszegeit.
+ * Kezeli az ingyenes ajándék (0 Ft) tételeket és a modern discount_allocations mezőket.
+ * 
+ * @param {Array} rawLineItems A Shopify API vagy CSV által adott nyers tétellista
+ * @param {Function} [formatNameFn] Opcionális egyedi névformázó függvény
+ * @returns {{ items: Array, removedItems: Array }}
+ */
+export function aggregateOrderLineItems(rawLineItems = [], formatNameFn = null) {
+    const items = [];
+    const removedItems = [];
+    const formatName = formatNameFn || (name => (name ? String(name).replace(/\s+/g, ' ').trim() : ''));
+
+    (rawLineItems || []).forEach(item => {
+        const variantTitle = (item.variant_title || item.variantTitle || '').trim();
+        let fullItemName = (item.name || item.title || '').trim();
+        if (variantTitle && variantTitle.toLowerCase() !== 'default title' && !fullItemName.toLowerCase().includes(variantTitle.toLowerCase())) {
+            fullItemName = `${item.title || fullItemName} - ${variantTitle}`;
+        }
+        const formattedName = formatName(fullItemName);
+        const origQty = parseInt(item.quantity) || 0;
+        const curQty = item.current_quantity !== undefined ? parseInt(item.current_quantity) : origQty;
+        const fulfillableQty = item.fulfillable_quantity !== undefined ? parseInt(item.fulfillable_quantity) : curQty;
+        const unitPrice = parseFloat(item.price) || 0;
+
+        // Kedvezmények kiszámítása (discount_allocations és total_discount)
+        let lineDiscount = 0;
+        if (Array.isArray(item.discount_allocations) && item.discount_allocations.length > 0) {
+            lineDiscount = item.discount_allocations.reduce((sum, d) => {
+                return sum + (parseFloat(d.amount || d.amount_set?.shop_money?.amount || 0) || 0);
+            }, 0);
+        } else if (item.total_discount) {
+            lineDiscount = parseFloat(item.total_discount) || 0;
+        }
+
+        const rawLineTotal = unitPrice * curQty;
+        const lineTotal = Math.max(0, Math.round(rawLineTotal - lineDiscount));
+
+        const isFreeGift = (lineTotal === 0 && rawLineTotal > 0) || unitPrice === 0 || (item.properties || []).some(p =>
+            (p.name && /gift|ajándék|ingyen/i.test(String(p.name))) ||
+            (p.value && /gift|ajándék|ingyen/i.test(String(p.value)))
+        );
+        const freeQty = isFreeGift ? curQty : 0;
+        const paidQty = curQty - freeQty;
+
+        // Ha a tétel törölve lett a rendelésből (current_quantity === 0)
+        if (curQty === 0 && origQty > 0) {
+            removedItems.push({
+                name: formattedName,
+                originalQty: origQty,
+                qty: 0,
+                price: unitPrice,
+                totalPrice: 0,
+                totalDiscount: lineDiscount,
+                sku: item.sku || '',
+                variantTitle: item.variant_title || '',
+                imageUrl: item.image_url || null
+            });
+            return;
+        }
+
+        // Ha a tétel aktív darabszámmal szerepel a rendelésben
+        if (curQty > 0 && formattedName) {
+            const existing = items.find(i => i.name === formattedName);
+            if (existing) {
+                existing.qty += curQty;
+                existing.originalQty = (existing.originalQty || 0) + origQty;
+                existing.fulfillableQty = (existing.fulfillableQty || 0) + fulfillableQty;
+                existing.totalPrice = (existing.totalPrice !== undefined ? existing.totalPrice : (existing.price * (existing.qty - curQty))) + lineTotal;
+                existing.totalDiscount = (existing.totalDiscount || 0) + lineDiscount;
+                existing.freeQty = (existing.freeQty || 0) + freeQty;
+                existing.paidQty = (existing.paidQty || 0) + paidQty;
+                if (isFreeGift) existing.hasFreeGift = true;
+            } else {
+                items.push({
+                    name: formattedName,
+                    qty: curQty,
+                    originalQty: origQty,
+                    fulfillableQty: fulfillableQty,
+                    isQuantityModified: curQty !== origQty,
+                    price: unitPrice,
+                    totalPrice: lineTotal,
+                    totalDiscount: lineDiscount,
+                    freeQty: freeQty,
+                    paidQty: paidQty,
+                    hasFreeGift: isFreeGift,
+                    sku: item.sku || '',
+                    variantTitle: item.variant_title || '',
+                    imageUrl: item.image_url || null
+                });
+            }
+        }
+    });
+
+    return { items, removedItems };
+}
 
