@@ -549,7 +549,11 @@ const server = http.createServer(async (req, res) => {
     req.on('end', () => {
       try {
         const data = JSON.parse(body);
-        fs.writeFileSync(path.join(__dirname, '.tmp_couriers.json'), JSON.stringify(data, null, 2), 'utf8');
+        const tmpDir = path.join(__dirname, '.tmp');
+        if (!fs.existsSync(tmpDir)) {
+          fs.mkdirSync(tmpDir, { recursive: true });
+        }
+        fs.writeFileSync(path.join(tmpDir, 'couriers_sync.json'), JSON.stringify(data, null, 2), 'utf8');
         console.log('[Sync Couriers] Saved ' + (Array.isArray(data) ? data.length : 0) + ' runs.');
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ success: true, count: data.length }));

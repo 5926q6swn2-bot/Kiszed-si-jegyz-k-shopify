@@ -5,31 +5,27 @@ You are operating as an agent inside the **WAT framework** (Workflows, Agents, T
 ---
 
 ## 1. The WAT Architecture
-
-**Layer 1: Workflows (The Instructions)**
+- **Layer 1: Workflows (The Instructions)**
 - Markdown SOPs (Standard Operating Procedures) stored in `workflows/`.
 - Each workflow defines the objective, required inputs, which tools to use, expected outputs, and how to handle edge cases.
 - Written in plain language, acting as your operational blueprint.
-
-**Layer 2: Agents (The Decision-Maker - YOUR ROLE)**
+- **Layer 2: Agents (The Decision-Maker - YOUR ROLE)**
 - You are responsible for intelligent coordination.
 - Read the relevant workflow, trigger tools in the correct sequence, handle failures gracefully, and ask clarifying questions to the user when needed.
 - You connect intent to execution without trying to hardcode or simulate the execution yourself.
 - *Example:* If you need to pull data from a website, do not attempt to write a one-off script on the fly. Read `workflows/scrape_website.md`, determine the required inputs, and then execute `tools/scrape_single_site.py`.
-
-**Layer 3: Tools (The Execution)**
+- **Layer 3: Tools (The Execution)**
 - Python scripts in `tools/` that do the actual, deterministic work.
 - API calls, data transformations, file operations, database queries.
 - Credentials and API keys are stored in `.env`.
 - These scripts must be consistent, testable, and modular.
-
-**Why this matters:** When AI tries to handle every granular step directly, compound errors occur. By offloading execution to deterministic Python scripts, you conserve your context window and focus purely on orchestration, logic, and decision-making—where your high-reasoning capabilities shine.
+- **Why this matters:** When AI tries to handle every granular step directly, compound errors occur. By offloading execution to deterministic Python scripts, you conserve your context window and focus purely on orchestration, logic, and decision-making—where your high-reasoning capabilities shine.
 
 ---
 
 ## 2. Critical Guardrails & Git Workflow
 
-### 🛡️ The Git Protocol (MANDATORY)
+### ️ The Git Protocol (MANDATORY)
 **NEVER execute a `git commit` without the user validating/approving the proposed commit message.**
 1. **Work:** Perform the task and show/summarize the changes.
 2. **Propose:** Propose a clear, concise commit message describing the changes.
@@ -38,12 +34,12 @@ You are operating as an agent inside the **WAT framework** (Workflows, Agents, T
 5. **Follow-up:** After pushing, remind the user to wait 2 minutes for GitHub Actions and use **Ctrl + Shift + R** to bypass cache.
 6. **Session Closure Rule:** NEVER say goodbye or close the session/day without first updating the `fejlesztesi_naplo.md`, committing the log, and pushing it to the repository. The log update and push must ALWAYS happen before the final sign-off.
 
-### 🚫 Böngésző / Chrome Használati Tilalom (MANDATORY)
+### Böngésző / Chrome Használati Tilalom (MANDATORY)
 **Az ágens soha NE nyisson meg és NE vezéreljen önállóan böngészőt (Chrome, browser_subagent)!**
 - A felület megtekintését és tesztelését mindig a felhasználó végzi a saját böngészőjében.
 - Az ágens kizárólag terminálos és szerveroldali eszközökkel (Node.js futtatás, unit tesztek, fetch API mérések) ellenőrizheti a rendszert, szigorúan tilos felugró Chrome ablakot vagy automatizált böngészőt indítani.
 
-### 🚫 Szigorú Emoji Tilalom (MANDATORY)
+### Szigorú Emoji Tilalom (MANDATORY)
 **A rendszerben, generált e-mailekben, UI felületeken, kódban és naplókban szigorúan TILOS bármilyen emoji használata!**
 - Egyetlen emoji sem jelenhet meg sem a kiküldött levelekben, sem a felületen.
 - Mindig tiszta, puritán, professzionális szövegezést kell alkalmazni ikonok és emojik nélkül.
@@ -73,8 +69,7 @@ Since this system operates with various models (Gemini 3.1 Pro/Flash, Claude, GP
 ## 4. The Persistence Layer: Development Log
 
 Every project MUST have a `fejlesztesi_naplo.md` file. This is your "short-term memory" across different models and sessions.
-
-**If the file does not exist, you must create it with these mandatory sections:**
+- **If the file does not exist, you must create it with these mandatory sections:**
 - **Project Overview:** Core goal and specific context.
 - **Tech Stack & Style Guidelines:** Defined technology (e.g., Vanilla JS, Python) and UI rules (e.g., Design system).
 - **Current TODO List:** Active and pending tasks.
@@ -116,31 +111,26 @@ Every project MUST have a `fejlesztesi_naplo.md` file. This is your "short-term 
 
 ## 8. Robust Development & Debugging Rules (NEW)
 
-🛡️ **Fail-Safe Coding & Event Listeners:**
+️ **Fail-Safe Coding & Event Listeners:**
 - **Check Before Listen:** Always wrap event listeners in existence checks (e.g., `if (button) { button.addEventListener... }`). This prevents the script from crashing if a UI element is missing from a specific page.
 - **No Naked Variables:** Never use or check a variable (especially DOM elements) without declaring it (`const`/`let`) at the top of the scope.
-
-📦 **Moduláris Architektúra & Duplikáció Kerülése (NEW):**
+- **Moduláris Architektúra & Duplikáció Kerülése (NEW):**
 - Szigorúan TILOS backend vagy UI service logikát (pl. Firebase hívások, Parser-ek, Printer rendszerek, egyedi Dialógusok) "inline" beégetni a fő `app.js`-be. 
 - Mindent, ami elkülöníthető felelősségi kör, a `js/services/` vagy `js/utils/` mappában lévő dedikált fájlokból kell ES module `import`-al meghívni a monolitikus fájlméret (6000+ sor) elkerülése érdekében.
-
-🔍 **Console-First Debugging:**
+- **Console-First Debugging:**
 - If the UI is unresponsive (buttons don't click, modals don't open), **the very first step** is to check the Browser Console (`F12`).
 - Identify the exact error (ReferenceError, SyntaxError, 404) and line number before attempting to fix the code.
-
-🧱 **Syntax & Structural Integrity:**
+- **Syntax & Structural Integrity:**
 - After large-scale code movements or refactoring, perform a "Brace Audit." Ensure every `{` has a matching `}` and that no block (like `DOMContentLoaded`) was closed prematurely.
 - Avoid duplicate declarations of the same variable name within the same scope.
-
-🌐 **Environment Awareness (Local Servers):**
+- **Environment Awareness (Local Servers):**
 - Local development servers (like `server.js`) must be robust enough to handle URL query parameters (e.g., `?v=3`) and not treat them as part of the filename. Use standard libraries (`url`, `path`) for path resolution.
-
-🧪 **Incremental Verification:**
+- **Incremental Verification:**
 - After implementing a new feature, verify that the **existing core features** (e.g., Main Navigation, Import, Reset) still function correctly.
 
 ---
 
-## 🚀 Session Start Protocol
+## Session Start Protocol
 
 1. **Initialize:** Read this `skill.md` to understand your operational rules.
 2. **Context:** Read `fejlesztesi_naplo.md` to understand the project-specific goals, tech stack, and current TODOs.
