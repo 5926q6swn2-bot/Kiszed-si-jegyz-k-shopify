@@ -3,6 +3,7 @@
 import { CustomDialog } from '../utils/dialog.js';
 import { getPaymentDetails } from '../utils/paymentUtils.js';
 import { SelaWeightService } from './selaWeightService.js';
+import { calculateOrderDeliveryCost } from '../utils/orderUtils.js';
 
 // --- SELA SÚLYKONFIGURÁCIÓ ÉS KALKULÁCIÓ ---
 
@@ -70,11 +71,13 @@ export const ExporterService = {
             "Szállító Neve",
             "Rendelésszám",
             "Vevő Neve",
+            "Beszedett Összeg (Ft)",
             "Fizetés Módja",
             "Függő KP (futártól) (Ft)",
             "Kártyás utalásra vár (szállítótól) (Ft)",
             "Státusz",
-            "Megjegyzés"
+            "Megjegyzés",
+            "Fuvardíj (Ft + Áfa)"
         ];
 
         const csvRows = [];
@@ -84,6 +87,7 @@ export const ExporterService = {
         runs.forEach(run => {
             const reasons = run.uncollectedReasons || {};
             const partialOrders = run.partialOrders || {};
+            const surplusOrders = run.surplusOrders || {};
 
             run.orders.forEach(o => {
                 const pd = getPaymentDetails(run, o);
@@ -101,7 +105,19 @@ export const ExporterService = {
                     if (po) {
                         failReason = po.comment || "";
                     }
+                } else if (pd.hasSurplus) {
+                    const so = surplusOrders[o.id] || surplusOrders[orderIdKey];
+                    const extra = pd.surplusAmount || (so ? so.extraAmount : 0);
+                    const comment = so?.comment || pd.surplusComment || "";
+                    failReason = `Többlet / helyszíni eladás: +${extra.toLocaleString('hu-HU')} Ft${comment ? ' (' + comment + ')' : ''}`;
                 }
+
+                const deliveryCostInfo = calculateOrderDeliveryCost({
+                    ...o,
+                    customDeliveryCost: (run.customDeliveryCosts && run.customDeliveryCosts[o.id] !== undefined)
+                        ? run.customDeliveryCosts[o.id]
+                        : o.customDeliveryCost
+                });
 
                 rows.push({
                     date: run.date,
@@ -109,11 +125,14 @@ export const ExporterService = {
                     courier: run.courier || "-",
                     orderId: o.id,
                     customerName: o.shippingName || "—",
+                    collectedAmount: pd.collectedAmount || 0,
                     paymentMethodText: pd.methodText,
                     pendingKp: pd.pendingKp,
                     pendingCard: pd.pendingCard + pd.pendingBank,
                     orderStatus: pd.statusText,
-                    failReason: failReason
+                    failReason: failReason,
+                    deliveryCostText: deliveryCostInfo.formattedCost,
+                    deliveryCostNet: deliveryCostInfo.netCost
                 });
             });
         });
@@ -138,8 +157,10 @@ export const ExporterService = {
         };
 
         let currentCompany = null;
+        let companyCollectedSum = 0;
         let companyKpSum = 0;
         let companyCardSum = 0;
+        let companyDeliverySum = 0;
 
         const appendSubtotal = (companyName) => {
             if (companyName === null) return;
@@ -149,11 +170,13 @@ export const ExporterService = {
                 "",
                 "",
                 "",
+                companyCollectedSum,
                 "",
                 companyKpSum,
                 companyCardSum,
                 "",
-                ""
+                "",
+                `${new Intl.NumberFormat('hu-HU').format(companyDeliverySum).replace(/\u00a0/g, ' ')} Ft + Áfa`
             ];
             csvRows.push(subtotalRow.join(";"));
         };
@@ -163,15 +186,19 @@ export const ExporterService = {
                 if (currentCompany !== null) {
                     appendSubtotal(currentCompany);
                     // Üres sor az elválasztáshoz
-                    csvRows.push(";;;;;;;;;");
+                    csvRows.push(";;;;;;;;;;;");
                 }
                 currentCompany = row.company;
+                companyCollectedSum = 0;
                 companyKpSum = 0;
                 companyCardSum = 0;
+                companyDeliverySum = 0;
             }
 
+            companyCollectedSum += row.collectedAmount;
             companyKpSum += row.pendingKp;
             companyCardSum += row.pendingCard;
+            companyDeliverySum += row.deliveryCostNet;
 
             const rowData = [
                 clean(row.date),
@@ -179,11 +206,13 @@ export const ExporterService = {
                 clean(row.courier),
                 clean(row.orderId),
                 clean(row.customerName),
+                row.collectedAmount,
                 clean(row.paymentMethodText),
                 row.pendingKp,
                 row.pendingCard,
                 clean(row.orderStatus),
-                clean(row.failReason)
+                clean(row.failReason),
+                clean(row.deliveryCostText)
             ];
 
             csvRows.push(rowData.join(";"));

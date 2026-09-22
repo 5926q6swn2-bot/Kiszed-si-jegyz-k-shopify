@@ -7,7 +7,7 @@ import { PannonXPService } from './services/pannonxp.js';
 import { PannonXPView } from './views/pannonxpView.js';
 import { initHistoryView, renderAccountingRuns, renderTrashRuns } from './views/historyView.js';
 import { Store } from './store/state.js';
-import { OrdersView, getOrderBadgeHtml } from './views/ordersView.js';
+import { OrdersView, getOrderBadgeHtml, getDeliveryCostBadgeHtml } from './views/ordersView.js';
 import { initManualOrderController } from './controllers/manualOrderController.js';
 import { renderStatistics } from './views/stats.js';
 import { ExporterService } from './services/exporter.js';
@@ -18,7 +18,7 @@ import { SelaMissingWeightsModal } from './views/selaMissingWeightsModal.js';
 import { ShopifyApiService } from './services/shopifyApiService.js';
 import { generatePdfHtml, openPdfView, generateDeliveryNotesHtml } from './utils/printTemplates.js';
 import { getPaymentDetails, getRunPaymentTotals } from './utils/paymentUtils.js';
-import { filterOrdersWithoutInvoice, getOrdersInSelectionOrder } from './utils/orderUtils.js';
+import { filterOrdersWithoutInvoice, getOrdersInSelectionOrder, calculateOrderDeliveryCost } from './utils/orderUtils.js';
 import { openOrderNoteModal } from './controllers/orderNoteController.js';
 import { COMPANY_COURIERS, updateCourierSelectElements } from './controllers/courierSelectController.js';
 function initApp() {
@@ -1282,7 +1282,7 @@ function initApp() {
             animation: 120,
             easing: "cubic-bezier(0.2, 0, 0, 1)",
             handle: sortModeActive ? '.order-card' : '.drag-handle',
-            filter: 'button, input, select, textarea, a, i, .btn-ack, .btn-quick-set-cod, .btn-quick-save-custom-cod, .quick-cod-custom-input, .clickable-cod-badge, .profile-toggle, .error-box',
+            filter: 'button, input, select, textarea, a, i, .btn-ack, .btn-quick-set-cod, .btn-quick-save-custom-cod, .quick-cod-custom-input, .clickable-cod-badge, .clickable-delivery-cost-badge, .profile-toggle, .error-box',
             preventOnFilter: false,
             ghostClass: 'sortable-ghost',
             chosenClass: 'sortable-chosen',
@@ -1462,10 +1462,17 @@ function initApp() {
                 // Badge frissítése a kártyán
                 const badgeContainer = card.querySelector('.badge-container');
                 if (badgeContainer) {
-                    badgeContainer.innerHTML = getOrderBadgeHtml(order);
+                    badgeContainer.innerHTML = `
+                        ${getDeliveryCostBadgeHtml(order)}
+                        ${getOrderBadgeHtml(order)}
+                    `;
                     const newBadge = badgeContainer.querySelector('.clickable-cod-badge');
                     if (newBadge) {
                         attachClickableBadgeEvent(newBadge);
+                    }
+                    const newCostBadge = badgeContainer.querySelector('.clickable-delivery-cost-badge');
+                    if (newCostBadge) {
+                        attachClickableDeliveryCostBadgeEvent(newCostBadge);
                     }
                 }
 
@@ -1604,9 +1611,14 @@ function initApp() {
                     if (card) {
                         const badgeContainer = card.querySelector('.badge-container');
                         if (badgeContainer) {
-                            badgeContainer.innerHTML = getOrderBadgeHtml(order);
+                            badgeContainer.innerHTML = `
+                                ${getDeliveryCostBadgeHtml(order)}
+                                ${getOrderBadgeHtml(order)}
+                            `;
                             const newBadge = badgeContainer.querySelector('.clickable-cod-badge');
                             if (newBadge) attachClickableBadgeEvent(newBadge);
+                            const newCostBadge = badgeContainer.querySelector('.clickable-delivery-cost-badge');
+                            if (newCostBadge) attachClickableDeliveryCostBadgeEvent(newCostBadge);
                         }
                         card.querySelectorAll('.error-box').forEach(eb => {
                             const errTitle = eb.querySelector('.error-title')?.textContent || '';
@@ -1625,8 +1637,62 @@ function initApp() {
             });
         }
 
+        // Gyors Fuvarköltség Szerkesztés a Badge-re Kattintva
+        function attachClickableDeliveryCostBadgeEvent(badge) {
+            badge.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const internalId = badge.getAttribute('data-internal-id');
+                const order = Store.orders.find(o => o.internalId === internalId);
+                if (!order) return;
+
+                const costInfo = calculateOrderDeliveryCost(order);
+                const currentVal = costInfo.netCost;
+                const defaultVal = costInfo.calculatedNetCost;
+
+                const result = await CustomDialog.prompt(
+                    `Add meg a(z) ${order.id} rendelés egyedi fuvardíját nettó Ft-ban (számított alapértelmezett díj: ${defaultVal.toLocaleString('hu-HU')} Ft, vagy üres / 'alap' a visszaállításhoz):`,
+                    currentVal,
+                    'Fuvarköltség Módosítása'
+                );
+
+                if (result !== null && result !== undefined) {
+                    const trimmed = String(result).trim().toLowerCase();
+                    if (trimmed === '' || trimmed === 'alap' || trimmed === 'reset') {
+                        delete order.customDeliveryCost;
+                    } else {
+                        let val = parseFloat(trimmed.replace(/\s+/g, ''));
+                        if (!isNaN(val) && val >= 0) {
+                            order.customDeliveryCost = val;
+                        }
+                    }
+
+                    const card = document.querySelector(`.order-card[data-internal-id="${internalId}"]`);
+                    if (card) {
+                        const badgeContainer = card.querySelector('.badge-container');
+                        if (badgeContainer) {
+                            badgeContainer.innerHTML = `
+                                ${getDeliveryCostBadgeHtml(order)}
+                                ${getOrderBadgeHtml(order)}
+                            `;
+                            const newBadge = badgeContainer.querySelector('.clickable-cod-badge');
+                            if (newBadge) attachClickableBadgeEvent(newBadge);
+                            const newCostBadge = badgeContainer.querySelector('.clickable-delivery-cost-badge');
+                            if (newCostBadge) attachClickableDeliveryCostBadgeEvent(newCostBadge);
+                        }
+                    } else {
+                        renderOrders();
+                    }
+                }
+            });
+        }
+
         document.querySelectorAll('.clickable-cod-badge').forEach(badge => {
             attachClickableBadgeEvent(badge);
+        });
+
+        document.querySelectorAll('.clickable-delivery-cost-badge').forEach(badge => {
+            attachClickableDeliveryCostBadgeEvent(badge);
         });
 
         document.querySelectorAll('.profile-toggle').forEach(btn => {

@@ -887,3 +887,142 @@ export function aggregateOrderLineItems(rawLineItems = [], formatNameFn = null) 
     return { items, removedItems };
 }
 
+/**
+ * Ellenőrzi, hogy egy tétel nagyméretű tábla-e (PVC falpanel, SPC falpanel, padlózat, akusztikus panel).
+ * Kellékek, segédanyagok (ragasztó, szilikon, profilok, skirting, tapadóhíd stb.) kizárva.
+ * 
+ * @param {Object} item
+ * @returns {boolean}
+ */
+export function isBoardItem(item) {
+    if (!item) return false;
+    const name = String(item.name || item.title || '').trim();
+    const sku = String(item.sku || '').trim();
+    const variantTitle = String(item.variantTitle || item.variant_title || '').trim();
+    const text = `${name} ${sku} ${variantTitle}`.toLowerCase();
+
+    // 1. Explicit kizárások (kellékek, segédanyagok, apróságok)
+    // Ragasztók és tömítők
+    if (/ragaszt[óo]|szilikon|hpr|t-rex|trex|mamut|fix\s*all|soudal|den\s*braven/i.test(text)) {
+        return false;
+    }
+    // Profilok, sarokelemek, szegélyek, élvédők, skirting, lábazatok
+    if (/profil|szeg[eé]ly|skirting|l[áa]bazat|[eé]lv[eé]d[oő]|sarok|told[oó]|v[eé]gz[aá]r[oó]|lez[aá]r[oó]|v[eé]gelem|sorol[oó]/i.test(text)) {
+        return false;
+    }
+    // Tapadóhíd, mélyalapozó, egyéb kellékek, eszközök
+    if (/tapad[oó]h[ií]d|alapoz[oó]|kell[eé]k|szersz[aá]m|tiszt[ií]t[oó]|kend[oő]|szalag|f[oó]lia|minta|mintadarab/i.test(text)) {
+        return false;
+    }
+
+    // 2. Nagyméretű táblás elemek
+    // Falpanelek (PVC, SPC, falburkolat, bambusz, akusztikus panel, akupanel)
+    if (/falpanel|falburkolat|akupanel|akusztik|acoustic|\bspc\b|\bpvc\b/i.test(text)) {
+        return true;
+    }
+    // Padlózatok (SPC padló, laminált, parketta, LVT, vinyl)
+    if (/padl[oó]|padl[oó]zat|lamin[aá]lt|parketta|\blvt\b|\bvinyl\b/i.test(text)) {
+        return true;
+    }
+    // Típus/cikkszám szerinti táblák (pl. PB-..., TR-..., LJ-..., PS-...)
+    if (/\b(pb|tr|lj|ps)[-_]?\d+/i.test(text) || /\b(pb|tr|lj)\b/i.test(text)) {
+        return true;
+    }
+    // Méretmegjelölések (pl. 244x122, 280x122, 278x60, 260x120, 122x244, 122x280)
+    if (/\d{2,3}\s*[x*×]\s*\d{2,3}/i.test(text)) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Megszámolja egy rendelésben szereplő nagyméretű táblák (falpanelek, padlók, akusztikus panelek) darabszámát.
+ * 
+ * @param {Object} order
+ * @returns {number}
+ */
+export function countOrderBoards(order) {
+    if (!order) return 0;
+    const items = order.line_items || order.items || [];
+    if (!Array.isArray(items) || items.length === 0) return 0;
+    let count = 0;
+    for (const item of items) {
+        if (isBoardItem(item)) {
+            const qty = parseInt(item.quantity !== undefined ? item.quantity : (item.qty !== undefined ? item.qty : 1), 10);
+            count += (isNaN(qty) || qty < 0) ? 0 : qty;
+        }
+    }
+    return count;
+}
+
+/**
+ * Megállapítja, hogy a rendelés szállítási címe budapesti-e (Budapest város vagy 1xxx irányítószám).
+ * 
+ * @param {Object} order
+ * @returns {boolean}
+ */
+export function isBudapestAddress(order) {
+    if (!order) return false;
+    const city = String(order.city || order.shipping_address?.city || '').trim().toLowerCase();
+    const zip = String(order.zip || order.shipping_address?.zip || '').trim();
+    if (city === 'budapest' || city.includes('budapest') || /^(1\d{3})$/.test(zip)) {
+        return true;
+    }
+    const fullAddress = String(order.address || order.shipping_address?.address1 || '').toLowerCase();
+    if (fullAddress.includes('budapest') || /\b1\d{3}\b/.test(fullAddress)) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Kiszámolja a rendelés belső fuvarköltségét.
+ * 
+ * Szabályok:
+ * - Budapest: 10 000 Ft + Áfa alapdíj (0-10 tábla), 10 tábla felett +1 100 Ft + Áfa / tábla
+ * - Vidék: 15 000 Ft + Áfa alapdíj (0-10 tábla), 10 tábla felett +1 100 Ft + Áfa / tábla
+ * - Egyedi felülírás támogatása (order.customDeliveryCost)
+ * 
+ * @param {Object} order
+ * @returns {{ netCost: number, calculatedNetCost: number, boardCount: number, isBudapest: boolean, formattedCost: string, isCustom: boolean }}
+ */
+export function calculateOrderDeliveryCost(order) {
+    if (!order) {
+        return {
+            netCost: 15000,
+            calculatedNetCost: 15000,
+            boardCount: 0,
+            isBudapest: false,
+            formattedCost: "15 000 Ft + Áfa",
+            isCustom: false
+        };
+    }
+
+    const customCost = (order.customDeliveryCost !== undefined && order.customDeliveryCost !== null && order.customDeliveryCost !== '')
+        ? Number(order.customDeliveryCost)
+        : null;
+
+    const boardCount = countOrderBoards(order);
+    const isBudapest = isBudapestAddress(order);
+
+    const baseFee = isBudapest ? 10000 : 15000;
+    const extraBoards = Math.max(0, boardCount - 10);
+    const calculatedNetCost = baseFee + (extraBoards * 1100);
+
+    const isCustom = customCost !== null && !isNaN(customCost);
+    const netCost = isCustom ? customCost : calculatedNetCost;
+
+    const formattedNumber = new Intl.NumberFormat('hu-HU').format(netCost).replace(/\u00a0/g, ' ');
+    const formattedCost = `${formattedNumber} Ft + Áfa`;
+
+    return {
+        netCost,
+        calculatedNetCost,
+        boardCount,
+        isBudapest,
+        formattedCost,
+        isCustom
+    };
+}
+

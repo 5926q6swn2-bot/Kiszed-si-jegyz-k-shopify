@@ -28,6 +28,7 @@ export function getPaymentDetails(run, order) {
     const uncollected = run.uncollectedOrderIds || [];
     const bankTransferred = run.bankTransferredOrderIds || [];
     const partialOrders = run.partialOrders || {};
+    const surplusOrders = run.surplusOrders || {};
     const paymentMethods = run.paymentMethods || {};
     const paymentStatusMap = run.paymentStatusMap || {};
 
@@ -38,13 +39,127 @@ export function getPaymentDetails(run, order) {
     
     const partial = partialOrders[orderId] || partialOrders[order.id];
     const isPartial = !isUncollected && !isBankTransferred && !!partial;
+    const surplus = surplusOrders[orderId] || surplusOrders[order.id];
 
     if (!order.isCOD) {
+        if (isUncollected) {
+            return {
+                isCOD: false,
+                isUncollected: true,
+                isBankTransferred: false,
+                isPartial: false,
+                hasSurplus: false,
+                surplusAmount: 0,
+                surplusComment: "",
+                codAmount: 0,
+                collectedAmount: 0,
+                pendingKp: 0,
+                pendingCard: 0,
+                pendingBank: 0,
+                receivedKp: 0,
+                receivedCard: 0,
+                receivedBank: 0,
+                isPending: false,
+                isSettled: true,
+                methodText: "Nem utánvétes",
+                statusText: "Nem lett átadva"
+            };
+        }
+
+        const surplusAmt = surplus ? (surplus.amount || surplus.extraAmount || 0) : 0;
+        if (surplusAmt > 0) {
+            const pm = paymentMethods[orderId] || paymentMethods[order.id];
+            const ps = paymentStatusMap[orderId] || paymentStatusMap[order.id];
+            const isTransferSettled = run.isTransferSettled === true;
+
+            let pendingKp = 0;
+            let pendingCard = 0;
+            let pendingBank = 0;
+            let receivedKp = 0;
+            let receivedCard = 0;
+            let receivedBank = 0;
+            let methodText = "";
+
+            if (typeof pm === 'object' && pm !== null) {
+                const cashAmt = Math.max(0, parseInt(pm.cash) || 0);
+                const cardAmt = Math.max(0, parseInt(pm.card) || 0);
+                const bankAmt = Math.max(0, parseInt(pm.bank) || 0);
+
+                const statusObj = (typeof ps === 'object' && ps !== null) ? ps : {};
+                const defaultStatus = (typeof ps === 'string') ? ps : 'pending';
+
+                const cashSt = statusObj.cash || defaultStatus;
+                let cardSt = isTransferSettled ? (statusObj.card || defaultStatus) : 'pending';
+                let bankSt = isTransferSettled ? (statusObj.bank || defaultStatus) : 'pending';
+
+                if (cashSt === 'pending') pendingKp += cashAmt; else receivedKp += cashAmt;
+                if (cardSt === 'pending') pendingCard += cardAmt; else receivedCard += cardAmt;
+                if (bankSt === 'pending') pendingBank += bankAmt; else receivedBank += bankAmt;
+
+                const parts = [];
+                if (cashAmt > 0) parts.push(`KP (${cashAmt.toLocaleString('hu-HU')} Ft)`);
+                if (cardAmt > 0) parts.push(`Kártya (${cardAmt.toLocaleString('hu-HU')} Ft)`);
+                if (bankAmt > 0) parts.push(`Utalás (${bankAmt.toLocaleString('hu-HU')} Ft)`);
+                methodText = `Helyszíni eladás: ${parts.join(' + ')}`;
+            } else {
+                const method = surplus.method || (typeof pm === 'string' ? pm : 'cash');
+                let st = 'pending';
+                if (typeof surplus.isReceived === 'boolean') {
+                    st = surplus.isReceived ? 'received' : 'pending';
+                } else if (typeof ps === 'string') {
+                    st = ps;
+                } else if (typeof ps === 'object' && ps !== null) {
+                    st = ps[method] || ps.card || ps.cash || ps.bank || 'pending';
+                }
+
+                if (method === 'card') {
+                    if (!isTransferSettled && !surplus.isReceived) st = 'pending';
+                    methodText = `Helyszíni eladás (Kártya: ${surplusAmt.toLocaleString('hu-HU')} Ft)`;
+                    if (st === 'pending') pendingCard = surplusAmt; else receivedCard = surplusAmt;
+                } else if (method === 'bank') {
+                    if (!isTransferSettled && !surplus.isReceived) st = 'pending';
+                    methodText = `Helyszíni eladás (Utalás: ${surplusAmt.toLocaleString('hu-HU')} Ft)`;
+                    if (st === 'pending') pendingBank = surplusAmt; else receivedBank = surplusAmt;
+                } else {
+                    methodText = `Helyszíni eladás (KP: ${surplusAmt.toLocaleString('hu-HU')} Ft)`;
+                    if (st === 'pending') pendingKp = surplusAmt; else receivedKp = surplusAmt;
+                }
+            }
+
+            const isPending = (pendingKp > 0 || pendingCard > 0 || pendingBank > 0);
+            return {
+                isCOD: false,
+                isUncollected: false,
+                isBankTransferred: false,
+                isPartial: false,
+                hasSurplus: true,
+                surplusAmount: surplusAmt,
+                surplusComment: surplus.comment || "",
+                codAmount: 0,
+                collectedAmount: surplusAmt,
+                pendingKp,
+                pendingCard,
+                pendingBank,
+                pendingUnsettled: 0,
+                receivedKp,
+                receivedCard,
+                receivedBank,
+                isPending,
+                isSettled: !isPending,
+                isUnsettledRun: false,
+                methodText,
+                statusText: isPending ? "Helyszíni eladás (Függő)" : "Helyszíni eladás (Rendben)"
+            };
+        }
+
         return {
             isCOD: false,
-            isUncollected,
+            isUncollected: false,
             isBankTransferred: false,
             isPartial: false,
+            hasSurplus: false,
+            surplusAmount: 0,
+            surplusComment: "",
             codAmount: 0,
             collectedAmount: 0,
             pendingKp: 0,
@@ -56,7 +171,7 @@ export function getPaymentDetails(run, order) {
             isPending: false,
             isSettled: true,
             methodText: "Nem utánvétes",
-            statusText: isUncollected ? "Nem lett átadva" : "Átadva"
+            statusText: "Átadva"
         };
     }
 
@@ -66,6 +181,9 @@ export function getPaymentDetails(run, order) {
             isUncollected: true,
             isBankTransferred: false,
             isPartial: false,
+            hasSurplus: false,
+            surplusAmount: 0,
+            surplusComment: "",
             codAmount: order.codAmount || 0,
             collectedAmount: 0,
             pendingKp: 0,
@@ -87,6 +205,9 @@ export function getPaymentDetails(run, order) {
             isUncollected: false,
             isBankTransferred: true,
             isPartial: false,
+            hasSurplus: false,
+            surplusAmount: 0,
+            surplusComment: "",
             codAmount: order.codAmount || 0,
             collectedAmount: order.codAmount || 0,
             pendingKp: 0,
@@ -102,7 +223,10 @@ export function getPaymentDetails(run, order) {
         };
     }
 
-    const collectedAmount = isPartial ? (partial.amount || 0) : (order.codAmount || 0);
+    let collectedAmount = isPartial ? (partial.amount || 0) : (order.codAmount || 0);
+    if (!isPartial && surplus && (surplus.amount > 0 || surplus.extraAmount > 0)) {
+        collectedAmount = surplus.amount || ((order.codAmount || 0) + (surplus.extraAmount || 0));
+    }
     const pm = paymentMethods[orderId] || paymentMethods[order.id];
     const ps = paymentStatusMap[orderId] || paymentStatusMap[order.id];
 
@@ -123,6 +247,9 @@ export function getPaymentDetails(run, order) {
     if (!isRunSettled) {
         return {
             isCOD: true,
+            hasSurplus: false,
+            surplusAmount: 0,
+            surplusComment: "",
             isUncollected: false,
             isBankTransferred: false,
             isPartial,
@@ -147,6 +274,10 @@ export function getPaymentDetails(run, order) {
         const cashAmt = Math.max(0, parseInt(pm.cash) || 0);
         const cardAmt = Math.max(0, parseInt(pm.card) || 0);
         const bankAmt = Math.max(0, parseInt(pm.bank) || 0);
+        const splitSum = cashAmt + cardAmt + bankAmt;
+        if (splitSum > 0 && !isPartial) {
+            collectedAmount = splitSum;
+        }
 
         const statusObj = (typeof ps === 'object' && ps !== null) ? ps : {};
         const defaultStatus = (typeof ps === 'string') ? ps : 'pending';
@@ -187,16 +318,27 @@ export function getPaymentDetails(run, order) {
         }
     }
 
+    const hasSurplus = !isPartial && (collectedAmount > (order.codAmount || 0) || (surplus && (surplus.extraAmount > 0 || surplus.amount > (order.codAmount || 0))));
+    const surplusExtra = hasSurplus ? (surplus?.extraAmount || (collectedAmount - (order.codAmount || 0))) : 0;
+    const surplusComment = surplus?.comment || '';
+
     const isPending = (pendingKp > 0 || pendingCard > 0 || pendingBank > 0);
     let statusText = "";
     if (isPartial) {
         statusText = isPending ? "Részlegesen fizetve (Függő)" : "Részlegesen fizetve (Rendezett)";
+    } else if (hasSurplus && surplusExtra > 0) {
+        statusText = isPending 
+            ? (pendingCard > 0 ? `Kártyás utalásra vár (+${surplusExtra.toLocaleString('hu-HU')} Ft többlet)` : `Függő kintlévőség (+${surplusExtra.toLocaleString('hu-HU')} Ft többlet)`)
+            : `Kiegyenlítve (+${surplusExtra.toLocaleString('hu-HU')} Ft többlet)`;
     } else {
         statusText = isPending ? (pendingCard > 0 ? "Kártyás utalásra vár" : "Függő kintlévőség") : "Kiegyenlítve";
     }
 
     return {
         isCOD: true,
+        hasSurplus,
+        surplusAmount: surplusExtra,
+        surplusComment,
         isUncollected: false,
         isBankTransferred: false,
         isPartial,
@@ -232,8 +374,8 @@ export function getRunPaymentTotals(run) {
 
     run.orders.forEach(o => {
         const pd = getPaymentDetails(run, o);
-        if (pd.isCOD) {
-            totalCod += pd.codAmount;
+        if (pd.isCOD || pd.collectedAmount > 0) {
+            totalCod += Math.max(pd.codAmount, pd.collectedAmount);
             pendingKp += pd.pendingKp;
             pendingCard += (pd.pendingCard + pd.pendingBank);
             pendingUnsettled += (pd.pendingUnsettled || 0);

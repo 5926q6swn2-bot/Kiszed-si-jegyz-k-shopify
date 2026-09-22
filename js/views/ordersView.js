@@ -1,4 +1,5 @@
 // js/views/ordersView.js
+import { calculateOrderDeliveryCost } from '../utils/orderUtils.js';
 
 function highlightItemName(name) {
     const regex = /(padl[óo]zat[a-z]*)/gi;
@@ -24,8 +25,8 @@ function getItemRank(name) {
     if (/padl[óo]zat|padl[óo]/i.test(cleanName)) {
         return 3;
     }
-    // 4. Akusztikus falpanelek ("aku" vagy "akusztikus")
-    if (/aku|akusztik/i.test(cleanName)) {
+    // 4. Akusztikus falpanel ("akusztik", "akupanel")
+    if (/akusztik|akupanel/i.test(cleanName)) {
         return 4;
     }
     // 5. Ragasztó ("ragasztó", "hpr", "t-rex", "trex")
@@ -48,6 +49,23 @@ function sortOrderItems(items) {
         if (rankA !== rankB) return rankA - rankB;
         return (a.name || '').localeCompare(b.name || '', 'hu');
     });
+}
+
+export function getDeliveryCostBadgeHtml(order) {
+    const costInfo = calculateOrderDeliveryCost(order);
+    const isCustom = costInfo.isCustom;
+    const badgeStyle = isCustom
+        ? 'background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;'
+        : 'background: #f8fafc; color: #475569; border: 1px solid #cbd5e1;';
+    const title = isCustom
+        ? `Egyedi fuvardíj: ${costInfo.formattedCost} (kalkulált alapérték: ${costInfo.calculatedNetCost.toLocaleString('hu-HU')} Ft). Kattints az átíráshoz!`
+        : `Számított fuvardíj: ${costInfo.formattedCost} (${costInfo.isBudapest ? 'Budapest' : 'Vidék'}, ${costInfo.boardCount} tábla). Kattints az átíráshoz!`;
+
+    return `<span class="badge clickable-delivery-cost-badge" data-internal-id="${order.internalId}" data-current-val="${costInfo.netCost}" data-default-val="${costInfo.calculatedNetCost}" title="${title}" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; ${badgeStyle}">
+        <i class="ph-bold ph-truck" style="font-size: 11px; color: ${isCustom ? '#16a34a' : '#64748b'};"></i>
+        <span>${costInfo.formattedCost}</span>
+        <i class="ph-bold ph-pencil-simple" style="font-size: 10px; color: #94a3b8;"></i>
+    </span>`;
 }
 
 export function getOrderBadgeHtml(order) {
@@ -93,6 +111,7 @@ export const OrdersView = {
             card.setAttribute('data-internal-id', order.internalId);
 
             const codHtml = getOrderBadgeHtml(order);
+            const deliveryCostHtml = getDeliveryCostBadgeHtml(order);
 
             let errorsHtml = '';
             if (order.errors.length > 0) {
@@ -222,7 +241,8 @@ export const OrdersView = {
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                             </button>
                         </div>
-                        <div class="badge-container">
+                        <div class="badge-container" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+                            ${deliveryCostHtml}
                             ${codHtml}
                         </div>
                     </div>

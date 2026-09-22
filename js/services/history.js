@@ -323,7 +323,7 @@ export const HistoryManager = {
             }
         },
 
-        updateSettlementStatus: async function(docId, settledAmount, totalCOD, uncollectedOrderIds = [], uncollectedReasons = {}, partialOrders = {}, bankTransferredOrderIds = [], uncollectedResponsibility = {}, settledKpAmount = null, settledCardAmount = null, paymentMethods = {}, isTransferSettled = null, paymentStatusMap = {}) {
+        updateSettlementStatus: async function(docId, settledAmount, totalCOD, uncollectedOrderIds = [], uncollectedReasons = {}, partialOrders = {}, bankTransferredOrderIds = [], uncollectedResponsibility = {}, settledKpAmount = null, settledCardAmount = null, paymentMethods = {}, isTransferSettled = null, paymentStatusMap = {}, surplusOrders = {}) {
             try {
                 const docRef = doc(db, this.COLLECTION_NAME, docId);
                 const docSnap = await getDoc(docRef);
@@ -332,6 +332,7 @@ export const HistoryManager = {
                     uncollectedOrderIds,
                     bankTransferredOrderIds,
                     partialOrders,
+                    surplusOrders,
                     paymentMethods,
                     paymentStatusMap
                 };
@@ -353,6 +354,7 @@ export const HistoryManager = {
                     uncollectedOrderIds: uncollectedOrderIds,
                     uncollectedReasons: uncollectedReasons,
                     partialOrders: partialOrders,
+                    surplusOrders: surplusOrders,
                     bankTransferredOrderIds: bankTransferredOrderIds,
                     uncollectedResponsibility: uncollectedResponsibility,
                     paymentStatusMap: paymentStatusMap,
@@ -451,6 +453,44 @@ export const HistoryManager = {
             }
         },
 
+        updateOrderDeliveryCost: async function(docId, orderId, customDeliveryCost) {
+            try {
+                const docRef = doc(db, this.COLLECTION_NAME, docId);
+                const updateData = {};
+                if (customDeliveryCost === null || customDeliveryCost === undefined || isNaN(customDeliveryCost)) {
+                    updateData[`customDeliveryCosts.${orderId}`] = deleteField();
+                } else {
+                    updateData[`customDeliveryCosts.${orderId}`] = Number(customDeliveryCost);
+                }
+                await updateDoc(docRef, updateData);
+
+                // Lokális cache azonnali frissítése a memóriában (optimista frissítés)
+                if (runsCache && Array.isArray(runsCache)) {
+                    const run = runsCache.find(r => (r.docId && r.docId === docId) || (r.id && r.id === docId));
+                    if (run) {
+                        if (!run.customDeliveryCosts) run.customDeliveryCosts = {};
+                        if (customDeliveryCost === null || customDeliveryCost === undefined || isNaN(customDeliveryCost)) {
+                            delete run.customDeliveryCosts[orderId];
+                        } else {
+                            run.customDeliveryCosts[orderId] = Number(customDeliveryCost);
+                        }
+                        const ord = (run.orders || []).find(o => String(o.id) === String(orderId));
+                        if (ord) {
+                            if (customDeliveryCost === null || customDeliveryCost === undefined || isNaN(customDeliveryCost)) {
+                                delete ord.customDeliveryCost;
+                            } else {
+                                ord.customDeliveryCost = Number(customDeliveryCost);
+                            }
+                        }
+                    }
+                }
+                return true;
+            } catch (e) {
+                console.error("Hiba a fuvarköltség frissítésénél: ", e);
+                return false;
+            }
+        },
+
         markAsBankTransferred: async function(docId, orderId) {
             try {
                 const docRef = doc(db, this.COLLECTION_NAME, docId);
@@ -511,6 +551,7 @@ export const HistoryManager = {
                     uncollectedOrderIds: deleteField(),
                     uncollectedReasons: deleteField(),
                     partialOrders: deleteField(),
+                    surplusOrders: deleteField(),
                     bankTransferredOrderIds: deleteField(),
                     uncollectedResponsibility: deleteField(),
                     settledKpAmount: deleteField(),

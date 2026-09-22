@@ -29,7 +29,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.8 Flash (High)
-- **Státusz**: A rendszer stabil, Render felhőre kész. Fix 9900 Ft-os szállítási logika és pontos ingyenes ajándék / kedvezmény sorösszeg kezelés élesítve (v4.7.1, 540/540 zöld unit teszt).
+- **Státusz**: A rendszer stabil, Render felhőre kész. Helyszíni termékeladás (ragasztó) és többletfizetés kezelése utánvétes és nem utánvétes rendeléseknél, elszámolásban, előzményekben és CSV exportban élesítve (v4.9.0, 629/629 zöld unit teszt).
 
 
 ---
@@ -50,6 +50,56 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 4. **Feketelista Kezelő (Blacklist Manager) & Automata Kockázatos Vevő Szűrés**:
    - Megbízhatatlan / lebeszélt időpontban át nem vett rendelések vevőinek központi rögzítése (többszörös telefonszámok, szállítási címek, nevek, e-mail címek + indoklás).
    - Új Shopify rendelés letöltésekor automatikus egyeztetés a feketelistával, és azonnali piros figyelmeztető doboz generálása a raktári felületen (opcionális automatikus `feketelista` tageléssel a Shopify-ban).
+
+### 2026. szeptember 22. (6. frissítés) - Helyszíni Eladás és Többletfizetés Kezelése az Elszámolásban (`v4.9.0`)
+- **Helyszíni Értékesítés (pl. Ragasztó eladása a futárnál) és Többletfizetés Támogatása**:
+  - Támogatva mind az utánvétes (COD), mind a nem utánvétes (előre kifizetett vagy 0 Ft-os) rendeléseknél a helyszíni többletbeszedés rögzítése.
+- **Elszámolási Dialógus Ablak (`js/views/history/historyAccounting.js`)**:
+  - COD rendelések esetén: A bontott fizetés mezőinek felső korlátja eltávolítva. Ha a beírt összeg meghaladja az eredeti utánvétet, automatikusan megjelenik a zöld "Többletfizetés / helyszíni eladás történt!" panel a többlet összegével és egy indoklás szöveges mezővel (pl. "2 db ragasztó eladása a helyszínen"). A gomb felirata "Részleges / Bontás / Többlet" formátumra módosult.
+  - Nem COD (0 Ft) rendelések esetén: Minden sor mellett elérhető az új "+ Helyszíni eladás" gomb. Rákattintva rögzíthető a beszedett összeg, a fizetési mód (Készpénz / Bankkártya), a fizetési státusz ("Nálunk van" jelölőnégyzet) és az indoklás.
+  - Az elszámolási ablak összesítő sávja azonnal kalkulálja és megjeleníti a többleteket készpénz, kártya és teljes beszedett összeg bontásban.
+  - Mentéskor a többlet adatok a `surplusOrders = { [orderId]: { amount, extraAmount, comment, method, isReceived } }` struktúrába kerülnek.
+- **Központi Fizetési Szolgáltatás (`js/utils/paymentUtils.js`)**:
+  - `getPaymentDetails(run, order)`: mindkét típusnál felismeri a többletet (`hasSurplus: true`, `surplusAmount`, `collectedAmount`, `surplusComment`). Nem utánvétes rendelés esetén formázott `methodText` ("Helyszíni eladás: Kártya: X Ft") és `statusText` értéket ad. COD rendelés esetén a státuszhoz hozzáfűzi a többletet (pl. "Kiegyenlítve (+5 000 Ft többlet)").
+  - `getRunPaymentTotals(run)`: a helyszíni nem-COD beszedéseket automatikusan beleszámolja a kör teljes utánvét összegébe (`totalCod`), valamint a készpénzes és kártyás részösszegekbe.
+  - `getEligibleOrdersForMarkAsPaid(run)`: biztosítja, hogy a többletet fizető vevők rendelései (összeg >= codAmount) az összeg beérkezésekor megjelölhetők legyenek Shopify PAID státuszra.
+- **Előzmények és Elszámolási Lista (`js/views/history/historyAccounting.js`)**:
+  - A rendelés csipeken zöld badge jelzi a többletet és az indoklást (pl. `+5 000 Ft többlet · 2 db ragasztó`, vagy `Helyszíni eladás: 11 430 Ft Kártya (Rendben) · 3 db ragasztó`).
+  - A nem-COD, de helyszíni eladással rendelkező tételek automatikusan bekerülnek a futárkör elszámolási jelvényei közé.
+  - Módosításkor (`btn-modify-settlement`) a korábbi többletek és megjegyzések hibátlanul visszatöltődnek a felületre.
+- **Adatbázis Perzisztencia (`js/services/history.js`)**:
+  - `HistoryManager.updateSettlementStatus`: elmenti a `surplusOrders` objektumot a Firestore-ba.
+  - `HistoryManager.revertToPending`: visszaállításkor törli a `surplusOrders` mezőt.
+- **Utánvét Elszámolási CSV Export (`js/services/exporter.js`)**:
+  - Új dedikált numerikus oszlopként bevezetve a `"Beszedett Összeg (Ft)"`: minden sornál a ténylegesen beszedett összeget tartalmazza (pl. részlegesnél 43 810 Ft, többletnél 15 000 Ft, helyszíni eladásnál 11 430 Ft, kiesettnél 0 Ft).
+  - A cégenkénti összesítő sorban a beszedett összegek összege automatikusan összegződik.
+  - A Megjegyzés (failReason) oszlopban automatikusan és tételesen megjelenik: `Többlet / helyszíni eladás: +X Ft (indoklás)`.
+- **Automatikus Tesztelés (`tests/unit_tests.js`)**:
+  - Új egységtesztek hozzáadva COD többletfizetésre, nem-COD helyszíni kártyás eladásra, futárkör összesítésre, Shopify szinkronizációs alkalmasságra és CSV export numerikus és szöveges generálásra.
+  - 629/629 egységteszt és ESM szintaxis-ellenőrzés sikeresen lefutva (100% zöld).
+
+### 2026. szeptember 22. (5. frissítés) - Belső Fuvarköltség Kalkuláció, Szerkesztés a Szedőlistán és Előzményekben, CSV Export (`v4.8.0`)
+- **Központi Fuvarköltség és Tábla Kalkuláció (`js/utils/orderUtils.js`)**:
+  - Létrehozva az `isBoardItem(item)` függvény: nagyméretű elemek (PVC falpanel, SPC falpanel, padlózatok, akusztikus panelek, akupanel) felismerése; a kellékek (ragasztók, szilikonok, sarok- és élvédő profilok, skirting / szegélyléc, tapadóhíd, tisztítók, minták) szigorú és pontos kizárásával.
+  - Létrehozva a `countOrderBoards(order)` és `isBudapestAddress(order)` függvények.
+  - Létrehozva a `calculateOrderDeliveryCost(order)` függvény a képlet szerint:
+    - Budapest: 10 000 Ft + Áfa alapdíj (0-10 tábla), 10 tábla felett táblánként +1 100 Ft + Áfa.
+    - Vidék: 15 000 Ft + Áfa alapdíj (0-10 tábla), 10 tábla felett táblánként +1 100 Ft + Áfa.
+    - A 0 táblás kiszállítások (csak ragasztó/profil) az alapdíjat kapják.
+    - Szigorúan egységes formátum: `"X Ft + Áfa"`.
+    - Egyedi felülírás támogatása: ha `order.customDeliveryCost` meg van adva, az élvez prioritást.
+- **Szedőlista Készítés Nézet (`js/views/ordersView.js`, `js/app.js`)**:
+  - Minden rendelési kártya fejlécében (a vevőadatok és az utánvét jelvény között) megjelenik a fuvardíj badge (`Fuvar: 15 000 Ft + Áfa`).
+  - Kattintásra (`CustomDialog.prompt`) egyedi ár adható meg, amely azonnal felülírja a rendelés fuvardíját, vagy alapértékre visszaállítható.
+- **Előzmények és Elszámolások Nézet (`js/views/history/historyAccounting.js`)**:
+  - A futárkör kártyáján lévő minden rendelés sorában a vevő neve után, a fizetési státusz előtt megjelenik a rendelés fuvardíja.
+  - Kattintásra szerkeszthető (`CustomDialog.prompt`), a módosítás a Firestore-ban és a helyi memóriabeli gyorsítótárban is azonnal perzisztálódik (`HistoryManager.updateOrderDeliveryCost`).
+  - A futárkör fejlécében automatikusan összesítésre kerül a kör teljes nettó fuvardíja (`Fuvar: XX XXX Ft + Áfa`), támogatva a futárcégekkel való elszámolást.
+- **Utánvét Elszámolási CSV Export (`js/services/exporter.js`)**:
+  - Az `exportAccountingToCsv` funkció utolsó oszlopaként bekerült a `"Fuvardíj (Ft + Áfa)"`.
+  - A szállítócégenkénti összesítő sorban automatikusan megjelenik a cég összesített fuvardíja is.
+- **Automatikus Tesztek (`tests/unit_tests.js`)**:
+  - 604 unit teszt 100%-ban sikeres (0 hiba), lefedve minden határesetet (Bp/vidék, 0-tól 20+ tábláig, kizárások, egyedi felülírás, perzisztencia).
 
 ### 2026. szeptember 22. (4. frissítés) - Fix 9900 Ft Szállítás & Ingyenes Ajándék / Tételkedvezmény Kezelés (`v4.7.1`)
 - **Fix 9900 Ft Szállítási Díj - Rossz Szállítás Ellenőrzés Inaktiválása**:

@@ -7,6 +7,7 @@ import { HistoryManager } from '../../services/history.js';
 import { CustomDialog } from '../../utils/dialog.js';
 import { getPaymentDetails, getRunPaymentTotals, getEligibleOrdersForMarkAsPaid } from '../../utils/paymentUtils.js';
 import { ShopifyApiService } from '../../services/shopifyApiService.js';
+import { calculateOrderDeliveryCost } from '../../utils/orderUtils.js';
 
 export function showSettlementDialog(run, runCOD, existingState = null) {
     return new Promise((resolve) => {
@@ -44,11 +45,15 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             </div>`;
         };
 
+        const prevSurplus      = existingState?.surplusOrders || run.surplusOrders || {};
+
         const codRowsHtml = codOrders.map(o => {
             const wasUncollected = prevUncollected.has(o.id);
             const wasBankTransferred = prevBankTransferred.has(o.id);
             const prevPartial    = prevPartials[o.id];
             const wasPartial     = !wasUncollected && !!prevPartial;
+            const surplusInfo    = prevSurplus[o.id] || prevSurplus[String(o.id)];
+            const hasSurplus     = !wasUncollected && !!surplusInfo && (surplusInfo.amount > o.codAmount || surplusInfo.extraAmount > 0);
             const pm             = prevPaymentMethods[o.id] || (wasBankTransferred ? 'bank' : 'cash');
             
             let currentPm = { cash: 0, card: 0, bank: 0 };
@@ -57,6 +62,9 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             const isSplitSaved = typeof pm === 'object' && pm !== null;
             if (isSplitSaved) {
                 currentPm = { cash: pm.cash || 0, card: pm.card || 0, bank: pm.bank || 0 };
+            } else if (hasSurplus) {
+                const totalAmt = surplusInfo.amount || (o.codAmount + (surplusInfo.extraAmount || 0));
+                currentPm[pm] = totalAmt;
             } else {
                 currentPm[pm] = o.codAmount;
             }
@@ -88,7 +96,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                 currentStatus.bank = 'pending';
             }
             
-            const showSplitPanel = wasPartial || isSplitSaved;
+            const showSplitPanel = wasPartial || isSplitSaved || hasSurplus;
             const currentResp = existingState?.uncollectedResponsibility?.[o.id] || run.uncollectedResponsibility?.[o.id] || 'vevo';
             const rMienkActive = currentResp === 'mienk';
             const rSzallitoActive = currentResp === 'szallito';
@@ -131,14 +139,14 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
 
             const splitToggleBtnHtml = `
             <button type="button" class="sd-split-toggle-btn" style="${simpleControlsStyle}align-items:center;gap:4px;font-size:11px;font-weight:600;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;cursor:pointer;font-family:inherit;transition:all .15s;">
-                <i class="ph-bold ph-split-horizontal" style="font-size:12px;"></i> Részleges / Bontás
+                <i class="ph-bold ph-split-horizontal" style="font-size:12px;"></i> Részleges / Bontás / Többlet
             </button>
             `;
             
             const splitContainerHtml = `
             <div class="sd-payment-split-container" style="${splitContainerStyle}flex-direction:column;gap:8px;padding:12px 20px 16px 116px;background:#f8fafc;border-top:1px dashed #cbd5e1;">
                 <div style="font-size:11px;font-weight:700;color:#475569;display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-                    <span>Osztott fizetési bontás (Összesen elvárt: <strong style="color:#0f172a;">${o.codAmount.toLocaleString('hu-HU')} Ft</strong>) · <span class="sd-split-status" style="font-weight:800;color:#16a34a;">Rendben</span></span>
+                    <span>Fizetési bontás / összegszerkesztés (Összesen elvárt: <strong style="color:#0f172a;">${o.codAmount.toLocaleString('hu-HU')} Ft</strong>) · <span class="sd-split-status" style="font-weight:800;color:#16a34a;">Rendben</span></span>
                     <button type="button" class="sd-split-back-btn" style="font-size:10px;font-weight:700;color:#64748b;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:3px 8px;cursor:pointer;font-family:inherit;">Vissza az egyszerű fizetéshez</button>
                 </div>
                 
@@ -148,7 +156,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                             KP (készpénz)
                         </label>
                         <div style="display:flex;align-items:center;gap:8px;">
-                            <input class="sd-split-amount-kp" type="number" min="0" max="${o.codAmount}" value="${isSplitSaved ? (currentPm.cash || '') : ''}" placeholder="0" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;font-family:inherit;">
+                            <input class="sd-split-amount-kp" type="number" min="0" value="${(isSplitSaved || hasSurplus) ? (currentPm.cash || '') : ''}" placeholder="0" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;font-family:inherit;">
                             <label style="display:flex;align-items:center;gap:3px;font-size:10px;cursor:pointer;font-weight:700;padding:4px 6px;border-radius:6px;user-select:none;" class="sd-split-status-label-kp">
                                 <input type="checkbox" class="sd-split-status-kp" ${currentStatus.cash === 'received' ? 'checked' : ''} style="accent-color:#16a34a;cursor:pointer;"> Nálunk van
                             </label>
@@ -160,7 +168,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                             Kártya
                         </label>
                         <div style="display:flex;align-items:center;gap:8px;">
-                            <input class="sd-split-amount-card" type="number" min="0" max="${o.codAmount}" value="${isSplitSaved ? (currentPm.card || '') : ''}" placeholder="0" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;font-family:inherit;">
+                            <input class="sd-split-amount-card" type="number" min="0" value="${(isSplitSaved || hasSurplus) ? (currentPm.card || '') : ''}" placeholder="0" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;font-family:inherit;">
                             <label style="display:flex;align-items:center;gap:3px;font-size:10px;cursor:pointer;font-weight:700;padding:4px 6px;border-radius:6px;user-select:none;" class="sd-split-status-label-card">
                                 <input type="checkbox" class="sd-split-status-card" ${(run.isTransferSettled === true && currentStatus.card === 'received') ? 'checked' : ''} style="accent-color:#2563eb;cursor:pointer;"> Nálunk van
                             </label>
@@ -172,7 +180,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                             Közvetlen utalás
                         </label>
                         <div style="display:flex;align-items:center;gap:8px;">
-                            <input class="sd-split-amount-bank" type="number" min="0" max="${o.codAmount}" value="${isSplitSaved ? (currentPm.bank || '') : ''}" placeholder="0" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;font-family:inherit;">
+                            <input class="sd-split-amount-bank" type="number" min="0" value="${(isSplitSaved || hasSurplus) ? (currentPm.bank || '') : ''}" placeholder="0" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;font-family:inherit;">
                             <label style="display:flex;align-items:center;gap:3px;font-size:10px;cursor:pointer;font-weight:700;padding:4px 6px;border-radius:6px;user-select:none;" class="sd-split-status-label-bank">
                                 <input type="checkbox" class="sd-split-status-bank" ${(run.isTransferSettled === true && currentStatus.bank === 'received') ? 'checked' : ''} style="accent-color:#0284c7;cursor:pointer;"> Nálunk van
                             </label>
@@ -192,6 +200,13 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                         <button type="button" class="sd-resp-btn szallito ${rSzallitoActive ? 'active' : ''}" data-resp="szallito" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rSzallitoActive ? '#fed7aa' : '#cbd5e1'};background:${rSzallitoActive ? '#ffedd5' : '#fff'};color:${rSzallitoActive ? '#c2410c' : '#64748b'};transition:all .1s;">Szállító</button>
                         <button type="button" class="sd-resp-btn vevo ${rVevoActive ? 'active' : ''}" data-resp="vevo" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rVevoActive ? '#cbd5e1' : '#cbd5e1'};background:${rVevoActive ? '#e2e8f0' : '#fff'};color:${rVevoActive ? '#475569' : '#64748b'};transition:all .1s;">Vevő / Egyéb</button>
                     </div>
+                </div>
+
+                <div class="sd-split-surplus-row" style="${hasSurplus ? 'display:block;' : 'display:none;'}background:#ecfdf5;border:1px dashed #6ee7b7;border-radius:8px;padding:12px;margin-top:8px;">
+                    <div style="font-size:12px;font-weight:700;color:#047857;margin-bottom:8px;">
+                        Többletfizetés / helyszíni eladás történt! Beszedett többlet: +<span class="sd-split-surplus-amount">${hasSurplus ? ((surplusInfo.extraAmount || (surplusInfo.amount - o.codAmount)) || 0).toLocaleString('hu-HU') : '0'}</span> Ft
+                    </div>
+                    <input class="sd-split-surplus-comment" type="text" placeholder="Miért volt több a fizetés? (pl. 2 db ragasztó helyszíni eladása)..." value="${surplusInfo ? (surplusInfo.comment||'').replace(/"/g,'&quot;') : ''}" style="width:100%;box-sizing:border-box;font-size:13px;border:2px solid #6ee7b7;border-radius:8px;padding:8px 12px;outline:none;background:#fff;font-family:inherit;">
                 </div>
             </div>
             `;
@@ -227,10 +242,20 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
 
         const nonCodRowsHtml = nonCodOrders.map(o => {
             const wasUncollected = prevUncollected.has(o.id);
+            const surplusInfo = prevSurplus[o.id] || prevSurplus[String(o.id)];
+            const hasSurplus = !wasUncollected && !!surplusInfo && (surplusInfo.amount > 0 || surplusInfo.extraAmount > 0);
+            const onsiteAmount = hasSurplus ? (surplusInfo.amount || surplusInfo.extraAmount) : 0;
+            const onsiteMethod = surplusInfo?.method || prevPaymentMethods[o.id] || 'cash';
+            const onsiteReceived = typeof surplusInfo?.isReceived === 'boolean' 
+                ? surplusInfo.isReceived 
+                : (prevPaymentStatusMap[o.id] ? (prevPaymentStatusMap[o.id] !== 'pending') : false);
+            const onsiteComment = surplusInfo?.comment || '';
+
             const itemsList = (o.items || []).map(it => `<span style="display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;margin:2px 4px 2px 0;"><b>${it.qty}×</b> ${it.name}</span>`).join('');
+            
             return `
-            <div class="sd-order-row" style="border-bottom:1px solid #f1f5f9;">
-                <label style="display:grid;grid-template-columns: 24px 80px minmax(0, 2fr) minmax(0, 1fr);align-items:start;gap:12px;padding:14px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+            <div class="sd-order-row sd-non-cod-row" style="border-bottom:1px solid #f1f5f9;" data-order-id="${o.id}">
+                <label style="display:grid;grid-template-columns: 24px 80px minmax(0, 2fr) minmax(0, 1fr) minmax(240px, auto);align-items:start;gap:12px;padding:14px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
                     <div style="display:flex;align-items:center;padding-top:2px;">
                         <input type="checkbox" data-order-id="${o.id}" data-amount="0" data-is-cod="false" ${wasUncollected ? '' : 'checked'}
                             style="width:20px;height:20px;cursor:pointer;accent-color:#22c55e;">
@@ -244,9 +269,47 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                         <div class="sd-items-list" style="display:none;font-size:11px;color:#475569;margin-top:2px;" onclick="event.preventDefault();event.stopPropagation();">${itemsList}</div>` : ''}
                     </div>
                     <div style="display:flex;align-items:center;padding-top:2px;">
-                        <span style="font-size:12px;font-weight:600;color:${o.isReturn ? '#6b21a8' : '#94a3b8'};">${o.isReturn ? '⟲ Visszaszállítás' : 'Nincs utánvét (0 Ft)'}</span>
+                        <span class="sd-noncod-status-span" style="font-size:12px;font-weight:600;color:${o.isReturn ? '#6b21a8' : (hasSurplus ? '#059669' : '#94a3b8')};">
+                            ${o.isReturn ? '⟲ Visszaszállítás' : (hasSurplus ? `+${onsiteAmount.toLocaleString('hu-HU')} Ft (Helyszíni eladás)` : 'Nincs utánvét (0 Ft)')}
+                        </span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;padding-top:2px;">
+                        <button type="button" class="sd-onsite-toggle-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:${hasSurplus ? '#047857' : '#0284c7'};background:${hasSurplus ? '#ecfdf5' : '#f0f9ff'};border:1px solid ${hasSurplus ? '#a7f3d0' : '#bae6fd'};border-radius:6px;padding:6px 10px;cursor:pointer;font-family:inherit;transition:all .15s;">
+                            <i class="ph-bold ${hasSurplus ? 'ph-check-circle' : 'ph-plus-circle'}" style="font-size:12px;"></i> ${hasSurplus ? 'Helyszíni eladás rögzítve' : '+ Helyszíni eladás / Ragasztó'}
+                        </button>
                     </div>
                 </label>
+                
+                <div class="sd-onsite-sale-container" style="display:${hasSurplus ? 'flex' : 'none'};flex-direction:column;gap:8px;padding:12px 20px 16px 116px;background:#f0fdf4;border-top:1px dashed #a7f3d0;">
+                    <div style="font-size:11px;font-weight:700;color:#065f46;display:flex;align-items:center;justify-content:space-between;">
+                        <span>Helyszíni eladás rögzítése (futár által beszedendő összeg)</span>
+                        <button type="button" class="sd-onsite-remove-btn" style="font-size:10px;font-weight:700;color:#ef4444;background:#fff;border:1px solid #fca5a5;border-radius:6px;padding:3px 8px;cursor:pointer;font-family:inherit;">Eltávolítás</button>
+                    </div>
+                    <div style="display:grid;grid-template-columns: 140px 160px 120px 1fr;gap:12px;align-items:center;">
+                        <div>
+                            <label style="font-size:10px;font-weight:700;color:#065f46;display:block;margin-bottom:2px;">Beszedett összeg (Ft)</label>
+                            <input class="sd-onsite-amount" type="number" min="0" placeholder="0" value="${onsiteAmount || ''}" style="width:100%;box-sizing:border-box;border:1px solid #6ee7b7;border-radius:6px;padding:5px 8px;font-size:13px;font-weight:700;font-family:inherit;outline:none;">
+                        </div>
+                        <div>
+                            <label style="font-size:10px;font-weight:700;color:#065f46;display:block;margin-bottom:2px;">Fizetési mód</label>
+                            <div class="sd-onsite-paymethod" style="display:flex;gap:4px;">
+                                <button type="button" class="sd-onsite-method-btn cash ${onsiteMethod === 'cash' ? 'active' : ''}" data-method="cash" style="font-size:11px;font-weight:700;padding:5px 8px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${onsiteMethod === 'cash' ? '#059669' : '#cbd5e1'};background:${onsiteMethod === 'cash' ? '#059669' : '#fff'};color:${onsiteMethod === 'cash' ? '#fff' : '#475569'};">KP</button>
+                                <button type="button" class="sd-onsite-method-btn card ${onsiteMethod === 'card' ? 'active' : ''}" data-method="card" style="font-size:11px;font-weight:700;padding:5px 8px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid ${onsiteMethod === 'card' ? '#2563eb' : '#cbd5e1'};background:${onsiteMethod === 'card' ? '#2563eb' : '#fff'};color:${onsiteMethod === 'card' ? '#fff' : '#475569'};">Kártya</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label style="font-size:10px;font-weight:700;color:#065f46;display:block;margin-bottom:2px;">Státusz</label>
+                            <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;font-weight:700;color:#1e293b;user-select:none;background:#fff;border:1px solid #6ee7b7;border-radius:6px;padding:4px 8px;">
+                                <input type="checkbox" class="sd-onsite-received" ${onsiteReceived ? 'checked' : ''} style="cursor:pointer;accent-color:#059669;width:14px;height:14px;">
+                                <span>Nálunk van</span>
+                            </label>
+                        </div>
+                        <div>
+                            <label style="font-size:10px;font-weight:700;color:#065f46;display:block;margin-bottom:2px;">Megjegyzés</label>
+                            <input class="sd-onsite-comment" type="text" placeholder="pl. 2 db ragasztó a helyszínen..." value="${onsiteComment.replace(/"/g,'&quot;')}" style="width:100%;box-sizing:border-box;border:1px solid #6ee7b7;border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit;outline:none;background:#fff;">
+                        </div>
+                    </div>
+                </div>
                 ${makeReasonHtml(o.id, wasUncollected)}
             </div>`;
         }).join('');
@@ -319,10 +382,32 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
         document.body.appendChild(overlay);
 
         const updateRowAmountDisplay = (row) => {
-            const cb = row.querySelector('input[type=checkbox]:not(.sd-paystatus-checkbox):not(.sd-split-status-kp):not(.sd-split-status-card):not(.sd-split-status-bank)');
+            const cb = row.querySelector('input[type=checkbox]:not(.sd-paystatus-checkbox):not(.sd-split-status-kp):not(.sd-split-status-card):not(.sd-split-status-bank):not(.sd-onsite-received)');
             const splitContainer = row.querySelector('.sd-payment-split-container');
             const fullAmtSpan = row.querySelector('.sd-full-amount');
-            if (!cb || !fullAmtSpan) return;
+            const noncodStatusSpan = row.querySelector('.sd-noncod-status-span');
+            const onsiteContainer = row.querySelector('.sd-onsite-sale-container');
+
+            if (!cb) return;
+
+            const isCOD = cb.getAttribute('data-is-cod') === 'true';
+
+            if (!isCOD) {
+                if (noncodStatusSpan && onsiteContainer) {
+                    const isOnsiteActive = onsiteContainer.style.display !== 'none';
+                    const onsiteAmt = isOnsiteActive ? (Math.max(0, parseInt(onsiteContainer.querySelector('.sd-onsite-amount')?.value) || 0)) : 0;
+                    if (onsiteAmt > 0) {
+                        noncodStatusSpan.textContent = `+${onsiteAmt.toLocaleString('hu-HU')} Ft (Helyszíni eladás)`;
+                        noncodStatusSpan.style.color = '#059669';
+                    } else {
+                        noncodStatusSpan.textContent = 'Nincs utánvét (0 Ft)';
+                        noncodStatusSpan.style.color = '#94a3b8';
+                    }
+                }
+                return;
+            }
+
+            if (!fullAmtSpan) return;
 
             const isSplitActive = splitContainer && splitContainer.style.display !== 'none';
             const fullAmount = parseInt(cb.getAttribute('data-amount')) || 0;
@@ -334,26 +419,32 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                 const sum = valKp + valCard + valBank;
                 const statusSpan = splitContainer.querySelector('.sd-split-status');
                 const partialRow = splitContainer.querySelector('.sd-split-partial-row');
+                const surplusRow = splitContainer.querySelector('.sd-split-surplus-row');
                 const diffSpan = splitContainer.querySelector('.sd-split-diff-amount');
+                const surplusSpan = splitContainer.querySelector('.sd-split-surplus-amount');
 
                 if (sum === fullAmount) {
                     if (statusSpan) { statusSpan.textContent = 'Rendben'; statusSpan.style.color = '#16a34a'; }
                     if (partialRow) partialRow.style.display = 'none';
+                    if (surplusRow) surplusRow.style.display = 'none';
                     fullAmtSpan.textContent = `${sum.toLocaleString('hu-HU')} Ft`;
                     fullAmtSpan.style.color = '#16a34a';
                 } else if (sum < fullAmount) {
                     const diff = fullAmount - sum;
                     if (statusSpan) { statusSpan.textContent = `Részleges (-${diff.toLocaleString('hu-HU')} Ft)`; statusSpan.style.color = '#1d4ed8'; }
                     if (partialRow) partialRow.style.display = 'block';
+                    if (surplusRow) surplusRow.style.display = 'none';
                     if (diffSpan) diffSpan.textContent = diff.toLocaleString('hu-HU');
                     fullAmtSpan.textContent = `${sum.toLocaleString('hu-HU')} Ft (részleges)`;
                     fullAmtSpan.style.color = '#1d4ed8';
                 } else {
                     const diff = sum - fullAmount;
-                    if (statusSpan) { statusSpan.textContent = `Túlfizetés (+${diff.toLocaleString('hu-HU')} Ft)`; statusSpan.style.color = '#dc2626'; }
+                    if (statusSpan) { statusSpan.textContent = `Többlet (+${diff.toLocaleString('hu-HU')} Ft)`; statusSpan.style.color = '#059669'; }
                     if (partialRow) partialRow.style.display = 'none';
-                    fullAmtSpan.textContent = `${sum.toLocaleString('hu-HU')} Ft (többlet)`;
-                    fullAmtSpan.style.color = '#dc2626';
+                    if (surplusRow) surplusRow.style.display = 'block';
+                    if (surplusSpan) surplusSpan.textContent = diff.toLocaleString('hu-HU');
+                    fullAmtSpan.textContent = `${sum.toLocaleString('hu-HU')} Ft (+${diff.toLocaleString('hu-HU')} Ft többlet)`;
+                    fullAmtSpan.style.color = '#059669';
                 }
             } else {
                 fullAmtSpan.textContent = `${fullAmount.toLocaleString('hu-HU')} Ft`;
@@ -368,48 +459,71 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             let totalOther = 0;
 
             overlay.querySelectorAll('.sd-order-row').forEach(row => {
-                const cb = row.querySelector('input[type=checkbox]:not(.sd-paystatus-checkbox):not(.sd-split-status-kp):not(.sd-split-status-card):not(.sd-split-status-bank)');
-                if (!cb || cb.getAttribute('data-is-cod') !== 'true') return;
+                const cb = row.querySelector('input[type=checkbox]:not(.sd-paystatus-checkbox):not(.sd-split-status-kp):not(.sd-split-status-card):not(.sd-split-status-bank):not(.sd-onsite-received)');
+                if (!cb) return;
                 
                 updateRowAmountDisplay(row);
                 if (!cb.checked) return;
 
-                const splitContainer = row.querySelector('.sd-payment-split-container');
-                const isSplitActive = splitContainer && splitContainer.style.display !== 'none';
+                const isCOD = cb.getAttribute('data-is-cod') === 'true';
 
-                if (isSplitActive) {
-                    const valKp = Math.max(0, parseInt(row.querySelector('.sd-split-amount-kp').value) || 0);
-                    const valCard = Math.max(0, parseInt(row.querySelector('.sd-split-amount-card').value) || 0);
-                    const valBank = Math.max(0, parseInt(row.querySelector('.sd-split-amount-bank').value) || 0);
+                if (isCOD) {
+                    const splitContainer = row.querySelector('.sd-payment-split-container');
+                    const isSplitActive = splitContainer && splitContainer.style.display !== 'none';
 
-                    const statusKp = row.querySelector('.sd-split-status-kp').checked;
-                    const statusCard = row.querySelector('.sd-split-status-card').checked;
-                    const statusBank = row.querySelector('.sd-split-status-bank').checked;
+                    if (isSplitActive) {
+                        const valKp = Math.max(0, parseInt(row.querySelector('.sd-split-amount-kp').value) || 0);
+                        const valCard = Math.max(0, parseInt(row.querySelector('.sd-split-amount-card').value) || 0);
+                        const valBank = Math.max(0, parseInt(row.querySelector('.sd-split-amount-bank').value) || 0);
 
-                    if (statusKp) totalKpReceived += valKp;
-                    else totalKpPending += valKp;
+                        const statusKp = row.querySelector('.sd-split-status-kp').checked;
+                        const statusCard = row.querySelector('.sd-split-status-card').checked;
+                        const statusBank = row.querySelector('.sd-split-status-bank').checked;
 
-                    if (statusCard) totalOther += valCard;
-                    else totalCardPending += valCard;
+                        if (statusKp) totalKpReceived += valKp;
+                        else totalKpPending += valKp;
 
-                    if (statusBank) totalOther += valBank;
+                        if (statusCard) totalOther += valCard;
+                        else totalCardPending += valCard;
+
+                        if (statusBank) totalOther += valBank;
+                    } else {
+                        const fullAmount = parseInt(cb.getAttribute('data-amount')) || 0;
+                        const paymethodSelector = row.querySelector('.sd-paymethod-selector');
+                        const activePayBtn = paymethodSelector ? paymethodSelector.querySelector('.sd-paymethod-btn.active') : null;
+                        const method = activePayBtn ? activePayBtn.getAttribute('data-method') : 'cash';
+
+                        const statusCheckbox = row.querySelector('.sd-paystatus-checkbox');
+                        const isReceived = statusCheckbox ? statusCheckbox.checked : false;
+
+                        if (method === 'bank') {
+                            totalOther += fullAmount;
+                        } else if (method === 'card') {
+                            if (isReceived) totalOther += fullAmount;
+                            else totalCardPending += fullAmount;
+                        } else { // cash
+                            if (isReceived) totalKpReceived += fullAmount;
+                            else totalKpPending += fullAmount;
+                        }
+                    }
                 } else {
-                    const fullAmount = parseInt(cb.getAttribute('data-amount'));
-                    const paymethodSelector = row.querySelector('.sd-paymethod-selector');
-                    const activePayBtn = paymethodSelector ? paymethodSelector.querySelector('.sd-paymethod-btn.active') : null;
-                    const method = activePayBtn ? activePayBtn.getAttribute('data-method') : 'cash';
+                    // Non-COD order with possible on-site sale
+                    const onsiteContainer = row.querySelector('.sd-onsite-sale-container');
+                    if (onsiteContainer && onsiteContainer.style.display !== 'none') {
+                        const onsiteAmt = Math.max(0, parseInt(onsiteContainer.querySelector('.sd-onsite-amount')?.value) || 0);
+                        if (onsiteAmt > 0) {
+                            const activeMethodBtn = onsiteContainer.querySelector('.sd-onsite-method-btn.active');
+                            const method = activeMethodBtn ? activeMethodBtn.getAttribute('data-method') : 'cash';
+                            const isReceived = onsiteContainer.querySelector('.sd-onsite-received')?.checked || false;
 
-                    const statusCheckbox = row.querySelector('.sd-paystatus-checkbox');
-                    const isReceived = statusCheckbox ? statusCheckbox.checked : false;
-
-                    if (method === 'bank') {
-                        totalOther += fullAmount;
-                    } else if (method === 'card') {
-                        if (isReceived) totalOther += fullAmount;
-                        else totalCardPending += fullAmount;
-                    } else { // cash
-                        if (isReceived) totalKpReceived += fullAmount;
-                        else totalKpPending += fullAmount;
+                            if (method === 'card') {
+                                if (isReceived) totalOther += onsiteAmt;
+                                else totalCardPending += onsiteAmt;
+                            } else { // cash
+                                if (isReceived) totalKpReceived += onsiteAmt;
+                                else totalKpPending += onsiteAmt;
+                            }
+                        }
                     }
                 }
             });
@@ -420,7 +534,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             overlay.querySelector('#sd-total-other').textContent = totalOther.toLocaleString('hu-HU') + ' Ft';
         };
 
-        overlay.querySelectorAll('input[type=checkbox]:not(.sd-paystatus-checkbox):not(.sd-split-status-kp):not(.sd-split-status-card):not(.sd-split-status-bank)').forEach(cb => cb.addEventListener('change', (e) => {
+        overlay.querySelectorAll('input[type=checkbox]:not(.sd-paystatus-checkbox):not(.sd-split-status-kp):not(.sd-split-status-card):not(.sd-split-status-bank):not(.sd-onsite-received)').forEach(cb => cb.addEventListener('change', (e) => {
             const row    = e.target.closest('.sd-order-row');
             const isCOD  = cb.getAttribute('data-is-cod') === 'true';
             const reasonRow = row.querySelector('.sd-reason-row');
@@ -480,6 +594,76 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             }
         });
 
+        // Non-COD onsite sales event handling
+        overlay.addEventListener('click', (e) => {
+            const onsiteToggleBtn = e.target.closest('.sd-onsite-toggle-btn');
+            if (onsiteToggleBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const row = onsiteToggleBtn.closest('.sd-order-row');
+                const container = row.querySelector('.sd-onsite-sale-container');
+                const isHidden = container.style.display === 'none';
+                container.style.display = isHidden ? 'flex' : 'none';
+                onsiteToggleBtn.innerHTML = isHidden 
+                    ? `<i class="ph-bold ph-caret-up" style="font-size:12px;"></i> Helyszíni eladás bezárása` 
+                    : `<i class="ph-bold ph-plus-circle" style="font-size:12px;"></i> + Helyszíni eladás / Ragasztó`;
+                if (isHidden) {
+                    const amtInput = container.querySelector('.sd-onsite-amount');
+                    if (amtInput) amtInput.focus();
+                }
+                updateTotal();
+                return;
+            }
+
+            const onsiteRemoveBtn = e.target.closest('.sd-onsite-remove-btn');
+            if (onsiteRemoveBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const row = onsiteRemoveBtn.closest('.sd-order-row');
+                const container = row.querySelector('.sd-onsite-sale-container');
+                container.style.display = 'none';
+                const amtInput = container.querySelector('.sd-onsite-amount');
+                if (amtInput) amtInput.value = '';
+                const commInput = container.querySelector('.sd-onsite-comment');
+                if (commInput) commInput.value = '';
+                const toggleBtn = row.querySelector('.sd-onsite-toggle-btn');
+                if (toggleBtn) {
+                    toggleBtn.innerHTML = `<i class="ph-bold ph-plus-circle" style="font-size:12px;"></i> + Helyszíni eladás / Ragasztó`;
+                    toggleBtn.style.color = '#0284c7';
+                    toggleBtn.style.background = '#f0f9ff';
+                    toggleBtn.style.borderColor = '#bae6fd';
+                }
+                updateTotal();
+                return;
+            }
+
+            const onsiteMethodBtn = e.target.closest('.sd-onsite-method-btn');
+            if (onsiteMethodBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const container = onsiteMethodBtn.closest('.sd-onsite-paymethod');
+                container.querySelectorAll('.sd-onsite-method-btn').forEach(b => {
+                    b.classList.remove('active');
+                    b.style.background = '#fff';
+                    b.style.color = '#475569';
+                    b.style.borderColor = '#cbd5e1';
+                });
+                onsiteMethodBtn.classList.add('active');
+                const method = onsiteMethodBtn.getAttribute('data-method');
+                if (method === 'card') {
+                    onsiteMethodBtn.style.background = '#2563eb';
+                    onsiteMethodBtn.style.borderColor = '#2563eb';
+                    onsiteMethodBtn.style.color = '#fff';
+                } else {
+                    onsiteMethodBtn.style.background = '#059669';
+                    onsiteMethodBtn.style.borderColor = '#059669';
+                    onsiteMethodBtn.style.color = '#fff';
+                }
+                updateTotal();
+                return;
+            }
+        });
+
         // Split toggle button click
         overlay.addEventListener('click', (e) => {
             const btn = e.target.closest('.sd-split-toggle-btn');
@@ -490,7 +674,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             const row = btn.closest('.sd-order-row');
             const splitContainer = row.querySelector('.sd-payment-split-container');
             const cb = row.querySelector('input[type=checkbox]');
-            const fullAmount = parseInt(cb.getAttribute('data-amount'));
+            const fullAmount = parseInt(cb.getAttribute('data-amount')) || 0;
             
             splitContainer.style.display = 'flex';
             row.querySelector('.sd-paymethod-selector').style.display = 'none';
@@ -523,6 +707,8 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             splitContainer.querySelector('.sd-split-amount-card').value = '';
             splitContainer.querySelector('.sd-split-amount-bank').value = '';
             splitContainer.querySelector('.sd-split-partial-comment').value = '';
+            const surplusComment = splitContainer.querySelector('.sd-split-surplus-comment');
+            if (surplusComment) surplusComment.value = '';
             
             row.querySelector('.sd-paymethod-selector').style.display = 'inline-flex';
             row.querySelector('.sd-paystatus-container').style.display = 'inline-flex';
@@ -531,11 +717,15 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             updateTotal();
         });
 
-        overlay.querySelectorAll('.sd-split-amount-kp, .sd-split-amount-card, .sd-split-amount-bank').forEach(input => {
-            input.addEventListener('input', () => updateTotal());
+        overlay.addEventListener('input', (e) => {
+            if (e.target.matches('.sd-split-amount-kp, .sd-split-amount-card, .sd-split-amount-bank, .sd-onsite-amount')) {
+                updateTotal();
+            }
         });
-        overlay.querySelectorAll('.sd-split-status-kp, .sd-split-status-card, .sd-split-status-bank').forEach(chk => {
-            chk.addEventListener('change', () => updateTotal());
+        overlay.addEventListener('change', (e) => {
+            if (e.target.matches('.sd-split-status-kp, .sd-split-status-card, .sd-split-status-bank, .sd-paystatus-checkbox, .sd-onsite-received')) {
+                updateTotal();
+            }
         });
 
         // Fizetési mód gombok eseménykezelése egyszerű módban
@@ -578,13 +768,6 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             updateTotal();
         });
 
-        // Nálunk van checkbox egyszerű módban
-        overlay.addEventListener('change', (e) => {
-            const chk = e.target.closest('.sd-paystatus-checkbox');
-            if (!chk) return;
-            updateTotal();
-        });
-
         updateTotal();
 
         const cleanup = () => overlay.remove();
@@ -602,10 +785,12 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             const uncollectedReasons  = {};
             const uncollectedResponsibility = {};
             const partialOrders       = {};
+            const surplusOrders       = {};
             const bankTransferredOrderIds = [];
 
             overlay.querySelectorAll('.sd-order-row').forEach(row => {
-                const cb = row.querySelector('input[type=checkbox]:not(.sd-paystatus-checkbox):not(.sd-split-status-kp):not(.sd-split-status-card):not(.sd-split-status-bank)');
+                const cb = row.querySelector('input[type=checkbox]:not(.sd-paystatus-checkbox):not(.sd-split-status-kp):not(.sd-split-status-card):not(.sd-split-status-bank):not(.sd-onsite-received)');
+                if (!cb) return;
                 const orderId = cb.getAttribute('data-order-id');
                 const isCOD   = cb.getAttribute('data-is-cod') === 'true';
 
@@ -626,7 +811,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                             paymentMethods[orderId] = { cash: valKp, card: valCard, bank: valBank };
                             paymentStatusMap[orderId] = { cash: statusKp, card: statusCard, bank: statusBank };
 
-                            const fullAmount = parseInt(cb.getAttribute('data-amount'));
+                            const fullAmount = parseInt(cb.getAttribute('data-amount')) || 0;
                             const sum = valKp + valCard + valBank;
 
                             if (sum < fullAmount) {
@@ -641,6 +826,13 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                                 } else {
                                     uncollectedResponsibility[orderId] = 'vevo';
                                 }
+                            } else if (sum > fullAmount) {
+                                const comment = row.querySelector('.sd-split-surplus-comment')?.value.trim() || '';
+                                surplusOrders[orderId] = {
+                                    amount: sum,
+                                    extraAmount: sum - fullAmount,
+                                    comment
+                                };
                             }
 
                             settledAmount += sum;
@@ -660,7 +852,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                             const isReceived = statusCheckbox ? statusCheckbox.checked : false;
                             paymentStatusMap[orderId] = isReceived ? 'received' : 'pending';
 
-                            const fullAmount = parseInt(cb.getAttribute('data-amount'));
+                            const fullAmount = parseInt(cb.getAttribute('data-amount')) || 0;
                             settledAmount += fullAmount;
                             if (method === 'card') {
                                 settledCardAmount += fullAmount;
@@ -668,6 +860,36 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                                 bankTransferredOrderIds.push(orderId);
                             } else {
                                 settledKpAmount += fullAmount;
+                            }
+                        }
+                    } else {
+                        // Non-COD order with possible onsite sale
+                        const onsiteContainer = row.querySelector('.sd-onsite-sale-container');
+                        if (onsiteContainer && onsiteContainer.style.display !== 'none') {
+                            const onsiteAmt = Math.max(0, parseInt(onsiteContainer.querySelector('.sd-onsite-amount')?.value) || 0);
+                            if (onsiteAmt > 0) {
+                                const activeMethodBtn = onsiteContainer.querySelector('.sd-onsite-method-btn.active');
+                                const method = activeMethodBtn ? activeMethodBtn.getAttribute('data-method') : 'cash';
+                                const isReceived = onsiteContainer.querySelector('.sd-onsite-received')?.checked || false;
+                                const comment = onsiteContainer.querySelector('.sd-onsite-comment')?.value.trim() || '';
+
+                                surplusOrders[orderId] = {
+                                    amount: onsiteAmt,
+                                    extraAmount: onsiteAmt,
+                                    comment,
+                                    method,
+                                    isReceived
+                                };
+
+                                paymentMethods[orderId] = method;
+                                paymentStatusMap[orderId] = isReceived ? 'received' : 'pending';
+
+                                settledAmount += onsiteAmt;
+                                if (method === 'card') {
+                                    settledCardAmount += onsiteAmt;
+                                } else {
+                                    settledKpAmount += onsiteAmt;
+                                }
                             }
                         }
                     }
@@ -699,6 +921,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                 uncollectedOrderIds, 
                 uncollectedReasons, 
                 partialOrders, 
+                surplusOrders, 
                 bankTransferredOrderIds, 
                 uncollectedResponsibility 
             });
@@ -871,6 +1094,7 @@ export async function renderAccountingRuns(ctx) {
             const uncollected    = run.uncollectedOrderIds || [];
             const reasons        = run.uncollectedReasons || {};
             const partialOrders  = run.partialOrders || {};
+            const surplusOrders  = run.surplusOrders || {};
             const bankTransferred = run.bankTransferredOrderIds || [];
             const paymentMethods = run.paymentMethods || {};
             const paymentStatusMap = run.paymentStatusMap || {};
@@ -914,7 +1138,7 @@ export async function renderAccountingRuns(ctx) {
                 }
             }
 
-            const codBadges = run.orders.filter(o => o.isCOD || o.isReturn).map(o => {
+            const codBadges = run.orders.filter(o => o.isCOD || o.isReturn || (run.surplusOrders && (run.surplusOrders[o.id] || run.surplusOrders[String(o.id)]))).map(o => {
                 const pd = getPaymentDetails(run, o);
                 let badgeBg = '#ffffff';
                 let badgeColor = '#475569';
@@ -924,6 +1148,10 @@ export async function renderAccountingRuns(ctx) {
                     badgeBg = pd.isUncollected ? '#fee2e2' : '#f5f3ff';
                     badgeColor = pd.isUncollected ? '#ef4444' : '#6b21a8';
                     statusLabel = pd.isUncollected ? 'Meghiúsult visszahozatal' : 'Visszahozva';
+                } else if (!o.isCOD && pd.hasSurplus) {
+                    badgeBg = '#ecfdf5';
+                    badgeColor = '#059669';
+                    statusLabel = `Helyszíni eladás (${pd.collectedAmount.toLocaleString('hu-HU')} Ft)`;
                 } else {
                     if (pd.isUnsettledRun) {
                         badgeBg = '#ffffff';
@@ -969,16 +1197,42 @@ export async function renderAccountingRuns(ctx) {
                    </div>` 
                 : '';
 
+            const runDeliveryCostSum = (run.orders || []).reduce((sum, o) => {
+                const cost = calculateOrderDeliveryCost({
+                    ...o,
+                    customDeliveryCost: (run.customDeliveryCosts && run.customDeliveryCosts[o.id] !== undefined)
+                        ? run.customDeliveryCosts[o.id]
+                        : o.customDeliveryCost
+                });
+                return sum + (cost.netCost || 0);
+            }, 0);
+
             const orderChips = run.orders.map(o => {
                 const pd          = getPaymentDetails(run, o);
                 const isUncollected = uncollected.includes(o.id);
                 const isBankTransferred = bankTransferred.includes(o.id);
                 const partialInfo   = o.isCOD && !isUncollected && !isBankTransferred ? partialOrders[o.id] : null;
+                const surplusInfo   = !isUncollected ? (surplusOrders[o.id] || surplusOrders[String(o.id)]) : null;
                 const reasonText    = isUncollected && reasons[o.id] ? ` · ${reasons[o.id]}` : '';
                 const method        = paymentMethods[o.id] || 'cash';
                 const status        = paymentStatusMap[o.id] || 'received';
                 const statusText    = status === 'pending' ? ' (Függő)' : ' (Rendben)';
                 const statusColor   = status === 'pending' ? '#d97706' : '#16a34a';
+
+                const deliveryCostInfo = calculateOrderDeliveryCost({
+                    ...o,
+                    customDeliveryCost: (run.customDeliveryCosts && run.customDeliveryCosts[o.id] !== undefined)
+                        ? run.customDeliveryCosts[o.id]
+                        : o.customDeliveryCost
+                });
+
+                const deliveryCostBadgeHtml = `
+                    <span class="hac-delivery-cost-badge" data-doc-id="${run.docId}" data-order-id="${o.id}" data-current-val="${deliveryCostInfo.netCost}" data-default-val="${deliveryCostInfo.calculatedNetCost}" title="Fuvarköltség: ${deliveryCostInfo.formattedCost} (${deliveryCostInfo.isBudapest ? 'Budapest' : 'Vidék'}, ${deliveryCostInfo.boardCount} tábla). Kattints az átíráshoz!" style="font-size:11px;font-weight:700;color:${deliveryCostInfo.isCustom ? '#15803d' : '#475569'};background:${deliveryCostInfo.isCustom ? '#f0fdf4' : '#f8fafc'};border:1px solid ${deliveryCostInfo.isCustom ? '#bbf7d0' : '#cbd5e1'};border-radius:6px;padding:2px 7px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;transition:all .15s;margin-left:auto;margin-right:6px;">
+                        <i class="ph-bold ph-truck" style="font-size:11px;color:${deliveryCostInfo.isCustom ? '#16a34a' : '#64748b'};"></i>
+                        <span>${deliveryCostInfo.formattedCost}</span>
+                        <i class="ph-bold ph-pencil-simple" style="font-size:10px;color:#94a3b8;"></i>
+                    </span>
+                `;
 
                 const isSplit = typeof method === 'object' && method !== null;
                 let paymentBreakdownHtml = '';
@@ -997,12 +1251,16 @@ export async function renderAccountingRuns(ctx) {
                         const got = sObj.bank !== 'pending';
                         parts.push(`<span style="color:${got?'#10b981':'#0284c7'}; font-weight:700;">${method.bank.toLocaleString('hu-HU')} Ft Utalás ${got?'(Rendben)':'(Függő)'}</span>`);
                     }
-                    paymentBreakdownHtml = `<span style="font-size:11px;font-weight:700;color:#1e293b; display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap;">Bontott: ${parts.join(' + ')} <span style="font-weight:400;color:#94a3b8;">/ ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`;
+                    const surplusBadge = (surplusInfo && (surplusInfo.extraAmount > 0 || surplusInfo.amount > o.codAmount))
+                        ? `<span style="font-size:10.5px;font-weight:700;color:#059669;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:4px;padding:1px 5px;">+${((surplusInfo.extraAmount || (surplusInfo.amount - o.codAmount)) || 0).toLocaleString('hu-HU')} Ft többlet${surplusInfo.comment ? ' · ' + surplusInfo.comment : ''}</span>`
+                        : '';
+                    paymentBreakdownHtml = `<span style="font-size:11px;font-weight:700;color:#1e293b; display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap;">Bontott: ${parts.join(' + ')} <span style="font-weight:400;color:#94a3b8;">/ ${o.codAmount.toLocaleString('hu-HU')} Ft</span> ${surplusBadge}</span>`;
                 }
                 
                 return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f1f5f9;${isUncollected ? 'opacity:.55;' : ''}">
                     <span style="font-size:11.5px;font-weight:700;color:#374151;min-width:85px;${isUncollected ? 'text-decoration:line-through;' : ''}">${o.id}</span>
                     <span style="font-size:11.5px;color:#64748b;flex:1;">${o.shippingName || '—'}</span>
+                    ${deliveryCostBadgeHtml}
                     ${o.isReturn
                         ? isUncollected
                             ? `<span style="font-size:11px;font-weight:700;color:#ef4444;">meghiúsult visszahozatal<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
@@ -1019,13 +1277,15 @@ export async function renderAccountingRuns(ctx) {
                                             : partialInfo
                                                 ? `<span style="font-size:11px;font-weight:700;color:#1d4ed8;">~${partialInfo.amount.toLocaleString('hu-HU')} Ft ${method === 'card' ? 'Kártya' : method === 'bank' ? 'Utalás' : 'KP'}<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft${partialInfo.comment ? ' · ' + partialInfo.comment : ''}</span></span>`
                                                 : (method === 'card'
-                                                    ? `<span style="font-size:11px;font-weight:700;color:#2563eb;">Kártya<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
+                                                    ? `<span style="font-size:11px;font-weight:700;color:#2563eb;">Kártya<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span>${surplusInfo?.comment ? `<span style="font-size:10.5px;color:#059669;font-weight:600;"> · ${surplusInfo.comment}</span>` : ''}</span>`
                                                     : method === 'bank'
-                                                        ? `<span style="font-size:11px;font-weight:700;color:#0284c7;">Utalás<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`
-                                                        : `<span style="font-size:11px;font-weight:700;color:#10b981;">KP<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span></span>`)
+                                                        ? `<span style="font-size:11px;font-weight:700;color:#0284c7;">Utalás<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span>${surplusInfo?.comment ? `<span style="font-size:10.5px;color:#059669;font-weight:600;"> · ${surplusInfo.comment}</span>` : ''}</span>`
+                                                        : `<span style="font-size:11px;font-weight:700;color:#10b981;">KP<span style="font-size:11.5px;font-weight:700;color:${statusColor}">${statusText}</span><span style="font-weight:400;color:#94a3b8;"> / ${o.codAmount.toLocaleString('hu-HU')} Ft</span>${surplusInfo?.comment ? `<span style="font-size:10.5px;color:#059669;font-weight:600;"> · ${surplusInfo.comment}</span>` : ''}</span>`)
                             : isUncollected
                                 ? `<span style="font-size:11px;font-weight:700;color:#f97316;">nem lett átadva<span style="font-weight:400;color:#94a3b8;">${reasonText}</span></span>`
-                                : '<span style="font-size:11px;color:#94a3b8;">átadva</span>'}
+                                : (surplusInfo && (surplusInfo.amount > 0 || surplusInfo.extraAmount > 0))
+                                    ? `<span style="font-size:11px;font-weight:700;color:#059669;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:2px 7px;">Helyszíni eladás: ${(surplusInfo.amount || surplusInfo.extraAmount).toLocaleString('hu-HU')} Ft ${surplusInfo.method === 'card' ? 'Kártya' : 'KP'}${surplusInfo.isReceived ? ' (Rendben)' : ' (Függő)'}${surplusInfo.comment ? ' · ' + surplusInfo.comment : ''}</span>`
+                                    : '<span style="font-size:11px;color:#94a3b8;">átadva</span>'}
                 </div>`;
             }).join('');
 
@@ -1067,6 +1327,8 @@ export async function renderAccountingRuns(ctx) {
                             <span style="color:#d1d5db;">·</span>
                             <span style="color:#94a3b8;">${run.orders.length} rendelés</span>
                             ${runCOD > 0 ? `<span style="color:#d1d5db;">·</span><strong style="color:#b91c1c;">${runCOD.toLocaleString('hu-HU')} Ft</strong>` : ''}
+                            <span style="color:#d1d5db;">·</span>
+                            <span style="color:#475569;font-weight:700;" title="Kör összesített fuvardíja: ${runDeliveryCostSum.toLocaleString('hu-HU')} Ft + Áfa"><i class="ph-bold ph-truck" style="font-size:10.5px;color:#64748b;"></i> Fuvar: ${runDeliveryCostSum.toLocaleString('hu-HU')} Ft + Áfa</span>
                         </div>
                         ${codBadgeContainer}
                     </div>
@@ -1158,7 +1420,8 @@ async function syncSettledOrdersToShopify(run, settlementData, docId) {
                 result.settledCardAmount,
                 result.paymentMethods,
                 null,
-                result.paymentStatusMap
+                result.paymentStatusMap,
+                result.surplusOrders
             )) {
                 await syncSettledOrdersToShopify(run, result, docId);
                 renderAccountingRuns(ctx);
@@ -1225,6 +1488,7 @@ async function syncSettledOrdersToShopify(run, settlementData, docId) {
                 uncollectedOrderIds: run.uncollectedOrderIds || [],
                 uncollectedReasons: run.uncollectedReasons || {},
                 partialOrders: run.partialOrders || {},
+                surplusOrders: run.surplusOrders || {},
                 bankTransferredOrderIds: run.bankTransferredOrderIds || [],
                 uncollectedResponsibility: run.uncollectedResponsibility || {},
                 paymentMethods: run.paymentMethods || {},
@@ -1247,7 +1511,8 @@ async function syncSettledOrdersToShopify(run, settlementData, docId) {
                 result.settledCardAmount,
                 result.paymentMethods,
                 null,
-                result.paymentStatusMap
+                result.paymentStatusMap,
+                result.surplusOrders
             )) {
                 await syncSettledOrdersToShopify(run, result, docId);
                 renderAccountingRuns(ctx);
@@ -1295,6 +1560,40 @@ async function syncSettledOrdersToShopify(run, settlementData, docId) {
         });
     });
 
+
+    accountingRunsContainer.querySelectorAll('.hac-delivery-cost-badge').forEach(badge => {
+        badge.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const badgeEl = e.currentTarget;
+            const docId = badgeEl.getAttribute('data-doc-id');
+            const orderId = badgeEl.getAttribute('data-order-id');
+            const currentVal = parseFloat(badgeEl.getAttribute('data-current-val')) || 0;
+            const defaultVal = parseFloat(badgeEl.getAttribute('data-default-val')) || 0;
+
+            const result = await CustomDialog.prompt(
+                `Add meg a(z) ${orderId} megrendelés fuvardíját nettó Ft-ban (kalkulált alapértelmezett díj: ${defaultVal.toLocaleString('hu-HU')} Ft, vagy üres / 'alap' a visszaállításhoz):`,
+                currentVal,
+                'Fuvarköltség Módosítása'
+            );
+
+            if (result !== null && result !== undefined) {
+                const trimmed = String(result).trim().toLowerCase();
+                let newCost = null;
+                if (trimmed !== '' && trimmed !== 'alap' && trimmed !== 'reset') {
+                    const parsed = parseFloat(trimmed.replace(/\s+/g, ''));
+                    if (!isNaN(parsed) && parsed >= 0) {
+                        newCost = parsed;
+                    }
+                }
+                const success = await HistoryManager.updateOrderDeliveryCost(docId, orderId, newCost);
+                if (success) {
+                    renderAccountingRuns(ctx);
+                } else {
+                    await CustomDialog.alert('Hiba történt a fuvardíj mentésekor!', 'Hiba', 'error');
+                }
+            }
+        });
+    });
 
     accountingRunsContainer.querySelectorAll('.acc-expand-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {

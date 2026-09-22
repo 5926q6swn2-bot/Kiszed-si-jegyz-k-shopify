@@ -40,8 +40,13 @@ import {
     calculateMorningReportStats,
     extractScheduledDateTag,
     isScheduledDateToday,
-    calculateReportCutoffDate
+    calculateReportCutoffDate,
+    isBoardItem,
+    countOrderBoards,
+    isBudapestAddress,
+    calculateOrderDeliveryCost
 } from '../js/utils/orderUtils.js';
+import { getDeliveryCostBadgeHtml } from '../js/views/ordersView.js';
 import {
     generateMissingInvoiceEmailHtml,
     sendMissingInvoiceAlertEmail,
@@ -2435,6 +2440,287 @@ assertEqual("Run Sorting (Elszámolás után) - 1. hely továbbra is a mai el ne
 assertEqual("Run Sorting (Elszámolás után) - 2. hely: run_new (2026-09-20)", reSortedList[1].id, 'run_new');
 assertEqual("Run Sorting (Elszámolás után) - 3. hely: tegnapi visszaugrott a helyére (2026-09-19)", reSortedList[2].id, 'run_unsettled_yesterday');
 assertEqual("Run Sorting (Elszámolás után) - 4. hely: run_old (2026-09-10)", reSortedList[3].id, 'run_old');
+
+// ==========================================
+// SZÁLLÍTÁSI / FUVARKÖLTSÉG TESZTEK
+// ==========================================
+
+// 1. isBoardItem tesztek (Nagyméretű táblák)
+assertEqual("Board Check - PB-TR Falpanel", isBoardItem({ name: "PB-TR032 Falpanel - 280x122cm", sku: "PB-TR032" }), true);
+assertEqual("Board Check - TR Falpanel 244x122", isBoardItem({ name: "TR-01 Falpanel 244x122" }), true);
+assertEqual("Board Check - LJ Falburkolat", isBoardItem({ name: "LJ-801 Prémium falburkolat" }), true);
+assertEqual("Board Check - SPC Padlózat", isBoardItem({ name: "Carrara SPC Padlózat 5mm" }), true);
+assertEqual("Board Check - SPC Falpanel", isBoardItem({ name: "Urban SPC falpanel 260x120" }), true);
+assertEqual("Board Check - Akusztikus panel", isBoardItem({ name: "Akusztikus falpanel 278x60cm Natúr Tölgy" }), true);
+assertEqual("Board Check - Akupanel", isBoardItem({ name: "Akupanel Prémium Fekete Tölgy" }), true);
+assertEqual("Board Check - Wide Acoustic", isBoardItem({ name: "Wide Acoustic Falpanel 278x60" }), true);
+assertEqual("Board Check - Laminált padló", isBoardItem({ name: "Laminált padló 8mm tölgy" }), true);
+assertEqual("Board Check - Vinyl LVT", isBoardItem({ name: "LVT vinyl padlóburkolat" }), true);
+assertEqual("Board Check - Méret szerinti tábla", isBoardItem({ name: "Márvány mintás panel 244x122" }), true);
+
+// 2. isBoardItem kizárási tesztek (Kellékek, apróságok, profilok, ragasztók NEM táblák)
+assertEqual("Board Check Kizárás - HPR Ragasztó", isBoardItem({ name: "HPR Ragasztó 310ml" }), false);
+assertEqual("Board Check Kizárás - T-Rex ragasztó", isBoardItem({ name: "Soudal T-Rex Transzparens Ragasztó" }), false);
+assertEqual("Board Check Kizárás - Mamut Glue", isBoardItem({ name: "Den Braven Mamut Glue" }), false);
+assertEqual("Board Check Kizárás - Fix All", isBoardItem({ name: "Soudal Fix All High Tack ragasztó" }), false);
+assertEqual("Board Check Kizárás - Szilikon", isBoardItem({ name: "Antibakteriális szaniter szilikon" }), false);
+assertEqual("Board Check Kizárás - Belső sarokprofil", isBoardItem({ name: "PB-TR Belső sarokprofil 280cm alu" }), false);
+assertEqual("Board Check Kizárás - Külső sarokprofil", isBoardItem({ name: "Külső sarokprofil 244cm fekete" }), false);
+assertEqual("Board Check Kizárás - Élzáró profil", isBoardItem({ name: "Élzáró U-profil 280cm" }), false);
+assertEqual("Board Check Kizárás - T-profil soroló", isBoardItem({ name: "T-profil soroló elem 280cm" }), false);
+assertEqual("Board Check Kizárás - Skirting szegélyléc", isBoardItem({ name: "Skirting SPC lábazati szegélyléc 244cm" }), false);
+assertEqual("Board Check Kizárás - Tapadóhíd", isBoardItem({ name: "Mapei Tapadóhíd 1kg" }), false);
+assertEqual("Board Check Kizárás - Mélyalapozó", isBoardItem({ name: "Mélyalapozó 5L" }), false);
+assertEqual("Board Check Kizárás - Mintadarab", isBoardItem({ name: "Falpanel mintadarab csomag" }), false);
+
+// 3. countOrderBoards tesztek
+const testMixedOrder1 = {
+    items: [
+        { name: "PB-TR032 Falpanel - 280x122cm", qty: 7 },
+        { name: "HPR Ragasztó", qty: 10 }
+    ]
+};
+assertEqual("Board Counting - 7 tábla + 10 ragasztó", countOrderBoards(testMixedOrder1), 7);
+
+const testMixedOrder2 = {
+    items: [
+        { name: "HPR Ragasztó", qty: 2 },
+        { name: "Belső sarokprofil", qty: 3 }
+    ]
+};
+assertEqual("Board Counting - 0 tábla (csak kellékek)", countOrderBoards(testMixedOrder2), 0);
+
+const testMixedOrder3 = {
+    items: [
+        { name: "Akupanel Tölgy", qty: 4 },
+        { name: "SPC padló", qty: 8 },
+        { name: "Tapadóhíd", qty: 1 }
+    ]
+};
+assertEqual("Board Counting - 12 tábla (4 aku + 8 spc)", countOrderBoards(testMixedOrder3), 12);
+
+// 4. isBudapestAddress tesztek
+assertEqual("Budapest Check - City 'Budapest'", isBudapestAddress({ city: "Budapest", zip: "1117" }), true);
+assertEqual("Budapest Check - City 'budapest' kisbetűs", isBudapestAddress({ city: "budapest" }), true);
+assertEqual("Budapest Check - Zip '1044'", isBudapestAddress({ zip: "1044" }), true);
+assertEqual("Budapest Check - Address mezőben Budapest", isBudapestAddress({ address: "1138 Budapest, Váci út 10." }), true);
+assertEqual("Budapest Check - Vidéki város 'Szolnok'", isBudapestAddress({ city: "Szolnok", zip: "5000" }), false);
+assertEqual("Budapest Check - Vidéki város 'Debrecen'", isBudapestAddress({ city: "Debrecen", zip: "4025" }), false);
+assertEqual("Budapest Check - Üres objektum", isBudapestAddress({}), false);
+
+// 5. calculateOrderDeliveryCost kalkulációs tesztek
+// Budapest 0 tábla (pl. csak kellékek) -> 10 000 Ft + Áfa alapdíj
+const testBp0 = { city: "Budapest", zip: "1117", items: [{ name: "HPR Ragasztó", qty: 2 }] };
+const costBp0 = calculateOrderDeliveryCost(testBp0);
+assertEqual("Delivery Cost - Bp 0 tábla netCost", costBp0.netCost, 10000);
+assertEqual("Delivery Cost - Bp 0 tábla formatted", costBp0.formattedCost, "10 000 Ft + Áfa");
+assertEqual("Delivery Cost - Bp 0 tábla isCustom", costBp0.isCustom, false);
+
+// Budapest 5 tábla -> 10 000 Ft + Áfa alapdíj
+const testBp5 = { city: "Budapest", zip: "1117", items: [{ name: "Falpanel", qty: 5 }] };
+const costBp5 = calculateOrderDeliveryCost(testBp5);
+assertEqual("Delivery Cost - Bp 5 tábla netCost", costBp5.netCost, 10000);
+assertEqual("Delivery Cost - Bp 5 tábla formatted", costBp5.formattedCost, "10 000 Ft + Áfa");
+
+// Budapest 10 tábla -> 10 000 Ft + Áfa alapdíj
+const testBp10 = { city: "Budapest", zip: "1117", items: [{ name: "Falpanel", qty: 10 }] };
+const costBp10 = calculateOrderDeliveryCost(testBp10);
+assertEqual("Delivery Cost - Bp 10 tábla netCost", costBp10.netCost, 10000);
+assertEqual("Delivery Cost - Bp 10 tábla formatted", costBp10.formattedCost, "10 000 Ft + Áfa");
+
+// Budapest 11 tábla -> 10 000 + 1 * 1 100 = 11 100 Ft + Áfa
+const testBp11 = { city: "Budapest", zip: "1117", items: [{ name: "Falpanel", qty: 11 }] };
+const costBp11 = calculateOrderDeliveryCost(testBp11);
+assertEqual("Delivery Cost - Bp 11 tábla netCost", costBp11.netCost, 11100);
+assertEqual("Delivery Cost - Bp 11 tábla formatted", costBp11.formattedCost, "11 100 Ft + Áfa");
+
+// Budapest 14 tábla -> 10 000 + 4 * 1 100 = 14 400 Ft + Áfa
+const testBp14 = { city: "Budapest", zip: "1117", items: [{ name: "Falpanel", qty: 14 }] };
+const costBp14 = calculateOrderDeliveryCost(testBp14);
+assertEqual("Delivery Cost - Bp 14 tábla netCost", costBp14.netCost, 14400);
+assertEqual("Delivery Cost - Bp 14 tábla formatted", costBp14.formattedCost, "14 400 Ft + Áfa");
+
+// Vidék 0 tábla -> 15 000 Ft + Áfa alapdíj
+const testVd0 = { city: "Győr", zip: "9021", items: [{ name: "HPR Ragasztó", qty: 3 }] };
+const costVd0 = calculateOrderDeliveryCost(testVd0);
+assertEqual("Delivery Cost - Vidék 0 tábla netCost", costVd0.netCost, 15000);
+assertEqual("Delivery Cost - Vidék 0 tábla formatted", costVd0.formattedCost, "15 000 Ft + Áfa");
+
+// Vidék 7 tábla (#4113 Sándor Suki, Szolnok) -> 15 000 Ft + Áfa
+const testVd4113 = {
+    id: "#4113",
+    city: "Szolnok",
+    zip: "5000",
+    items: [
+        { name: "PB-TR032 Falpanel - 280x122cm", qty: 7 },
+        { name: "HPR Ragasztó", qty: 10 }
+    ]
+};
+const costVd4113 = calculateOrderDeliveryCost(testVd4113);
+assertEqual("Delivery Cost - #4113 Szolnok 7 tábla netCost", costVd4113.netCost, 15000);
+assertEqual("Delivery Cost - #4113 Szolnok 7 tábla formatted", costVd4113.formattedCost, "15 000 Ft + Áfa");
+assertEqual("Delivery Cost - #4113 Szolnok boardCount", costVd4113.boardCount, 7);
+assertEqual("Delivery Cost - #4113 Szolnok isBudapest", costVd4113.isBudapest, false);
+
+// Vidék 10 tábla -> 15 000 Ft + Áfa alapdíj
+const testVd10 = { city: "Miskolc", zip: "3525", items: [{ name: "Falpanel", qty: 10 }] };
+const costVd10 = calculateOrderDeliveryCost(testVd10);
+assertEqual("Delivery Cost - Vidék 10 tábla netCost", costVd10.netCost, 15000);
+assertEqual("Delivery Cost - Vidék 10 tábla formatted", costVd10.formattedCost, "15 000 Ft + Áfa");
+
+// Vidék 12 tábla -> 15 000 + 2 * 1 100 = 17 200 Ft + Áfa
+const testVd12 = { city: "Szeged", zip: "6720", items: [{ name: "Falpanel", qty: 12 }] };
+const costVd12 = calculateOrderDeliveryCost(testVd12);
+assertEqual("Delivery Cost - Vidék 12 tábla netCost", costVd12.netCost, 17200);
+assertEqual("Delivery Cost - Vidék 12 tábla formatted", costVd12.formattedCost, "17 200 Ft + Áfa");
+
+// Egyedi felülírt fuvardíj (customDeliveryCost: 12000)
+const testCustom = {
+    city: "Szeged",
+    zip: "6720",
+    customDeliveryCost: 12000,
+    items: [{ name: "Falpanel", qty: 12 }]
+};
+const costCustom = calculateOrderDeliveryCost(testCustom);
+assertEqual("Delivery Cost - Egyedi felülírás netCost", costCustom.netCost, 12000);
+assertEqual("Delivery Cost - Egyedi felülírás calculatedNetCost", costCustom.calculatedNetCost, 17200);
+assertEqual("Delivery Cost - Egyedi felülírás formatted", costCustom.formattedCost, "12 000 Ft + Áfa");
+assertEqual("Delivery Cost - Egyedi felülírás isCustom flag", costCustom.isCustom, true);
+
+// 6. getDeliveryCostBadgeHtml tesztek
+const badgeHtml = getDeliveryCostBadgeHtml(testVd4113);
+assertEqual("Delivery Cost Badge - Tartalmazza a 15 000 Ft + Áfa összeget", badgeHtml.includes("15 000 Ft + Áfa"), true);
+assertEqual("Delivery Cost Badge - Tartalmazza a clickable-delivery-cost-badge osztályt", badgeHtml.includes("clickable-delivery-cost-badge"), true);
+
+// 7. Custom delivery cost override run-szinten (HistoryManager adatstruktúra)
+const runWithCustomCosts = {
+    docId: "doc_123",
+    customDeliveryCosts: {
+        "#4113": 12500
+    },
+    orders: [testVd4113]
+};
+const o = runWithCustomCosts.orders[0];
+const costFromRun = calculateOrderDeliveryCost({
+    ...o,
+    customDeliveryCost: runWithCustomCosts.customDeliveryCosts[o.id]
+});
+assertEqual("Delivery Cost - Run customDeliveryCosts érvényesül", costFromRun.netCost, 12500);
+assertEqual("Delivery Cost - Run customDeliveryCosts formázva", costFromRun.formattedCost, "12 500 Ft + Áfa");
+assertEqual("Delivery Cost - Run customDeliveryCosts isCustom", costFromRun.isCustom, true);
+
+// 8. Helyszíni eladás és többletfizetés (surplus) tesztek
+// A) Utánvétes (COD) rendelés többlettel (pl. 10 000 Ft COD helyett 15 000 Ft-ot fizetett a vevő bontva: 10 000 KP + 5 000 Kártya, +5 000 Ft többlet ragasztóra)
+const testCodOrder = {
+    id: "#4120",
+    isCOD: true,
+    codAmount: 10000
+};
+const testCodRun = {
+    isSettled: true,
+    isTransferSettled: true,
+    paymentMethods: {
+        "#4120": { cash: 10000, card: 5000, bank: 0 }
+    },
+    paymentStatusMap: {
+        "#4120": { cash: "received", card: "received" }
+    },
+    surplusOrders: {
+        "#4120": { amount: 15000, extraAmount: 5000, comment: "2 db ragasztó helyszínen eladva" }
+    },
+    orders: [testCodOrder]
+};
+
+const pdCodSurplus = getPaymentDetails(testCodRun, testCodOrder);
+assertEqual("COD Surplus - hasSurplus", pdCodSurplus.hasSurplus, true);
+assertEqual("COD Surplus - surplusAmount", pdCodSurplus.surplusAmount, 5000);
+assertEqual("COD Surplus - collectedAmount", pdCodSurplus.collectedAmount, 15000);
+assertEqual("COD Surplus - surplusComment", pdCodSurplus.surplusComment, "2 db ragasztó helyszínen eladva");
+assertEqual("COD Surplus - receivedKp", pdCodSurplus.receivedKp, 10000);
+assertEqual("COD Surplus - receivedCard", pdCodSurplus.receivedCard, 5000);
+assertEqual("COD Surplus - statusText tartalmazza a többletet", pdCodSurplus.statusText.includes("5000 Ft többlet"), true);
+
+// B) Nem utánvétes (Non-COD / 0 Ft) rendelés helyszíni eladással (pl. 11 430 Ft kártyával a helyszínen ragasztóra)
+const testNonCodOrder = {
+    id: "#4121",
+    isCOD: false,
+    codAmount: 0
+};
+const testNonCodRun = {
+    isSettled: true,
+    isTransferSettled: true,
+    paymentMethods: {
+        "#4121": "card"
+    },
+    paymentStatusMap: {
+        "#4121": "received"
+    },
+    surplusOrders: {
+        "#4121": { amount: 11430, extraAmount: 11430, comment: "3 db ragasztó helyszínen eladva", method: "card", isReceived: true }
+    },
+    orders: [testNonCodOrder]
+};
+
+const pdNonCodSurplus = getPaymentDetails(testNonCodRun, testNonCodOrder);
+assertEqual("Non-COD Surplus - hasSurplus", pdNonCodSurplus.hasSurplus, true);
+assertEqual("Non-COD Surplus - surplusAmount", pdNonCodSurplus.surplusAmount, 11430);
+assertEqual("Non-COD Surplus - collectedAmount", pdNonCodSurplus.collectedAmount, 11430);
+assertEqual("Non-COD Surplus - receivedCard", pdNonCodSurplus.receivedCard, 11430);
+assertEqual("Non-COD Surplus - methodText formátum", pdNonCodSurplus.methodText.replace(/\u00a0/g, ' ').includes("Helyszíni eladás (Kártya: 11 430 Ft)"), true);
+assertEqual("Non-COD Surplus - statusText", pdNonCodSurplus.statusText, "Helyszíni eladás (Rendben)");
+
+// C) getRunPaymentTotals összegek ellenőrzése mindkét fenti rendeléssel egyetlen futárkörben
+const combinedRun = {
+    isSettled: true,
+    isTransferSettled: true,
+    paymentMethods: {
+        ...testCodRun.paymentMethods,
+        ...testNonCodRun.paymentMethods
+    },
+    paymentStatusMap: {
+        ...testCodRun.paymentStatusMap,
+        ...testNonCodRun.paymentStatusMap
+    },
+    surplusOrders: {
+        ...testCodRun.surplusOrders,
+        ...testNonCodRun.surplusOrders
+    },
+    orders: [testCodOrder, testNonCodOrder]
+};
+
+const totals = getRunPaymentTotals(combinedRun);
+assertEqual("Run Payment Totals - totalCod tartalmazza a többleteket", totals.totalCod, 26430);
+assertEqual("Run Payment Totals - receivedKp", totals.receivedKp, 10000);
+assertEqual("Run Payment Totals - receivedCard", totals.receivedCard, 16430);
+assertEqual("Run Payment Totals - pendingKp", totals.pendingKp, 0);
+assertEqual("Run Payment Totals - pendingCard", totals.pendingCard, 0);
+assertEqual("Run Payment Totals - isFullySettled", totals.isFullySettled, true);
+
+// D) getEligibleOrdersForMarkAsPaid - A többletet fizető rendelés megjelölhető fizetettnek
+const eligible = getEligibleOrdersForMarkAsPaid(testCodRun);
+assertEqual("Mark as Paid - Többletes rendelés bekerül a jelölhetők közé", eligible.some(x => x.orderId === "#4120"), true);
+
+// E) Utánvét elszámolás export Megjegyzés oszlop generálás (surplus/helyszíni eladás megjegyzés)
+const testExportFailReasonCod = `Többlet / helyszíni eladás: +${pdCodSurplus.surplusAmount.toLocaleString('hu-HU')} Ft${pdCodSurplus.surplusComment ? ' (' + pdCodSurplus.surplusComment + ')' : ''}`;
+assertEqual("Export CSV - COD Többlet megjegyzés szöveg", testExportFailReasonCod.includes("2 db ragasztó helyszínen eladva"), true);
+
+const testExportFailReasonNonCod = `Többlet / helyszíni eladás: +${pdNonCodSurplus.surplusAmount.toLocaleString('hu-HU')} Ft${pdNonCodSurplus.surplusComment ? ' (' + pdNonCodSurplus.surplusComment + ')' : ''}`;
+assertEqual("Export CSV - Non-COD Helyszíni eladás megjegyzés szöveg", testExportFailReasonNonCod.includes("3 db ragasztó helyszínen eladva"), true);
+
+// F) Utánvét elszámolás export Beszedett összeg (Ft) ellenőrzése
+assertEqual("Export CSV - COD Többlet Beszedett összeg", pdCodSurplus.collectedAmount, 15000);
+assertEqual("Export CSV - Non-COD Helyszíni eladás Beszedett összeg", pdNonCodSurplus.collectedAmount, 11430);
+
+const testPartialOrder = { id: "#4122", isCOD: true, codAmount: 50000 };
+const testPartialRun = {
+    isSettled: true,
+    isTransferSettled: true,
+    partialOrders: { "#4122": { amount: 43810, comment: "1 db sérült panel visszahozva (-10 000 Ft), 1 db ragasztó eladva (+3 810 Ft)" } },
+    orders: [testPartialOrder]
+};
+const pdPartial = getPaymentDetails(testPartialRun, testPartialOrder);
+assertEqual("Export CSV - Részleges és többlet egyidejű elszámolása Beszedett összeg", pdPartial.collectedAmount, 43810);
+
 
 // --- ESM Syntax and Duplicate Declaration Check for all JS files ---
 function checkJsSyntaxRecursively(dir) {
