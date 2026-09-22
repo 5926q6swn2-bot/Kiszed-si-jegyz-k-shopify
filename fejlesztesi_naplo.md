@@ -29,7 +29,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.6 Flash (High)
-- **Státusz**: A rendszer stabil, Render felhőre kész. Nem fizikai tételek (Semmi / Kizárva) kezelése és feles akusztikus panelek egyedi csomagolása élesítve (v4.9.1, 631/631 zöld unit teszt).
+- **Státusz**: A rendszer stabil, Render felhőre kész. Nem fizikai tételek és párosított termék-rövidítés kezelések (Szétválasztás, Keresés, Kézi hozzáadás) élesítve (v4.9.2, 631/631 zöld unit teszt).
 
 
 ---
@@ -50,6 +50,18 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 4. **Feketelista Kezelő (Blacklist Manager) & Automata Kockázatos Vevő Szűrés**:
    - Megbízhatatlan / lebeszélt időpontban át nem vett rendelések vevőinek központi rögzítése (többszörös telefonszámok, szállítási címek, nevek, e-mail címek + indoklás).
    - Új Shopify rendelés letöltésekor automatikus egyeztetés a feketelistával, és azonnali piros figyelmeztető doboz generálása a raktári felületen (opcionális automatikus `feketelista` tageléssel a Shopify-ban).
+
+### 2026. szeptember 22. (8. frissítés) - PannonXP Termék Rövidítés Javítás, Párosítások Szétválasztása & Keresés (`v4.9.2`)
+- **Párosított és Tévesen Rögzített Termékek Megjelenítése (`js/views/pannonxp/pannonxpSettings.js`)**:
+  - Megszüntetve a párosított (`linkedTo`) termékek automatikus elrejtése a Termék Rövidítések nézetben. Így minden regisztrált vagy korábban elírt termék megjelenik és szerkeszthetővé vált.
+- **Szétválasztás (Unlink) Gomb Logika**:
+  - A párosított tételek mellett megjelent az új **Szétválasztás** gomb. Erre kattintva a `linkedTo` referencia törlődik a Firestore perzisztenciában (`saveProductMappings`), így a termék azonnal önálló rövidítést és kategóriát kaphat.
+- **Valós Idejű Keresősáv (`#pxp-search-abbrevs`)**:
+  - Hozzáadva egy dinamikus keresőmező a beállítások ablak fejléces szekciójához. Így a felhasználó másodpercek alatt megtalálhatja és kiszűrheti a *„feles”* akusztikus paneleket vagy bármilyen más cikkszámot.
+- **Kézi Termék Bejegyzés (`#pxp-btn-add-manual-mapping`)**:
+  - Beállítva a manuális termék hozzáadás gomb, amellyel Shopify rendelés letöltése nélkül is rögzíthető bármilyen terméknév a PannonXP szótárban.
+- **Unit Tesztek & ESM Ellenőrzés**:
+  - 631/631 unit teszt és ESM szintaxis ellenőrzés 100%-ban zöld.
 
 ### 2026. szeptember 22. (7. frissítés) - Nem Fizikai Tételek (Semmi / Kizárva Kategória) & Feles Akusztikus Panel Kezelése (`v4.9.1`)
 - **Nem Fizikai / Virtuális Tételek Támogatása (`type: 'none' | 'semmi'`)**:

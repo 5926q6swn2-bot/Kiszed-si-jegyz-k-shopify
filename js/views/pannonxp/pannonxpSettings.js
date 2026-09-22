@@ -772,9 +772,10 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
         const keys = Object.keys(mappings);
         const categories = rules.categories || [];
         
-        const visibleKeys = keys.filter(k => !mappings[k].linkedTo);
+        // Összes regisztrált termék bejegyzést megjelenítjük (rejtés nélkül), hogy a párosítottak is szerkeszthetők / kereshetők legyenek!
+        const sortedKeys = [...keys];
         
-        visibleKeys.sort((a, b) => {
+        sortedKeys.sort((a, b) => {
             const abbrevA = (mappings[a].abbrev || '').toLowerCase();
             const abbrevB = (mappings[b].abbrev || '').toLowerCase();
             
@@ -788,26 +789,32 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
         });
         
         let html = `
-            <form id="pxp-settings-abbreviations-form" style="display:flex; flex-direction:column; gap:15px; height: 100%;">
-                <div style="background: #f8fafc; padding: 14px; border-radius: 12px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; gap: 8px;">
+            <form id="pxp-settings-abbreviations-form" style="display:flex; flex-direction:column; gap:12px; height: 100%;">
+                <div style="background: #f8fafc; padding: 12px 14px; border-radius: 12px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; gap: 6px;">
                     <h4 style="margin: 0; font-size: 13px; color: #1e293b;">Shopify Termék Export CSV Beolvasása</h4>
                     <p style="margin: 0; font-size: 11px; color: #64748b; line-height: 1.4;">
                         Töltsd fel a Shopify-ból exportált termék CSV fájlt. A rendszer automatikusan kiszűri a méretváltozatokat (pl. 280 cm), és csak a tiszta termékneveket/színeket menti el.
                     </p>
-                    <div style="display: flex; gap: 10px; align-items: center; margin-top: 5px;">
+                    <div style="display: flex; gap: 10px; align-items: center; margin-top: 2px;">
                         <input type="file" id="pxp-product-csv-input" accept=".csv" style="display: none;">
-                        <button type="button" id="pxp-btn-upload-product-csv" class="btn btn-secondary btn-sm" style="padding: 6px 14px; display: flex; align-items: center; gap: 6px;">
+                        <button type="button" id="pxp-btn-upload-product-csv" class="btn btn-secondary btn-sm" style="padding: 5px 12px; font-size: 12px; display: flex; align-items: center; gap: 6px;">
                             <i class="ph-bold ph-upload-simple"></i> Termék CSV Kijelölése
+                        </button>
+                        <button type="button" id="pxp-btn-add-manual-mapping" class="btn btn-secondary btn-sm" style="padding: 5px 12px; font-size: 12px; display: flex; align-items: center; gap: 6px; background: #f0f9ff; color: #0284c7; border-color: #bae6fd;">
+                            <i class="ph-bold ph-plus-circle"></i> + Új termék bejegyzése kézzel
                         </button>
                         <span id="pxp-product-csv-status" style="font-size: 11px; color: #64748b;">Nincs fájl betöltve</span>
                     </div>
                 </div>
                 
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h4 style="margin: 0; font-size: 13px; color: #1e293b;">Regisztrált Termékek (${visibleKeys.length} db)</h4>
-                    <button type="button" id="pxp-btn-clear-mappings" class="btn btn-secondary btn-sm" style="padding: 6px 12px; background: #fee2e2; color: #b91c1c; border-color: #fca5a5; font-size: 11px;">
-                        Összes törlése
-                    </button>
+                <div style="display:flex; justify-content:space-between; align-items:center; gap: 10px; flex-wrap: wrap;">
+                    <h4 style="margin: 0; font-size: 13px; color: #1e293b;" id="pxp-abbrev-count-heading">Regisztrált Termékek (${sortedKeys.length} db)</h4>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="text" id="pxp-search-abbrevs" placeholder=" Keresés terméknév vagy rövidítés alapján..." style="padding: 5px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; outline: none; width: 260px; font-family: inherit;">
+                        <button type="button" id="pxp-btn-clear-mappings" class="btn btn-secondary btn-sm" style="padding: 5px 10px; background: #fee2e2; color: #b91c1c; border-color: #fca5a5; font-size: 11px;">
+                            Összes törlése
+                        </button>
+                    </div>
                 </div>
                 
                 <div style="max-height: 450px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; flex: 1;">
@@ -820,22 +827,26 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
                                 <th style="padding: 8px 10px; width: 50px; text-align: center;">Törlés</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            ${visibleKeys.length === 0 ? `
+                        <tbody id="pxp-abbrevs-tbody">
+                            ${sortedKeys.length === 0 ? `
                                 <tr>
                                     <td colspan="4" style="padding: 20px; text-align: center; color: #64748b;">Nincsenek még termékek feltöltve.</td>
                                 </tr>
-                            ` : visibleKeys.map(k => {
+                            ` : sortedKeys.map(k => {
                                 const mappingObj = mappings[k] || { abbrev: '', categoryId: '' };
                                 const hasCat = !!mappingObj.categoryId;
+                                const isLinked = !!mappingObj.linkedTo;
                                 return `
-                                <tr class="pxp-mapping-row" data-key="${k.replace(/"/g, '&quot;')}" style="border-bottom: 1px solid #f1f5f9; ${hasCat ? '' : 'background: #fff5f5;'}">
+                                <tr class="pxp-mapping-row" data-key="${k.replace(/"/g, '&quot;')}" data-search-text="${(k + ' ' + (mappingObj.abbrev || '') + ' ' + (mappingObj.linkedTo || '')).toLowerCase().replace(/"/g, '&quot;')}" style="border-bottom: 1px solid #f1f5f9; ${hasCat ? '' : 'background: #fff5f5;'}">
                                     <td style="padding: 8px 10px; color: #1e293b; font-weight: 500;">
                                         <div>${k}</div>
-                                        ${mappingObj.linkedTo ? `
-                                            <div style="font-size: 10px; color: #0284c7; margin-top: 3px; display: flex; align-items: center; gap: 4px; font-weight: normal;">
+                                        ${isLinked ? `
+                                            <div style="font-size: 10px; color: #0284c7; margin-top: 3px; display: flex; align-items: center; gap: 6px; font-weight: normal;">
                                                 <i class="ph-bold ph-link" style="font-size: 11px;"></i>
-                                                <span>Párosítva: <strong>${mappingObj.linkedTo}</strong></span>
+                                                <span>Párosítva ezzel: <strong>${mappingObj.linkedTo}</strong></span>
+                                                <button type="button" class="pxp-btn-unlink-mapping" data-key="${k.replace(/"/g, '&quot;')}" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; border-radius: 4px; padding: 1px 6px; font-size: 9.5px; font-weight: 700; cursor: pointer;" title="Szétválasztás önálló rövidítés megadásához">
+                                                    Szétválasztás
+                                                </button>
                                             </div>
                                         ` : ''}
                                     </td>
@@ -849,7 +860,7 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
                                         </select>
                                     </td>
                                     <td style="padding: 8px 10px; text-align: center;">
-                                        <button type="button" class="pxp-btn-delete-mapping" data-key="${k.replace(/"/g, '&quot;')}" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 14px; padding: 2px;">
+                                        <button type="button" class="pxp-btn-delete-mapping" data-key="${k.replace(/"/g, '&quot;')}" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 14px; padding: 2px;" title="Termék törlése">
                                             <i class="ph-bold ph-trash"></i>
                                         </button>
                                     </td>
@@ -867,6 +878,66 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
         `;
         
         container.innerHTML = html;
+
+        // Kereső mező eseménykezelő
+        const searchInput = container.querySelector('#pxp-search-abbrevs');
+        const rows = container.querySelectorAll('.pxp-mapping-row');
+        const heading = container.querySelector('#pxp-abbrev-count-heading');
+        
+        if (searchInput) {
+            searchInput.focus();
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.trim().toLowerCase();
+                let visibleCount = 0;
+                rows.forEach(row => {
+                    const text = row.dataset.searchText || '';
+                    if (!query || text.includes(query)) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+                if (heading) {
+                    heading.textContent = query 
+                        ? `Találatok (${visibleCount} / ${sortedKeys.length} db)`
+                        : `Regisztrált Termékek (${sortedKeys.length} db)`;
+                }
+            });
+        }
+
+        // Kézi termék hozzáadása gomb
+        const addManualBtn = container.querySelector('#pxp-btn-add-manual-mapping');
+        if (addManualBtn) {
+            addManualBtn.addEventListener('click', async () => {
+                const prodName = await CustomDialog.prompt('Add meg az új termék pontos nevét (pl. Feles Akusztikus Panel 138cm):', '', 'Új Termék Hozzáadása');
+                if (prodName) {
+                    const cleanedName = cleanItemNameForMapping(prodName);
+                    const activeMappings = PannonXPService.getProductMappings();
+                    
+                    showConfigureProductModal({ items: [] }, prodName, cleanedName || prodName, '', 'cat_acoustic', async () => {
+                        renderAbbreviationsTab();
+                        if (mainViewContext && typeof mainViewContext.render === 'function') {
+                            mainViewContext.render(mainContainer, orders, onExport);
+                        }
+                    });
+                }
+            });
+        }
+
+        // Szétválasztás (Unlink) gombok
+        container.querySelectorAll('.pxp-btn-unlink-mapping').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const key = btn.dataset.key;
+                const activeMappings = PannonXPService.getProductMappings();
+                if (activeMappings[key]) {
+                    delete activeMappings[key].linkedTo;
+                    await PannonXPService.saveProductMappings(activeMappings);
+                    renderAbbreviationsTab();
+                }
+            });
+        });
 
         const form = container.querySelector('#pxp-settings-abbreviations-form');
         if (form) {
