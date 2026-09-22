@@ -1,5 +1,6 @@
 // js/utils/orderUtils.js
-// Rendelésekkel kapcsolatos segédfüggvények (duplikációk, vevő-összerendelés)
+// Rendelésekkel kapcsolatos segédfüggvények (duplikációk, vevő-összerendelés, címvalidáció)
+
 
 /**
  * Megkeresi az aktív (nem teljesített és nem törölt) rendelések között azokat,
@@ -773,6 +774,9 @@ export function calculateReportCutoffDate(referenceDate = new Date()) {
     };
 }
 
-
-
+/**
+ * Ellenőrzi, hogy egy rendelés kiszállításos-e és hiányos-e a szállítási címe (pl. hiányzó házszám).
+ * Személyes átvételes vagy törölt rendelésekre mindig false-t ad vissza.
+ */
+export const hasInvalidDeliveryAddress = checkInvalidDeliveryAddress;
 

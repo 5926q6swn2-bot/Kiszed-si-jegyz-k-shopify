@@ -2,39 +2,17 @@
 // Rendelésáttekintő (Shopify Order Hub) - Teljes Terítési / Járat Integráció (Kiszállítás dátuma, Futár), Tiszta Címoszlop, Sárga pötty (0 Emoji)
 
 import { Store } from '../store/state.js';
-import { buildDuplicateCustomerOrdersMap } from '../utils/orderUtils.js';
-import { checkAddressValidity } from '../services/shopify.js';
+import { buildDuplicateCustomerOrdersMap, hasInvalidDeliveryAddress } from '../utils/orderUtils.js';
 
-export { buildDuplicateCustomerOrdersMap };
-
-/**
- * Ellenőrzi, hogy egy rendelés kiszállításos-e és hiányos-e a szállítási címe (pl. hiányzó házszám).
- * Személyes átvételes vagy törölt rendelésekre mindig false-t ad vissza.
- */
-export function hasInvalidDeliveryAddress(order) {
-    if (!order || order.isCancelled || order.isPickup) return false;
-    const tags = String(order.tags || '').toLowerCase();
-    if (order.isReseller === true || tags.includes('viszontelad') || tags.includes('viszonterlad') || tags.includes('viszonteladó') || tags.includes('viszontelado')) return false;
-    if (typeof order.hasInvalidAddress === 'boolean') {
-        return order.hasInvalidAddress;
-    }
-    return checkAddressValidity(order);
-}
-
-// Nyitott sorok ID-jainak nyilvántartása
-const expandedOrderIds = new Set();
+export { buildDuplicateCustomerOrdersMap, hasInvalidDeliveryAddress };
 
 export const OrderOverviewView = {
     toggleExpand(orderId) {
-        if (expandedOrderIds.has(orderId)) {
-            expandedOrderIds.delete(orderId);
-        } else {
-            expandedOrderIds.add(orderId);
-        }
+        Store.toggleExpandedOrder(orderId);
     },
 
     isExpanded(orderId) {
-        return expandedOrderIds.has(orderId);
+        return Store.isOrderExpanded(orderId);
     },
 
     openImageModal(imgUrl, title) {

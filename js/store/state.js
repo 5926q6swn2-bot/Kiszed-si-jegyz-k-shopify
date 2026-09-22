@@ -21,7 +21,8 @@ const state = {
     editingOrderInternalId: null,
     statsLeafletMap: null,
     activeStatsTab: 'charts',
-    geoCache: JSON.parse(localStorage.getItem('hu_zip_geocache_v1') || '{}')
+    geoCache: JSON.parse(localStorage.getItem('hu_zip_geocache_v1') || '{}'),
+    expandedOrderIds: new Set()
 };
 
 export const Store = {
@@ -30,6 +31,7 @@ export const Store = {
     get pxpOrders() { return state.pxpOrders; },
     get shopifyHubOrders() { return state.shopifyHubOrders; },
     get selectedHubOrderIds() { return state.selectedHubOrderIds; },
+    get expandedOrderIds() { return state.expandedOrderIds; },
     get hubFilters() { return state.hubFilters; },
     get activeMainTab() { return state.activeMainTab; },
     get sortableInstance() { return state.sortableInstance; },
@@ -97,6 +99,22 @@ export const Store = {
 
     clearHubOrderSelection() {
         state.selectedHubOrderIds.clear();
+    },
+
+    toggleExpandedOrder(orderId) {
+        if (state.expandedOrderIds.has(orderId)) {
+            state.expandedOrderIds.delete(orderId);
+        } else {
+            state.expandedOrderIds.add(orderId);
+        }
+    },
+
+    isOrderExpanded(orderId) {
+        return state.expandedOrderIds.has(orderId);
+    },
+
+    clearExpandedOrders() {
+        state.expandedOrderIds.clear();
     },
 
     setHubFilters(filters) {

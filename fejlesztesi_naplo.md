@@ -51,6 +51,19 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
    - Megbízhatatlan / lebeszélt időpontban át nem vett rendelések vevőinek központi rögzítése (többszörös telefonszámok, szállítási címek, nevek, e-mail címek + indoklás).
    - Új Shopify rendelés letöltésekor automatikus egyeztetés a feketelistával, és azonnali piros figyelmeztető doboz generálása a raktári felületen (opcionális automatikus `feketelista` tageléssel a Shopify-ban).
 
+### 2026. szeptember 22. (2. frissítés) - Architektúra Tisztítás: Store Állapotkezelés és View Réteg Karcsúsítás (`v4.6.9`)
+- **Store mint Egyetlen Igazságforrás (`js/store/state.js`)**:
+  - Az `orderOverviewView.js` korábbi privát, modul-szintű `expandedOrderIds` állapota átkerült a központi `Store`-ba (`Store.state.expandedOrderIds`, `Store.toggleExpandedOrder()`, `Store.isOrderExpanded()`, `Store.clearExpandedOrders()`).
+  - Az `OrderOverviewView.toggleExpand` és `isExpanded` metódusok transzparensen delegálnak a `Store`-ba, így a rétegek szigorúan követik az `ARCHITECTURE.md` előírásait.
+- **View Réteg Tehermentesítése & Üzleti Logika Kiszervezése**:
+  - A szállítási címhiány validáció (`hasInvalidDeliveryAddress`) átkerült az `orderUtils.js` modulba, ahol a meglévő és tesztelt `checkInvalidDeliveryAddress` logikára épül. A nézet (`orderOverviewView.js`) csak a kész eredményt jeleníti meg.
+- **Felesleges Adatbázis Import Eltávolítása a Statisztikából (`js/views/stats.js`)**:
+  - Eltávolítottuk a korábbi felesleges `import { db, doc, updateDoc } from '../firebase-config.js'` importot a statisztikai nézetből, tisztán megőrizve a View réteg és az adatbázis elválasztását.
+- **Unit Tesztek & Stabilitás**:
+  - 522/522 sikeres zöld unit teszt lefutva (`tests/unit_tests.js`).
+
+---
+
 ### 2026. szeptember 22. (1. frissítés) - Szerveroldali Gyorsítótár (Cache), CORS Preflight & API Védelem (`v4.6.8`)
 - **Szerveroldali Gyorsítótár (Shopify API 429 Rate-Limit Védelem)**:
   - A `server.js` `/api/shopify/orders` végpontja 4 másodperces in-memory gyorsítótárat (`ordersCache`) kapott.
