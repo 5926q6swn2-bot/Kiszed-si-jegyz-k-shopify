@@ -1,6 +1,6 @@
 {
   "name": "kiszedesi-jegyzek-shopify",
-  "version": "4.6.9",
+  "version": "4.7.0",
   "description": "Kiszedési jegyzék és raktári kezelő Shopify-hoz",
   "main": "server.js",
   "scripts": {

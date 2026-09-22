@@ -5,7 +5,7 @@ Ez a dokumentum a projekt teljes leírását, technikai specifikációit és a f
 
 ---
 
-## ️ Projekt Specifikáció & Design Guidelines
+## Projekt Specifikáció & Design Guidelines
 
 **[KÖTELEZŐ OLVASMÁNY]** Kérlek olvasd el az `ARCHITECTURE.md` fájlt a projekt gyökerében, mielőtt bármilyen fejlesztésbe kezdesz. Ez tartalmazza az MVC/Moduláris architektúra szabályait, amiket szigorúan követni kell!
 
@@ -50,6 +50,17 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 4. **Feketelista Kezelő (Blacklist Manager) & Automata Kockázatos Vevő Szűrés**:
    - Megbízhatatlan / lebeszélt időpontban át nem vett rendelések vevőinek központi rögzítése (többszörös telefonszámok, szállítási címek, nevek, e-mail címek + indoklás).
    - Új Shopify rendelés letöltésekor automatikus egyeztetés a feketelistával, és azonnali piros figyelmeztető doboz generálása a raktári felületen (opcionális automatikus `feketelista` tageléssel a Shopify-ban).
+
+### 2026. szeptember 22. (3. frissítés) - Monolitikus Fájlok Modularizálása: Shopify Router és Vezérlők Kiszervezése (`v4.7.0`)
+- **Szerver Oldali Modularizáció (`server.js` -> `server/shopifyRoutes.js`)**:
+  - A korábban 1662 soros monolitikus `server.js` felesleges kódismétléseit és router blokkját önálló CommonJS modulba (`server/shopifyRoutes.js`) szerveztük.
+  - A `server.js` mérete közel 1000 sorral csökkent (670 sorra karcsúsodott), közvetlenül delegálva a Shopify OAuth, lekérdezési, teljesítési és tagelési logikát a routernek.
+- **Frontend Vezérlők Kiszervezése (`js/app.js` -> `js/controllers/`)**:
+  - `js/controllers/orderNoteController.js`: Létrehozva a rendelési megjegyzések (Notes) szerkesztésére és mentésére szolgáló vezérlő (`openOrderNoteModal`).
+  - `js/controllers/courierSelectController.js`: Létrehozva a szállítócéghez kötött intelligens futárválasztó vezérlő (`COMPANY_COURIERS` és `updateCourierSelectElements`).
+  - Az `app.js` közvetlenül importálja és használja ezeket, megelőzve az óriási inlined függvényeket.
+- **Tesztelés & Minőségbiztosítás**:
+  - 524/524 egységteszt és ESM szintaxis-ellenőrzés sikeresen lefutva (100% zöld).
 
 ### 2026. szeptember 22. (2. frissítés) - Architektúra Tisztítás: Store Állapotkezelés és View Réteg Karcsúsítás (`v4.6.9`)
 - **Store mint Egyetlen Igazságforrás (`js/store/state.js`)**:
