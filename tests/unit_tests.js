@@ -219,6 +219,7 @@ function testCalcPackages(categories, items) {
         const name = item.name.toLowerCase();
         let matchedCat = categories.find(c => name.includes(c.keyword || c.id));
         if (matchedCat) {
+            if (matchedCat.type === 'none' || matchedCat.type === 'semmi' || matchedCat.id === 'cat_none') return;
             qtyMap[matchedCat.id] += item.qty;
         } else {
             otherQty += item.qty;
@@ -228,7 +229,7 @@ function testCalcPackages(categories, items) {
     const packagesDetail = [];
     const groups = {};
     categories.forEach(cat => {
-        if (cat.type === 'adhesive') return;
+        if (cat.type === 'adhesive' || cat.type === 'none' || cat.type === 'semmi' || cat.id === 'cat_none') return;
         const groupKey = cat.packagingGroup || cat.id;
         if (!groups[groupKey]) groups[groupKey] = [];
         groups[groupKey].push(cat);
@@ -293,7 +294,8 @@ const testCats = [
     { id: 'cat_acoustic', type: 'cards', keyword: 'sima akusztikus', maxQty: 5, allowAdhesiveInside: true, packagingGroup: 'acoustic_family', rules: { 2: { weight: 13 } } },
     { id: 'cat_wide_acoustic', type: 'cards', keyword: 'wide akusztikus', maxQty: 5, allowAdhesiveInside: true, packagingGroup: 'acoustic_family', rules: { 2: { weight: 18 } } },
     { id: 'cat_spcwood', type: 'cards', keyword: 'spc wood', maxQty: 8, allowAdhesiveInside: false, packagingGroup: 'spc_family', rules: { 2: { weight: 36 } } },
-    { id: 'cat_adhesive', type: 'adhesive', keyword: 'ragasztó', maxQty: 15, allowAdhesiveInside: false, itemWeight: 0.5, boxWeight: 0.8 }
+    { id: 'cat_adhesive', type: 'adhesive', keyword: 'ragasztó', maxQty: 15, allowAdhesiveInside: false, itemWeight: 0.5, boxWeight: 0.8 },
+    { id: 'cat_none', type: 'none', keyword: 'elsőbbségi szállítás', allowAdhesiveInside: false }
 ];
 
 // Test 1: Vegyes akupanel (2 sima + 2 wide + 1 ragasztó) -> 1 csomag (31kg)
@@ -328,6 +330,14 @@ const calcGlue16 = testCalcPackages(testCats, [
 ]);
 assertEqual("Akupanel + 16 Glues - package count", calcGlue16.packages, 3);
 assertEqual("Akupanel + 16 Glues - total weight", calcGlue16.weight, 22.6);
+
+// Test 5: Akupanel + Elsőbbségi szállítás (nem fizikai tétel) -> 1 csomag (13kg, a nem fizikai tétel ki van zárva)
+const calcNonPhysical = testCalcPackages(testCats, [
+    { name: '2db sima akusztikus', qty: 2 },
+    { name: 'elsőbbségi szállítás', qty: 1 }
+]);
+assertEqual("Akupanel + Non-Physical Item - package count", calcNonPhysical.packages, 1);
+assertEqual("Akupanel + Non-Physical Item - total weight", calcNonPhysical.weight, 13);
 
 // --- Sanitize Abbreviation Tests ---
 function sanitizeAbbreviation(abbrev) {

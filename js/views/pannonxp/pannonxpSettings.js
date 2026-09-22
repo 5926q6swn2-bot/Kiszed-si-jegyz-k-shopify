@@ -236,12 +236,16 @@ export function showConfigureProductModal(order, originalName, cleanedName, defa
         const abbrev = sanitizeAbbreviation(abbrevInput.value.trim());
         const selectedCatId = catSelect.value;
         
-        if (!abbrev) {
-            CustomDialog.alert('Kérlek, add meg a termék érvényes rövidítését!', 'Hiányzó adat', 'warning');
-            return;
-        }
         if (!selectedCatId) {
             CustomDialog.alert('Kérlek, válaszd ki a termék kategóriáját!', 'Hiányzó adat', 'warning');
+            return;
+        }
+
+        const selectedCat = categories.find(c => c.id === selectedCatId);
+        const isNoneType = selectedCat && (selectedCat.type === 'none' || selectedCat.type === 'semmi' || selectedCat.id === 'cat_none');
+
+        if (!abbrev && !isNoneType) {
+            CustomDialog.alert('Kérlek, add meg a termék érvényes rövidítését!', 'Hiányzó adat', 'warning');
             return;
         }
         
@@ -648,6 +652,7 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
                                 <option value="cards" ${cat.type === 'cards' ? 'selected' : ''}>Csomagméret kártyák</option>
                                 <option value="weight" ${cat.type === 'weight' ? 'selected' : ''}>Egységsúly + dobozsúly</option>
                                 <option value="adhesive" ${cat.type === 'adhesive' ? 'selected' : ''}>Segédanyag (csak súly)</option>
+                                <option value="none" ${cat.type === 'none' || cat.type === 'semmi' ? 'selected' : ''}>Nem fizikai / Virtuális tétel (Semmi - csomagból kizárva)</option>
                             </select>
                             ${isCustom ? `
                             <button type="button" class="pxp-btn-delete-category" data-cat-id="${cat.id}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center;" title="Kategória törlése">
@@ -678,6 +683,13 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
                             Ragasztó / segédanyag bepakolható a dobozba (&lt;7 db esetén)
                         </label>
                     </div>
+
+                    ${(cat.type === 'none' || cat.type === 'semmi') ? `
+                    <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px; font-size:12px; color:#1e40af; margin-bottom:10px; display:flex; align-items:center; gap:8px;">
+                        <i class="ph-bold ph-info" style="font-size:16px; color:#2563eb; flex-shrink:0;"></i>
+                        <span><strong>Nem fizikai tétel (Semmi):</strong> Nem kerül dobozba, nem növeli a szállítmány súlyát/darabszámát, és nem igényel termékrövidítést (pl. elsőbbségi szállítás, felárak, garancia).</span>
+                    </div>
+                    ` : ''}
                     
                     ${cat.type === 'weight' ? `
                     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px;">

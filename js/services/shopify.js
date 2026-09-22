@@ -224,10 +224,18 @@ export function generateDefaultReference(order, maxLen = 50) {
         const abbrev = sanitizeAbbreviation(rawAbbrev);
         const categoryId = mapping ? (typeof mapping === 'object' ? mapping.categoryId : null) : null;
         
+        const rules = PannonXPService.getPackagingRules ? PannonXPService.getPackagingRules() : null;
+        const categories = rules ? (rules.categories || []) : [];
+        const matchedCat = categoryId ? categories.find(c => c.id === categoryId) : null;
+        const isNoneCategory = matchedCat && (matchedCat.type === 'none' || matchedCat.type === 'semmi' || matchedCat.id === 'cat_none');
+
+        if (isNoneCategory) {
+            // Nem fizikai / virtuális tétel (pl. elsőbbségi szállítás, felár) -> Kihagyjuk a referenciaszámból és nem jelez hibát
+            return;
+        }
+
         if (abbrev) {
             if (categoryId === 'cat_acoustic') {
-                const rules = PannonXPService.getPackagingRules ? PannonXPService.getPackagingRules() : null;
-                const categories = rules ? (rules.categories || []) : [];
                 const catAcoustic = categories.find(c => c.id === 'cat_acoustic');
                 const maxQty = catAcoustic ? (catAcoustic.maxQty || 5) : 5;
                 const qty = item.qty;

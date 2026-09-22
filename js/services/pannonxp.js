@@ -723,6 +723,13 @@ export const PannonXPService = {
                 maxLength: 30,
                 width: 20,
                 height: 10
+            },
+            {
+                id: 'cat_none',
+                name: 'Nem fizikai tételek (Semmi / Kizárva)',
+                keywords: 'elsőbbségi, felár, garancia, digitális, jótállás, szállítási díj, pótdíj',
+                type: 'none',
+                allowAdhesiveInside: false
             }
         ];
     },
@@ -908,6 +915,10 @@ export const PannonXPService = {
                 }
                 
                 if (matchedCat) {
+                    if (matchedCat.type === 'none' || matchedCat.type === 'semmi' || matchedCat.id === 'cat_none') {
+                        // Nem fizikai / virtuális tétel (pl. elsőbbségi szállítás, felár) -> Teljesen kizárva a csomag- és súlykalkulációból
+                        return;
+                    }
                     qtyMap[matchedCat.id] += itemQty;
                     catDetailsMap[matchedCat.id].qty += itemQty;
                     catDetailsMap[matchedCat.id].items.push({ name: originalName || itemName, qty: itemQty });
@@ -931,7 +942,7 @@ export const PannonXPService = {
         // 1. Group categories by packagingGroup
         const groups = {};
         categories.forEach(cat => {
-            if (cat.type === 'adhesive') return;
+            if (cat.type === 'adhesive' || cat.type === 'none' || cat.type === 'semmi' || cat.id === 'cat_none') return;
             const groupKey = cat.packagingGroup || cat.id;
             if (!groups[groupKey]) {
                 groups[groupKey] = [];

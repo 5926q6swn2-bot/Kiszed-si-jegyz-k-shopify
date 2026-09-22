@@ -40,12 +40,25 @@ export function renderOrdersTable(container, orders, onExport, mainViewContext) 
     const updateExportState = () => {
         if (!exportBtn) return;
         const selectedOrders = orders.filter(o => o.pxp_selected);
+        const rules = PannonXPService.getPackagingRules ? PannonXPService.getPackagingRules() : null;
+        const categories = rules ? (rules.categories || []) : [];
+        const isNoneCat = (catId) => {
+            if (!catId) return false;
+            const cat = categories.find(c => c.id === catId);
+            return cat && (cat.type === 'none' || cat.type === 'semmi' || cat.id === 'cat_none');
+        };
+
         const hasErrors = selectedOrders.some(o => {
             const hasZip = !!o.zip;
             const isReseller = Boolean(o.isReseller || (o.tags && /(?:viszontelad|viszonterlad|viszontelad[oó])/i.test(o.tags)));
             const isAddrInvalid = !isReseller && checkAddressValidity(o);
             const activeM = PannonXPService.getNormalizedProductMappings();
-            const hasUnmapped = o.items.some(item => !activeM[cleanItemNameForMapping(item.name)]);
+            const hasUnmapped = o.items.some(item => {
+                const m = activeM[cleanItemNameForMapping(item.name)];
+                if (!m) return true;
+                if (isNoneCat(m.categoryId)) return false;
+                return !m.abbrev;
+            });
             const hasUnassignedCategory = o.items.some(item => {
                 const m = activeM[cleanItemNameForMapping(item.name)];
                 return m && !m.categoryId;
@@ -68,7 +81,20 @@ export function renderOrdersTable(container, orders, onExport, mainViewContext) 
     tbody.innerHTML = orders.map((order, index) => {
         const hasZip = !!order.zip;
         const activeM = PannonXPService.getNormalizedProductMappings();
-        const unmappedItems = order.items.filter(item => !activeM[cleanItemNameForMapping(item.name)]);
+        const rules = PannonXPService.getPackagingRules ? PannonXPService.getPackagingRules() : null;
+        const categories = rules ? (rules.categories || []) : [];
+        const isNoneCat = (catId) => {
+            if (!catId) return false;
+            const cat = categories.find(c => c.id === catId);
+            return cat && (cat.type === 'none' || cat.type === 'semmi' || cat.id === 'cat_none');
+        };
+
+        const unmappedItems = order.items.filter(item => {
+            const m = activeM[cleanItemNameForMapping(item.name)];
+            if (!m) return true;
+            if (isNoneCat(m.categoryId)) return false;
+            return !m.abbrev;
+        });
         const hasUnmappedProduct = unmappedItems.length > 0;
         
         const unassignedCategoryItems = order.items.filter(item => {

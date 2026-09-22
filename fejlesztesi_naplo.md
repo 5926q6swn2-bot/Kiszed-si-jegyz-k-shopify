@@ -28,8 +28,8 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
-- **Utolsó aktív modell**: Gemini 3.8 Flash (High)
-- **Státusz**: A rendszer stabil, Render felhőre kész. Helyszíni termékeladás (ragasztó) és többletfizetés kezelése utánvétes és nem utánvétes rendeléseknél, elszámolásban, előzményekben és CSV exportban élesítve (v4.9.0, 629/629 zöld unit teszt).
+- **Utolsó aktív modell**: Gemini 3.6 Flash (High)
+- **Státusz**: A rendszer stabil, Render felhőre kész. Nem fizikai tételek (Semmi / Kizárva) kezelése és feles akusztikus panelek egyedi csomagolása élesítve (v4.9.1, 631/631 zöld unit teszt).
 
 
 ---
@@ -50,6 +50,17 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 4. **Feketelista Kezelő (Blacklist Manager) & Automata Kockázatos Vevő Szűrés**:
    - Megbízhatatlan / lebeszélt időpontban át nem vett rendelések vevőinek központi rögzítése (többszörös telefonszámok, szállítási címek, nevek, e-mail címek + indoklás).
    - Új Shopify rendelés letöltésekor automatikus egyeztetés a feketelistával, és azonnali piros figyelmeztető doboz generálása a raktári felületen (opcionális automatikus `feketelista` tageléssel a Shopify-ban).
+
+### 2026. szeptember 22. (7. frissítés) - Nem Fizikai Tételek (Semmi / Kizárva Kategória) & Feles Akusztikus Panel Kezelése (`v4.9.1`)
+- **Nem Fizikai / Virtuális Tételek Támogatása (`type: 'none' | 'semmi'`)**:
+  - Bevezetve a `cat_none` ("Nem fizikai tételek (Semmi / Kizárva)") kategória a PannonXP csomagkezelőben (`js/services/pannonxp.js`).
+  - Az ide tartozó tételek (pl. *elsőbbségi szállítás*, *szállítási felár*, *garancia*, *jótállás*, *digitális szolgáltatás*) teljesen kizárásra kerültek a csomagkalkulációból: nem nyitnak dobozt, nem növelik a súlyt és a darabszámot.
+  - A referenciaszám generáláskor (`js/services/shopify.js`) a nem fizikai tételek kimaradnak, nem igényelnek termékrövidítést, és nem okoznak `pxp_has_unmatched` / hiányzó rövidítés export hibát.
+- **PannonXP Beállítások és Kategóriatípusok (`js/views/pannonxp/pannonxpSettings.js`, `js/views/pannonxp/pannonxpTable.js`)**:
+  - A kategóriatípus választó kiegészült a *"Nem fizikai / Virtuális tétel (Semmi - csomagból kizárva)"* opcióval és kék kategória-tájékoztató panellel.
+  - A termékhozzárendelési modálban nem fizikai tételeknél a rövidítés megadása opcionálissá vált.
+- **Unit Tesztek & Stabilitás**:
+  - A `tests/unit_tests.js` kiegészült a nem fizikai tételekre vonatkozó csomagszám- és súlykalkulációs tesztekkel. 631/631 egységteszt és ESM szintaxis-ellenőrzés 100%-ban zöld.
 
 ### 2026. szeptember 22. (6. frissítés) - Helyszíni Eladás és Többletfizetés Kezelése az Elszámolásban (`v4.9.0`)
 - **Helyszíni Értékesítés (pl. Ragasztó eladása a futárnál) és Többletfizetés Támogatása**:
