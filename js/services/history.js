@@ -36,9 +36,13 @@ export const HistoryManager = {
                                 isReturn: o.isReturn || false
                             }))
                         }));
+                        const apiToken = (typeof window !== 'undefined' && (window.API_SECRET_TOKEN || localStorage.getItem('api_secret_token'))) || '';
                         window.fetch('/api/debug/sync-couriers', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                ...(apiToken ? { 'x-api-key': apiToken } : {})
+                            },
                             body: JSON.stringify(fullRuns)
                         }).catch(() => {});
                     } catch (e) {}
@@ -91,9 +95,13 @@ export const HistoryManager = {
                             courier: r.courier || '',
                             ordersCount: (r.orders || []).length
                         }));
+                        const apiToken = (typeof window !== 'undefined' && (window.API_SECRET_TOKEN || localStorage.getItem('api_secret_token'))) || '';
                         window.fetch('/api/debug/sync-couriers', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                ...(apiToken ? { 'x-api-key': apiToken } : {})
+                            },
                             body: JSON.stringify(summary)
                         }).catch(() => {});
                     } catch (e) {}

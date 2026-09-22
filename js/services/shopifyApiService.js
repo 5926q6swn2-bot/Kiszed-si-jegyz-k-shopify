@@ -12,10 +12,22 @@ import {
 import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
 
 export const ShopifyApiService = {
+    // Közös hitelesítési fejlécek kinyerése (Render védelemhez)
+    getAuthHeaders(extraHeaders = {}) {
+        const token = (typeof window !== 'undefined' && (window.API_SECRET_TOKEN || localStorage.getItem('api_secret_token'))) || '';
+        const headers = { 'Content-Type': 'application/json', ...extraHeaders };
+        if (token) {
+            headers['x-api-key'] = token;
+        }
+        return headers;
+    },
+
     // 1. Kapcsolati státusz ellenőrzése
     async checkStatus() {
         try {
-            const res = await fetch('/api/shopify/status');
+            const res = await fetch('/api/shopify/status', {
+                headers: this.getAuthHeaders()
+            });
             if (!res.ok) throw new Error('Nem sikerült lekérni a státuszt');
             return await res.json();
         } catch (err) {
@@ -25,15 +37,18 @@ export const ShopifyApiService = {
     },
 
     // 2. Élő rendelések lekérése a helyi backend közvetítésével
-    async fetchLiveOrders({ status = 'any', fulfillment_status = 'any', limit = 250 } = {}) {
+    async fetchLiveOrders({ status = 'any', fulfillment_status = 'any', limit = 250, forceRefresh = false } = {}) {
         try {
             const params = new URLSearchParams({ status, fulfillment_status, limit, _t: Date.now().toString() });
+            if (forceRefresh) {
+                params.set('force_refresh', 'true');
+            }
             const res = await fetch(`/api/shopify/orders?${params.toString()}`, {
                 cache: 'no-store',
-                headers: {
+                headers: this.getAuthHeaders({
                     'Cache-Control': 'no-cache',
                     'Pragma': 'no-cache'
-                }
+                })
             });
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
@@ -65,7 +80,7 @@ export const ShopifyApiService = {
         try {
             const res = await fetch('/api/shopify/fulfill', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({
                     orderId,
                     shopifyId,
@@ -90,7 +105,7 @@ export const ShopifyApiService = {
         try {
             const res = await fetch('/api/shopify/bulk-fulfill', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({
                     orders,
                     notifyCustomer
@@ -112,7 +127,7 @@ export const ShopifyApiService = {
         try {
             const res = await fetch('/api/shopify/update-tags', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({
                     orderId,
                     shopifyId,
@@ -136,7 +151,7 @@ export const ShopifyApiService = {
         try {
             const res = await fetch('/api/shopify/update-tags', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({
                     orders,
                     addTag,
@@ -159,7 +174,7 @@ export const ShopifyApiService = {
         try {
             const res = await fetch('/api/shopify/ready-for-pickup', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({
                     orderId,
                     shopifyId,
@@ -181,7 +196,7 @@ export const ShopifyApiService = {
         try {
             const res = await fetch('/api/shopify/ready-for-pickup', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({
                     orders,
                     notifyCustomer
@@ -699,9 +714,7 @@ export const ShopifyApiService = {
     async updateOrderNote({ orderId, shopifyId, note }) {
         const response = await fetch('/api/shopify/update-note', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: this.getAuthHeaders(),
             body: JSON.stringify({
                 orderId,
                 shopifyId,
@@ -722,7 +735,7 @@ export const ShopifyApiService = {
         try {
             const res = await fetch('/api/shopify/mark-as-paid', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({ orderId, shopifyId })
             });
             const data = await res.json();
@@ -744,7 +757,7 @@ export const ShopifyApiService = {
         try {
             const res = await fetch('/api/shopify/mark-as-paid', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({ orders })
             });
             const data = await res.json();

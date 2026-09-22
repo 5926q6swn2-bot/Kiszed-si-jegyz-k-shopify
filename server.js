@@ -327,9 +327,56 @@ async function fetchPagedOrders(initialUrl, token, maxPages = 10) {
  return results;
 }
 
+// In-Memory Cache a Shopify rendelésekhez (Rate-limit és túlterhelés védelem)
+const ordersCache = {
+  data: null,
+  timestamp: 0,
+  ttl: 4000 // 4 másodperces TTL a 6 másodperces kliens-pollinghoz
+};
+
+function invalidateOrdersCache() {
+  ordersCache.data = null;
+  ordersCache.timestamp = 0;
+}
+
 const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   let pathname = parsedUrl.pathname;
+
+  // Globális CORS és Preflight kezelés
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  // API Hitelesítés ellenőrzése védett végpontokra (ha API_SECRET_TOKEN be van állítva)
+  const API_SECRET_TOKEN = process.env.API_SECRET_TOKEN;
+  const isProtectedApi = pathname.startsWith('/api/') && 
+    pathname !== '/api/auth/callback' && 
+    pathname !== '/api/shopify/auth' &&
+    pathname !== '/api/shopify/status' &&
+    pathname !== '/api/trigger/wakeup' &&
+    pathname !== '/api/trigger/pre-wakeup' &&
+    pathname !== '/api/trigger/pre-morning-wakeup';
+
+  if (API_SECRET_TOKEN && isProtectedApi) {
+    const clientToken = req.headers['x-api-key'] || parsedUrl.query.api_key;
+    if (clientToken !== API_SECRET_TOKEN) {
+      res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: 'Jogosulatlan hozzáférés (Érvénytelen vagy hiányzó API kulcs).' }));
+      return;
+    }
+  }
+
+  // Bármely módosító (POST) Shopify művelet esetén azonnal érvénytelenítjük a gyorsítótárat
+  if (req.method === 'POST' && pathname.startsWith('/api/shopify/')) {
+    invalidateOrdersCache();
+  }
 
   // --- API VÉGPONTOK ---
 
@@ -437,6 +484,19 @@ const server = http.createServer(async (req, res) => {
 
   // 4. Shopify Élő Rendelések Lekérése
   if (pathname === '/api/shopify/orders') {
+    const forceRefresh = parsedUrl.query.force_refresh === 'true' || parsedUrl.query.forceRefresh === 'true';
+
+    // Ha van érvényes memóriabeli gyorsítótár, azonnal visszaküldjük (Shopify 429 túlterhelés védelem)
+    if (!forceRefresh && ordersCache.data && (Date.now() - ordersCache.timestamp < ordersCache.ttl)) {
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'X-Cache': 'HIT',
+        'Cache-Control': 'no-store, no-cache, must-revalidate'
+      });
+      res.end(ordersCache.data);
+      return;
+    }
+
     const token = process.env.SHOPIFY_ACCESS_TOKEN;
     const shop = process.env.SHOPIFY_SHOP || 'p4q0uj-2m.myshopify.com';
 
@@ -522,17 +582,24 @@ const server = http.createServer(async (req, res) => {
         console.warn('[Auto PannonXP Init Warning]', autoTagErr.message);
       }
 
+      const responsePayload = JSON.stringify({
+        success: true,
+        ordersCount: orders.length,
+        orders: orders
+      });
+
+      // Gyorsítótár frissítése (4 másodperces TTL)
+      ordersCache.data = responsePayload;
+      ordersCache.timestamp = Date.now();
+
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
+        'X-Cache': 'MISS',
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0'
       });
-      res.end(JSON.stringify({
-        success: true,
-        ordersCount: orders.length,
-        orders: orders
-      }));
+      res.end(responsePayload);
       return;
     } catch (err) {
       console.error('[Shopify Orders Error]', err);

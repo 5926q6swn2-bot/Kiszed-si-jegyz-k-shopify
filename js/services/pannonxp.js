@@ -109,12 +109,21 @@ export const PannonXPService = {
         return '/api/settings/pxp-all';
     },
 
+    getAuthHeaders(extraHeaders = {}) {
+        const token = (typeof window !== 'undefined' && (window.API_SECRET_TOKEN || localStorage.getItem('api_secret_token'))) || '';
+        const headers = { 'Content-Type': 'application/json', ...extraHeaders };
+        if (token) {
+            headers['x-api-key'] = token;
+        }
+        return headers;
+    },
+
     async saveToServerBackup(payload) {
         try {
             const apiUrl = this.getServerApiUrl();
             await fetch(apiUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify(payload)
             });
         } catch (err) {
@@ -125,14 +134,18 @@ export const PannonXPService = {
     async fetchServerBackup() {
         try {
             const apiUrl = this.getServerApiUrl();
-            const res = await fetch(apiUrl);
+            const res = await fetch(apiUrl, {
+                headers: this.getAuthHeaders()
+            });
             if (res.ok) {
                 const data = await res.json();
                 if (data && data.success) return data;
             }
             // Ha helyben még nincs lementett konfiguráció, fallback lekérdezés a Render éles szerverről
             if (apiUrl !== 'https://kiszed-si-jegyz-k-shopify.onrender.com/api/settings/pxp-all') {
-                const renderRes = await fetch('https://kiszed-si-jegyz-k-shopify.onrender.com/api/settings/pxp-all');
+                const renderRes = await fetch('https://kiszed-si-jegyz-k-shopify.onrender.com/api/settings/pxp-all', {
+                    headers: this.getAuthHeaders()
+                });
                 if (renderRes.ok) {
                     const rData = await renderRes.json();
                     if (rData && rData.success) return rData;

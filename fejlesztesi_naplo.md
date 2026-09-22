@@ -51,6 +51,23 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
    - Megbízhatatlan / lebeszélt időpontban át nem vett rendelések vevőinek központi rögzítése (többszörös telefonszámok, szállítási címek, nevek, e-mail címek + indoklás).
    - Új Shopify rendelés letöltésekor automatikus egyeztetés a feketelistával, és azonnali piros figyelmeztető doboz generálása a raktári felületen (opcionális automatikus `feketelista` tageléssel a Shopify-ban).
 
+### 2026. szeptember 22. (1. frissítés) - Szerveroldali Gyorsítótár (Cache), CORS Preflight & API Védelem (`v4.6.8`)
+- **Szerveroldali Gyorsítótár (Shopify API 429 Rate-Limit Védelem)**:
+  - A `server.js` `/api/shopify/orders` végpontja 4 másodperces in-memory gyorsítótárat (`ordersCache`) kapott.
+  - A kliensek 6 másodperces pollingja és a többfelhasználós egyidejű használat nem indít felesleges párhuzamos REST és GraphQL lekéréseket a Shopify felé. Az azonos kérések 2.3 másodperc helyett ~10-15 ms alatt szolgálódnak ki (`X-Cache: HIT`).
+  - Bármely módosító művelet (POST: fulfillment, címkefrissítés, státuszállítás, megjegyzés mentés) azonnal érvényteleníti a gyorsítótárat (`invalidateOrdersCache()`).
+- **Globális CORS és Preflight (OPTIONS) Támogatás**:
+  - A szerver globális fejléc-kezelést kapott (`Access-Control-Allow-Origin: *`, metódusok és fejlécek), valamint automatikus `OPTIONS` 204 választ, biztosítva a zavartalan kommunikációt GitHub Pages és Render között.
+- **Opcionális API Secret Védelem a Felhőhöz**:
+  - A szerver felkészült a védelemre: ha a `.env`-ben az `API_SECRET_TOKEN` beállításra kerül, a védett `/api/*` végpontok kizárólag érvényes `x-api-key` fejléccel vagy paraméterrel hívhatók meg.
+  - A `shopifyApiService.js`, `pannonxp.js` és `history.js` kliensoldalon automatikusan továbbítja az API kulcsot, ha az elérhető.
+- **Fájlrendszer- és Projekt-Takarítás**:
+  - A korábbi maradványfájlok törölve (`scratch/`, `.claude/`), a `fejlesztesi_naplo.md` archiválva és 94%-kal karcsúsítva (`fejlesztesi_naplo_archiv.md`).
+- **Unit Tesztek & Stabilitás**:
+  - 522/522 sikeres zöld unit teszt lefutva (`tests/unit_tests.js`).
+
+---
+
 ### 2026. szeptember 21. (10. frissítés) - Terminál Utánvét Elszámolások Auditálása & History Sync Frissítés
 - **Futár Előzmények Szinkronizáció Részletezése (`js/services/history.js`)**:
   - A `HistoryManager.doSync` metódus frissítésre került, hogy a felületről ne csak darabszámos összefoglalót, hanem a **teljes rendelési struktúrát** (rendelésszámok, kártyás/készpénzes összegek, vevőnevek, kiegyenlítési és átutalási státuszok) szinkronizálja a fejlesztői háttérszolgáltatás felé (`/api/debug/sync-couriers`).
