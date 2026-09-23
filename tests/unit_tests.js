@@ -2731,6 +2731,91 @@ const testPartialRun = {
 const pdPartial = getPaymentDetails(testPartialRun, testPartialOrder);
 assertEqual("Export CSV - Részleges és többlet egyidejű elszámolása Beszedett összeg", pdPartial.collectedAmount, 43810);
 
+// G) PannonXP Címke Referenciaszám generálás - Vegyes és egyedi akusztikus panel szabályok
+const testRefMappings = {
+    'pecan': { abbrev: 'Pec', categoryId: 'cat_acoustic' },
+    'chicago': { abbrev: 'Chic', categoryId: 'cat_acoustic' },
+    't-rex': { abbrev: 'trex', categoryId: 'cat_adhesive' },
+    'szallitas': { abbrev: '', categoryId: 'cat_none' }
+};
+const testRefCategories = [
+    { id: 'cat_acoustic', maxQty: 5, packagingGroup: 'acoustic_family', type: 'cards' },
+    { id: 'cat_adhesive', maxQty: 15, type: 'adhesive' },
+    { id: 'cat_none', type: 'none' }
+];
+
+function testGenerateReference(order) {
+    const orderId = order.id || '';
+    const cleanOrderId = orderId.replace(/^#/, '');
+    const prefix = cleanOrderId ? `${cleanOrderId} ` : '';
+    const mappings = testRefMappings;
+    const categories = testRefCategories;
+    const parts = [];
+
+    const acousticPanelItems = [];
+    (order.items || []).forEach(item => {
+        const cleanedName = (item.name || '').toLowerCase().trim();
+        const mapping = mappings[cleanedName];
+        const categoryId = mapping ? mapping.categoryId : null;
+        const matchedCat = categoryId ? categories.find(c => c.id === categoryId) : null;
+        const isNoneCategory = matchedCat && (matchedCat.type === 'none' || matchedCat.type === 'semmi' || matchedCat.id === 'cat_none');
+        if (isNoneCategory) return;
+
+        const isAcousticPanel = categoryId === 'cat_acoustic' || categoryId === 'cat_wide_acoustic' || (matchedCat && (matchedCat.packagingGroup === 'acoustic_family' || matchedCat.id === 'cat_acoustic'));
+        if (isAcousticPanel && item.qty > 0) {
+            const rawAbbrev = mapping ? mapping.abbrev : null;
+            const abbrev = (rawAbbrev || cleanedName).trim();
+            acousticPanelItems.push({ name: cleanedName, abbrev: abbrev });
+        }
+    });
+
+    const distinctPanelKeys = new Set(acousticPanelItems.map(p => p.abbrev || p.name));
+    const isMixedAcousticOrder = distinctPanelKeys.size > 1;
+
+    (order.items || []).forEach(item => {
+        const cleanedName = (item.name || '').toLowerCase().trim();
+        const mapping = mappings[cleanedName];
+        const rawAbbrev = mapping ? mapping.abbrev : null;
+        const abbrev = (rawAbbrev || '').trim();
+        const categoryId = mapping ? mapping.categoryId : null;
+        const matchedCat = categoryId ? categories.find(c => c.id === categoryId) : null;
+        const isNoneCategory = matchedCat && (matchedCat.type === 'none' || matchedCat.type === 'semmi' || matchedCat.id === 'cat_none');
+        if (isNoneCategory) return;
+
+        const isAcousticPanel = categoryId === 'cat_acoustic' || categoryId === 'cat_wide_acoustic' || (matchedCat && (matchedCat.packagingGroup === 'acoustic_family' || matchedCat.id === 'cat_acoustic'));
+
+        if (abbrev) {
+            if (isAcousticPanel && !isMixedAcousticOrder) {
+                const catAcoustic = matchedCat || categories.find(c => c.id === 'cat_acoustic');
+                const maxQty = catAcoustic ? (catAcoustic.maxQty || 5) : 5;
+                const qty = item.qty;
+                const pkgsCount = Math.ceil(qty / maxQty);
+                const base = Math.floor(qty / pkgsCount);
+                const remainder = qty % pkgsCount;
+                const packageSizes = [];
+                for (let i = 0; i < pkgsCount; i++) {
+                    packageSizes.push(i < remainder ? base + 1 : base);
+                }
+                parts.push(`${abbrev}${packageSizes.join('-')}`);
+            } else {
+                parts.push(`${abbrev}${item.qty}`);
+            }
+        } else {
+            parts.push(`?${item.qty}`);
+        }
+    });
+
+    return prefix + parts.join(' ');
+}
+
+assertEqual("PXP Ref - Egyedi akupanel 8db csomagosztással", testGenerateReference({ id: "#4200", items: [{ name: "pecan", qty: 8 }] }), "4200 Pec4-4");
+assertEqual("PXP Ref - Egyedi akupanel 8db + ragasztó", testGenerateReference({ id: "#4201", items: [{ name: "pecan", qty: 8 }, { name: "t-rex", qty: 2 }] }), "4201 Pec4-4 trex2");
+assertEqual("PXP Ref - Egyedi akupanel 7db csomagosztással", testGenerateReference({ id: "#4202", items: [{ name: "pecan", qty: 7 }] }), "4202 Pec4-3");
+assertEqual("PXP Ref - Egyedi akupanel 3db (egy csomag)", testGenerateReference({ id: "#4203", items: [{ name: "pecan", qty: 3 }] }), "4203 Pec3");
+assertEqual("PXP Ref - Vegyes akupanel 7db Pecan + 3db Chicago tiszta db-számmal", testGenerateReference({ id: "#4204", items: [{ name: "pecan", qty: 7 }, { name: "chicago", qty: 3 }] }), "4204 Pec7 Chic3");
+assertEqual("PXP Ref - Vegyes akupanel 7db Pecan + 3db Chicago + 2db ragasztó", testGenerateReference({ id: "#4205", items: [{ name: "pecan", qty: 7 }, { name: "chicago", qty: 3 }, { name: "t-rex", qty: 2 }] }), "4205 Pec7 Chic3 trex2");
+assertEqual("PXP Ref - Virtuális nem fizikai tétel kihagyása", testGenerateReference({ id: "#4206", items: [{ name: "pecan", qty: 8 }, { name: "szallitas", qty: 1 }] }), "4206 Pec4-4");
+
 
 // --- ESM Syntax and Duplicate Declaration Check for all JS files ---
 function checkJsSyntaxRecursively(dir) {

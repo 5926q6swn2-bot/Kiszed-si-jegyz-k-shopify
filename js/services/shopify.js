@@ -214,8 +214,34 @@ export function generateDefaultReference(order, maxLen = 50) {
     if (availableLen <= 0) return cleanOrderId.substring(0, maxLen);
     
     const mappings = PannonXPService.getNormalizedProductMappings() || {};
+    const rules = PannonXPService.getPackagingRules ? PannonXPService.getPackagingRules() : null;
+    const categories = rules ? (rules.categories || []) : [];
     const parts = [];
     let hasUnmapped = false;
+    
+    // 1. Megvizsgáljuk, hogy hány különböző típusú akusztikus panel van a rendelésben
+    const acousticPanelItems = [];
+    (order.items || []).forEach(item => {
+        const cleanedName = cleanItemNameForMapping(item.name);
+        const mapping = mappings[cleanedName];
+        const categoryId = mapping ? (typeof mapping === 'object' ? mapping.categoryId : null) : null;
+        const matchedCat = categoryId ? categories.find(c => c.id === categoryId) : null;
+        const isNoneCategory = matchedCat && (matchedCat.type === 'none' || matchedCat.type === 'semmi' || matchedCat.id === 'cat_none');
+        if (isNoneCategory) return;
+
+        const isAcousticPanel = categoryId === 'cat_acoustic' || categoryId === 'cat_wide_acoustic' || (matchedCat && (matchedCat.packagingGroup === 'acoustic_family' || matchedCat.id === 'cat_acoustic'));
+        if (isAcousticPanel && item.qty > 0) {
+            const rawAbbrev = mapping ? (typeof mapping === 'object' ? mapping.abbrev : mapping) : null;
+            const abbrev = sanitizeAbbreviation(rawAbbrev) || cleanedName;
+            acousticPanelItems.push({
+                name: cleanedName,
+                abbrev: abbrev
+            });
+        }
+    });
+
+    const distinctPanelKeys = new Set(acousticPanelItems.map(p => p.abbrev || p.name));
+    const isMixedAcousticOrder = distinctPanelKeys.size > 1;
     
     (order.items || []).forEach(item => {
         const cleanedName = cleanItemNameForMapping(item.name);
@@ -224,8 +250,6 @@ export function generateDefaultReference(order, maxLen = 50) {
         const abbrev = sanitizeAbbreviation(rawAbbrev);
         const categoryId = mapping ? (typeof mapping === 'object' ? mapping.categoryId : null) : null;
         
-        const rules = PannonXPService.getPackagingRules ? PannonXPService.getPackagingRules() : null;
-        const categories = rules ? (rules.categories || []) : [];
         const matchedCat = categoryId ? categories.find(c => c.id === categoryId) : null;
         const isNoneCategory = matchedCat && (matchedCat.type === 'none' || matchedCat.type === 'semmi' || matchedCat.id === 'cat_none');
 
@@ -234,9 +258,13 @@ export function generateDefaultReference(order, maxLen = 50) {
             return;
         }
 
+        const isAcousticPanel = categoryId === 'cat_acoustic' || categoryId === 'cat_wide_acoustic' || (matchedCat && (matchedCat.packagingGroup === 'acoustic_family' || matchedCat.id === 'cat_acoustic'));
+
         if (abbrev) {
-            if (categoryId === 'cat_acoustic') {
-                const catAcoustic = categories.find(c => c.id === 'cat_acoustic');
+            if (isAcousticPanel && !isMixedAcousticOrder) {
+                // Ha csak egyféle akusztikus panel van a rendelésben (pl. csak Pecan, mellette lehet ragasztó stb.),
+                // akkor megtartjuk a dobozonkénti csomagosztást (pl. 8 db -> Pec4-4, 7 db -> Pec4-3).
+                const catAcoustic = matchedCat || categories.find(c => c.id === 'cat_acoustic');
                 const maxQty = catAcoustic ? (catAcoustic.maxQty || 5) : 5;
                 const qty = item.qty;
                 const pkgsCount = Math.ceil(qty / maxQty);
@@ -249,6 +277,8 @@ export function generateDefaultReference(order, maxLen = 50) {
                 }
                 parts.push(`${abbrev}${packageSizes.join('-')}`);
             } else {
+                // Vegyes akusztikus rendelésnél (pl. 7 Pecan + 3 Chicago), vagy egyéb termékeknél
+                // nem bontjuk kötőjellel a darabszámot, hanem a pontos tételes darabszámot írjuk ki (pl. Pec7 Chic3).
                 parts.push(`${abbrev}${item.qty}`);
             }
         } else {

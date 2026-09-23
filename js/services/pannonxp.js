@@ -994,7 +994,7 @@ export const PannonXPService = {
 
                 packagesDetail.push({
                     suly: pkgWeight,
-                    hosszusag: dominantCat.maxLength || 278,
+                    hosszusag: domRule.length || dominantCat.maxLength || 278,
                     szelesseg: domRule.width || dominantCat.width || 20,
                     magassag: domRule.height || dominantCat.height || 15,
                     tipus: "doboz",

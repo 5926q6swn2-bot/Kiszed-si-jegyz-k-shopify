@@ -29,7 +29,7 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.6 Flash (High)
-- **Státusz**: A rendszer stabil, Render felhőre kész. Nem fizikai tételek és párosított termék-rövidítés kezelések (Szétválasztás, Keresés, Kézi hozzáadás) élesítve (v4.9.2, 631/631 zöld unit teszt).
+- **Státusz**: A rendszer stabil, Render felhőre kész. Kompakt harmonika csomagolási szabályok és intelligens vegyes paneles referenciaszám-kezelés élesítve (v4.9.3, 638/638 zöld unit teszt).
 
 
 ---
@@ -50,6 +50,22 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 4. **Feketelista Kezelő (Blacklist Manager) & Automata Kockázatos Vevő Szűrés**:
    - Megbízhatatlan / lebeszélt időpontban át nem vett rendelések vevőinek központi rögzítése (többszörös telefonszámok, szállítási címek, nevek, e-mail címek + indoklás).
    - Új Shopify rendelés letöltésekor automatikus egyeztetés a feketelistával, és azonnali piros figyelmeztető doboz generálása a raktári felületen (opcionális automatikus `feketelista` tageléssel a Shopify-ban).
+
+### 2026. szeptember 23. (1. frissítés) - Kompakt Csomagolási Szabályok & Intelligens Vegyes Paneles Referenciaszám (`v4.9.3`)
+- **Kompakt, Összecsukható Csomagolási Szabályok Felület (`js/views/pannonxp/pannonxpSettings.js`)**:
+  - A Termék & Csomagolási Szabályok fülön a kategóriák alapértelmezetten összecsukott (harmonika) állapotban jelennek meg.
+  - Minden kategória fejlécében megjelent egy dinamikus összefoglaló badge (pl. *Max: 5 db · acoustic_family*), amely lenyitás nélkül is azonnali áttekintést nyújt a beállításokról.
+  - A kategória részletei (darabszám szerinti méretek, súlyok, család ID) a **[Részletek]** gombbal külön kibonthatók és összecsukhatók.
+  - A hosszúság paraméter lekerült a felső sorból közvetlenül a kártyaméretekhez és a dimenzió mezőkhöz.
+  - A felső felesleges tájékoztató sáv eltávolításra került, az **Új kategória hozzáadása** gomb pedig tisztán lekerült az alsó sávba a mentés gomb mellé.
+- **Intelligens Referenciaszám Generálás Vegyes Akusztikus Panelekhez (`js/services/shopify.js`)**:
+  - Megszüntetve a vegyes paneleknél fellépő megtévesztő, line-item alapú csomagosztást (pl. 7 Pecan + 3 Chicago korábban `Pec4-3 Chic3` formátumban jelent meg, ami 3 doboz látszatát keltette).
+  - Ha **egyféle akusztikus panel** van a rendelésben (akár ragasztóval, profilokkal együtt), megmarad a dobozonkénti csomagosztás (pl. 8 Pecan -> `Pec4-4`, 8 Pecan + 2 T-Rex -> `Pec4-4 trex2`).
+  - Ha **többféle akusztikus panel** van a rendelésben (pl. 7 Pecan + 3 Chicago), a rendszer automatikusan felismeri a vegyes paneltartalmat, és a tiszta tételes darabszámokat tünteti fel kötőjelezés nélkül: `Pec7 Chic3` (ill. ragasztóval: `Pec7 Chic3 trex2`), tökéletesen lefedve a valós 2x5 dobozos csomagolást.
+- **Kártyánkénti Hosszúság Prioritás (`js/services/pannonxp.js`)**:
+  - A `calculateWeightAndPackages` kalkulációban a dobozméret kártyák egyedi hosszúsága (`domRule.length`) prioritást élvez a kategória általános `maxLength` értékével szemben.
+- **Unit Tesztek & Validáció**:
+  - Bővítve a tesztcsomag az új referenciaszám generálási esetekkel (`tests/unit_tests.js`). Mind a 638 egységteszt és az ESM szintaktika zöld.
 
 ### 2026. szeptember 22. (8. frissítés) - PannonXP Termék Rövidítés Javítás, Párosítások Szétválasztása & Keresés (`v4.9.2`)
 - **Párosított és Tévesen Rögzített Termékek Megjelenítése (`js/views/pannonxp/pannonxpSettings.js`)**:

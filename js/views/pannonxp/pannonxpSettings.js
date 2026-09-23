@@ -383,27 +383,32 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
     
     document.body.appendChild(overlay);
     
-    const renderDimensionCards = (container, prefixId, maxQty, rulesList) => {
+    const renderDimensionCards = (container, prefixId, maxQty, rulesList, defaultLength = 278) => {
         container.style.display = 'grid';
-        container.style.gridTemplateColumns = 'repeat(auto-fill, minmax(110px, 1fr))';
+        container.style.gridTemplateColumns = 'repeat(auto-fill, minmax(125px, 1fr))';
         container.style.gap = '8px';
         let html = '';
         for (let num = 1; num <= maxQty; num++) {
             const r = rulesList[num] || { weight: num * 10, width: 20, height: 10 };
+            const l = (r.length !== undefined && r.length !== null) ? r.length : defaultLength;
             html += `
                 <div style="background: #fff; padding: 6px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 11px;">
                     <div style="font-weight: 700; margin-bottom: 6px; text-align:center; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">${num} db:</div>
                     <div style="display: flex; flex-direction: column; gap: 4px;">
                         <div style="display: flex; align-items: center; gap: 4px;">
-                            <span style="font-size: 9px; color: #64748b; width: 30px; text-align: right; flex-shrink: 0; font-weight: 600;">Súly:</span>
+                            <span style="font-size: 9px; color: #64748b; width: 34px; text-align: right; flex-shrink: 0; font-weight: 600;">Súly:</span>
                             <input type="number" id="pxp-r-${prefixId}-w-${num}" value="${r.weight}" step="0.1" placeholder="kg" style="flex: 1; min-width: 0; padding: 3px; font-size: 10px; text-align:center; border: 1px solid #cbd5e1; border-radius: 4px;">
                         </div>
                         <div style="display: flex; align-items: center; gap: 4px;">
-                            <span style="font-size: 9px; color: #64748b; width: 30px; text-align: right; flex-shrink: 0; font-weight: 600;">Szél:</span>
+                            <span style="font-size: 9px; color: #64748b; width: 34px; text-align: right; flex-shrink: 0; font-weight: 600;">Hossz:</span>
+                            <input type="number" id="pxp-r-${prefixId}-l-${num}" value="${l}" placeholder="cm" style="flex: 1; min-width: 0; padding: 3px; font-size: 10px; text-align:center; border: 1px solid #cbd5e1; border-radius: 4px;">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span style="font-size: 9px; color: #64748b; width: 34px; text-align: right; flex-shrink: 0; font-weight: 600;">Szél:</span>
                             <input type="number" id="pxp-r-${prefixId}-wd-${num}" value="${r.width}" placeholder="cm" style="flex: 1; min-width: 0; padding: 3px; font-size: 10px; text-align:center; border: 1px solid #cbd5e1; border-radius: 4px;">
                         </div>
                         <div style="display: flex; align-items: center; gap: 4px;">
-                            <span style="font-size: 9px; color: #64748b; width: 30px; text-align: right; flex-shrink: 0; font-weight: 600;">Mag:</span>
+                            <span style="font-size: 9px; color: #64748b; width: 34px; text-align: right; flex-shrink: 0; font-weight: 600;">Mag:</span>
                             <input type="number" id="pxp-r-${prefixId}-h-${num}" value="${r.height}" placeholder="cm" style="flex: 1; min-width: 0; padding: 3px; font-size: 10px; text-align:center; border: 1px solid #cbd5e1; border-radius: 4px;">
                         </div>
                     </div>
@@ -413,7 +418,7 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
         container.innerHTML = html;
     };
 
-    const getCurrentRulesFromUI = (prefixId, currentRulesList) => {
+    const getCurrentRulesFromUI = (prefixId, currentRulesList, defaultLength = 278) => {
         const current = {};
         const regex = new RegExp(`pxp-r-${prefixId}-w-(\\d+)`);
         const inputs = overlay.querySelectorAll(`[id^="pxp-r-${prefixId}-w-"]`);
@@ -422,9 +427,11 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
             if (match) {
                 const num = parseInt(match[1]);
                 const w = parseFloat(overlay.querySelector(`#pxp-r-${prefixId}-w-${num}`).value) || 0;
+                const lInput = overlay.querySelector(`#pxp-r-${prefixId}-l-${num}`);
+                const l = lInput ? (parseInt(lInput.value) || 0) : defaultLength;
                 const wd = parseInt(overlay.querySelector(`#pxp-r-${prefixId}-wd-${num}`).value) || 0;
                 const h = parseInt(overlay.querySelector(`#pxp-r-${prefixId}-h-${num}`).value) || 0;
-                current[num] = { weight: w, width: wd, height: h };
+                current[num] = { weight: w, length: l, width: wd, height: h };
             }
         });
         return { ...currentRulesList, ...current };
@@ -515,8 +522,8 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
                     if (cat.type === 'cards') {
                         const cardsContainer = tabContainer.querySelector(`.cards-list-container[data-cat-id="${cat.id}"]`);
                         if (cardsContainer) {
-                            cat.rules = getCurrentRulesFromUI(cat.id, cat.rules || {});
-                            renderDimensionCards(cardsContainer, cat.id, val, cat.rules);
+                            cat.rules = getCurrentRulesFromUI(cat.id, cat.rules || {}, cat.maxLength || 278);
+                            renderDimensionCards(cardsContainer, cat.id, val, cat.rules, cat.maxLength || 278);
                         }
                     }
                 }
@@ -532,6 +539,68 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
             });
         });
         
+        const updateCatSummary = (catId) => {
+            const cat = rules.categories.find(c => c.id === catId);
+            const block = tabContainer.querySelector(`.category-block[data-cat-id="${catId}"]`);
+            if (!cat || !block) return;
+            const badge = block.querySelector('.cat-summary-badge');
+            if (badge) {
+                badge.textContent = cat.type === 'none' 
+                    ? '0 csomag' 
+                    : `Max: ${cat.maxQty || (cat.type === 'cards' ? 5 : cat.type === 'adhesive' ? 15 : 50)} db${cat.packagingGroup ? ' · ' + cat.packagingGroup : ''}`;
+            }
+        };
+
+        const groupInputs = tabContainer.querySelectorAll('.cat-input-group');
+        groupInputs.forEach(input => {
+            input.addEventListener('input', () => {
+                const catId = input.dataset.catId;
+                const cat = rules.categories.find(c => c.id === catId);
+                if (cat) {
+                    cat.packagingGroup = input.value.trim();
+                    updateCatSummary(catId);
+                }
+            });
+        });
+
+        tabContainer.querySelectorAll('.btn-toggle-category-details').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const catId = btn.dataset.catId;
+                const body = tabContainer.querySelector(`.category-body[data-cat-id="${catId}"]`);
+                if (!body) return;
+                const isOpen = body.style.display !== 'none';
+                body.style.display = isOpen ? 'none' : 'flex';
+                const txt = btn.querySelector('.toggle-text');
+                const icon = btn.querySelector('.toggle-icon');
+                if (txt) txt.textContent = isOpen ? 'Részletek' : 'Összecsukás';
+                if (icon) {
+                    if (isOpen) {
+                        icon.classList.remove('ph-caret-up');
+                        icon.classList.add('ph-caret-down');
+                    } else {
+                        icon.classList.remove('ph-caret-down');
+                        icon.classList.add('ph-caret-up');
+                    }
+                }
+            });
+        });
+
+        tabContainer.querySelectorAll('.pxp-family-group').forEach(grp => {
+            const tip = grp.querySelector('.pxp-family-tooltip');
+            if (tip) {
+                grp.addEventListener('mouseenter', () => { tip.style.display = 'block'; });
+                grp.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+            }
+        });
+
+        tabContainer.querySelectorAll('.pxp-type-group').forEach(grp => {
+            const tip = grp.querySelector('.pxp-type-tooltip');
+            if (tip) {
+                grp.addEventListener('mouseenter', () => { tip.style.display = 'block'; });
+                grp.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+            }
+        });
+
         const form = tabContainer.querySelector('#pxp-settings-rules-form');
         if (form) {
             form.addEventListener('submit', async (e) => {
@@ -559,14 +628,19 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
                             cat.rules = {};
                             for (let num = 1; num <= cat.maxQty; num++) {
                                 const wInput = tabContainer.querySelector(`#pxp-r-${cat.id}-w-${num}`);
+                                const lInput = tabContainer.querySelector(`#pxp-r-${cat.id}-l-${num}`);
                                 const wdInput = tabContainer.querySelector(`#pxp-r-${cat.id}-wd-${num}`);
                                 const hInput = tabContainer.querySelector(`#pxp-r-${cat.id}-h-${num}`);
                                 
                                 cat.rules[num] = {
                                     weight: wInput ? (parseFloat(wInput.value) || 0) : ((oldRules[num] && oldRules[num].weight) || num * 10),
+                                    length: lInput ? (parseInt(lInput.value) || 0) : ((oldRules[num] && oldRules[num].length) || cat.maxLength || 278),
                                     width: wdInput ? (parseInt(wdInput.value) || 0) : ((oldRules[num] && oldRules[num].width) || 20),
                                     height: hInput ? (parseInt(hInput.value) || 0) : ((oldRules[num] && oldRules[num].height) || 10)
                                 };
+                            }
+                            if (cat.rules[1]?.length) {
+                                cat.maxLength = cat.rules[1].length;
                             }
                         } else if (cat.type === 'weight') {
                             const iwInput = tabContainer.querySelector(`.cat-input-itemweight[data-cat-id="${cat.id}"]`);
@@ -625,127 +699,162 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
         if (!container) return;
         
         let html = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                <span style="font-size:11px; color:#64748b; line-height:1.4;">
-                    A termékeket a <b>Termék Rövidítések</b> fülön tudod közvetlenül a kívánt csomagolási kategóriához rendelni.
-                </span>
-                <button type="button" id="pxp-btn-new-category" class="btn btn-secondary btn-sm" style="padding:6px 12px; font-weight:600; display:flex; align-items:center; gap:4px; flex-shrink:0;">
-                    <i class="ph-bold ph-plus"></i> Új kategória
-                </button>
-            </div>
             <form id="pxp-settings-rules-form" style="display: flex; flex-direction: column; gap: 15px;">
-                <div style="display:flex; flex-direction:column; gap:16px;" id="pxp-categories-list-container">
+                <div style="display:flex; flex-direction:column; gap:12px;" id="pxp-categories-list-container">
         `;
         
         rules.categories.forEach((cat, index) => {
             const isCustom = !['cat_acoustic', 'cat_spcwood', 'cat_spcstone', 'cat_profile', 'cat_adhesive'].includes(cat.id);
             
             html += `
-                <div class="category-block" data-cat-id="${cat.id}" style="border: 1px solid #cbd5e1; border-radius: 12px; padding: 15px; background: #f8fafc; position:relative;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #cbd5e1; padding-bottom:6px; margin-bottom:12px;">
-                        <h3 style="margin:0; font-size: 14px; color: #1e293b; display:flex; align-items:center; gap:8px;">
-                            <span style="background:var(--primary-color); color:#fff; width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold;">${index + 1}</span>
-                            <input type="text" class="cat-input-name" data-cat-id="${cat.id}" value="${cat.name}" style="font-size:14px; font-weight:bold; border:none; background:transparent; color:#1e293b; outline:none; width:200px; border-bottom:1px dashed #cbd5e1;" placeholder="Kategória neve">
-                        </h3>
+                <div class="category-block" data-cat-id="${cat.id}" style="border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.02); transition: all 0.2s ease;">
+                    <div class="category-header" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 14px; background: #ffffff; border-bottom: 1px solid #e2e8f0; gap: 10px; flex-wrap: wrap;">
                         <div style="display:flex; align-items:center; gap:8px;">
-                            <select class="cat-select-type" data-cat-id="${cat.id}" style="padding:4px 8px; border-radius:6px; border:1px solid #cbd5e1; font-size:12px; background:#fff; font-weight:600; cursor:pointer;">
-                                <option value="cards" ${cat.type === 'cards' ? 'selected' : ''}>Csomagméret kártyák</option>
-                                <option value="weight" ${cat.type === 'weight' ? 'selected' : ''}>Egységsúly + dobozsúly</option>
-                                <option value="adhesive" ${cat.type === 'adhesive' ? 'selected' : ''}>Segédanyag (csak súly)</option>
-                                <option value="none" ${cat.type === 'none' || cat.type === 'semmi' ? 'selected' : ''}>Nem fizikai / Virtuális tétel (Semmi - csomagból kizárva)</option>
-                            </select>
+                            <span style="background:var(--primary-color); color:#fff; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; flex-shrink:0;">${index + 1}</span>
+                            <input type="text" class="cat-input-name" data-cat-id="${cat.id}" value="${cat.name}" style="font-size:13.5px; font-weight:700; border:none; background:transparent; color:#1e293b; outline:none; min-width:180px; border-bottom:1px dashed #cbd5e1; padding: 2px 4px;" placeholder="Kategória neve">
+                        </div>
+
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <div class="pxp-type-group" style="position:relative; display:inline-flex; align-items:center; gap:4px;">
+                                <select class="cat-select-type" data-cat-id="${cat.id}" style="padding:4px 8px; border-radius:6px; border:1px solid #cbd5e1; font-size:11.5px; background:#fff; font-weight:600; cursor:pointer;">
+                                    <option value="cards" ${cat.type === 'cards' ? 'selected' : ''}>Darabszám szerinti dobozméret (pl. Panelek)</option>
+                                    <option value="weight" ${cat.type === 'weight' ? 'selected' : ''}>Egységsúly + dobozsúly (pl. Profilok)</option>
+                                    <option value="adhesive" ${cat.type === 'adhesive' ? 'selected' : ''}>Ragasztó / Segédanyag (elnyelési logikával)</option>
+                                    <option value="none" ${cat.type === 'none' || cat.type === 'semmi' ? 'selected' : ''}>Nem fizikai tétel (Semmi - csomagból kizárva)</option>
+                                </select>
+                                <span style="cursor:help; color:#3b82f6; display:inline-flex; align-items:center;" title="Kattints vagy vigyél rá az egeret a számítási típusok magyarázatához">
+                                    <i class="ph-bold ph-info" style="font-size:14px;"></i>
+                                </span>
+                                <div class="pxp-type-tooltip" style="display:none; position:absolute; top:calc(100% + 4px); right:0; background:#0f172a; color:#fff; padding:10px 14px; border-radius:8px; font-size:11px; line-height:1.45; width:330px; z-index:100; box-shadow:0 6px 16px rgba(0,0,0,0.25); pointer-events:none;">
+                                    <strong style="color:#38bdf8; display:block; margin-bottom:4px;">Számítási Típusok:</strong>
+                                    <div style="display:flex; flex-direction:column; gap:6px;">
+                                        <div><strong>Darabszám szerinti dobozméret:</strong> Nem lineáris (pl. panelek). 1 db, 2 db, 3 db... esetén egyedileg beállított dobozméret és súly érvényesül.</div>
+                                        <div><strong>Egységsúly + dobozsúly:</strong> Lineáris képlet (pl. profilok). Alap dobozsúly + (db * egységsúly), fix mérettel.</div>
+                                        <div><strong>Ragasztó / Segédanyag:</strong> Ha van panel a rendelésben és &lt;7 db van belőle, elnyelődik a dobozában (0 extra doboz). Ha 7+ db van, külön dobozt nyit.</div>
+                                        <div><strong>Nem fizikai tétel:</strong> 0 doboz, 0 kg (pl. felárak, garancia).</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <span class="cat-summary-badge" style="font-size:11px; background:#f1f5f9; color:#475569; border: 1px solid #e2e8f0; padding:3px 8px; border-radius:6px; font-weight:700; white-space:nowrap;">
+                                ${cat.type === 'none' ? '0 csomag' : `Max: ${cat.maxQty || (cat.type === 'cards' ? 5 : cat.type === 'adhesive' ? 15 : 50)} db${cat.packagingGroup ? ' · ' + cat.packagingGroup : ''}`}
+                            </span>
+
+                            <button type="button" class="btn-toggle-category-details" data-cat-id="${cat.id}" style="padding: 4px 9px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff; color: #334155; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;" title="Részletek és méretek összecsukása / kibontása">
+                                <span class="toggle-text">Részletek</span>
+                                <i class="ph-bold ph-caret-down toggle-icon" style="font-size: 12px; color: #64748b;"></i>
+                            </button>
+
                             ${isCustom ? `
-                            <button type="button" class="pxp-btn-delete-category" data-cat-id="${cat.id}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center;" title="Kategória törlése">
+                            <button type="button" class="pxp-btn-delete-category" data-cat-id="${cat.id}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center; padding:2px;" title="Kategória törlése">
                                 <i class="ph-bold ph-trash"></i>
                             </button>
                             ` : ''}
                         </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 12px; margin-bottom: 8px;">
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Max db egy csomagban</label>
-                            <input type="number" class="cat-input-maxqty" data-cat-id="${cat.id}" value="${cat.maxQty || (cat.type === 'cards' ? 5 : cat.type === 'adhesive' ? 15 : 50)}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                    <div class="category-body" data-cat-id="${cat.id}" style="display: none; padding: 14px; flex-direction: column; gap: 10px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 12px; margin-bottom: 2px;">
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Max db egy csomagban</label>
+                                <input type="number" class="cat-input-maxqty" data-cat-id="${cat.id}" value="${cat.maxQty || (cat.type === 'cards' ? 5 : cat.type === 'adhesive' ? 15 : 50)}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group pxp-family-group" style="margin-bottom:0; position:relative;">
+                                <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: flex; align-items: center; gap: 4px; margin-bottom:2px; cursor:help;">
+                                    <span>Csomagolási Család ID</span>
+                                    <i class="ph-bold ph-info" style="font-size:12px; color:#3b82f6;"></i>
+                                </label>
+                                <input type="text" class="cat-input-group" data-cat-id="${cat.id}" value="${cat.packagingGroup || ''}" placeholder="pl. acoustic_family" title="Csomagolási Család: Az azonos családba tartozó kategóriák (pl. sima és wide akusztikus panelek) fizikailag egy közös dobozba csomagolhatók, ha a darabszámuk megengedi. Ha üresen hagyod, csak önállóan csomagolódik." style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                                <div class="pxp-family-tooltip" style="display:none; position:absolute; bottom:calc(100% + 4px); right:0; background:#0f172a; color:#fff; padding:8px 12px; border-radius:6px; font-size:11px; line-height:1.4; width:280px; z-index:100; box-shadow:0 4px 12px rgba(0,0,0,0.2); pointer-events:none;">
+                                    <strong>Csomagolási Család:</strong> Az azonos családba tartozó kategóriák (pl. sima és wide akupanel) fizikailag egy közös dobozba kerülhetnek, ha a darabszámuk megengedi. Ha üres, külön dobozt kap.
+                                </div>
+                            </div>
                         </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Hossz (cm)</label>
-                            <input type="number" class="cat-input-maxlength" data-cat-id="${cat.id}" value="${cat.maxLength || (cat.type === 'adhesive' ? 30 : 278)}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                        
+                        <div style="margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" class="cat-input-allow-glue" data-cat-id="${cat.id}" id="chk-glue-${cat.id}" ${cat.allowAdhesiveInside !== false ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer;">
+                            <label for="chk-glue-${cat.id}" style="font-size: 12px; font-weight: 600; color: #334155; cursor:pointer;">
+                                Ragasztó / segédanyag bepakolható a dobozba (&lt;7 db esetén)
+                            </label>
                         </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Csomagolási Család ID</label>
-                            <input type="text" class="cat-input-group" data-cat-id="${cat.id}" value="${cat.packagingGroup || ''}" placeholder="pl. acoustic_family" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
-                        </div>
-                    </div>
-                    
-                    <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-                        <input type="checkbox" class="cat-input-allow-glue" data-cat-id="${cat.id}" id="chk-glue-${cat.id}" ${cat.allowAdhesiveInside !== false ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer;">
-                        <label for="chk-glue-${cat.id}" style="font-size: 12px; font-weight: 600; color: #334155; cursor:pointer;">
-                            Ragasztó / segédanyag bepakolható a dobozba (&lt;7 db esetén)
-                        </label>
-                    </div>
 
-                    ${(cat.type === 'none' || cat.type === 'semmi') ? `
-                    <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px; font-size:12px; color:#1e40af; margin-bottom:10px; display:flex; align-items:center; gap:8px;">
-                        <i class="ph-bold ph-info" style="font-size:16px; color:#2563eb; flex-shrink:0;"></i>
-                        <span><strong>Nem fizikai tétel (Semmi):</strong> Nem kerül dobozba, nem növeli a szállítmány súlyát/darabszámát, és nem igényel termékrövidítést (pl. elsőbbségi szállítás, felárak, garancia).</span>
-                    </div>
-                    ` : ''}
-                    
-                    ${cat.type === 'weight' ? `
-                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px;">
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Egységsúly (kg/db)</label>
-                            <input type="number" step="0.01" class="cat-input-itemweight" data-cat-id="${cat.id}" value="${cat.itemWeight || 1.0}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                        ${(cat.type === 'none' || cat.type === 'semmi') ? `
+                        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px; font-size:12px; color:#1e40af; margin-bottom:4px; display:flex; align-items:center; gap:8px;">
+                            <i class="ph-bold ph-info" style="font-size:16px; color:#2563eb; flex-shrink:0;"></i>
+                            <span><strong>Nem fizikai tétel (Semmi):</strong> Nem kerül dobozba, nem növeli a szállítmány súlyát/darabszámát, és nem igényel termékrövidítést (pl. elsőbbségi szállítás, felárak, garancia).</span>
                         </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Doboz súlya (kg)</label>
-                            <input type="number" step="0.01" class="cat-input-boxweight" data-cat-id="${cat.id}" value="${cat.boxWeight || 0.0}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                        ` : ''}
+                        
+                        ${cat.type === 'weight' ? `
+                        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px;">
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Egységsúly (kg/db)</label>
+                                <input type="number" step="0.01" class="cat-input-itemweight" data-cat-id="${cat.id}" value="${cat.itemWeight || 1.0}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Doboz súlya (kg)</label>
+                                <input type="number" step="0.01" class="cat-input-boxweight" data-cat-id="${cat.id}" value="${cat.boxWeight || 0.0}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Hossz (cm)</label>
+                                <input type="number" class="cat-input-maxlength" data-cat-id="${cat.id}" value="${cat.maxLength || 278}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Szélesség (cm)</label>
+                                <input type="number" class="cat-input-width" data-cat-id="${cat.id}" value="${cat.width || 5}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Magasság (cm)</label>
+                                <input type="number" class="cat-input-height" data-cat-id="${cat.id}" value="${cat.height || 5}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
                         </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Szélesség (cm)</label>
-                            <input type="number" class="cat-input-width" data-cat-id="${cat.id}" value="${cat.width || 5}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
-                        </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Magasság (cm)</label>
-                            <input type="number" class="cat-input-height" data-cat-id="${cat.id}" value="${cat.height || 5}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
-                        </div>
-                    </div>
-                    ` : ''}
+                        ` : ''}
 
-                    ${cat.type === 'adhesive' ? `
-                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px;">
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Egységsúly (kg/db)</label>
-                            <input type="number" step="0.01" class="cat-input-itemweight" data-cat-id="${cat.id}" value="${cat.itemWeight || 0.5}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                        ${cat.type === 'adhesive' ? `
+                        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px;">
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Egységsúly (kg/db)</label>
+                                <input type="number" step="0.01" class="cat-input-itemweight" data-cat-id="${cat.id}" value="${cat.itemWeight || 0.5}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Doboz súlya (kg)</label>
+                                <input type="number" step="0.01" class="cat-input-boxweight" data-cat-id="${cat.id}" value="${cat.boxWeight || 0.0}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Hossz (cm)</label>
+                                <input type="number" class="cat-input-maxlength" data-cat-id="${cat.id}" value="${cat.maxLength || 30}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Szélesség (cm)</label>
+                                <input type="number" class="cat-input-width" data-cat-id="${cat.id}" value="${cat.width || 20}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Magasság (cm)</label>
+                                <input type="number" class="cat-input-height" data-cat-id="${cat.id}" value="${cat.height || 10}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
+                            </div>
                         </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Doboz súlya (kg)</label>
-                            <input type="number" step="0.01" class="cat-input-boxweight" data-cat-id="${cat.id}" value="${cat.boxWeight || 0.0}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
-                        </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Szélesség (cm)</label>
-                            <input type="number" class="cat-input-width" data-cat-id="${cat.id}" value="${cat.width || 20}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
-                        </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label style="font-size: 9px; color: #64748b; text-transform: uppercase; display: block; margin-bottom:2px;">Magasság (cm)</label>
-                            <input type="number" class="cat-input-height" data-cat-id="${cat.id}" value="${cat.height || 10}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
-                        </div>
-                    </div>
-                    ` : ''}
+                        ` : ''}
 
-                    ${cat.type === 'cards' ? `
-                    <div style="margin-top:10px;">
-                        <label style="font-size: 10px; font-weight: 700; color: #475569; text-transform: uppercase; display: block; margin-bottom: 6px;">Méretek db szerint</label>
-                        <div class="cards-list-container" data-cat-id="${cat.id}" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px;"></div>
+                        ${cat.type === 'cards' ? `
+                        <div style="margin-top:6px;">
+                            <label style="font-size: 10px; font-weight: 700; color: #475569; text-transform: uppercase; display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                                <span>Dobozméretek Darabszám Szerint</span>
+                                <span style="font-weight:normal; font-size:10px; color:#64748b; text-transform:none;">(Adott darabszámhoz tartozó doboz egyedi mérete és súlya)</span>
+                            </label>
+                            <div class="cards-list-container" data-cat-id="${cat.id}" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 8px;"></div>
+                        </div>
+                        ` : ''}
                     </div>
-                    ` : ''}
                 </div>
             `;
         });
         
         html += `
                 </div>
-                <div style="display:flex; justify-content:flex-end; margin-top: 15px; border-top:1px solid #cbd5e1; padding-top:15px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 15px; border-top:1px solid #cbd5e1; padding-top:15px; flex-wrap:wrap; gap:10px;">
+                    <button type="button" id="pxp-btn-new-category" class="btn btn-secondary btn-sm" style="padding: 8px 14px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="ph-bold ph-plus"></i> Új kategória hozzáadása
+                    </button>
                     <button type="submit" class="btn btn-primary" style="padding: 10px 20px;">Termék Szabályok Mentése</button>
                 </div>
             </form>
@@ -757,7 +866,7 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
             if (cat.type !== 'cards') return;
             const cardsContainer = container.querySelector(`.cards-list-container[data-cat-id="${cat.id}"]`);
             if (cardsContainer) {
-                renderDimensionCards(cardsContainer, cat.id, cat.maxQty || 5, cat.rules || {});
+                renderDimensionCards(cardsContainer, cat.id, cat.maxQty || 5, cat.rules || {}, cat.maxLength || 278);
             }
         });
         
