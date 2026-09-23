@@ -21,6 +21,7 @@ import { getPaymentDetails, getRunPaymentTotals } from './utils/paymentUtils.js'
 import { filterOrdersWithoutInvoice, getOrdersInSelectionOrder, calculateOrderDeliveryCost } from './utils/orderUtils.js';
 import { openOrderNoteModal } from './controllers/orderNoteController.js';
 import { COMPANY_COURIERS, updateCourierSelectElements } from './controllers/courierSelectController.js';
+import { AccountingExportModal } from './views/accountingExportModal.js';
 function initApp() {
     console.log("KOPJ Rendszer: app.js elindult");
 
@@ -2290,17 +2291,14 @@ function initApp() {
                 }
             });
 
-            let filteredRuns = allRuns.filter(r => isFiltered(r));
-            const onlyPending = accountingFilterPending && accountingFilterPending.checked;
-            
-            if (onlyPending) {
-                filteredRuns = filteredRuns.filter(r => {
-                    const totals = getRunPaymentTotals(r);
-                    return totals.hasPending || !totals.isFullySettled;
-                });
-            }
-            
-            await ExporterService.exportAccountingToCsv(filteredRuns, onlyPending);
+            // Alapértelmezett szűrők átadása az Előzmények fejlécéből
+            const defaultFilters = {
+                startDate: historyDateStart?.value || '',
+                endDate: historyDateEnd?.value || '',
+                onlyPending: false // Alapértelmezetten minden rendelést látni akar a felhasználó (a rendezetteket is)
+            };
+
+            AccountingExportModal.show(allRuns, defaultFilters);
         });
     }
 

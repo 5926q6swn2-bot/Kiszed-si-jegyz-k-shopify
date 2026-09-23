@@ -42,6 +42,9 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                     <button type="button" class="sd-resp-btn szallito ${rSzallitoActive ? 'active' : ''}" data-resp="szallito" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rSzallitoActive ? '#fed7aa' : '#cbd5e1'};background:${rSzallitoActive ? '#ffedd5' : '#fff'};color:${rSzallitoActive ? '#c2410c' : '#64748b'};transition:all .15s;">Szállító</button>
                     <button type="button" class="sd-resp-btn vevo ${rVevoActive ? 'active' : ''}" data-resp="vevo" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rVevoActive ? '#cbd5e1' : '#cbd5e1'};background:${rVevoActive ? '#e2e8f0' : '#fff'};color:${rVevoActive ? '#475569' : '#64748b'};transition:all .15s;">Vevő / Egyéb</button>
                 </div>
+                <div class="sd-carrier-fault-hint" style="display:${rSzallitoActive ? 'inline-flex' : 'none'};align-items:center;gap:5px;margin-top:8px;font-size:11px;font-weight:700;color:#b91c1c;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:4px 8px;">
+                    <i class="ph-bold ph-info" style="font-size:12px;"></i> Szállító hibája: A rendelés fuvardíja 0 Ft (levonásra kerül az elszámolásból).
+                </div>
             </div>`;
         };
 
@@ -199,6 +202,9 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                         <button type="button" class="sd-resp-btn mienk ${rMienkActive ? 'active' : ''}" data-resp="mienk" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rMienkActive ? '#fca5a5' : '#cbd5e1'};background:${rMienkActive ? '#fee2e2' : '#fff'};color:${rMienkActive ? '#b91c1c' : '#64748b'};transition:all .1s;">Saját hiba</button>
                         <button type="button" class="sd-resp-btn szallito ${rSzallitoActive ? 'active' : ''}" data-resp="szallito" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rSzallitoActive ? '#fed7aa' : '#cbd5e1'};background:${rSzallitoActive ? '#ffedd5' : '#fff'};color:${rSzallitoActive ? '#c2410c' : '#64748b'};transition:all .1s;">Szállító</button>
                         <button type="button" class="sd-resp-btn vevo ${rVevoActive ? 'active' : ''}" data-resp="vevo" style="font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid ${rVevoActive ? '#cbd5e1' : '#cbd5e1'};background:${rVevoActive ? '#e2e8f0' : '#fff'};color:${rVevoActive ? '#475569' : '#64748b'};transition:all .1s;">Vevő / Egyéb</button>
+                    </div>
+                    <div class="sd-carrier-fault-hint" style="display:${rSzallitoActive ? 'inline-flex' : 'none'};align-items:center;gap:5px;margin-top:8px;font-size:11px;font-weight:700;color:#0369a1;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:6px;padding:4px 8px;">
+                        <i class="ph-bold ph-info" style="font-size:12px;"></i> Szállító hibája (részleges): A fuvardíj érvényes marad (a fuvar megtörtént).
                     </div>
                 </div>
 
@@ -591,6 +597,14 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                 btn.style.background = '#e2e8f0';
                 btn.style.borderColor = '#cbd5e1';
                 btn.style.color = '#475569';
+            }
+
+            const parentBlock = selector.closest('.sd-reason-row') || selector.closest('.sd-split-partial-row');
+            if (parentBlock) {
+                const hint = parentBlock.querySelector('.sd-carrier-fault-hint');
+                if (hint) {
+                    hint.style.display = resp === 'szallito' ? 'inline-flex' : 'none';
+                }
             }
         });
 
@@ -1198,8 +1212,15 @@ export async function renderAccountingRuns(ctx) {
                 : '';
 
             const runDeliveryCostSum = (run.orders || []).reduce((sum, o) => {
+                const isUnc = uncollected.includes(o.id) || uncollected.map(String).includes(String(o.id));
+                const po = partialOrders[o.id] || partialOrders[String(o.id)];
+                const isPart = !isUnc && !!po;
+                const resp = (run.uncollectedResponsibility || {})[o.id] || (run.uncollectedResponsibility || {})[String(o.id)] || 'vevo';
+                const isCarrierFault = isUnc && resp === 'szallito';
+
                 const cost = calculateOrderDeliveryCost({
                     ...o,
+                    isCarrierFault,
                     customDeliveryCost: (run.customDeliveryCosts && run.customDeliveryCosts[o.id] !== undefined)
                         ? run.customDeliveryCosts[o.id]
                         : o.customDeliveryCost
@@ -1219,14 +1240,22 @@ export async function renderAccountingRuns(ctx) {
                 const statusText    = status === 'pending' ? ' (Függő)' : ' (Rendben)';
                 const statusColor   = status === 'pending' ? '#d97706' : '#16a34a';
 
+                const isCarrierFault = isUncollected && ((run.uncollectedResponsibility || {})[o.id] || (run.uncollectedResponsibility || {})[String(o.id)] || 'vevo') === 'szallito';
+
                 const deliveryCostInfo = calculateOrderDeliveryCost({
                     ...o,
+                    isCarrierFault,
                     customDeliveryCost: (run.customDeliveryCosts && run.customDeliveryCosts[o.id] !== undefined)
                         ? run.customDeliveryCosts[o.id]
                         : o.customDeliveryCost
                 });
 
-                const deliveryCostBadgeHtml = `
+                const deliveryCostBadgeHtml = isCarrierFault ? `
+                    <span class="hac-delivery-cost-badge carrier-fault" data-doc-id="${run.docId}" data-order-id="${o.id}" data-current-val="0" data-default-val="${deliveryCostInfo.calculatedNetCost}" title="Szállító hibája miatt meghiúsult kiszállítás - fuvardíj: 0 Ft" style="font-size:11px;font-weight:700;color:#b91c1c;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:2px 7px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;margin-left:auto;margin-right:6px;">
+                        <i class="ph-bold ph-x-circle" style="font-size:11px;color:#b91c1c;"></i>
+                        <span>0 Ft (Szállító hiba)</span>
+                    </span>
+                ` : `
                     <span class="hac-delivery-cost-badge" data-doc-id="${run.docId}" data-order-id="${o.id}" data-current-val="${deliveryCostInfo.netCost}" data-default-val="${deliveryCostInfo.calculatedNetCost}" title="Fuvarköltség: ${deliveryCostInfo.formattedCost} (${deliveryCostInfo.isBudapest ? 'Budapest' : 'Vidék'}, ${deliveryCostInfo.boardCount} tábla). Kattints az átíráshoz!" style="font-size:11px;font-weight:700;color:${deliveryCostInfo.isCustom ? '#15803d' : '#475569'};background:${deliveryCostInfo.isCustom ? '#f0fdf4' : '#f8fafc'};border:1px solid ${deliveryCostInfo.isCustom ? '#bbf7d0' : '#cbd5e1'};border-radius:6px;padding:2px 7px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;transition:all .15s;margin-left:auto;margin-right:6px;">
                         <i class="ph-bold ph-truck" style="font-size:11px;color:${deliveryCostInfo.isCustom ? '#16a34a' : '#64748b'};"></i>
                         <span>${deliveryCostInfo.formattedCost}</span>

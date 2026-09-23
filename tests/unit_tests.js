@@ -18,8 +18,12 @@ import {
     calculateSelaDispatchDate,
     isHungarianHoliday,
     isHungarianWorkday,
-    getEasterSunday 
+    getEasterSunday,
+    ACCOUNTING_EXPORT_HEADERS,
+    prepareAccountingExportData,
+    generateAccountingExcelWorkbook
 } from '../js/services/exporter.js';
+import ExcelJS from '../libs/exceljs.min.js';
 import { 
     buildDuplicateCustomerOrdersMap, 
     isPvcSpcOrFloorItem, 
@@ -2619,6 +2623,18 @@ assertEqual("Delivery Cost - Run customDeliveryCosts érvényesül", costFromRun
 assertEqual("Delivery Cost - Run customDeliveryCosts formázva", costFromRun.formattedCost, "12 500 Ft + Áfa");
 assertEqual("Delivery Cost - Run customDeliveryCosts isCustom", costFromRun.isCustom, true);
 
+// 7b. Szállító hibájából meghiúsult kiszállítás fuvardíja: kötelezően 0 Ft!
+const costCarrierFault = calculateOrderDeliveryCost(testVd4113, { isCarrierFault: true });
+assertEqual("Delivery Cost - Szállító hiba netCost 0 Ft", costCarrierFault.netCost, 0);
+assertEqual("Delivery Cost - Szállító hiba formattedCost", costCarrierFault.formattedCost, "0 Ft (Szállító hiba)");
+assertEqual("Delivery Cost - Szállító hiba isCarrierFault flag", costCarrierFault.isCarrierFault, true);
+
+// 7c. Nem szállító hibája (vevő vagy saját): normál fuvardíj érvényesül
+const costNonCarrierFault = calculateOrderDeliveryCost(testVd4113, { isCarrierFault: false });
+assertEqual("Delivery Cost - Vevő / saját hiba normál netCost", costNonCarrierFault.netCost, 15000);
+assertEqual("Delivery Cost - Vevő / saját hiba formattedCost", costNonCarrierFault.formattedCost, "15 000 Ft + Áfa");
+assertEqual("Delivery Cost - Vevő / saját hiba isCarrierFault flag", costNonCarrierFault.isCarrierFault, false);
+
 // 8. Helyszíni eladás és többletfizetés (surplus) tesztek
 // A) Utánvétes (COD) rendelés többlettel (pl. 10 000 Ft COD helyett 15 000 Ft-ot fizetett a vevő bontva: 10 000 KP + 5 000 Kártya, +5 000 Ft többlet ragasztóra)
 const testCodOrder = {
@@ -2731,6 +2747,79 @@ const testPartialRun = {
 const pdPartial = getPaymentDetails(testPartialRun, testPartialOrder);
 assertEqual("Export CSV - Részleges és többlet egyidejű elszámolása Beszedett összeg", pdPartial.collectedAmount, 43810);
 
+// --- Új Elszámolás Export Tesztek (Munkalapok, Meghiúsult kiemelés, Megjegyzés törölve) ---
+assertEqual("Accounting Export - Nincs Megjegyzés oszlop a fejlécben", ACCOUNTING_EXPORT_HEADERS.includes("Megjegyzés"), false);
+assertEqual("Accounting Export - Fejléc pontosan 12 oszlopos", ACCOUNTING_EXPORT_HEADERS.length, 12);
+assertEqual("Accounting Export - Tartalmazza a Felelősség oszlopot", ACCOUNTING_EXPORT_HEADERS.includes("Felelősség"), true);
+assertEqual("Accounting Export - Tartalmazza a Fuvardíj oszlopot", ACCOUNTING_EXPORT_HEADERS.includes("Fuvardíj (Ft + Áfa)"), true);
+
+const testExportRuns = [
+    {
+        id: "run_sela",
+        company: "Sela Kft.",
+        courier: "Kiss Béla",
+        date: "2026-09-23",
+        orders: [
+            { id: "#5001", shippingName: "Vevő 1", isCOD: true, codAmount: 20000, city: "Budapest", zip: "1111", items: [{ name: "Falpanel", qty: 2 }] },
+            { id: "#5002", shippingName: "Vevő 2", isCOD: true, codAmount: 30000, city: "Szolnok", zip: "5000", items: [{ name: "Falpanel", qty: 4 }] },
+            { id: "#5004", shippingName: "Vevő 4", isCOD: true, codAmount: 40000, city: "Szeged", zip: "6720", items: [{ name: "Falpanel", qty: 2 }] }
+        ],
+        uncollectedOrderIds: ["#5002"],
+        partialOrders: { "#5004": { amount: 30000, comment: "1 db panel sérült" } },
+        uncollectedResponsibility: { "#5002": "szallito", "#5004": "szallito" },
+        paymentStatusMap: { "#5001": "received", "#5002": "received", "#5004": "received" }
+    },
+    {
+        id: "run_trans",
+        company: "Trans-Sped",
+        courier: "Nagy Tibor",
+        date: "2026-09-23",
+        orders: [
+            { id: "#5003", shippingName: "Vevő 3", isCOD: false, codAmount: 0, city: "Debrecen", zip: "4000", items: [{ name: "Falpanel", qty: 1 }] }
+        ],
+        uncollectedOrderIds: [],
+        paymentStatusMap: {}
+    }
+];
+
+const preparedExportRows = prepareAccountingExportData(testExportRuns);
+assertEqual("Accounting Export Data - Összesen 4 sor készült", preparedExportRows.length, 4);
+
+const row5002 = preparedExportRows.find(r => r.orderId === "#5002");
+assertEqual("Accounting Export Data - #5002 meghiúsult flag", row5002.isUncollected, true);
+assertEqual("Accounting Export Data - #5002 felelősség szöveg", row5002.responsibility, "Szállító hibája");
+assertEqual("Accounting Export Data - #5002 fuvardíj 0 Ft", row5002.deliveryCostNet, 0);
+assertEqual("Accounting Export Data - #5002 fuvardíj formázott szöveg", row5002.deliveryCostText, "0 Ft (Szállító hiba)");
+
+const row5004 = preparedExportRows.find(r => r.orderId === "#5004");
+assertEqual("Accounting Export Data - #5004 részleges fizetés flag", row5004.isPartial, true);
+assertEqual("Accounting Export Data - #5004 felelősség kiírva: Szállító hibája", row5004.responsibility, "Szállító hibája");
+assertEqual("Accounting Export Data - #5004 fuvardíj NEM törlődik (15 000 Ft)", row5004.deliveryCostNet, 15000);
+assertEqual("Accounting Export Data - #5004 formázott fuvardíj", row5004.deliveryCostText, "15 000 Ft + Áfa");
+
+const row5001 = preparedExportRows.find(r => r.orderId === "#5001");
+assertEqual("Accounting Export Data - #5001 nem meghiúsult", row5001.isUncollected, false);
+assertEqual("Accounting Export Data - #5001 Budapest fuvardíj 10 000 Ft", row5001.deliveryCostNet, 10000);
+
+// Excel munkafüzet struktúra és színezés validációja
+const generatedWb = await generateAccountingExcelWorkbook(preparedExportRows, ExcelJS);
+assertEqual("Accounting Excel - Több cég esetén létrejön az Összesítő munkalap", !!generatedWb.getWorksheet("Összesítő"), true);
+assertEqual("Accounting Excel - Létrejön a Sela munkalap", !!generatedWb.getWorksheet("Sela Kft."), true);
+const summarySheet = generatedWb.getWorksheet("Összesítő");
+assertEqual("Accounting Excel - Összesítő lap létezik", !!summarySheet, true);
+const summaryHeaders = summarySheet.getRow(1).values;
+assertEqual("Accounting Excel - Összesítő tartalmazza: Fizetendő Fuvar (db)", summaryHeaders.includes("Fizetendő Fuvar (db)"), true);
+assertEqual("Accounting Excel - Összesítő tartalmazza: Szállító hibája (db)", summaryHeaders.includes("Szállító hibája (db)"), true);
+
+const selaSheet = generatedWb.getWorksheet("Sela Kft.");
+let foundUncollectedHighlight = false;
+selaSheet.eachRow((r, rowNumber) => {
+    if (rowNumber > 1 && r.fill && r.fill.fgColor && r.fill.fgColor.argb === "FFFEE2E2") {
+        foundUncollectedHighlight = true;
+    }
+});
+assertEqual("Accounting Excel - Meghiúsult rendelés világospiros kiemeléssel szerepel", foundUncollectedHighlight, true);
+
 // G) PannonXP Címke Referenciaszám generálás - Vegyes és egyedi akusztikus panel szabályok
 const testRefMappings = {
     'pecan': { abbrev: 'Pec', categoryId: 'cat_acoustic' },
@@ -2814,10 +2903,102 @@ assertEqual("PXP Ref - Egyedi akupanel 7db csomagosztással", testGenerateRefere
 assertEqual("PXP Ref - Egyedi akupanel 3db (egy csomag)", testGenerateReference({ id: "#4203", items: [{ name: "pecan", qty: 3 }] }), "4203 Pec3");
 assertEqual("PXP Ref - Vegyes akupanel 7db Pecan + 3db Chicago tiszta db-számmal", testGenerateReference({ id: "#4204", items: [{ name: "pecan", qty: 7 }, { name: "chicago", qty: 3 }] }), "4204 Pec7 Chic3");
 assertEqual("PXP Ref - Vegyes akupanel 7db Pecan + 3db Chicago + 2db ragasztó", testGenerateReference({ id: "#4205", items: [{ name: "pecan", qty: 7 }, { name: "chicago", qty: 3 }, { name: "t-rex", qty: 2 }] }), "4205 Pec7 Chic3 trex2");
-assertEqual("PXP Ref - Virtuális nem fizikai tétel kihagyása", testGenerateReference({ id: "#4206", items: [{ name: "pecan", qty: 8 }, { name: "szallitas", qty: 1 }] }), "4206 Pec4-4");
+
+// --- Kiszállítás és Fuvar Ellenőrzés Statisztikai Tesztek ---
+function calculateAuditStats(runs) {
+    let totalFuvar = 0;
+    const filteredOrderIdsSet = new Set();
+    runs.forEach(r => {
+        (r.orders || []).forEach(o => {
+            if (!o || !o.id) return;
+            totalFuvar++;
+            const normId = String(o.id).trim();
+            filteredOrderIdsSet.add(normId);
+        });
+    });
+
+    const uniqueOrdersCount = filteredOrderIdsSet.size;
+    const multiFuvarCount = Math.max(0, totalFuvar - uniqueOrdersCount);
+
+    // Kísérletek és felelősségek
+    const orderAttemptsMap = new Map();
+    runs.forEach(r => {
+        const rUnc = new Set((r.uncollectedOrderIds || []).map(String));
+        const rPart = r.partialOrders || {};
+        const runResponsibility = r.uncollectedResponsibility || {};
+        const runReasons = r.uncollectedReasons || {};
+
+        (r.orders || []).forEach(o => {
+            if (!o || !o.id) return;
+            const orderIdStr = String(o.id).trim();
+            const isUnc = rUnc.has(orderIdStr) || rUnc.has(String(o.id));
+            const pInfo = rPart[o.id] || rPart[orderIdStr];
+            const isPart = !isUnc && !!pInfo;
+            const resp = runResponsibility[o.id] || runResponsibility[orderIdStr] || 'vevo';
+            let outcome = isUnc ? 'Kiesett' : (isPart ? 'Részleges' : 'Sikeres');
+            let comment = isUnc ? (runReasons[o.id] || runReasons[orderIdStr] || '') : (isPart ? (pInfo.comment || '') : '');
+
+            if (!orderAttemptsMap.has(orderIdStr)) {
+                orderAttemptsMap.set(orderIdStr, []);
+            }
+            orderAttemptsMap.get(orderIdStr).push({ outcome, resp, comment });
+        });
+    });
+
+    let multiOrdersCount = 0;
+    let szallitoCount = 0;
+    let mienkCount = 0;
+    let vevoCount = 0;
+
+    for (const [id, attempts] of orderAttemptsMap.entries()) {
+        if (attempts.length > 1) multiOrdersCount++;
+        let hasSzallito = false;
+        let hasMienk = false;
+        let hasVevo = false;
+
+        attempts.forEach(att => {
+            if (att.outcome !== 'Sikeres') {
+                if (att.resp === 'szallito') hasSzallito = true;
+                else if (att.resp === 'mienk') hasMienk = true;
+                else hasVevo = true;
+            }
+        });
+
+        if (hasSzallito) szallitoCount++;
+        if (hasMienk) mienkCount++;
+        if (hasVevo) vevoCount++;
+    }
+
+    return { totalFuvar, uniqueOrdersCount, multiFuvarCount, multiOrdersCount, szallitoCount, mienkCount, vevoCount };
+}
+
+const mockRuns = [
+    {
+        id: 'run1',
+        orders: [{ id: '#101' }, { id: '#102' }, { id: '#103' }],
+        uncollectedOrderIds: ['#102'],
+        uncollectedReasons: { '#102': 'Nem fért fel a teherautóra' },
+        uncollectedResponsibility: { '#102': 'szallito' }
+    },
+    {
+        id: 'run2',
+        orders: [{ id: '#102' }, { id: '#104' }],
+        uncollectedOrderIds: [],
+        uncollectedReasons: {},
+        uncollectedResponsibility: {}
+    }
+];
+
+const mockStats = calculateAuditStats(mockRuns);
+assertEqual("Audit - Összes fuvar (kiszállítási kísérlet)", mockStats.totalFuvar, 5);
+assertEqual("Audit - Egyedi megrendelések száma", mockStats.uniqueOrdersCount, 4);
+assertEqual("Audit - Dupla/többszöri fuvarok többlete", mockStats.multiFuvarCount, 1);
+assertEqual("Audit - Többször szállított rendelések száma", mockStats.multiOrdersCount, 1);
+assertEqual("Audit - Szállító hibás rendelések száma", mockStats.szallitoCount, 1);
+assertEqual("Audit - Saját hibás rendelések száma", mockStats.mienkCount, 0);
+assertEqual("Audit - Vevő hibás rendelések száma", mockStats.vevoCount, 0);
 
 
-// --- ESM Syntax and Duplicate Declaration Check for all JS files ---
 function checkJsSyntaxRecursively(dir) {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {

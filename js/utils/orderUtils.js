@@ -987,7 +987,11 @@ export function isBudapestAddress(order) {
  * @param {Object} order
  * @returns {{ netCost: number, calculatedNetCost: number, boardCount: number, isBudapest: boolean, formattedCost: string, isCustom: boolean }}
  */
-export function calculateOrderDeliveryCost(order) {
+export function calculateOrderDeliveryCost(order, options = {}) {
+    const isCarrierFault = (options && options.isCarrierFault !== undefined)
+        ? !!options.isCarrierFault
+        : (order && order.isCarrierFault === true);
+
     if (!order) {
         return {
             netCost: 15000,
@@ -995,7 +999,20 @@ export function calculateOrderDeliveryCost(order) {
             boardCount: 0,
             isBudapest: false,
             formattedCost: "15 000 Ft + Áfa",
-            isCustom: false
+            isCustom: false,
+            isCarrierFault: false
+        };
+    }
+
+    if (isCarrierFault) {
+        return {
+            netCost: 0,
+            calculatedNetCost: 0,
+            boardCount: 0,
+            isBudapest: false,
+            formattedCost: "0 Ft (Szállító hiba)",
+            isCustom: false,
+            isCarrierFault: true
         };
     }
 
@@ -1022,7 +1039,8 @@ export function calculateOrderDeliveryCost(order) {
         boardCount,
         isBudapest,
         formattedCost,
-        isCustom
+        isCustom,
+        isCarrierFault: false
     };
 }
 

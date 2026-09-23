@@ -28,8 +28,8 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
-- **Utolsó aktív modell**: Gemini 3.6 Flash (High)
-- **Státusz**: A rendszer stabil, Render felhőre kész. Kompakt harmonika csomagolási szabályok és intelligens vegyes paneles referenciaszám-kezelés élesítve (v4.9.3, 638/638 zöld unit teszt).
+- **Utolsó aktív modell**: Gemini 3.8 Flash (Medium)
+- **Státusz**: A rendszer stabil, Render felhőre kész. Elszámolás Export Modál cégválasztással és kintlévőség/rendezett szűréssel élesítve (v4.9.8, 672/672 zöld unit teszt).
 
 
 ---
@@ -50,6 +50,81 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 4. **Feketelista Kezelő (Blacklist Manager) & Automata Kockázatos Vevő Szűrés**:
    - Megbízhatatlan / lebeszélt időpontban át nem vett rendelések vevőinek központi rögzítése (többszörös telefonszámok, szállítási címek, nevek, e-mail címek + indoklás).
    - Új Shopify rendelés letöltésekor automatikus egyeztetés a feketelistával, és azonnali piros figyelmeztető doboz generálása a raktári felületen (opcionális automatikus `feketelista` tageléssel a Shopify-ban).
+
+### 2026. szeptember 23. (6. frissítés) - Elszámolás Export Modál: Cégválasztás & Kintlévőségi Szűrés (`v4.9.8`)
+- **Elszámolás Export Beállítások Modál (`js/views/accountingExportModal.js`, `js/app.js`)**:
+  - Az "Export Excel" gombra kattintva felugró ablak jelenik meg.
+  - **Szállítócégek kiválasztása**: Checkbox lista az adatbázisban lévő összes szállítócéggel (pl. LétaiSela / Csaba, Sela, PannonXP stb.) Mind kijelölése / Törlés gombokkal.
+  - **Elszámolási státusz opció**: Választható *„Minden rendelés bekerüljön (a teljesen rendezettek és nem utánvétesek is)”* (alapértelmezett, biztosítja a lezárt és előre fizetett fuvarok bekerülését is) vagy *„Csak a kintlévőséggel rendelkező (kifizetésre váró) rendelések”*.
+  - **Időszak szűrés & Élő előnézet**: Kezdő/záró dátum mezők, gyorsgombok (Mind, Ez a hónap, Elmúlt 30 nap), valamint valós idejű számláló a kiválasztott körökről, fuvarokról és szállítói hibákról.
+- **Részleges Fizetés Fuvardíj Megtartása & Összesítő Lap (`js/services/exporter.js`)**:
+  - Részleges fizetés esetén a fuvardíj nem nullázódik le, felelősség jelölve.
+  - Összesítő lap külön *Összes Fuvar*, *Szállító hibája*, *Vevő / egyéb hiba*, *Fizetendő Fuvar* oszlopokkal és ezres formázással.
+- **Tesztek**: 672/672 sikeres unit teszt (`tests/unit_tests.js`).
+
+### 2026. szeptember 23. (5. frissítés) - Részleges Fizetésnél Fuvardíj Megtartása & Felelősség Kiírása (`v4.9.7`)
+- **Fuvardíj Megőrzése Részleges Kézbesítéskor (`js/services/exporter.js`, `js/views/history/historyAccounting.js`)**:
+  - Részleges fizetés esetén (pl. 1 db sérült tétel visszahozva, de a többi átadva) a fuvar fizikailag megtörtént, ezért a fuvardíj **NEM törlődik 0 Ft-ra**, a fizetendő fuvarok közé és a fuvardíj összegébe beszámítódik.
+  - A fuvardíj lenullázása és levonása **kizárólag a teljesen meghiúsult** (`isUncollected === true`) szállítói hibás kiszállításokra vonatkozik.
+- **Felelősség és Státusz Megjelenítése**:
+  - A táblázatban és az elszámolásban a Státusz ("Részleges") és a Felelősség ("Szállító hibája" / "Saját hiba" / "Vevő / Egyéb") továbbra is pontosan és láthatóan kiírásra kerül.
+  - Az elszámolási dialógusban a tájékoztató szöveg tisztázva: *"Szállító hibája (részleges): A fuvardíj érvényes marad (a fuvar megtörtént)."*
+- **Összesítő Munkalap Pontosítása**:
+  - Az "Összesítő" lapon a levont fuvarok (*Szállító hibája (db)*) kizárólag a meghiúsult kiszállításokat vonják le a *Fizetendő Fuvar (db)* összegből.
+- **Automatizált Tesztek (`tests/unit_tests.js`)**:
+  - 671/671 zöld egységteszt (beleértve a részleges fizetés fuvardíj megőrzését és felelősség vizsgálatát).
+
+### 2026. szeptember 23. (4. frissítés) - Elszámolási Export Munkalapokra Bontva & Meghiúsulások Kiemelve (`v4.9.6`)
+- **Excel (.xlsx) Munkafüzet Munkalapokkal (`libs/exceljs.min.js`, `js/services/exporter.js`)**:
+  - Az Utánvét Elszámolások exportálása natív Excel (`.xlsx`) formátumra frissült a lokális `ExcelJS` motorral.
+  - **Szállítócégenként külön munkalapok**: Minden szállítócég (pl. Sela, Trans-Sped, stb.) automatikusan külön fülre (munkalapra) kerül.
+  - **Összesítő fül**: Több szállítócég szűrése esetén létrejön egy központi "Összesítő" lap is a globális adatokkal.
+- **Meghiúsult Kiszállítások Vizuális Kiemelése**:
+  - A meghiúsult rendelések sora elegáns világospiros/lazac háttérszínt (`#FEE2E2`), valamint félkövér bordó státusz és felelősség feliratot kapott, így azonnal megkülönböztethető a sikeresektől.
+  - A részleges fizetések finom világossárga (`#FEF9C3`) háttérrel jelennek meg.
+- **Megjegyzés Oszlop Törlése**:
+  - A felesleges Megjegyzés oszlop eltávolításra került a táblázatból a felhasználó kérésének megfelelően (a felületen szükség esetén bármikor megtekinthető).
+- **Gomb Frissítése (`index.html`, `js/app.js`)**:
+  - A gomb felirata **`Export Excel`**-re frissült Excel ikonnal, és automatikusan `.xlsx` munkafüzetet tölt le (biztonsági fallback CSV támogatással).
+- **Automatizált Tesztek (`tests/unit_tests.js`)**:
+  - 665/665 zöld egységteszt (fejléc oszlopstruktúra, meghiúsult kiemelés, Excel munkalapok és ESM szintaxis validálva).
+
+### 2026. szeptember 23. (3. frissítés) - Szállító Hibás Fuvardíjak (0 Ft) és Felelősség az Elszámolásban & CSV Exportban (`v4.9.5`)
+- **Elszámolási CSV Export Kibővítése (`js/services/exporter.js`)**:
+  - Az Utánvét Elszámolás CSV export (`btn-export-accounting-csv` / `exportAccountingToCsv`) mostantól minden egyes kiszállítást tartalmaz (nem hagyja ki a meghiúsultakat sem).
+  - Új oszlopok: **Felelősség** ("Szállító hibája", "Saját hiba", "Vevő / Egyéb") és **Fuvardíj (Ft + Áfa)**.
+  - Szállító hibás kiszállítás esetén a fuvardíj automatikusan **0 Ft**, és a céges összesítő fuvardíj összegbe is 0 Ft-tal számolódik be.
+- **Elszámolási Nézet és Kártyák Számítása (`js/views/history/historyAccounting.js`, `js/utils/orderUtils.js`)**:
+  - `calculateOrderDeliveryCost` kiegészítve `isCarrierFault: true` támogatással, ami `0 Ft`-ot és `0 Ft (Szállító hiba)` formázott szöveget ad vissza.
+  - A körök fejlécében lévő fuvardíj összeg (`Fuvar: XX XXX Ft + Áfa`) automatikusan levonja a szállító hibás rendelések fuvardíját (0 Ft-tal veszi figyelembe).
+  - A rendelés sorában a fuvardíj badge piros háttérrel és `0 Ft (Szállító hiba)` felirattal jelenik meg.
+  - Az elszámolási modálban (`showSettlementDialog`) a "Szállító" gomb megnyomásakor figyelmeztető tájékoztató szöveg jelenik meg a fuvardíj 0 Ft-ra csökkentéséről.
+- **Automatizált Tesztek (`tests/unit_tests.js`)**:
+  - 650/650 zöld egységteszt (beleértve a szállító hibás 0 Ft-os fuvardíj kalkulációt, a normál vevő/saját hibás díjakat és az ESM szintaxis ellenőrzéseket).
+
+### 2026. szeptember 23. (2. frissítés) - Új Kiszállítás és Fuvar Ellenőrzés Nézet (`v4.9.4`)
+- **Előzmények Fül Átnevezése és Átalakítása (`index.html`, `js/views/auditView.js`)**:
+  - A korábbi "Számlaellenőrzés" fül helyére a teljes körű **„Ellenőrzés”** (Kiszállítás és Fuvar Ellenőrzés) nézet került.
+  - A nézet az Előzmények globális dátumszűrőjével és szállítócég-szűrőjével szinkronban működik.
+- **KPI Statisztikai Információs Sáv**:
+  - **Összes fuvar**: az adott szűrt időszakban az autókba kiadott összes kiszállítási kísérlet (rendelések összege).
+  - **Egyedi rendelések**: a címzettek valós, deduplikált száma.
+  - **Többszöri / Dupla fuvar**: az ismételt kiszállítások darabszáma és az érintett rendelések száma.
+  - **Felelősségi megoszlás**: a meghiúsult fuvaroknál felmerült felelősség (Szállító hiba, Saját hiba, Vevő / Egyéb).
+- **Dinamikus Gyorsszűrők**:
+  - `Többszöri fuvarok (2x+)` (alapértelmezett: csak az ismételt kiszállítások).
+  - `Szállító hibája` (ahol szállítói hiba miatt hiúsult meg a kézbesítés).
+  - `Saját hiba` (ahol saját hibából nem került átadásra a csomag).
+  - `Vevő / Egyéb` (ahol a vevő miatt maradt el az átadás).
+  - `Összes probléma (Dupla + Kiesett)` (minden olyan rendelés, ami többször ment vagy kiesett).
+- **Részletes Rendeléskártyák és Felelősség Módosítás**:
+  - Tételes idősáv minden rendelésnél: 1. fuvar (dátum, cég, futár, eredmény, kiemelt indoklás/komment), 2. fuvar (pótszállítás eredménye).
+  - Interaktív `resp-pill`: a felelősség egyetlen kattintással körbeforgatható és elmentődik a Firestore-ba (`HistoryManager.updateResponsibilityInFirestore`).
+  - Kiesett utánvétes rendeléseknél elérhető az `[Utalt]` gomb is.
+- **Részletes CSV Export**:
+  - Letölthető ellenőrző táblázat az összes fuvaradat, kiesési indoklás és felelősség tételes kimutatásával.
+- **Unit Tesztek & Stabilitás**:
+  - A tesztcsomag kiegészült a fuvar- és meghiúsulási statisztikai számítások tesztelésével (`tests/unit_tests.js`). Mind a 644 egységteszt és ESM szintaxis-ellenőrzés 100%-ban zöld.
 
 ### 2026. szeptember 23. (1. frissítés) - Kompakt Csomagolási Szabályok & Intelligens Vegyes Paneles Referenciaszám (`v4.9.3`)
 - **Kompakt, Összecsukható Csomagolási Szabályok Felület (`js/views/pannonxp/pannonxpSettings.js`)**:
