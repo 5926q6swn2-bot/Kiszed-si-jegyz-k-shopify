@@ -2,9 +2,19 @@
 // Rendelésáttekintő (Shopify Order Hub) - Teljes Terítési / Járat Integráció (Kiszállítás dátuma, Futár), Tiszta Címoszlop, Sárga pötty (0 Emoji)
 
 import { Store } from '../store/state.js';
-import { buildDuplicateCustomerOrdersMap, hasInvalidDeliveryAddress } from '../utils/orderUtils.js';
+import { buildDuplicateCustomerOrdersMap, hasInvalidDeliveryAddress, getRunTimestamp } from '../utils/orderUtils.js';
 
 export { buildDuplicateCustomerOrdersMap, hasInvalidDeliveryAddress };
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
 
 export const OrderOverviewView = {
     toggleExpand(orderId) {
@@ -372,7 +382,8 @@ export const OrderOverviewView = {
             deliveryOnly: tabOrders.filter(o => !o.isPickup && !o.hasBadShipping).length,
             cod: tabOrders.filter(o => o.isCOD && !o.isPickup).length,
             pendingTransfer: tabOrders.filter(o => o.isBankDeposit && !o.isPaid).length,
-            multipleOrders: tabOrders.filter(o => duplicateCustomerOrdersMap.has(o.id)).length
+            multipleOrders: tabOrders.filter(o => duplicateCustomerOrdersMap.has(o.id)).length,
+            blacklisted: tabOrders.filter(o => o.isBlacklisted).length
         };
 
         // Összes egyedi Tag kigyűjtése
@@ -412,6 +423,7 @@ export const OrderOverviewView = {
             if (currentChip === 'cod' && !order.isCOD) return false;
             if (currentChip === 'pending_transfer' && !(order.isBankDeposit && !order.isPaid)) return false;
             if (currentChip === 'multiple_orders' && !duplicateCustomerOrdersMap.has(order.id)) return false;
+            if (currentChip === 'blacklisted' && !order.isBlacklisted) return false;
 
             // 3. SZÖVEGES KERESÉS
             if (filters.search) {
@@ -538,9 +550,22 @@ export const OrderOverviewView = {
                                 <i class="ph-bold ph-scales" style="font-size: 13px; color: #0284c7;"></i>
                                 <span>Terméksúlyok</span>
                             </button>
-                            <div class="logi-tooltip-bubble" style="min-width: 220px; white-space: nowrap;">
+                            <div class="logi-tooltip-bubble tooltip-bottom tooltip-align-right" style="min-width: 220px; white-space: nowrap;">
                                 <i class="ph-bold ph-scales"></i>
                                 <span>Elmentett terméksúlyok és kategóriák kezelése</span>
+                            </div>
+                        </div>
+
+                        <!-- Feketelista Kezelő Gomb -->
+                        <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                            <button id="btn-open-blacklist-manager" style="padding: 3.5px 9px; border-radius: 5px; border: 1.5px solid #334155; background: #0f172a; color: #f8fafc; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.25); white-space: nowrap; transition: all .15s;">
+                                <i class="ph-bold ph-prohibit" style="font-size: 13px; color: #f87171;"></i>
+                                <span>Feketelista</span>
+                                <span id="hub-blacklist-count-badge" style="background: #ef4444; color: #ffffff; padding: 0 5px; border-radius: 8px; font-size: 9.5px; font-weight: 800; min-width: 14px; text-align: center; ${((Store && Store.blacklistProfiles) ? Store.blacklistProfiles.length : 0) > 0 ? '' : 'display: none;'}">${(Store && Store.blacklistProfiles) ? Store.blacklistProfiles.length : 0}</span>
+                            </button>
+                            <div class="logi-tooltip-bubble tooltip-bottom tooltip-align-right" style="min-width: 230px; white-space: nowrap;">
+                                <i class="ph-bold ph-prohibit" style="color: #f87171;"></i>
+                                <span>Feketelistás profilok, egyezések és korábbi fuvarok kezelése</span>
                             </div>
                         </div>
 
@@ -550,7 +575,7 @@ export const OrderOverviewView = {
                                 <i class="ph-bold ph-arrows-clockwise" id="hub-refresh-icon" style="font-size: 12px;"></i>
                                 <span>Frissítés</span>
                             </button>
-                            <div class="logi-tooltip-bubble" style="min-width: 170px; white-space: nowrap;">
+                            <div class="logi-tooltip-bubble tooltip-bottom tooltip-align-right" style="min-width: 170px; white-space: nowrap;">
                                 <i class="ph-bold ph-arrows-clockwise"></i>
                                 <span>Élő frissítés (Shopify & Járatok)</span>
                             </div>
@@ -679,6 +704,14 @@ export const OrderOverviewView = {
                                 <i class="ph-bold ph-copy"></i>
                                 <span>Több rendelés</span>
                                 <span style="background: ${currentChip === 'multiple_orders' ? 'rgba(255,255,255,0.25)' : '#7c3aed'}; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.multipleOrders}</span>
+                            </button>
+                        ` : ''}
+
+                        ${stats.blacklisted > 0 ? `
+                            <button class="hub-chip-btn ${currentChip === 'blacklisted' ? 'active' : ''}" data-chip="blacklisted" style="padding: 2.5px 7.5px; border-radius: 12px; border: 1.5px solid ${currentChip === 'blacklisted' ? '#0f172a' : '#475569'}; background: ${currentChip === 'blacklisted' ? '#0f172a' : '#1e293b'}; color: #ffffff; font-weight: 700; font-size: 10.5px; cursor: pointer; display: flex; align-items: center; gap: 3.5px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
+                                <i class="ph-bold ph-prohibit" style="color: #f87171;"></i>
+                                <span>Fekete lista</span>
+                                <span style="background: #ef4444; color: white; padding: 0 4px; border-radius: 6px; font-size: 9.5px;">${stats.blacklisted}</span>
                             </button>
                         ` : ''}
 
@@ -902,6 +935,30 @@ export const OrderOverviewView = {
                                     ${!order.isCancelled ? `
                                         <div class="hub-hanging-tags-stack" style="position: absolute; right: 100%; top: 50%; transform: translateY(-50%); display: flex; flex-direction: row; gap: 3px; align-items: center; justify-content: flex-end; z-index: 50; pointer-events: none; margin-right: 0px; white-space: nowrap;">
                                              
+                                            <!-- 0. Fekete lista címke (Fekete / #0f172a) -->
+                                            ${order.isBlacklisted ? `
+                                                <div class="logi-tooltip-wrapper btn-blacklist-tag-trigger" data-profile-id="${order.blacklistMatch?.profile?.id || ''}" data-order-id="${order.id}" style="position: relative; display: inline-flex; pointer-events: auto; cursor: pointer;">
+                                                    <div style="background: #0f172a; color: #ffffff; padding: 2px 7px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; box-shadow: -1px 2px 6px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 3.5px; white-space: nowrap; border: 1px solid #334155;">
+                                                        <i class="ph-bold ph-prohibit" style="font-size: 10px; color: #f87171;"></i>
+                                                        <span>fekete lista</span>
+                                                    </div>
+                                                    <div class="logi-tooltip-bubble" style="min-width: 250px; max-width: 360px; white-space: normal; text-align: left; display: flex; flex-direction: column; align-items: stretch; background: #0f172a; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+                                                        <div style="color: #f87171; font-weight: 800; display: flex; align-items: center; gap: 5px; font-size: 11px;">
+                                                            <i class="ph-bold ph-prohibit"></i>
+                                                            <span>Feketelistás találat!</span>
+                                                        </div>
+                                                        <div style="margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.15); font-size: 11px; color: #e2e8f0; line-height: 1.4;">
+                                                            Profil: <strong style="color: #ffffff;">${escapeHtml(order.blacklistMatch?.profile?.name || 'Ismeretlen profil')}</strong><br>
+                                                            Egyezés alapja: <strong style="color: #fca5a5;">${escapeHtml(order.blacklistMatch?.matchReason || '')}</strong> (${escapeHtml(order.blacklistMatch?.matchedValue || '')})
+                                                            ${order.blacklistMatch?.profile?.note ? `<br><span style="color: #94a3b8; font-style: italic;">"${escapeHtml(order.blacklistMatch.profile.note)}"</span>` : ''}
+                                                        </div>
+                                                        <div style="margin-top: 6px; font-size: 10px; color: #93c5fd; text-decoration: underline; font-weight: 700;">
+                                                            Kattints a profil és korábbi fuvarok megnyitásához &rarr;
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ` : ''}
+
                                             <!-- 1. Számlázni! (Sárga / Borostyán) -->
                                             ${order.hasNoInvoice ? `
                                                 <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex; pointer-events: auto; cursor: help;">
@@ -1083,6 +1140,33 @@ export const OrderOverviewView = {
                                         return `
                                             <div class="hub-order-details" style="padding: 12px 18px 14px 18px; background: #f8fafc; border-top: 1px solid #e2e8f0; border-bottom: 2px solid #cbd5e1; box-shadow: inset 0 2px 5px rgba(0,0,0,0.02);">
                                                 
+                                                <!-- Feketelista Figyelmeztető Sáv (Kiemelt, Prémium Fekete Panel) -->
+                                                ${order.isBlacklisted ? `
+                                                    <div style="background: #0f172a; color: #ffffff; border: 1.5px solid #334155; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25);">
+                                                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                                            <span style="background: #ef4444; color: #ffffff; padding: 2.5px 8px; border-radius: 5px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 3px rgba(239,68,68,0.4);">
+                                                                <i class="ph-bold ph-prohibit"></i>
+                                                                <span>Feketelista</span>
+                                                            </span>
+                                                            <span style="font-size: 12px;">
+                                                                Ez a megrendelés a(z) <strong style="color: #f87171; font-size: 12.5px;">"${escapeHtml(order.blacklistMatch?.profile?.name || 'Ismeretlen profil')}"</strong> feketelistás profilhoz kötődik!
+                                                            </span>
+                                                            <span style="background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 2px 7px; border-radius: 4px; font-size: 11px;">
+                                                                Egyezés: <strong style="color: #fca5a5;">${escapeHtml(order.blacklistMatch?.matchReason || '')}</strong> (${escapeHtml(order.blacklistMatch?.matchedValue || '')})
+                                                            </span>
+                                                            ${order.blacklistMatch?.profile?.note ? `
+                                                                <span style="color: #94a3b8; font-size: 11px; font-style: italic;">
+                                                                    "${escapeHtml(order.blacklistMatch.profile.note)}"
+                                                                </span>
+                                                            ` : ''}
+                                                        </div>
+                                                        <button type="button" class="btn-open-blacklist-profile" data-profile-id="${order.blacklistMatch?.profile?.id || ''}" style="background: #334155; color: #f8fafc; border: 1px solid #475569; padding: 4.5px 12px; border-radius: 6px; font-size: 11.5px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all .15s;" onmouseover="this.style.background='#475569'" onmouseout="this.style.background='#334155'">
+                                                            <i class="ph-bold ph-arrow-square-out"></i>
+                                                            <span>Profil & Korábbi fuvarok</span>
+                                                        </button>
+                                                    </div>
+                                                ` : ''}
+
                                                 <!-- 1. KOMPAKT STÁTUSZ & FIGYELMEZTETŐ SÁV (Csak ha van figyelmeztetés vagy terítés!) -->
                                                 ${(order.isCancelled || (!order.isFulfilled && order.hasBadShipping) || isInvalidAddr || order.needsProforma || order.hasNoInvoice || order.deliveryInfo) ? `
                                                     <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px dashed #e2e8f0;">
@@ -1215,14 +1299,39 @@ export const OrderOverviewView = {
                                                                     <i class="ph-bold ph-user" style="color: #64748b;"></i>
                                                                     ${order.shippingName || order.customerName || 'Vevő'}
                                                                 </span>
-                                                                <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
-                                                                    <button class="btn-copy-client-info" data-copy-text="${encodeURIComponent((order.shippingName || '') + ' - ' + (order.fullAddress || order.address || '') + (order.shippingPhone ? ' (Tel: ' + order.shippingPhone + ')' : ''))}" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; padding: 2px 7px; font-size: 11px; font-weight: 600; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px; transition: all .15s;">
-                                                                        <i class="ph-bold ph-copy"></i>
-                                                                        <span>Másolás</span>
-                                                                    </button>
-                                                                    <div class="logi-tooltip-bubble" style="min-width: 170px; white-space: nowrap;">
-                                                                        <i class="ph-bold ph-copy"></i>
-                                                                        <span>Címzett és cím másolása</span>
+                                                                <div style="display: flex; align-items: center; gap: 5px;">
+                                                                    ${order.isBlacklisted ? `
+                                                                        <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                                                                            <button class="btn-open-blacklist-profile" data-profile-id="${order.blacklistMatch?.profile?.id || ''}" style="background: #0f172a; border: 1px solid #334155; border-radius: 5px; padding: 2px 7px; font-size: 11px; font-weight: 700; cursor: pointer; color: #fca5a5; display: flex; align-items: center; gap: 4px; transition: all .15s;">
+                                                                                <i class="ph-bold ph-prohibit"></i>
+                                                                                <span>Feketelista</span>
+                                                                            </button>
+                                                                            <div class="logi-tooltip-bubble" style="min-width: 170px; white-space: nowrap;">
+                                                                                <i class="ph-bold ph-prohibit"></i>
+                                                                                <span>Feketelista profil és előzmények megnyitása</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    ` : `
+                                                                        <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                                                                            <button class="btn-add-to-blacklist" data-order-id="${order.id}" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 5px; padding: 2px 7px; font-size: 11px; font-weight: 600; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px; transition: all .15s;" onmouseover="this.style.background='#fee2e2';this.style.color='#b91c1c';this.style.borderColor='#fca5a5'" onmouseout="this.style.background='#f8fafc';this.style.color='#475569';this.style.borderColor='#cbd5e1'">
+                                                                                <i class="ph-bold ph-user-plus"></i>
+                                                                                <span>+ Feketelista</span>
+                                                                            </button>
+                                                                            <div class="logi-tooltip-bubble" style="min-width: 180px; white-space: nowrap;">
+                                                                                <i class="ph-bold ph-user-plus"></i>
+                                                                                <span>Vásárló hozzáadása a feketelistához</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    `}
+                                                                    <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
+                                                                        <button class="btn-copy-client-info" data-copy-text="${encodeURIComponent((order.shippingName || '') + ' - ' + (order.fullAddress || order.address || '') + (order.shippingPhone ? ' (Tel: ' + order.shippingPhone + ')' : ''))}" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; padding: 2px 7px; font-size: 11px; font-weight: 600; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px; transition: all .15s;">
+                                                                            <i class="ph-bold ph-copy"></i>
+                                                                            <span>Másolás</span>
+                                                                        </button>
+                                                                        <div class="logi-tooltip-bubble" style="min-width: 170px; white-space: nowrap;">
+                                                                            <i class="ph-bold ph-copy"></i>
+                                                                            <span>Címzett és cím másolása</span>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1326,15 +1435,23 @@ export const OrderOverviewView = {
                                             courier: dInfo?.courier || 'Futár nincs megadva',
                                             company: dInfo?.company || '',
                                             sender: dInfo?.sender || '',
+                                            _timestamp: dInfo?._timestamp || 0,
                                             orders: []
                                         });
                                     }
                                     runGroups.get(key).orders.push(order);
                                 });
 
+                                // A terítési csoportokat mindig a legfrissebb körtől a legrégebbi felé jelenítjük meg
+                                const sortedGroups = Array.from(runGroups.values()).sort((a, b) => {
+                                    const tsA = a._timestamp || getRunTimestamp(a);
+                                    const tsB = b._timestamp || getRunTimestamp(b);
+                                    return tsB - tsA;
+                                });
+
                                 let groupIndex = 1;
                                 let html = '';
-                                for (const [key, group] of runGroups.entries()) {
+                                for (const group of sortedGroups) {
                                     const groupTotal = group.orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
                                     const groupCod = group.orders.reduce((sum, o) => sum + (o.codAmount || 0), 0);
                                     const formattedGroupTotal = new Intl.NumberFormat('hu-HU').format(groupTotal);

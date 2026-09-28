@@ -648,7 +648,8 @@ export function getOrdersInSelectionOrder(allOrders, selectedIds) {
  */
 export function hasOkTag(note) {
     if (!note) return false;
-    return String(note).toLowerCase().includes('[ok]');
+    const str = String(note).toLowerCase();
+    return str.includes('{ok}') || str.includes('[ok]');
 }
 
 /**
@@ -707,6 +708,28 @@ export function calculateMorningReportStats(orders = [], cutoff24h = null) {
         newOrders24h,
         newUnfulfilled24h
     };
+}
+
+/**
+ * Kinyeri a szögletes zárójelbe [ ... ] (vagy kapcsos zárójelbe { ... }) írt futár/szállító megjegyzéseket a megrendelés Notes mezőjéből.
+ * Pl. "számléa blablabal [14:00 után jó neki] iuh kiskutya farka blablabla" -> "14:00 után jó neki"
+ * Több zárójel esetén vesszővel összefűzi őket (pl. "[kapucsengő 12] [csak du 2 után]" -> "kapucsengő 12, csak du 2 után").
+ * A belső rendszerjellegű [ok] címkét automatikusan figyelmen kívül hagyja.
+ * 
+ * @param {string} note 
+ * @returns {string} Kinyert futár instrukció vagy üres string
+ */
+export function extractCourierInstructionsFromNote(note) {
+    if (!note) return '';
+    const str = String(note);
+    const matches = str.matchAll(/\[([^\[\]]+)\]/g);
+    const results = [];
+    for (const match of matches) {
+        const text = match[1].trim();
+        if (!text || text.toLowerCase() === 'ok') continue;
+        results.push(text);
+    }
+    return results.join(', ');
 }
 
 /**
@@ -1043,4 +1066,118 @@ export function calculateOrderDeliveryCost(order, options = {}) {
         isCarrierFault: false
     };
 }
+
+/**
+ * Kiszámítja egy kiszállítási kör (run) numerikus időbélyegét (milliszekundumban).
+ * Elsődlegesen a naptári napot (date / pickupDate / originalDate) veszi alapul,
+ * és finomhangolásként a Firestore timestamp-et / run.id-t használja az azonos napon belüli sorrendhez.
+ * 
+ * @param {Object} run
+ * @returns {number}
+ */
+export function getRunTimestamp(run) {
+    if (!run) return 0;
+
+    let calTime = 0;
+    const dateStr = run.date || run.pickupDate || run.originalDate || '';
+    if (typeof dateStr === 'string' && dateStr.trim()) {
+        const clean = dateStr.replace(/[.\s]+/g, '-').replace(/-+$/, '').trim();
+        const parts = clean.split('-');
+        if (parts.length === 3) {
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10);
+            const d = parseInt(parts[2], 10);
+            if (!isNaN(y) && !isNaN(m) && !isNaN(d) && y >= 2020 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+                calTime = Date.UTC(y, m - 1, d);
+            }
+        }
+        if (!calTime) {
+            const dt = new Date(clean);
+            if (!isNaN(dt.getTime())) {
+                calTime = dt.getTime();
+            }
+        }
+    }
+
+    let ts = 0;
+    if (typeof run.timestamp === 'number') {
+        ts = run.timestamp;
+    } else if (run.timestamp && typeof run.timestamp.toMillis === 'function') {
+        ts = run.timestamp.toMillis();
+    } else if (run.timestamp && typeof run.timestamp.seconds === 'number') {
+        ts = run.timestamp.seconds * 1000;
+    }
+
+    let idTs = 0;
+    if (typeof run.id === 'string') {
+        const match = run.id.match(/^run_(\d{10,13})/);
+        if (match) {
+            idTs = parseInt(match[1], 10);
+            if (idTs < 1e11) idTs *= 1000;
+        }
+    }
+
+    const fineTime = ts || idTs || 0;
+    if (calTime > 0) {
+        return calTime + (fineTime ? (Math.abs(fineTime) % 86400000) : 0);
+    }
+    return fineTime;
+}
+
+/**
+ * Létrehozza a legfrissebb terítési adatokat tartalmazó Map-et a mentett körök alapján.
+ * Ha egy rendelés (pl. #3794) több körben is szerepelt (pl. 09.01 Bábel Ádám, majd 09.24 Tomi),
+ * garantáltan a legutóbbi (legkésőbbi dátumú / időbélyegű) kör adatai érvényesülnek.
+ * 
+ * @param {Array} savedRuns
+ * @returns {Map<string, Object>} Map(cleanOrderId -> deliveryInfo)
+ */
+export function buildLatestDeliveryMap(savedRuns) {
+    const deliveryMap = new Map();
+    if (!Array.isArray(savedRuns) || savedRuns.length === 0) return deliveryMap;
+
+    // Rendezzük a futásokat a legfrissebbtől a legrégebbi felé
+    const sortedRuns = [...savedRuns].sort((a, b) => getRunTimestamp(b) - getRunTimestamp(a));
+
+    sortedRuns.forEach(run => {
+        const runTimestamp = getRunTimestamp(run);
+        const uncollSet = new Set((run.uncollectedOrderIds || []).map(id => String(id).replace(/^#/, '').trim()));
+
+        (run.orders || []).forEach(o => {
+            if (!o || !o.id) return;
+            const cleanId = String(o.id).replace(/^#/, '').replace(/\/.*$/, '').trim();
+            if (!cleanId) return;
+
+            const existing = deliveryMap.get(cleanId);
+            // Mindig a legújabb (legkésőbbi dátumú / időbélyegű) járat adatai érvényesülnek
+            if (!existing || runTimestamp > (existing._timestamp || 0)) {
+                const isUncollected = uncollSet.has(cleanId) || (run.uncollectedOrderIds || []).map(String).includes(String(o.id));
+                const uncollectedReason = (run.uncollectedReasons || {})[o.id] || (run.uncollectedReasons || {})[cleanId] || '';
+                const uncollectedResp = (run.uncollectedResponsibility || {})[o.id] || (run.uncollectedResponsibility || {})[cleanId] || '';
+                const paymentMethod = (run.paymentMethods || {})[o.id] || (run.paymentMethods || {})[cleanId] || '';
+                const paymentStatus = (run.paymentStatusMap || {})[o.id] || (run.paymentStatusMap || {})[cleanId] || '';
+
+                deliveryMap.set(cleanId, {
+                    runId: run.id,
+                    docId: run.docId,
+                    runDate: run.date || run.pickupDate || '',
+                    pickupDate: run.pickupDate || '',
+                    courier: run.courier || 'Futár',
+                    company: run.company || '',
+                    sender: run.sender || 'capsula',
+                    isUncollected: isUncollected,
+                    uncollectedReason: uncollectedReason,
+                    uncollectedResp: uncollectedResp,
+                    paymentMethod: paymentMethod,
+                    paymentStatus: paymentStatus,
+                    isSettled: !!run.isSettled,
+                    _timestamp: runTimestamp
+                });
+            }
+        });
+    });
+
+    return deliveryMap;
+}
+
 

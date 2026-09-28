@@ -2,6 +2,7 @@ import { formatHungarianPhoneNumber } from '../utils/phoneFormatter.js';
 import { cleanItemNameForMapping, cleanAddress } from './shopify.js';
 import { db, doc, getDoc, setDoc } from '../firebase-config.js';
 import { CustomDialog } from '../utils/dialog.js';
+import { extractCourierInstructionsFromNote } from '../utils/orderUtils.js';
 
 let mappingsCache = null;
 let profilesCache = null;
@@ -1135,8 +1136,10 @@ export const PannonXPService = {
             let exportedStreet = cleanAddress(order.address1 || order.fullAddress || order.address || '').replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
             rowData.push(exportedStreet);
             
-            // Címzett megjegyzés
-            rowData.push(order.notes || '');
+            // Címzett megjegyzés: szögletes zárójeles [ ... ] futár instrukciók prioritása
+            const rawOrderNote = order.note || order.notes || '';
+            const pxpCourierNote = extractCourierInstructionsFromNote(rawOrderNote);
+            rowData.push(pxpCourierNote || rawOrderNote);
             rowData.push(''); // ucc_ceg_adoszam (üres)
             
             // 3. Szállítási opciók

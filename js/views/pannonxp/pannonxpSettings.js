@@ -262,6 +262,107 @@ export function showConfigureProductModal(order, originalName, cleanedName, defa
     });
 }
 
+const PXP_TOOLTIP_CONTENT_TYPE = `
+    <div style="font-weight: 700; color: #38bdf8; font-size: 12px; margin-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 4px;">
+        Számítási Típusok Magyarázata
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 7px; font-size: 11px; line-height: 1.45;">
+        <div><strong style="color: #67e8f9;">Darabszám szerinti dobozméret:</strong> Nem lineáris (pl. panelek). 1 db, 2 db, 3 db... esetén egyedileg beállított dobozméret és súly érvényesül.</div>
+        <div><strong style="color: #67e8f9;">Egységsúly + dobozsúly:</strong> Lineáris képlet (pl. profilok). Alap dobozsúly + (db * egységsúly), fix mérettel.</div>
+        <div><strong style="color: #67e8f9;">Ragasztó / Segédanyag:</strong> Ha van panel a rendelésben és &lt;7 db van belőle, elnyelődik a dobozában (0 extra doboz). Ha 7+ db van, külön dobozt nyit.</div>
+        <div><strong style="color: #67e8f9;">Nem fizikai tétel:</strong> 0 doboz, 0 kg (pl. felárak, garancia).</div>
+    </div>
+`;
+
+const PXP_TOOLTIP_CONTENT_FAMILY = `
+    <div style="font-weight: 700; color: #38bdf8; font-size: 12px; margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 4px;">
+        Csomagolási Család
+    </div>
+    <div style="font-size: 11px; line-height: 1.45; color: #f8fafc;">
+        Az azonos családba tartozó kategóriák (pl. sima és wide akusztikus panelek) fizikailag egy közös dobozba kerülhetnek, ha a darabszámuk megengedi. Ha üresen hagyod, csak önállóan csomagolódik.
+    </div>
+`;
+
+let activeFloatingTooltip = null;
+let tooltipPinnedByClick = false;
+let currentTooltipAnchor = null;
+
+function showFloatingTooltip(anchorEl, htmlContent, preferredPlacement = 'bottom') {
+    hideFloatingTooltip(true);
+
+    const tooltip = document.createElement('div');
+    tooltip.className = 'pxp-global-floating-tooltip';
+    tooltip.style.cssText = `
+        position: fixed;
+        background: #0f172a;
+        color: #f8fafc;
+        padding: 12px 15px;
+        border-radius: 8px;
+        font-size: 11.5px;
+        line-height: 1.45;
+        width: 340px;
+        max-width: calc(100vw - 32px);
+        z-index: 100000;
+        box-shadow: 0 10px 25px -3px rgba(15, 23, 42, 0.55), 0 4px 10px rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+    `;
+    tooltip.innerHTML = htmlContent;
+    document.body.appendChild(tooltip);
+    activeFloatingTooltip = tooltip;
+    currentTooltipAnchor = anchorEl;
+
+    const rect = anchorEl.getBoundingClientRect();
+    const tipRect = tooltip.getBoundingClientRect();
+
+    let top = 0;
+    if (preferredPlacement === 'bottom') {
+        if (rect.bottom + tipRect.height + 12 <= window.innerHeight) {
+            top = rect.bottom + 6;
+        } else if (rect.top - tipRect.height - 12 >= 0) {
+            top = rect.top - tipRect.height - 6;
+        } else {
+            top = Math.max(10, window.innerHeight - tipRect.height - 10);
+        }
+    } else {
+        if (rect.top - tipRect.height - 12 >= 0) {
+            top = rect.top - tipRect.height - 6;
+        } else {
+            top = rect.bottom + 6;
+        }
+    }
+
+    let left = rect.right - tipRect.width;
+    if (left < 10) left = 10;
+    if (left + tipRect.width > window.innerWidth - 10) {
+        left = window.innerWidth - tipRect.width - 10;
+    }
+
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+    tooltip.style.opacity = '1';
+}
+
+function hideFloatingTooltip(force = false) {
+    if (activeFloatingTooltip && (force || !tooltipPinnedByClick)) {
+        activeFloatingTooltip.remove();
+        activeFloatingTooltip = null;
+        currentTooltipAnchor = null;
+        if (force) tooltipPinnedByClick = false;
+    }
+}
+
+function toggleFloatingTooltip(anchorEl, htmlContent, preferredPlacement = 'bottom') {
+    if (activeFloatingTooltip && currentTooltipAnchor === anchorEl && tooltipPinnedByClick) {
+        hideFloatingTooltip(true);
+    } else {
+        tooltipPinnedByClick = true;
+        showFloatingTooltip(anchorEl, htmlContent, preferredPlacement);
+    }
+}
+
 export function showSettingsModal(container, orders, onExport, mainViewContext) {
     const mainContainer = container;
     const overlay = document.createElement('div');
@@ -382,6 +483,29 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
     `;
     
     document.body.appendChild(overlay);
+
+    const onDocClick = (e) => {
+        if (!e.target.closest('.pxp-type-info-trigger') && !e.target.closest('.pxp-family-info-trigger')) {
+            hideFloatingTooltip(true);
+        }
+    };
+    document.addEventListener('click', onDocClick);
+
+    const onEscKey = (e) => {
+        if (e.key === 'Escape') {
+            hideFloatingTooltip(true);
+        }
+    };
+    window.addEventListener('keydown', onEscKey);
+
+    overlay.addEventListener('scroll', () => hideFloatingTooltip(true), { capture: true });
+
+    const closeModal = () => {
+        hideFloatingTooltip(true);
+        document.removeEventListener('click', onDocClick);
+        window.removeEventListener('keydown', onEscKey);
+        overlay.remove();
+    };
     
     const renderDimensionCards = (container, prefixId, maxQty, rulesList, defaultLength = 278) => {
         container.style.display = 'grid';
@@ -566,10 +690,15 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
         tabContainer.querySelectorAll('.btn-toggle-category-details').forEach(btn => {
             btn.addEventListener('click', () => {
                 const catId = btn.dataset.catId;
+                const block = tabContainer.querySelector(`.category-block[data-cat-id="${catId}"]`);
                 const body = tabContainer.querySelector(`.category-body[data-cat-id="${catId}"]`);
                 if (!body) return;
                 const isOpen = body.style.display !== 'none';
                 body.style.display = isOpen ? 'none' : 'flex';
+                const header = block ? block.querySelector('.category-header') : null;
+                if (header) {
+                    header.style.borderRadius = isOpen ? '9px' : '9px 9px 0 0';
+                }
                 const txt = btn.querySelector('.toggle-text');
                 const icon = btn.querySelector('.toggle-icon');
                 if (txt) txt.textContent = isOpen ? 'Részletek' : 'Összecsukás';
@@ -585,20 +714,35 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
             });
         });
 
-        tabContainer.querySelectorAll('.pxp-family-group').forEach(grp => {
-            const tip = grp.querySelector('.pxp-family-tooltip');
-            if (tip) {
-                grp.addEventListener('mouseenter', () => { tip.style.display = 'block'; });
-                grp.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
-            }
+        tabContainer.querySelectorAll('.category-block').forEach(block => {
+            block.addEventListener('mouseenter', () => { block.style.zIndex = '15'; });
+            block.addEventListener('mouseleave', () => { block.style.zIndex = '1'; });
         });
 
-        tabContainer.querySelectorAll('.pxp-type-group').forEach(grp => {
-            const tip = grp.querySelector('.pxp-type-tooltip');
-            if (tip) {
-                grp.addEventListener('mouseenter', () => { tip.style.display = 'block'; });
-                grp.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
-            }
+        tabContainer.querySelectorAll('.pxp-type-info-trigger').forEach(trigger => {
+            trigger.addEventListener('mouseenter', () => {
+                showFloatingTooltip(trigger, PXP_TOOLTIP_CONTENT_TYPE, 'bottom');
+            });
+            trigger.addEventListener('mouseleave', () => {
+                hideFloatingTooltip();
+            });
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleFloatingTooltip(trigger, PXP_TOOLTIP_CONTENT_TYPE, 'bottom');
+            });
+        });
+
+        tabContainer.querySelectorAll('.pxp-family-info-trigger').forEach(trigger => {
+            trigger.addEventListener('mouseenter', () => {
+                showFloatingTooltip(trigger, PXP_TOOLTIP_CONTENT_FAMILY, 'top');
+            });
+            trigger.addEventListener('mouseleave', () => {
+                hideFloatingTooltip();
+            });
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleFloatingTooltip(trigger, PXP_TOOLTIP_CONTENT_FAMILY, 'top');
+            });
         });
 
         const form = tabContainer.querySelector('#pxp-settings-rules-form');
@@ -682,7 +826,7 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
                     }
                     
                     await CustomDialog.alert('Termék csomagolási szabályok sikeresen elmentve és újraszámolva!', 'Mentés sikeres', 'info');
-                    overlay.remove();
+                    closeModal();
                     if (mainViewContext && typeof mainViewContext.render === 'function') {
                         mainViewContext.render(container, orders, onExport);
                     }
@@ -700,6 +844,20 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
         
         let html = `
             <form id="pxp-settings-rules-form" style="display: flex; flex-direction: column; gap: 15px;">
+                <!-- Tájékoztató kártya a csomagolási és számítási típusokról -->
+                <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 12px 16px; font-size: 12px; color: #0369a1; display: flex; align-items: flex-start; gap: 12px;">
+                    <i class="ph-bold ph-info" style="font-size: 20px; color: #0284c7; flex-shrink: 0; margin-top: 2px;"></i>
+                    <div style="flex: 1; line-height: 1.5;">
+                        <div style="font-weight: 700; color: #0c4a6e; margin-bottom: 4px; font-size: 13px;">Számítási és Csomagolási Típusok Útmutatója:</div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 16px; margin-top: 6px;">
+                            <div><strong style="color: #0369a1;">Darabszám szerinti:</strong> Nem lineáris (pl. panelek). 1 db, 2 db, 3 db... esetén egyedileg beállított dobozméret és súly érvényesül.</div>
+                            <div><strong style="color: #0369a1;">Egységsúly + dobozsúly:</strong> Lineáris képlet (pl. profilok). Alap dobozsúly + (db * egységsúly), fix mérettel.</div>
+                            <div><strong style="color: #0369a1;">Ragasztó / Segédanyag:</strong> Ha van panel a rendelésben és &lt;7 db van belőle, elnyelődik a dobozában (0 extra doboz). Ha 7+ db van, külön dobozt nyit.</div>
+                            <div><strong style="color: #0369a1;">Nem fizikai tétel:</strong> 0 doboz, 0 kg (pl. felárak, garancia).</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div style="display:flex; flex-direction:column; gap:12px;" id="pxp-categories-list-container">
         `;
         
@@ -707,33 +865,24 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
             const isCustom = !['cat_acoustic', 'cat_spcwood', 'cat_spcstone', 'cat_profile', 'cat_adhesive'].includes(cat.id);
             
             html += `
-                <div class="category-block" data-cat-id="${cat.id}" style="border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.02); transition: all 0.2s ease;">
-                    <div class="category-header" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 14px; background: #ffffff; border-bottom: 1px solid #e2e8f0; gap: 10px; flex-wrap: wrap;">
+                <div class="category-block" data-cat-id="${cat.id}" style="border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; overflow: visible; position: relative; z-index: 1; box-shadow: 0 1px 3px rgba(0,0,0,0.02); transition: all 0.2s ease;">
+                    <div class="category-header" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 14px; background: #ffffff; border-radius: 9px; border-bottom: 1px solid #e2e8f0; gap: 10px; flex-wrap: wrap;">
                         <div style="display:flex; align-items:center; gap:8px;">
                             <span style="background:var(--primary-color); color:#fff; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; flex-shrink:0;">${index + 1}</span>
                             <input type="text" class="cat-input-name" data-cat-id="${cat.id}" value="${cat.name}" style="font-size:13.5px; font-weight:700; border:none; background:transparent; color:#1e293b; outline:none; min-width:180px; border-bottom:1px dashed #cbd5e1; padding: 2px 4px;" placeholder="Kategória neve">
                         </div>
 
                         <div style="display:flex; align-items:center; gap:8px;">
-                            <div class="pxp-type-group" style="position:relative; display:inline-flex; align-items:center; gap:4px;">
+                            <div class="pxp-type-group" style="position:relative; display:inline-flex; align-items:center; gap:6px;">
                                 <select class="cat-select-type" data-cat-id="${cat.id}" style="padding:4px 8px; border-radius:6px; border:1px solid #cbd5e1; font-size:11.5px; background:#fff; font-weight:600; cursor:pointer;">
                                     <option value="cards" ${cat.type === 'cards' ? 'selected' : ''}>Darabszám szerinti dobozméret (pl. Panelek)</option>
                                     <option value="weight" ${cat.type === 'weight' ? 'selected' : ''}>Egységsúly + dobozsúly (pl. Profilok)</option>
                                     <option value="adhesive" ${cat.type === 'adhesive' ? 'selected' : ''}>Ragasztó / Segédanyag (elnyelési logikával)</option>
                                     <option value="none" ${cat.type === 'none' || cat.type === 'semmi' ? 'selected' : ''}>Nem fizikai tétel (Semmi - csomagból kizárva)</option>
                                 </select>
-                                <span style="cursor:help; color:#3b82f6; display:inline-flex; align-items:center;" title="Kattints vagy vigyél rá az egeret a számítási típusok magyarázatához">
-                                    <i class="ph-bold ph-info" style="font-size:14px;"></i>
-                                </span>
-                                <div class="pxp-type-tooltip" style="display:none; position:absolute; top:calc(100% + 4px); right:0; background:#0f172a; color:#fff; padding:10px 14px; border-radius:8px; font-size:11px; line-height:1.45; width:330px; z-index:100; box-shadow:0 6px 16px rgba(0,0,0,0.25); pointer-events:none;">
-                                    <strong style="color:#38bdf8; display:block; margin-bottom:4px;">Számítási Típusok:</strong>
-                                    <div style="display:flex; flex-direction:column; gap:6px;">
-                                        <div><strong>Darabszám szerinti dobozméret:</strong> Nem lineáris (pl. panelek). 1 db, 2 db, 3 db... esetén egyedileg beállított dobozméret és súly érvényesül.</div>
-                                        <div><strong>Egységsúly + dobozsúly:</strong> Lineáris képlet (pl. profilok). Alap dobozsúly + (db * egységsúly), fix mérettel.</div>
-                                        <div><strong>Ragasztó / Segédanyag:</strong> Ha van panel a rendelésben és &lt;7 db van belőle, elnyelődik a dobozában (0 extra doboz). Ha 7+ db van, külön dobozt nyit.</div>
-                                        <div><strong>Nem fizikai tétel:</strong> 0 doboz, 0 kg (pl. felárak, garancia).</div>
-                                    </div>
-                                </div>
+                                <button type="button" class="pxp-type-info-trigger" data-cat-id="${cat.id}" style="background: none; border: none; cursor: pointer; color: #3b82f6; display: inline-flex; align-items: center; justify-content: center; padding: 3px; border-radius: 50%;" title="Kattints vagy vigyél rá az egeret a számítási típusok magyarázatához">
+                                    <i class="ph-bold ph-info" style="font-size: 15px;"></i>
+                                </button>
                             </div>
 
                             <span class="cat-summary-badge" style="font-size:11px; background:#f1f5f9; color:#475569; border: 1px solid #e2e8f0; padding:3px 8px; border-radius:6px; font-weight:700; white-space:nowrap;">
@@ -760,14 +909,13 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
                                 <input type="number" class="cat-input-maxqty" data-cat-id="${cat.id}" value="${cat.maxQty || (cat.type === 'cards' ? 5 : cat.type === 'adhesive' ? 15 : 50)}" style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
                             </div>
                             <div class="form-group pxp-family-group" style="margin-bottom:0; position:relative;">
-                                <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: flex; align-items: center; gap: 4px; margin-bottom:2px; cursor:help;">
+                                <label style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: flex; align-items: center; gap: 4px; margin-bottom:2px;">
                                     <span>Csomagolási Család ID</span>
-                                    <i class="ph-bold ph-info" style="font-size:12px; color:#3b82f6;"></i>
+                                    <button type="button" class="pxp-family-info-trigger" style="background:none; border:none; cursor:pointer; color:#3b82f6; display:inline-flex; align-items:center; padding:1px;" title="Csomagolási Család magyarázata">
+                                        <i class="ph-bold ph-info" style="font-size:12px;"></i>
+                                    </button>
                                 </label>
                                 <input type="text" class="cat-input-group" data-cat-id="${cat.id}" value="${cat.packagingGroup || ''}" placeholder="pl. acoustic_family" title="Csomagolási Család: Az azonos családba tartozó kategóriák (pl. sima és wide akusztikus panelek) fizikailag egy közös dobozba csomagolhatók, ha a darabszámuk megengedi. Ha üresen hagyod, csak önállóan csomagolódik." style="padding: 6px 10px; font-size: 12px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;">
-                                <div class="pxp-family-tooltip" style="display:none; position:absolute; bottom:calc(100% + 4px); right:0; background:#0f172a; color:#fff; padding:8px 12px; border-radius:6px; font-size:11px; line-height:1.4; width:280px; z-index:100; box-shadow:0 4px 12px rgba(0,0,0,0.2); pointer-events:none;">
-                                    <strong>Csomagolási Család:</strong> Az azonos családba tartozó kategóriák (pl. sima és wide akupanel) fizikailag egy közös dobozba kerülhetnek, ha a darabszámuk megengedi. Ha üres, külön dobozt kap.
-                                </div>
                             </div>
                         </div>
                         
@@ -1372,13 +1520,13 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
     });
     
     overlay.querySelector('#pxp-settings-close').addEventListener('click', () => {
-        overlay.remove();
+        closeModal();
     });
     
     const selectProfile = overlay.querySelector('#pxp-settings-profile-select');
     selectProfile.addEventListener('change', (e) => {
         PannonXPService.setActiveProfileId(e.target.value);
-        overlay.remove();
+        closeModal();
         showSettingsModal(container, orders, onExport, mainViewContext);
     });
     
@@ -1393,7 +1541,7 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
             PannonXPService.saveSenderProfiles(allProfiles);
             PannonXPService.setActiveProfileId(newId);
             
-            overlay.remove();
+            closeModal();
             showSettingsModal(container, orders, onExport, mainViewContext);
             if (mainViewContext && typeof mainViewContext.render === 'function') {
                 mainViewContext.render(container, orders, onExport);
@@ -1415,7 +1563,7 @@ export function showSettingsModal(container, orders, onExport, mainViewContext) 
             PannonXPService.saveSenderProfiles(updated);
             PannonXPService.setActiveProfileId(updated[0].id);
             
-            overlay.remove();
+            closeModal();
             showSettingsModal(container, orders, onExport, mainViewContext);
             if (mainViewContext && typeof mainViewContext.render === 'function') {
                 mainViewContext.render(container, orders, onExport);

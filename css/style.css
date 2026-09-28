@@ -1546,6 +1546,44 @@ input:focus { outline: none; border-color: var(--primary); background: white; bo
     transform: translateX(-50%) translateY(0);
 }
 
+/* Tooltip lenyíló irány lefelé (pl. felső toolbar gombokhoz, hogy ne vágja le a görgetősáv) */
+.logi-tooltip-bubble.tooltip-bottom {
+    bottom: auto;
+    top: calc(100% + 8px);
+    transform: translateX(-50%) translateY(-4px);
+}
+
+.logi-tooltip-bubble.tooltip-bottom::after {
+    top: auto;
+    bottom: 100%;
+    border-color: transparent transparent #0f172a transparent;
+}
+
+.logi-tooltip-wrapper:hover .logi-tooltip-bubble.tooltip-bottom {
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Tooltip jobb szélre igazítás (jobb oldali gombokhoz, hogy ne lógjon ki a képernyőről) */
+.logi-tooltip-bubble.tooltip-align-right {
+    left: auto;
+    right: 0;
+    transform: translateY(4px);
+}
+
+.logi-tooltip-bubble.tooltip-align-right::after {
+    left: auto;
+    right: 18px;
+    transform: none;
+}
+
+.logi-tooltip-bubble.tooltip-bottom.tooltip-align-right {
+    transform: translateY(-4px);
+}
+
+.logi-tooltip-wrapper:hover .logi-tooltip-bubble.tooltip-bottom.tooltip-align-right {
+    transform: translateY(0);
+}
+
 /* ==========================================================================
    Szállítói Export (Sela) & Terméksúly Modálok Stílusai
    ========================================================================== */

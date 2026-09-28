@@ -52,6 +52,10 @@ export function openOrderNoteModal({ orderId, shopifyId, customerName, note, onS
                     <i class="ph-bold ph-cloud-arrow-up" style="color: #3b82f6;"></i>
                     <span>A mentés azonnal frissíti a rendelés Notes mezőjét a Shopify-ban is.</span>
                 </div>
+                <div style="display: flex; align-items: flex-start; gap: 6px; margin-top: 8px; font-size: 11.5px; color: #0369a1; background: #f0f9ff; padding: 7px 10px; border-radius: 6px; border: 1px solid #bae6fd; line-height: 1.4;">
+                    <i class="ph-bold ph-truck" style="margin-top: 2px; flex-shrink: 0;"></i>
+                    <span><strong>Szállítói export & belső némítás:</strong> A szögletes zárójelbe <code>[ ... ]</code> írt szöveg a szállítói exportba kerül (pl. <code>[14:00 után jó neki]</code>). A belső feladat-némításra a kapcsos <code>{ok}</code> jelölés szolgál.</span>
+                </div>
             </div>
 
             <!-- Modal Lábléc -->

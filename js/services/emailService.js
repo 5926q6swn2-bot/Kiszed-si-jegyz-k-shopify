@@ -278,7 +278,7 @@ export function generateMorningReportEmailHtml(data = {}, isMonday = false, shop
     const newUnfulfilledCount = data.newUnfulfilledCount || 0;
     const unfulfilledCount = data.unfulfilledCount || 0;
 
-    const hasOkTag = (note) => note && String(note).toLowerCase().includes('[ok]');
+    const hasOkTag = (note) => note && (String(note).toLowerCase().includes('{ok}') || String(note).toLowerCase().includes('[ok]'));
     const extractScheduledDateTag = (note) => {
         if (!note) return null;
         const match = String(note).match(/\[(?:(\d{4})[\.\/-])?(\d{1,2})[\.\/-](\d{1,2})\.?\]/);
@@ -585,14 +585,14 @@ export function generateMorningReportEmailHtml(data = {}, isMonday = false, shop
         html += `
             <div style="background: #faf5ff; border: 1px solid #d8b4fe; border-radius: 8px; padding: 14px 16px; margin-top: 10px;">
                 <div style="font-weight: 800; font-size: 13px; text-transform: uppercase; color: #6b21a8; margin-bottom: 6px;">
-                    8. Egyeztetett rendelések (Hétfői felülvizsgálat) — [ok] (${mondayHandledItems.length} db)
+                    8. Egyeztetett rendelések (Hétfői felülvizsgálat) — {ok} (${mondayHandledItems.length} db)
                 </div>
                 <div style="font-size: 12px; color: #6b21a8; margin-bottom: 10px;">
-                    Az alábbi [ok] megjegyzéssel rendelkező tételek riasztásai hétköznap el voltak némítva. Heti ellenőrzés:
+                    Az alábbi {ok} megjegyzéssel rendelkező tételek riasztásai hétköznap el voltak némítva. Heti ellenőrzés:
                 </div>
         `;
         if (mondayHandledItems.length === 0) {
-            html += `<div style="color: #6b21a8; font-size: 12.5px;">Jelenleg nincs [ok] megjegyzéssel elhalasztott rendelés.</div>`;
+            html += `<div style="color: #6b21a8; font-size: 12.5px;">Jelenleg nincs {ok} megjegyzéssel elhalasztott rendelés.</div>`;
         } else {
             html += `<ul style="margin: 0; padding-left: 18px;">`;
             mondayHandledItems.forEach(item => {

@@ -28,8 +28,8 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 ---
 
-- **Utolsó aktív modell**: Gemini 3.8 Flash (Medium)
-- **Státusz**: A rendszer stabil, Render felhőre kész. Elszámolás Export Modál cégválasztással és kintlévőség/rendezett szűréssel élesítve (v4.9.8, 672/672 zöld unit teszt).
+- **Utolsó aktív modell**: Gemini 3.8 Flash (High)
+- **Státusz**: Teljes Feketelista Rendszer: dinamikus egyesével felvihető sorok (rendelésszám, telefon, cím, e-mail), rendelésből gombnyomásra automatikusan betölthető adatok, e-mail és rendelésszám alapú egyezés, hover tooltip túlcsordulás javítás (v4.9.12, 753/753 zöld unit teszt).
 
 
 ---
@@ -47,9 +47,83 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 3. **Opcionális Céges PIN Kód / Belépési Védelem a Felhős Címhez**:
    - Igény esetén egyszerű PIN kódos védelem hozzáadása, hogy idegenek ne láthassák a rendelési adatokat a publikus linken.
 
-4. **Feketelista Kezelő (Blacklist Manager) & Automata Kockázatos Vevő Szűrés**:
-   - Megbízhatatlan / lebeszélt időpontban át nem vett rendelések vevőinek központi rögzítése (többszörös telefonszámok, szállítási címek, nevek, e-mail címek + indoklás).
-   - Új Shopify rendelés letöltésekor automatikus egyeztetés a feketelistával, és azonnali piros figyelmeztető doboz generálása a raktári felületen (opcionális automatikus `feketelista` tageléssel a Shopify-ban).
+---
+
+### 2026. szeptember 28. (4. frissítés) - Feketelista Rendszer, Dinamikus Mezők & Automata Rendelésbetöltés (`v4.9.12`)
+- **Lebegő Tooltip (Hover) Pozicionálás Javítása (`css/style.css`, `js/views/orderOverviewView.js`)**:
+  - A fejléc gombjain (`Feketelista`, `Terméksúlyok`, `Frissítés`) felugró buborék korábban felfelé nyílt meg, emiatt a gördülő tároló felső széle levágta (`overflow` clipping).
+  - Új `.logi-tooltip-bubble.tooltip-bottom` és `.tooltip-align-right` osztályok: a buborék mostantól lefelé és a jobb szélhez igazítva jelenik meg, így mindig 100%-ban látható és sosem lóg ki.
+- **E-mail és Rendelésszám Alapú Egyezés & Felderítés (`js/utils/blacklistUtils.js`, `js/services/blacklistService.js`)**:
+  - `isEmailMatch(e1, e2)`: kis-/nagybetű és szóköz független e-mail egyezés.
+  - `isOrderIdMatch(oId1, oId2)`: kettőskereszttől és felesleges szóközöktől megtisztított rendelésszám vizsgálat.
+  - `matchOrderWithBlacklist`: az egyeztetés a telefonszám és a cím mellett mostantól a megadott **e-mail címek** és **rendelésszámok** alapján is automatikusan beazonosítja a feketelistás rendeléseket.
+  - `findRelatedDeliveriesForProfile`: a profilhoz tartozó múltbéli terítések megkeresése rendelésszámok, telefonszámok, címek, e-mailek és vásárlónév szerint is működik.
+- **Profilkezelő Űrlap Megújítása - Dinamikus Mezők és Rendelés Betöltés (`js/views/blacklistModal.js`)**:
+  - **Sortöréses szövegmezők lecserélése dinamikus sorokra**: A rendelésszámok, telefonszámok, címek és e-mail címek mostantól **egyesével rögzíthetők**. Minden sornak saját törlés gombja van, és az `+ Új rendelésszám`, `+ Új telefonszám`, `+ Új cím`, `+ Új e-mail cím` gombokkal azonnal új sor adható hozzá.
+  - **Adatok automatikus betöltése meglévő rendelésből**: Az űrlap tetején elhelyezett gyorskeresővel rendelésszám (pl. `#3794` vagy `4169`) alapján a rendszer automatikusan kikeresi a rendelést (az élő rendelések vagy a korábbi futárkörök közül), és gombnyomásra kitölti a vevő nevét, rendelésszámát, összes telefonszámát, szállítási címét és e-mail címét a dinamikus sorokba.
+  - **Profil Részletező Kártyák**: 4 különálló blokkban mutatja a rendelésszámokat (sötét badge-ekkel), telefonszámokat, címeket és az e-mail címeket.
+- **Feketelista Profilok & Firestore Szinkronizáció (`js/services/blacklistService.js`)**:
+  - `blacklist_profiles` Firestore kollekció: név, telefonszám(ok), szállítási cím(ek), e-mail(ek), rendelésszám(ok), elsődleges megjegyzés/ok, és időbélyeggel ellátott belső kommentek tömbje (`comments: [{ id, text, author, createdAt }]`).
+- **Rendelésáttekintő Integráció & Megjelenítés (`js/views/orderOverviewView.js`, `js/app.js`)**:
+  - **Fekete lógó címke (`"fekete lista"`)**: Ha egy rendelés telefonszáma, címe, e-mail címe vagy rendelésszáma egyezik egy profillal, a rendelés bal szélén a `hub-hanging-tags-stack`-ben megjelenik a karakteres fekete színű lógó címke (`#0f172a`, piros prohibit ikonnal).
+  - **Interaktív Tooltip**: Mutatja, hogy melyik profilhoz kapcsolódik a rendelés, mi alapján talált egyezést a rendszer (pl. `Telefonszám egyezés`, `Cím egyezés`, `E-mail cím egyezés`, `Rendelésszám egyezés`), és a profil elsődleges indoklását. Kattintásra azonnal megnyitja a profilt.
+  - **Kiemelt Figyelmeztető Sáv**: A kártya kibontásakor legfelül egy prémium sötét figyelmeztető doboz mutatja a feketelistás találatot a kapcsolódó profil nevével és "Profil & Korábbi fuvarok" gombbal.
+  - **"+ Feketelista" Gyorsgomb**: A kibontott sorban a vevő adatai mellett közvetlen 1-kattintásos gyorsgomb, ami azonnal megnyitja a profil modált a vevő nevével, címeivel, telefonjaival előre kitöltve.
+  - **Felső Eszköztár**: "Feketelista" gomb piros számláló badge-dzsel (`#hub-blacklist-count-badge`), amivel bármikor elérhető a központi profilkezelő.
+  - **Gyorsszűrő Bar**: Fekete színű "Fekete lista (X)" filter chip, amellyel egyetlen kattintással leszűrhető az összes érintett rendelés.
+- **Feketelista Kezelő Modális Felület (`js/views/blacklistModal.js`)**:
+  - Kétoszlopos Apple-stílusú Glassmorphism elrendezés:
+    - Bal oldal: keresőmező (név, telefon, cím alapján) + profilkártyák listája számlálóval.
+    - "+ Új Profil" gomb: letisztult modális űrlap többsoros telefon- és címbevitellel.
+    - Jobb oldal: aktív profil adatai, szerkesztés, törlés.
+    - **Korábbi Fuvarok Szekció**: Aggregálja és időrendben csökkenő sorrendben mutatja az összes rendelést és kiszállítást, ami a profilhoz ment (élő rendelések és mentett járatokból egyaránt, futár nevével, dátummal, sikeres/meghiúsult státusszal, meghiúsulási okkal, felelősséggel és utánvét összeggel).
+    - **Belső Kommentek & Infók Feed**: Időbélyegzett belső csapatjegyzetek felvétele szerző megjelöléssel, így az újabb ügyintézők azonnal képbe kerülnek.
+- **Unit Tesztek (`tests/unit_tests.js`)**:
+  - 34 új egységteszt lefedve: telefonszám-tisztítás, prefix kezelés, címnormalizálás, házszám eltérések szűrése, élő és mentett fuvarok időrendi aggregációja.
+  - Összesen 734 / 734 teszt hibátlanul lefut (`node tests/unit_tests.js`).
+
+### 2026. szeptember 28. (3. frissítés) - Szállítócégek Számára Extra Futár Információk [Szögletes Zárójelben] & Belső Némítás `{ok}` Kapcsos Zárójelben (`v4.9.11`)
+- **Tiszta Elválasztás a Belső Némítás és a Futár Instrukciók Között**:
+  - **Belső némító címke**: `{ok}` (kapcsos zárójel). A korábbi `[ok]`-val való teljes visszafelé kompatibilitás megmaradt a `hasOkTag(note)` függvényben (`orderUtils.js`, `emailService.js`, `morning_report_preview.html`).
+  - **Szállítói futár instrukciók**: `[ ... ]` (szigorúan szögletes zárójel). Az `extractCourierInstructionsFromNote(note)` kizárólag a szögletes zárójeles részeket nyeri ki a Notes mezőből, így a `{ok}` vagy bármilyen belső kapcsos jelölés soha nem szivároghat ki a fuvarozóhoz.
+- **Sela Szállítói Export Integráció (`js/services/exporter.js`, `js/views/selaExportModal.js`)**:
+  - A 12. oszlopban ("Utánvét / Megjegyzés") a rendszer az utánvét összege (vagy "nincs utánvét" státusz) és az esetleges tapadóhíd darabszám mellé automatikusan hozzáfűzi a szögletes zárójelből kinyert futár instrukciót (pl. `45 000 Ft, 3db tapadóhíd, 14:00 után jó neki`).
+  - A Sela Export Modál táblázatában az oszlop szélessége 220px-re lett bővítve, a fejléc neve `Utánvét / Megjegyzés`-re frissült.
+- **PannonXP Export Támogatás (`js/services/pannonxp.js`)**:
+  - A PannonXP CSV generálásakor a "Címzett megjegyzés" oszlop mostantól automatikusan a szögletes zárójeles futár instrukciókat kapja meg.
+- **Shopify Note Szerkesztő Útmutató (`js/controllers/orderNoteController.js`)**:
+  - A megjegyzés szerkesztő modálban egy diszkrét kék információs kártya tájékoztatja a felhasználót, hogy a `[ ... ]` közé írt szöveg a szállítói exportba kerül, a belső némításra pedig a `{ok}` jelölés szolgál.
+- **Shopify CSV Import Mezőkiegészítés (`js/services/shopify.js`)**:
+  - A rendelés objektum képzésekor a `row['Notes']` mostantól közvetlenül az `order.note` és `order.notes` mezőkbe is elmentésre kerül.
+- **Automatizált Tesztek & Cache-Busting**:
+  - Új automatizált egységtesztek a `{ok}` tag és `[futár megjegyzés]` függetlenségére. Összesen 698/698 sikeres teszt (`tests/unit_tests.js`).
+  - Cache-buster frissítve `app.js?v=4.7.3`-ra (`index.html`).
+
+### 2026. szeptember 28. (2. frissítés) - Rendelésáttekintő: Többszöri Terítésnél Mindig a Legutóbbi Kör Érvényesülése (`v4.9.10`)
+- **Többszöri Kiszállítás / Terítés Besorolás Javítása (`js/utils/orderUtils.js`, `js/app.js`)**:
+  - Amikor egy rendelés többször is kiment (pl. #3794 először 09.01-én Bábel Ádámmal, visszahozva meghiúsultként, majd 09.24-én Tomival sikeresen), a rendelésáttekintőben a régebbi terítési kör írta felül az újabbat a bejárási sorrend miatt.
+  - Bevezetésre került a `getRunTimestamp(run)` és a `buildLatestDeliveryMap(savedRuns)` segédfüggvény az `orderUtils.js`-ben: robusztusan normalizálja és kezeli a magyar dátumformátumokat (pl. `YYYY.MM.DD`, `YYYY. MM. DD.`, `YYYY-MM-DD`), UTC alapú naptári összehasonlítással és milliszekundumos finomfelbontással.
+  - A mentett terítések feldolgozása szigorúan időrendben csökkenő sorrend szerint történik: amennyiben egy rendelés több körben is szerepel, garantáltan a legfrissebb terítés futára, dátuma, státusza és azonosítója rendeli magához.
+- **Rendelésáttekintő Csoportosítás Rendezése (`js/views/orderOverviewView.js`)**:
+  - A "Terítésben" szűrő chip alatt megjelenő terítési körök fejléc csoportjai mostantól a kör tényleges dátuma / időbélyege szerint csökkenő sorrendben jelennek meg, így a legújabb terítési lista (`1. Terítés`) mindig a legfrissebb futárt és rendeléseket mutatja elöl.
+- **Automatizált Tesztek & Cache-Busting**:
+  - 11 új automatizált egységteszt hozzáadva mindkét sorrendre (`[régebbi, újabb]` és `[újabb, régebbi]`), különböző dátumformátumokra és egyedi rendelésekre. Összesen 683/683 sikeres teszt (`tests/unit_tests.js`).
+  - Verziószám és cache-buster frissítve `app.js?v=4.7.2`-re (`index.html`).
+
+### 2026. szeptember 28. (1. frissítés) - PannonXP Beállítások Lebegő Magyarázó Ablakok & Csomagolási Útmutató (`v4.9.9`)
+- **Lebegő Portál Tooltip (`js/views/pannonxp/pannonxpSettings.js`)**:
+  - Megszüntettük a belső, összecsukott kártyába zárt tooltipeket, amelyeket a kártyák alacsony magassága és az `overflow: hidden` stílusa levágott.
+  - Helyette a kék info ikonra (`(i)`) történő egérhúzásra vagy kattintásra egy dinamikusan pozicionált, lebegő buborék (`position: fixed`, `z-index: 100000`) jelenik meg a képernyőn a legoptimálisabb helyen (alul vagy felül, a képernyő széléhez igazítva).
+  - Kattintással fixálható, kattintással vagy Escape / görgetés hatására automatikusan bezárul.
+  - Ugyanez a lebegő magyarázó működik a "Csomagolási Család ID" melletti info ikonra is.
+- **Áttekintő Útmutató Kártya a Fül Tetején**:
+  - A "Termék & Csomagolási Szabályok" fül tetejére egy állandó, tiszta kék információs kártya került, amely azonnal bemutatja mind a 4 számítási típust anélkül, hogy a felhasználónak külön kellene rámutatnia a sorokra.
+- **Kártya Megjelenítés & Rétegkezelés**:
+  - A kategória kártyákról (`category-block`) eltávolításra került a levágást okozó `overflow: hidden`.
+  - A kártyák hover állapotban automatikusan kiemelkednek (`z-index: 15`), megelőzve az elemek egymásra takarását.
+- **Automatizált Tesztek & Cache-Busting**:
+  - 672/672 egységteszt hibátlanul lefutott (`tests/unit_tests.js`).
+  - Verziószám megújítva `app.js?v=4.7.2`-re (`index.html`).
 
 ### 2026. szeptember 23. (6. frissítés) - Elszámolás Export Modál: Cégválasztás & Kintlévőségi Szűrés (`v4.9.8`)
 - **Elszámolás Export Beállítások Modál (`js/views/accountingExportModal.js`, `js/app.js`)**:

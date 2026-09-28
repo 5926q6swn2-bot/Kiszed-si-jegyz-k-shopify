@@ -121,7 +121,7 @@ export const SelaExportModal = {
                                    data-needs-manual="${needsManual}"
                                    value="${r.col12_codAndTapadohid}" 
                                    placeholder="${needsManual ? 'Írd be a pontos utánvétet!' : ''}"
-                                   style="width: 175px; font-weight:600;" 
+                                   style="width: 220px; font-weight:600;" 
                                    title="${r.col12_codAndTapadohid}">
                         </div>
                     </td>
@@ -245,7 +245,7 @@ export const SelaExportModal = {
                                 <th style="width:55px; text-align:center;" title="Falpanelek és padlózatok (PVC, SPC és Akusztikus)">Panelek</th>
                                 <th style="width:50px; text-align:center;" title="Ragasztók, szilikonok">Ragasztó</th>
                                 <th style="width:50px; text-align:center;" title="Profilok és skirting szegélylécek">Profil</th>
-                                <th style="width:180px;">Utánvét / Tapadóhíd</th>
+                                <th style="width:225px;" title="Utánvét, tapadóhíd darabszám és szögletes zárójeles [ ... ] futár instrukciók">Utánvét / Megjegyzés</th>
                                 <th style="width:75px; text-align:right;" title="Kalkulált összsúly">Összsúly (kg)</th>
                                 <th style="width:90px; text-align:center;" title="5 munkanapos legkésőbbi kézbesítési határidő">Legkésőbb</th>
                             </tr>

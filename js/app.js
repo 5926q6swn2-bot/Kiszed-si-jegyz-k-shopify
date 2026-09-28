@@ -18,10 +18,12 @@ import { SelaMissingWeightsModal } from './views/selaMissingWeightsModal.js';
 import { ShopifyApiService } from './services/shopifyApiService.js';
 import { generatePdfHtml, openPdfView, generateDeliveryNotesHtml } from './utils/printTemplates.js';
 import { getPaymentDetails, getRunPaymentTotals } from './utils/paymentUtils.js';
-import { filterOrdersWithoutInvoice, getOrdersInSelectionOrder, calculateOrderDeliveryCost } from './utils/orderUtils.js';
+import { filterOrdersWithoutInvoice, getOrdersInSelectionOrder, calculateOrderDeliveryCost, buildLatestDeliveryMap } from './utils/orderUtils.js';
 import { openOrderNoteModal } from './controllers/orderNoteController.js';
 import { COMPANY_COURIERS, updateCourierSelectElements } from './controllers/courierSelectController.js';
 import { AccountingExportModal } from './views/accountingExportModal.js';
+import { BlacklistService } from './services/blacklistService.js';
+import { BlacklistModal } from './views/blacklistModal.js';
 function initApp() {
     console.log("KOPJ Rendszer: app.js elindult");
 
@@ -243,11 +245,15 @@ function initApp() {
         if (refreshIcon) refreshIcon.style.animation = 'spin 1s linear infinite';
 
         try {
-            // Párhuzamosan lekérjük a Shopify élő rendeléseket és a Firebase-ben lévő kiszállítási járatokat
-            const [res, savedRuns] = await Promise.all([
+            // Párhuzamosan lekérjük a Shopify élő rendeléseket, a kiszállítási járatokat, és a feketelista profilokat
+            const [res, savedRuns, blacklistProfiles] = await Promise.all([
                 ShopifyApiService.fetchLiveOrders({ limit: 250 }),
                 HistoryManager.getAllRuns(isManual).catch(err => {
                     console.warn('[HistoryManager getAllRuns error]', err);
+                    return [];
+                }),
+                BlacklistService.getProfiles(isManual).catch(err => {
+                    console.warn('[BlacklistService getProfiles error]', err);
                     return [];
                 })
             ]);
@@ -269,38 +275,8 @@ function initApp() {
             }
 
             if (res.success && res.rawOrders) {
-                // 1. Járatok feltérképezése (4 jegyű ID-k alapján)
-                const deliveryMap = new Map();
-                (savedRuns || []).forEach(run => {
-                    (run.orders || []).forEach(o => {
-                        if (!o || !o.id) return;
-                        const cleanId = String(o.id).replace(/^#/, '').replace(/\/.*$/, '').trim();
-                        if (!cleanId) return;
-
-                        const isUncollected = (run.uncollectedOrderIds || []).map(String).includes(String(o.id));
-                        const uncollectedReason = (run.uncollectedReasons || {})[o.id] || '';
-                        const uncollectedResp = (run.uncollectedResponsibility || {})[o.id] || '';
-                        const paymentMethod = (run.paymentMethods || {})[o.id] || '';
-                        const paymentStatus = (run.paymentStatusMap || {})[o.id] || '';
-
-                        // Ha már van bent újabb dátumú járat, a legfrissebbet tartjuk meg
-                        deliveryMap.set(cleanId, {
-                            runId: run.id,
-                            docId: run.docId,
-                            runDate: run.date || run.pickupDate || '',
-                            pickupDate: run.pickupDate || '',
-                            courier: run.courier || 'Futár',
-                            company: run.company || '',
-                            sender: run.sender || 'capsula',
-                            isUncollected: isUncollected,
-                            uncollectedReason: uncollectedReason,
-                            uncollectedResp: uncollectedResp,
-                            paymentMethod: paymentMethod,
-                            paymentStatus: paymentStatus,
-                            isSettled: !!run.isSettled
-                        });
-                    });
-                });
+                // 1. Járatok feltérképezése (mindig a legújabb / legfrissebb járat érvényesül az egyes rendeléseknél)
+                const deliveryMap = buildLatestDeliveryMap(savedRuns);
 
                 // 2. Shopify rendelések átalakítása és terítési adatok csatolása
                 const converted = ShopifyApiService.convertApiOrders(res.rawOrders);
@@ -314,8 +290,19 @@ function initApp() {
                         order.deliveryInfo = null;
                         order.isInDelivery = false;
                     }
+
+                    // 3. Feketelista egyeztetés
+                    const blMatch = BlacklistService.matchOrder(order, blacklistProfiles);
+                    if (blMatch) {
+                        order.isBlacklisted = true;
+                        order.blacklistMatch = blMatch;
+                    } else {
+                        order.isBlacklisted = false;
+                        order.blacklistMatch = null;
+                    }
                 });
 
+                Store.setBlacklistProfiles(blacklistProfiles);
                 Store.setShopifyHubOrders(converted);
                 if (Store.activeMainTab === 'overview') {
                     renderOverview();
@@ -530,6 +517,84 @@ function initApp() {
                 });
             });
         }
+
+        // Feketelista Kezelő gomb
+        const btnOpenBlacklistManager = document.getElementById('btn-open-blacklist-manager');
+        if (btnOpenBlacklistManager) {
+            btnOpenBlacklistManager.addEventListener('click', async () => {
+                const savedRuns = await HistoryManager.getAllRuns(false).catch(() => []);
+                BlacklistModal.show(null, {
+                    orders: Store.shopifyHubOrders,
+                    savedRuns: savedRuns,
+                    onUpdate: () => {
+                        const profiles = Store.blacklistProfiles;
+                        Store.shopifyHubOrders.forEach(o => {
+                            const blMatch = BlacklistService.matchOrder(o, profiles);
+                            o.isBlacklisted = !!blMatch;
+                            o.blacklistMatch = blMatch;
+                        });
+                        renderOverview();
+                    }
+                });
+            });
+        }
+
+        // Feketelista Címkék és Profil megnyitók
+        const openBlacklistWithProfile = async (profileId) => {
+            const savedRuns = await HistoryManager.getAllRuns(false).catch(() => []);
+            BlacklistModal.show(profileId, {
+                orders: Store.shopifyHubOrders,
+                savedRuns: savedRuns,
+                onUpdate: () => {
+                    const profiles = Store.blacklistProfiles;
+                    Store.shopifyHubOrders.forEach(o => {
+                        const blMatch = BlacklistService.matchOrder(o, profiles);
+                        o.isBlacklisted = !!blMatch;
+                        o.blacklistMatch = blMatch;
+                    });
+                    renderOverview();
+                }
+            });
+        };
+
+        document.querySelectorAll('.btn-blacklist-tag-trigger').forEach(tag => {
+            tag.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const profileId = tag.getAttribute('data-profile-id');
+                openBlacklistWithProfile(profileId);
+            });
+        });
+
+        document.querySelectorAll('.btn-open-blacklist-profile').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const profileId = btn.getAttribute('data-profile-id');
+                openBlacklistWithProfile(profileId);
+            });
+        });
+
+        document.querySelectorAll('.btn-add-to-blacklist').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const orderId = btn.getAttribute('data-order-id');
+                const order = Store.shopifyHubOrders.find(o => o.id === orderId);
+                if (!order) return;
+                const savedRuns = await HistoryManager.getAllRuns(false).catch(() => []);
+                BlacklistModal.addFromOrder(order, {
+                    orders: Store.shopifyHubOrders,
+                    savedRuns: savedRuns,
+                    onUpdate: () => {
+                        const profiles = Store.blacklistProfiles;
+                        Store.shopifyHubOrders.forEach(o => {
+                            const blMatch = BlacklistService.matchOrder(o, profiles);
+                            o.isBlacklisted = !!blMatch;
+                            o.blacklistMatch = blMatch;
+                        });
+                        renderOverview();
+                    }
+                });
+            });
+        });
 
         // Frissítés gomb
         const btnRefresh = document.getElementById('btn-refresh-hub');

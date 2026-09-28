@@ -575,6 +575,8 @@ export const ShopifyParser = {
                     shippingPhone: shippingPhone,
                     billingPhone: billingPhone,
                     tags: tags,
+                    note: row['Notes'] || '',
+                    notes: row['Notes'] || '',
                     isReseller: isReseller,
                     hasSelaOrdered: hasSelaOrdered,
                     hasPxpTag: hasPxpTag,

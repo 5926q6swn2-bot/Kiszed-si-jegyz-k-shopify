@@ -3,7 +3,7 @@
 import { CustomDialog } from '../utils/dialog.js';
 import { getPaymentDetails } from '../utils/paymentUtils.js';
 import { SelaWeightService } from './selaWeightService.js';
-import { calculateOrderDeliveryCost } from '../utils/orderUtils.js';
+import { calculateOrderDeliveryCost, extractCourierInstructionsFromNote } from '../utils/orderUtils.js';
 
 // --- SELA SÚLYKONFIGURÁCIÓ ÉS KALKULÁCIÓ ---
 
@@ -1090,20 +1090,31 @@ export function prepareSelaRowData(order, customCodMap = {}, customWeights = nul
     ).trim();
 
     // 12. oszlop formázása:
-    // Ha van utánvét: "45 000 Ft" (vagy "45 000 Ft, 3db tapadóhíd")
-    // Ha nincs utánvét: "nincs utánvét" (vagy "nincs utánvét, 3db tapadóhíd")
-    // Ha díjbekérős és nincs biztos összeg a Notes-ban: figyelmeztetés!
-    let col12Text = '';
-    const tapadohidText = tapadohidQty > 0 ? `${tapadohidQty}db tapadóhíd` : '';
+    // Utánvét összege vagy státusza ("45 000 Ft" / "nincs utánvét" / díjbekérős figyelmeztetés)
+    // + tapadóhíd darabszám (ha van, pl. "3db tapadóhíd")
+    // + szögletes zárójellel [ ... ] megadott futár instrukciók a Notes-ból (pl. "14:00 után jó neki")
+    const col12Parts = [];
 
     if (needsManualCod) {
-        col12Text = tapadohidText ? `⚠️ ADJ MEG UTÁNVÉTET!, ${tapadohidText}` : '⚠️ ADJ MEG UTÁNVÉTET!';
+        col12Parts.push('⚠️ ADJ MEG UTÁNVÉTET!');
     } else if (finalCodAmount !== null && finalCodAmount > 0) {
         const formattedCod = `${new Intl.NumberFormat('hu-HU').format(finalCodAmount).replace(/\u00a0/g, ' ')} Ft`;
-        col12Text = tapadohidText ? `${formattedCod}, ${tapadohidText}` : formattedCod;
+        col12Parts.push(formattedCod);
     } else {
-        col12Text = tapadohidText ? `nincs utánvét, ${tapadohidText}` : 'nincs utánvét';
+        col12Parts.push('nincs utánvét');
     }
+
+    if (tapadohidQty > 0) {
+        col12Parts.push(`${tapadohidQty}db tapadóhíd`);
+    }
+
+    const orderNote = order.note || order.notes || (order.rawOrder && order.rawOrder.note) || '';
+    const courierInstructions = extractCourierInstructionsFromNote(orderNote);
+    if (courierInstructions) {
+        col12Parts.push(courierInstructions);
+    }
+
+    const col12Text = col12Parts.join(', ');
 
     // 13. oszlop: Rendelés összsúlyának kalkulációja tételes / táblánkénti terméksúlyok alapján
     let orderWeight = 0;
@@ -1139,6 +1150,7 @@ export function prepareSelaRowData(order, customCodMap = {}, customWeights = nul
         col10_adhesivesQty: adhesiveQty,
         col11_profilesQty: profileQty,
         col12_codAndTapadohid: col12Text,
+        courierInstructions: courierInstructions,
         col13_weight: orderWeight,
         col14_deadline: deadlineStr,
         deadlineDate: deadlineStr,

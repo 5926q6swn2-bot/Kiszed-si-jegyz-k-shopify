@@ -48,7 +48,10 @@ import {
     isBoardItem,
     countOrderBoards,
     isBudapestAddress,
-    calculateOrderDeliveryCost
+    calculateOrderDeliveryCost,
+    getRunTimestamp,
+    buildLatestDeliveryMap,
+    extractCourierInstructionsFromNote
 } from '../js/utils/orderUtils.js';
 import { getDeliveryCostBadgeHtml } from '../js/views/ordersView.js';
 import {
@@ -64,6 +67,16 @@ import {
     SelaWeightService 
 } from '../js/services/selaWeightService.js';
 import { ensureSelaModalStyles } from '../js/views/selaModalStyles.js';
+import {
+    normalizePhoneForMatch,
+    isPhoneMatch,
+    normalizeAddressForMatch,
+    isAddressMatch,
+    isEmailMatch,
+    isOrderIdMatch,
+    matchOrderWithBlacklist,
+    findRelatedDeliveriesForProfile
+} from '../js/utils/blacklistUtils.js';
 import fs from 'fs';
 import cp from 'child_process';
 import path from 'path';
@@ -2256,8 +2269,10 @@ const hasLabelTagInDeliv = tagsLowerInDeliv.includes('címke');
 assertEqual("Terítésben Logi Status - in_delivery tipus", logiStatusInDelivWithLabel, 'in_delivery');
 assertEqual("Terítésben Logi Status - hasLabelTag true mini kék vonalkódhoz", hasLabelTagInDeliv, true);
 
-// 6. [ok] megjegyzés és Viszonteladó kizárási tesztek a Reggeli Riport adataihoz
-assertEqual("[ok] tag - megjegyzésben szerepel", hasOkTag("09.09-ig átveszi [ok]"), true);
+// 6. [ok] és {ok} megjegyzés és Viszonteladó kizárási tesztek a Reggeli Riport adataihoz
+assertEqual("{ok} tag - kapcsos zárójellel működik", hasOkTag("09.09-ig átveszi {ok}"), true);
+assertEqual("{ok} tag - nagybetűvel is működik", hasOkTag("100.000 előleg fizetve {OK}"), true);
+assertEqual("[ok] tag - megjegyzésben szerepel (kompatibilitás)", hasOkTag("09.09-ig átveszi [ok]"), true);
 assertEqual("[ok] tag - kisbetűvel is működik", hasOkTag("100.000 előleg fizetve [OK]"), true);
 assertEqual("[ok] tag - hiányzó kifejezés esetén false", hasOkTag("sürgős kiszállítás"), false);
 
@@ -2997,6 +3012,316 @@ assertEqual("Audit - Többször szállított rendelések száma", mockStats.mult
 assertEqual("Audit - Szállító hibás rendelések száma", mockStats.szallitoCount, 1);
 assertEqual("Audit - Saját hibás rendelések száma", mockStats.mienkCount, 0);
 assertEqual("Audit - Vevő hibás rendelések száma", mockStats.vevoCount, 0);
+
+
+// --- Latest Delivery Run Mapping Tests (pl. #3794 Bábel Ádám -> Tomi) ---
+const testRunOlder = {
+    id: 'run_older_1',
+    docId: 'doc_older_1',
+    date: '2026.09.01',
+    courier: 'Bábel Ádám',
+    company: 'Sela',
+    timestamp: 1725170400000,
+    orders: [{ id: '#3794' }, { id: '#3700' }],
+    uncollectedOrderIds: ['#3794']
+};
+
+const testRunNewer = {
+    id: 'run_newer_2',
+    docId: 'doc_newer_2',
+    date: '2026.09.24',
+    courier: 'Tomi',
+    company: 'Sela',
+    timestamp: 1727157600000,
+    orders: [{ id: '3794' }, { id: '3800' }],
+    uncollectedOrderIds: []
+};
+
+// 1. Időbélyeg ellenőrzés
+const tsOlder = getRunTimestamp(testRunOlder);
+const tsNewer = getRunTimestamp(testRunNewer);
+assertEqual("Run Timestamp - Newer (09.24) > Older (09.01)", tsNewer > tsOlder, true);
+
+// 2. Dátumformátum tolerancia (szóközök, pontok)
+const tsSpaced = getRunTimestamp({ date: '2026. 09. 24.' });
+const tsDashed = getRunTimestamp({ date: '2026-09-24' });
+assertEqual("Run Timestamp - Format Tolerance", tsSpaced === tsDashed, true);
+
+// 3. buildLatestDeliveryMap - [older, newer] sorrendben átadva
+const mapOlderFirst = buildLatestDeliveryMap([testRunOlder, testRunNewer]);
+const dInfo1 = mapOlderFirst.get('3794');
+assertEqual("Latest Run Map - [older, newer] futár: Tomi", dInfo1?.courier, 'Tomi');
+assertEqual("Latest Run Map - [older, newer] dátum: 2026.09.24", dInfo1?.runDate, '2026.09.24');
+assertEqual("Latest Run Map - [older, newer] runId: run_newer_2", dInfo1?.runId, 'run_newer_2');
+assertEqual("Latest Run Map - [older, newer] isUncollected: false", dInfo1?.isUncollected, false);
+
+// 4. buildLatestDeliveryMap - [newer, older] sorrendben átadva (ugyanaz a garantált eredmény)
+const mapNewerFirst = buildLatestDeliveryMap([testRunNewer, testRunOlder]);
+const dInfo2 = mapNewerFirst.get('3794');
+assertEqual("Latest Run Map - [newer, older] futár: Tomi", dInfo2?.courier, 'Tomi');
+assertEqual("Latest Run Map - [newer, older] dátum: 2026.09.24", dInfo2?.runDate, '2026.09.24');
+assertEqual("Latest Run Map - [newer, older] runId: run_newer_2", dInfo2?.runId, 'run_newer_2');
+
+// 5. Másik rendelések érvényessége
+assertEqual("Latest Run Map - Csak régebbi körben szereplő (#3700) futára Bábel Ádám", mapNewerFirst.get('3700')?.courier, 'Bábel Ádám');
+assertEqual("Latest Run Map - Csak újabb körben szereplő (#3800) futára Tomi", mapNewerFirst.get('3800')?.courier, 'Tomi');
+
+// === SZÁLLÍTÓI EXTRA INFORMÁCIÓK / BRACKET NOTES TESZTEK ===
+// 1. extractCourierInstructionsFromNote alaptesztek
+const testNoteUser = "számléa blablabal [14:00 után jó neki] iuh kiskutya farka blablabla";
+assertEqual("Courier Note - User Example", extractCourierInstructionsFromNote(testNoteUser), "14:00 után jó neki");
+
+const testNoteMultiple = "kapu nyitása [14:00 után jó] belső feljegyzés [kapucsengő 5]";
+assertEqual("Courier Note - Multiple Brackets", extractCourierInstructionsFromNote(testNoteMultiple), "14:00 után jó, kapucsengő 5");
+
+const testNoteCurly = "rendelés {délután 3-ig}";
+assertEqual("Courier Note - Curly braces are not courier instructions", extractCourierInstructionsFromNote(testNoteCurly), "");
+
+const testNoteWithCurlyOk = "{ok} számla kész [14:00 után jó neki]";
+assertEqual("Courier Note - Ignores {ok} tag and extracts bracket note", extractCourierInstructionsFromNote(testNoteWithCurlyOk), "14:00 után jó neki");
+
+const testNoteWithOk = "[ok] számla kész [14:00 után jó neki]";
+assertEqual("Courier Note - Filter [ok] Flag", extractCourierInstructionsFromNote(testNoteWithOk), "14:00 után jó neki");
+
+const testNoteOnlyOk = "[ok]";
+assertEqual("Courier Note - Only [ok] returns empty", extractCourierInstructionsFromNote(testNoteOnlyOk), "");
+
+const testNoteOnlyCurlyOk = "{ok}";
+assertEqual("Courier Note - Only {ok} returns empty", extractCourierInstructionsFromNote(testNoteOnlyCurlyOk), "");
+
+assertEqual("Courier Note - Empty or Null", extractCourierInstructionsFromNote(""), "");
+assertEqual("Courier Note - No Brackets", extractCourierInstructionsFromNote("sima szoveg zarojel nelkul"), "");
+
+// 2. prepareSelaRowData integráció tesztek
+const orderWithBracketNote = {
+    id: "#4005",
+    shippingName: "Kovács Béla",
+    isCOD: true,
+    codAmount: 45000,
+    note: "számléa blablabal [14:00 után jó neki] iuh kiskutya farka blablabla",
+    items: [
+        { name: "PB-01 Falpanel", qty: 4 },
+        { name: "Tapadóhíd 1kg", qty: 3 }
+    ]
+};
+const rowWithBracket = prepareSelaRowData(orderWithBracketNote);
+assertEqual("Sela Row Bracket - COD + Tapadohid + Courier Instruction", rowWithBracket.col12_codAndTapadohid, "45 000 Ft, 3db tapadóhíd, 14:00 után jó neki");
+
+const orderPaidWithBracket = {
+    id: "#4006",
+    shippingName: "Szabó Éva",
+    isCOD: false,
+    codAmount: 0,
+    note: "utalva [hívni érkezés előtt 1 órával]",
+    items: [
+        { name: "PB-01 Falpanel", qty: 2 }
+    ]
+};
+const rowPaidWithBracket = prepareSelaRowData(orderPaidWithBracket);
+assertEqual("Sela Row Bracket - Paid + Courier Instruction", rowPaidWithBracket.col12_codAndTapadohid, "nincs utánvét, hívni érkezés előtt 1 órával");
+
+const orderPaidTapadohidBracket = {
+    id: "#4007",
+    shippingName: "Kiss János",
+    isCOD: false,
+    codAmount: 0,
+    note: "[14:00 után jó neki]",
+    items: [
+        { name: "Tapadóhíd 5kg", qty: 2 }
+    ]
+};
+const rowPaidTapadohidBracket = prepareSelaRowData(orderPaidTapadohidBracket);
+assertEqual("Sela Row Bracket - Paid + Tapadohid + Courier Instruction", rowPaidTapadohidBracket.col12_codAndTapadohid, "nincs utánvét, 2db tapadóhíd, 14:00 után jó neki");
+
+// 3. Sela CSV generálás teszt szögletes zárójeles megjegyzéssel
+const csvOutputWithInstructions = generateSelaCsv([rowWithBracket]);
+assertEqual("Sela CSV - Includes Combined Column 12", csvOutputWithInstructions.includes("45 000 Ft, 3db tapadóhíd, 14:00 után jó neki"), true);
+
+// --- Feketelista (Blacklist) Rendszer Tesztek ---
+
+// 1. normalizePhoneForMatch tesztek
+assertEqual("Blacklist Phone - Leading 06", normalizePhoneForMatch("06301234567"), "301234567");
+assertEqual("Blacklist Phone - +36 prefix with spaces", normalizePhoneForMatch("+36 30 123 4567"), "301234567");
+assertEqual("Blacklist Phone - 0036 prefix", normalizePhoneForMatch("0036709876543"), "709876543");
+assertEqual("Blacklist Phone - dashes and slashes", normalizePhoneForMatch("06-20/555-1234"), "205551234");
+assertEqual("Blacklist Phone - null or empty", normalizePhoneForMatch(null), "");
+
+// 2. isPhoneMatch tesztek
+assertEqual("Blacklist Phone Match - Exact formatted match", isPhoneMatch("+36 30 123 4567", "06301234567"), true);
+assertEqual("Blacklist Phone Match - Local vs International", isPhoneMatch("301234567", "+36 30 123 4567"), true);
+assertEqual("Blacklist Phone Match - Suffix 7-digit landline match", isPhoneMatch("11234567", "0611234567"), true);
+assertEqual("Blacklist Phone Match - Different provider is false", isPhoneMatch("06301234567", "06701234567"), false);
+assertEqual("Blacklist Phone Match - Null handling", isPhoneMatch(null, "06301234567"), false);
+
+// 3. normalizeAddressForMatch tesztek
+assertEqual("Blacklist Address Norm - Accent stripping", normalizeAddressForMatch("Árpád út 12."), "arpad 12");
+assertEqual("Blacklist Address Norm - Street suffix removal", normalizeAddressForMatch("Kossuth Lajos utca 45."), "kossuth lajos 45");
+assertEqual("Blacklist Address Norm - Floor/door stripping", normalizeAddressForMatch("Petőfi Sándor tér 3. 2. em. 4."), "petofi sandor 3 2 4");
+assertEqual("Blacklist Address Norm - Punctuation stripping", normalizeAddressForMatch("Budapest, Fő u. 10/B"), "budapest fo 10 b");
+
+// 4. isAddressMatch tesztek
+assertEqual("Blacklist Address Match - Identical address", isAddressMatch("1117 Budapest, Budafoki út 111.", "Budafoki út 111."), true);
+assertEqual("Blacklist Address Match - Substring matching", isAddressMatch("Budapest, Váci út 20. 3. emelet", "Váci út 20"), true);
+assertEqual("Blacklist Address Match - Different house number fails", isAddressMatch("1117 Budapest, Budafoki út 111.", "Budafoki út 22."), false);
+assertEqual("Blacklist Address Match - Generic street without house number match check", isAddressMatch("Kossuth Lajos utca 10", "Kossuth Lajos utca 25"), false);
+
+// 4b. isEmailMatch tesztek
+assertEqual("Blacklist Email Match - Identical email", isEmailMatch("kovacs.bela@gmail.com", "kovacs.bela@gmail.com"), true);
+assertEqual("Blacklist Email Match - Case insensitive", isEmailMatch("KOVACS.BELA@GMAIL.COM", "kovacs.bela@gmail.com"), true);
+assertEqual("Blacklist Email Match - Whitespace trimmed", isEmailMatch("  kovacs.bela@gmail.com  ", "kovacs.bela@gmail.com"), true);
+assertEqual("Blacklist Email Match - Different email returns false", isEmailMatch("kovacs.bela@gmail.com", "masvalaki@gmail.com"), false);
+assertEqual("Blacklist Email Match - Null/empty returns false", isEmailMatch("", "kovacs.bela@gmail.com"), false);
+
+// 4c. isOrderIdMatch tesztek
+assertEqual("Blacklist OrderId Match - Identical numbers", isOrderIdMatch("3794", "3794"), true);
+assertEqual("Blacklist OrderId Match - Hash prefix stripped", isOrderIdMatch("#3794", "3794"), true);
+assertEqual("Blacklist OrderId Match - Both with hash prefix", isOrderIdMatch("#3794", "#3794"), true);
+assertEqual("Blacklist OrderId Match - Whitespace trimmed", isOrderIdMatch(" #3794 ", "3794"), true);
+assertEqual("Blacklist OrderId Match - Different IDs return false", isOrderIdMatch("3794", "3795"), false);
+assertEqual("Blacklist OrderId Match - Null/empty returns false", isOrderIdMatch("", "3794"), false);
+
+// 5. matchOrderWithBlacklist tesztek
+const sampleBlacklistProfiles = [
+    {
+        id: "bl_1",
+        name: "Kovács Béla",
+        orderIds: ["3794"],
+        phones: ["06301112233"],
+        addresses: ["1111 Budapest, Bartók Béla út 50."],
+        emails: ["kovacs.bela@freemail.hu"],
+        note: "Nem vette át 3 korábbi rendelését"
+    },
+    {
+        id: "bl_2",
+        name: "Nagy Anna",
+        orderIds: ["4120"],
+        phones: ["06709998877"],
+        addresses: ["6000 Kecskemét, Széchenyi tér 5."],
+        emails: ["anna.nagy@citromail.hu"],
+        note: "Csaló, visszautasítja a fizetést"
+    }
+];
+
+const matchingPhoneOrder = {
+    id: "#4201",
+    shippingName: "Kovács Bence",
+    shippingPhone: "+36 30 111 2233",
+    fullAddress: "1052 Budapest, Deák tér 1."
+};
+const phoneMatchResult = matchOrderWithBlacklist(matchingPhoneOrder, sampleBlacklistProfiles);
+assertEqual("Blacklist Match - Phone match detected", !!phoneMatchResult, true);
+assertEqual("Blacklist Match - Phone match profile name", phoneMatchResult?.profile?.name, "Kovács Béla");
+assertEqual("Blacklist Match - Phone match field", phoneMatchResult?.matchedField, "phone");
+
+const matchingAddressOrder = {
+    id: "#4202",
+    shippingName: "Kiss Géza",
+    shippingPhone: "06205556677",
+    fullAddress: "6000 Kecskemét, Széchenyi tér 5. 1. em. 2."
+};
+const addressMatchResult = matchOrderWithBlacklist(matchingAddressOrder, sampleBlacklistProfiles);
+assertEqual("Blacklist Match - Address match detected", !!addressMatchResult, true);
+assertEqual("Blacklist Match - Address match profile name", addressMatchResult?.profile?.name, "Nagy Anna");
+assertEqual("Blacklist Match - Address match field", addressMatchResult?.matchedField, "address");
+
+const matchingEmailOrder = {
+    id: "#4204",
+    shippingName: "Kovács Úr",
+    shippingPhone: "06209990000",
+    fullAddress: "1011 Budapest, Fő utca 1.",
+    email: "KOVACS.BELA@FREEMAIL.HU"
+};
+const emailMatchResult = matchOrderWithBlacklist(matchingEmailOrder, sampleBlacklistProfiles);
+assertEqual("Blacklist Match - Email match detected", !!emailMatchResult, true);
+assertEqual("Blacklist Match - Email match profile name", emailMatchResult?.profile?.name, "Kovács Béla");
+assertEqual("Blacklist Match - Email match field", emailMatchResult?.matchedField, "email");
+assertEqual("Blacklist Match - Email match reason", emailMatchResult?.matchReason, "E-mail cím egyezés");
+
+const matchingOrderIdOrder = {
+    id: "#3794",
+    shippingName: "Minta Név",
+    shippingPhone: "06201110000",
+    fullAddress: "9000 Győr, Baross út 1."
+};
+const orderIdMatchResult = matchOrderWithBlacklist(matchingOrderIdOrder, sampleBlacklistProfiles);
+assertEqual("Blacklist Match - OrderId match detected", !!orderIdMatchResult, true);
+assertEqual("Blacklist Match - OrderId match profile name", orderIdMatchResult?.profile?.name, "Kovács Béla");
+assertEqual("Blacklist Match - OrderId match field", orderIdMatchResult?.matchedField, "orderId");
+assertEqual("Blacklist Match - OrderId match reason", orderIdMatchResult?.matchReason, "Rendelésszám egyezés");
+
+const nonMatchingOrder = {
+    id: "#4203",
+    shippingName: "Tóth Gábor",
+    shippingPhone: "06305550000",
+    fullAddress: "4025 Debrecen, Piac utca 10.",
+    email: "toth.gabor@gmail.com"
+};
+const nonMatchResult = matchOrderWithBlacklist(nonMatchingOrder, sampleBlacklistProfiles);
+assertEqual("Blacklist Match - Non-matching order returns null", nonMatchResult, null);
+
+// 6. findRelatedDeliveriesForProfile tesztek
+const mockSavedRuns = [
+    {
+        id: "run_sept_1",
+        date: "2026.09.01",
+        courier: "Bábel Ádám",
+        company: "Bábel Transz",
+        orders: [
+            {
+                id: "#3794",
+                shippingName: "Kovács Béla",
+                shippingPhone: "06301112233",
+                address: "1111 Budapest, Bartók Béla út 50.",
+                codAmount: 45000,
+                isCOD: true
+            }
+        ],
+        uncollectedOrderIds: ["#3794"],
+        uncollectedReasons: { "#3794": "Nem vette fel a telefont, elállt a vételtől" },
+        uncollectedResponsibility: { "#3794": "Vevő hibája" }
+    },
+    {
+        id: "run_sept_24",
+        date: "2026.09.24",
+        courier: "Tomi",
+        company: "Saját",
+        orders: [
+            {
+                id: "#3794",
+                shippingName: "Kovács Béla",
+                shippingPhone: "06301112233",
+                address: "1111 Budapest, Bartók Béla út 50.",
+                codAmount: 45000,
+                isCOD: true
+            }
+        ],
+        uncollectedOrderIds: [],
+        isSettled: true
+    }
+];
+
+const mockLiveOrders = [
+    {
+        id: "#4201",
+        shippingName: "Kovács Bence",
+        shippingPhone: "+36 30 111 2233",
+        fullAddress: "1111 Budapest, Bartók Béla út 50.",
+        codAmount: 52000,
+        isCOD: true,
+        orderDate: "2026-09-28T07:00:00Z"
+    }
+];
+
+const relatedDeliveries = findRelatedDeliveriesForProfile(sampleBlacklistProfiles[0], mockLiveOrders, mockSavedRuns);
+assertEqual("Blacklist Deliveries - Found 3 delivery events", relatedDeliveries.length, 3);
+assertEqual("Blacklist Deliveries - First event is live order (most recent)", relatedDeliveries[0].orderId, "#4201");
+assertEqual("Blacklist Deliveries - Second event date is 2026.09.24", relatedDeliveries[1].runDate, "2026.09.24");
+assertEqual("Blacklist Deliveries - Second event courier is Tomi", relatedDeliveries[1].courier, "Tomi");
+assertEqual("Blacklist Deliveries - Third event date is 2026.09.01", relatedDeliveries[2].runDate, "2026.09.01");
+assertEqual("Blacklist Deliveries - Third event was uncollected", relatedDeliveries[2].isUncollected, true);
+assertEqual("Blacklist Deliveries - Third event fail reason", relatedDeliveries[2].failReason, "Nem vette fel a telefont, elállt a vételtől");
+assertEqual("Blacklist Deliveries - Third event responsibility", relatedDeliveries[2].responsibility, "Vevő hibája");
+
 
 
 function checkJsSyntaxRecursively(dir) {

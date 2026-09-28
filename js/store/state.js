@@ -22,7 +22,8 @@ const state = {
     statsLeafletMap: null,
     activeStatsTab: 'charts',
     geoCache: JSON.parse(localStorage.getItem('hu_zip_geocache_v1') || '{}'),
-    expandedOrderIds: new Set()
+    expandedOrderIds: new Set(),
+    blacklistProfiles: []
 };
 
 export const Store = {
@@ -32,6 +33,7 @@ export const Store = {
     get shopifyHubOrders() { return state.shopifyHubOrders; },
     get selectedHubOrderIds() { return state.selectedHubOrderIds; },
     get expandedOrderIds() { return state.expandedOrderIds; },
+    get blacklistProfiles() { return state.blacklistProfiles; },
     get hubFilters() { return state.hubFilters; },
     get activeMainTab() { return state.activeMainTab; },
     get sortableInstance() { return state.sortableInstance; },
@@ -151,6 +153,10 @@ export const Store = {
 
     setActiveStatsTab(tabId) {
         state.activeStatsTab = tabId;
+    },
+
+    setBlacklistProfiles(profiles) {
+        state.blacklistProfiles = Array.isArray(profiles) ? profiles : [];
     },
 
     saveGeoCache() {

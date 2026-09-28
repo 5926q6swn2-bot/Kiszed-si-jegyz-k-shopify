@@ -728,7 +728,8 @@
 
         function hasOkTag(note) {
             if (!note) return false;
-            return String(note).toLowerCase().includes('[ok]');
+            const str = String(note).toLowerCase();
+            return str.includes('{ok}') || str.includes('[ok]');
         }
 
         function extractScheduledDateTag(note) {
