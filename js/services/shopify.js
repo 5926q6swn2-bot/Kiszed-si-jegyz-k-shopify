@@ -429,7 +429,8 @@ export const ShopifyParser = {
                 const paymentMethod = (row['Payment Method'] || '').toLowerCase();
                 const totalAmount = parseFloat(row['Total']) || 0;
                 let isBankDeposit = paymentMethod.includes('bank deposit');
-                let isPaid = (financialStatus === 'paid');
+                let isPaid = (financialStatus === 'paid' || financialStatus === 'partially_refunded');
+                const isPartiallyRefunded = (financialStatus === 'partially_refunded');
                 
                 if (isBankDeposit && !isPaid) {
                     const formattedTotal = new Intl.NumberFormat('hu-HU').format(totalAmount);
@@ -586,6 +587,8 @@ export const ShopifyParser = {
                     needsSelaDispatch: fulfillmentStatus !== 'fulfilled' && !isPickup && !hasPxpTag && !hasSelaOrdered && !hasWaitingTag,
                     isBankDeposit: isBankDeposit,
                     isPaid: isPaid,
+                    isPartiallyRefunded: isPartiallyRefunded,
+                    financialStatus: financialStatus,
                     isCOD: isCOD,
                     codAmount: codAmount,
                     orderDate: createdAtStr,

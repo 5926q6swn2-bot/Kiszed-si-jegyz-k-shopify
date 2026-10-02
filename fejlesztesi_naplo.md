@@ -29,8 +29,25 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.8 Flash (High)
-- **Státusz**: Elszámolási előzmények kártyafejlécének letisztítása (összesített fuvardíj és felesleges kompenzáció-levonás eltávolítva a fejlécből; rendelésenként nyitáskor látható minden tétel és kompenzáció), "Bontott / Részleges" pontosítás, képlet alapú Excel elszámolás export (v4.9.17, 789/789 zöld unit teszt).
+- **Státusz**: Részben visszatérített / szállítási díj visszautalásos rendelések kezelése (partially_refunded Shopify státusz kifizetettként kezelése, díjbekérő téves riasztás megszüntetése, pl. #4200), letisztult kártyafejlécek, képlet alapú Excel elszámolás export (v4.9.18, 792/792 zöld unit teszt).
 
+
+---
+
+### 2026. október 2. (5. frissítés) - Részben Visszatérített Rendelések Fizetettsége (pl. #4200, `v4.9.18`)
+- **Probléma feltárása**:
+  - Amikor egy kifizetett rendelésnél a szállítási díjat vagy egy tételt utólag visszautalnak a vevőnek (pl. a #4200-as rendelésnél 9 900 Ft szállítási költség visszautalása történt online bankkártyás fizetés után), a Shopify a pénzügyi státuszt automatikusan `partially_refunded`-re állítja.
+  - A korábbi logika kizárólag a `financial_status === 'paid'` esetet tekintette kifizetettnek, ezért a `partially_refunded` rendelést a rendszer tévesen `Fizetetlen`-nek tekintette.
+  - Mivel a rendelés összege meghaladta a 250 000 Ft-ot (498 180 Ft), a rendszer tévesen azt hitte, hogy nem fizetett nagy összegű rendelésről van szó, és rátette a `[DÍJBEK SZÜKSÉGES]` és `Díjbekérő szükséges (250e+ Ft)` figyelmeztetést.
+- **Megoldás**:
+  - `js/services/shopifyApiService.js` & `js/services/shopify.js`: A `partially_refunded` státuszt mostantól egyértelműen kifizetettként (`isPaid = true`, `isPartiallyRefunded = true`) kezeli a rendszer. Ezzel a hátralévő összeg (`outstandingBalance`) 0 Ft lesz, és a díjbekérő ellenőrzés sem jelez hibát.
+  - `js/views/orderOverviewView.js`: A fizetési jelvény mostantól zöld `Fizetve` badge-et jelenít meg, a felugró tooltipben pedig részletesen kiírja: `Kifizetve (Részben visszatérítve)` (a lenyitott panelen is).
+  - `js/services/exporter.js`: Az elszámolás és exportálás során a `partially_refunded` státuszú rendelések nem kerülnek tévesen függő utalásba.
+  - `server/shopifyRoutes.js`: A Shopify státusz szinkronizáció felismeri, ha a rendelés már `partially_refunded`, így nem próbálja feleslegesen újból `orderMarkAsPaid` mutációval felülírni.
+- **Verzió & Cache Buster**:
+  - `index.html` frissítve `v=4.9.18`-ra.
+- **Tesztek**:
+  - Mind a **792 unit teszt sikeresen zöldre futott (0 hiba)** (`tests/unit_tests.js`).
 
 ---
 

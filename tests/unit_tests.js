@@ -541,6 +541,21 @@ assertEqual("Pickup Paid/Card - hasNoInvoice true (invoice warning needed)", pic
 const pickupPaidWithInvoiceTag = checkResellerFlags("személyes, számla ki", 300000, true, false, true);
 assertEqual("Pickup Paid with számla ki - hasNoInvoice false", pickupPaidWithInvoiceTag.hasNoInvoice, false);
 
+// --- Partially Refunded (Részben visszatérített / Visszautalt szállítás) Tesztek (pl. #4200) ---
+function parseOrderFinancialStatus(financialStatusRaw) {
+    const financialStatus = (financialStatusRaw || '').toLowerCase();
+    const isPaid = (financialStatus === 'paid' || financialStatus === 'partially_refunded');
+    const isPartiallyRefunded = (financialStatus === 'partially_refunded');
+    return { isPaid, isPartiallyRefunded };
+}
+
+const partialRefundTest = parseOrderFinancialStatus('partially_refunded');
+assertEqual("Partially Refunded - isPaid true", partialRefundTest.isPaid, true);
+assertEqual("Partially Refunded - isPartiallyRefunded true", partialRefundTest.isPartiallyRefunded, true);
+
+const order4200ProformaTest = checkResellerFlags("", 498180, partialRefundTest.isPaid, false, false);
+assertEqual("Order 4200 (Partially Refunded) - needsProforma false", order4200ProformaTest.needsProforma, false);
+
 // --- Waiting for Shipment (Szállítmányra vár) Tag Tests ---
 function extractWaitingTags(tags) {
     const rawTagsList = (tags || '').split(',').map(t => t.trim()).filter(Boolean);

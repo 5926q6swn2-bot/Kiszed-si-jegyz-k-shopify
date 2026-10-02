@@ -316,7 +316,8 @@ export const ShopifyApiService = {
         const paymentGateways = (apiOrder.payment_gateway_names || []).map(g => String(g).toLowerCase());
         
         let isBankDeposit = paymentGateways.some(g => g.includes('bank deposit') || g.includes('bank_deposit') || g.includes('banki utalás') || g.includes('utalás'));
-        let isPaid = (financialStatus === 'paid');
+        let isPaid = (financialStatus === 'paid' || financialStatus === 'partially_refunded');
+        const isPartiallyRefunded = (financialStatus === 'partially_refunded');
         const totalAmount = parseFloat(apiOrder.current_total_price || apiOrder.total_price) || 0;
         const outstandingBalance = parseFloat(apiOrder.current_total_outstanding || apiOrder.total_outstanding || (isPaid ? 0 : totalAmount)) || 0;
 
@@ -593,6 +594,7 @@ export const ShopifyApiService = {
             isBudapest: isBudapest,
             isBankDeposit: isBankDeposit,
             isPaid: isPaid,
+            isPartiallyRefunded: isPartiallyRefunded,
             isCOD: isCOD,
             codAmount: codAmount,
             totalAmount: totalAmount,

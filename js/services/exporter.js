@@ -1013,7 +1013,7 @@ export function isPendingBankDeposit(order) {
     // 3. Payment gateways vizsgálata
     const gateways = (order.paymentGateways || order.payment_gateway_names || order.rawOrder?.payment_gateway_names || []).map(g => String(g).toLowerCase());
     const isBank = gateways.some(g => g.includes('bank deposit') || g.includes('bank_deposit') || g.includes('banki utalás') || g.includes('átutalás') || g.includes('utalás'));
-    const isPaid = order.isPaid === true || (order.financialStatus || order.financial_status || '').toLowerCase() === 'paid';
+    const isPaid = order.isPaid === true || (order.financialStatus || order.financial_status || '').toLowerCase() === 'paid' || (order.financialStatus || order.financial_status || '').toLowerCase() === 'partially_refunded';
     
     if (isBank && !isPaid) return true;
 

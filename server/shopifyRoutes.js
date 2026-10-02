@@ -938,10 +938,11 @@ async function handleShopifyRoute(req, res, pathname, parsedUrl, ctx) {
               continue;
             }
 
-            // Ha már eleve PAID, nincs teendő, jelezzük sikeresként
-            if (currentStatus && String(currentStatus).toLowerCase() === 'paid') {
+            // Ha már eleve PAID vagy PARTIALLY_REFUNDED, nincs teendő, jelezzük sikeresként
+            const statusLower = String(currentStatus || '').toLowerCase();
+            if (statusLower === 'paid' || statusLower === 'partially_refunded') {
               results.alreadyPaidCount++;
-              results.updatedOrders.push({ orderId: oId, shopifyId: sId, status: 'paid', alreadyPaid: true });
+              results.updatedOrders.push({ orderId: oId, shopifyId: sId, status: statusLower, alreadyPaid: true });
               continue;
             }
 

@@ -815,12 +815,13 @@ export const OrderOverviewView = {
                                     </div>
                                 `;
                             } else if (order.isPaid) {
+                                const isPartialRefund = order.financialStatus === 'partially_refunded' || order.isPartiallyRefunded;
                                 paymentBadge = `
                                     <div class="logi-tooltip-wrapper" style="position: relative; display: inline-flex;">
                                         <span style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; padding: 1.5px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700;">Fizetve</span>
                                         <div class="logi-tooltip-bubble" style="min-width: 150px; white-space: nowrap;">
                                             <i class="ph-bold ph-check-circle" style="color: #6ee7b7;"></i>
-                                            <span>Kifizetve (Shopify)</span>
+                                            <span>${isPartialRefund ? 'Kifizetve (Részben visszatérítve)' : 'Kifizetve (Shopify)'}</span>
                                         </div>
                                     </div>
                                 `;
@@ -1398,7 +1399,7 @@ export const OrderOverviewView = {
                                                                 </span>
                                                             ` : order.isPaid ? `
                                                                 <span style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; padding: 2px 8px; border-radius: 5px; font-weight: 700; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;">
-                                                                    <i class="ph-bold ph-check"></i> Kifizetve
+                                                                    <i class="ph-bold ph-check"></i> ${(order.financialStatus === 'partially_refunded' || order.isPartiallyRefunded) ? 'Kifizetve (Részben visszatérítve)' : 'Kifizetve'}
                                                                 </span>
                                                             ` : `
                                                                 <span style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; padding: 2px 8px; border-radius: 5px; font-weight: 700; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;">
