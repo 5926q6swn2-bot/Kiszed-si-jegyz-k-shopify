@@ -33,13 +33,15 @@ export function getPaymentDetails(run, order) {
     const paymentStatusMap = run.paymentStatusMap || {};
 
     const orderId = String(order.id);
+    const cleanId = orderId.replace(/^#/, '');
+    const hashId = '#' + cleanId;
 
-    const isUncollected = uncollected.some(id => String(id) === orderId);
-    const isBankTransferred = bankTransferred.some(id => String(id) === orderId);
+    const isUncollected = uncollected.some(id => String(id) === orderId || String(id) === cleanId || String(id) === hashId);
+    const isBankTransferred = bankTransferred.some(id => String(id) === orderId || String(id) === cleanId || String(id) === hashId);
     
-    const partial = partialOrders[orderId] || partialOrders[order.id];
+    const partial = partialOrders[orderId] || partialOrders[order.id] || partialOrders[cleanId] || partialOrders[hashId];
     const isPartial = !isUncollected && !isBankTransferred && !!partial;
-    const surplus = surplusOrders[orderId] || surplusOrders[order.id];
+    const surplus = surplusOrders[orderId] || surplusOrders[order.id] || surplusOrders[cleanId] || surplusOrders[hashId];
 
     if (!order.isCOD) {
         if (isUncollected) {
@@ -227,8 +229,8 @@ export function getPaymentDetails(run, order) {
     if (!isPartial && surplus && (surplus.amount > 0 || surplus.extraAmount > 0)) {
         collectedAmount = surplus.amount || ((order.codAmount || 0) + (surplus.extraAmount || 0));
     }
-    const pm = paymentMethods[orderId] || paymentMethods[order.id];
-    const ps = paymentStatusMap[orderId] || paymentStatusMap[order.id];
+    const pm = paymentMethods[orderId] || paymentMethods[order.id] || paymentMethods[cleanId] || paymentMethods[hashId];
+    const ps = paymentStatusMap[orderId] || paymentStatusMap[order.id] || paymentStatusMap[cleanId] || paymentStatusMap[hashId];
 
     let pendingKp = 0;
     let pendingCard = 0;
@@ -294,7 +296,8 @@ export function getPaymentDetails(run, order) {
         if (cashAmt > 0) parts.push(`KP (${cashAmt.toLocaleString('hu-HU')} Ft)`);
         if (cardAmt > 0) parts.push(`Kártya (${cardAmt.toLocaleString('hu-HU')} Ft)`);
         if (bankAmt > 0) parts.push(`Utalás (${bankAmt.toLocaleString('hu-HU')} Ft)`);
-        methodText = `Bontott: ${parts.join(' + ')}`;
+        const partsStr = parts.length > 0 ? `: ${parts.join(' + ')}` : '';
+        methodText = `Bontott / Részleges${partsStr}`;
     } else {
         const method = pm || 'cash';
         let st = 'pending';
@@ -306,14 +309,14 @@ export function getPaymentDetails(run, order) {
 
         if (method === 'card') {
             if (!isTransferSettled) st = 'pending';
-            methodText = "Bankkártya";
+            methodText = isPartial ? "Bontott / Részleges (Bankkártya)" : "Bankkártya";
             if (st === 'pending') pendingCard = collectedAmount; else receivedCard = collectedAmount;
         } else if (method === 'bank') {
             if (!isTransferSettled) st = 'pending';
-            methodText = "Átutalás";
+            methodText = isPartial ? "Bontott / Részleges (Átutalás)" : "Átutalás";
             if (st === 'pending') pendingBank = collectedAmount; else receivedBank = collectedAmount;
         } else {
-            methodText = "Készpénz (KP)";
+            methodText = isPartial ? "Bontott / Részleges (KP)" : "Készpénz (KP)";
             if (st === 'pending') pendingKp = collectedAmount; else receivedKp = collectedAmount;
         }
     }

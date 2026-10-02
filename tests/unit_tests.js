@@ -2762,11 +2762,16 @@ const testPartialRun = {
 const pdPartial = getPaymentDetails(testPartialRun, testPartialOrder);
 assertEqual("Export CSV - Részleges és többlet egyidejű elszámolása Beszedett összeg", pdPartial.collectedAmount, 43810);
 
-// --- Új Elszámolás Export Tesztek (Munkalapok, Meghiúsult kiemelés, Megjegyzés törölve) ---
-assertEqual("Accounting Export - Nincs Megjegyzés oszlop a fejlécben", ACCOUNTING_EXPORT_HEADERS.includes("Megjegyzés"), false);
-assertEqual("Accounting Export - Fejléc pontosan 12 oszlopos", ACCOUNTING_EXPORT_HEADERS.length, 12);
+// --- Új Elszámolás Export Tesztek (13 oszlop, Képletek, Szállítói kompenzáció hover note-tal, Összesítő munkalap, Meghiúsult és bontott hover kommentek) ---
+assertEqual("Accounting Export - Fejléc pontosan 13 oszlopos", ACCOUNTING_EXPORT_HEADERS.length, 13);
+assertEqual("Accounting Export - Nem tartalmaz felesleges Szállító Cég oszlopot", ACCOUNTING_EXPORT_HEADERS.includes("Szállító Cég"), false);
+assertEqual("Accounting Export - Nem tartalmaz felesleges Régió oszlopot", ACCOUNTING_EXPORT_HEADERS.includes("Régió"), false);
+assertEqual("Accounting Export - Nem tartalmaz soronkénti Fizetendő Fuvardíj oszlopot", ACCOUNTING_EXPORT_HEADERS.includes("Fizetendő Fuvardíj (Ft + Áfa)"), false);
 assertEqual("Accounting Export - Tartalmazza a Felelősség oszlopot", ACCOUNTING_EXPORT_HEADERS.includes("Felelősség"), true);
 assertEqual("Accounting Export - Tartalmazza a Fuvardíj oszlopot", ACCOUNTING_EXPORT_HEADERS.includes("Fuvardíj (Ft + Áfa)"), true);
+assertEqual("Accounting Export - Tartalmazza a Táblaszám oszlopot", ACCOUNTING_EXPORT_HEADERS.includes("Táblaszám (db)"), true);
+assertEqual("Accounting Export - Tartalmazza a Szállítói Kompenzáció (Ft + Áfa) oszlopot", ACCOUNTING_EXPORT_HEADERS.includes("Szállítói Kompenzáció (Ft + Áfa)"), true);
+assertEqual("Accounting Export - NEM tartalmaz külön Kompenzáció Megjegyzés oszlopot (helyette hover comment van)", ACCOUNTING_EXPORT_HEADERS.includes("Kompenzáció Megjegyzés"), false);
 
 const testExportRuns = [
     {
@@ -2780,9 +2785,12 @@ const testExportRuns = [
             { id: "#5004", shippingName: "Vevő 4", isCOD: true, codAmount: 40000, city: "Szeged", zip: "6720", items: [{ name: "Falpanel", qty: 2 }] }
         ],
         uncollectedOrderIds: ["#5002"],
+        uncollectedReasons: { "#5002": "Vevő nem vette át, sérült a doboz" },
         partialOrders: { "#5004": { amount: 30000, comment: "1 db panel sérült" } },
         uncollectedResponsibility: { "#5002": "szallito", "#5004": "szallito" },
-        paymentStatusMap: { "#5001": "received", "#5002": "received", "#5004": "received" }
+        paymentStatusMap: { "#5001": "received", "#5002": "received", "#5004": "received" },
+        paymentMethods: { "#5004": { cash: 30000, card: 0, bank: 0 } },
+        carrierCompensations: { "#5004": { amount: 8000, comment: "Sérült tábla a lerakáskor" } }
     },
     {
         id: "run_trans",
@@ -2802,29 +2810,47 @@ assertEqual("Accounting Export Data - Összesen 4 sor készült", preparedExport
 
 const row5002 = preparedExportRows.find(r => r.orderId === "#5002");
 assertEqual("Accounting Export Data - #5002 meghiúsult flag", row5002.isUncollected, true);
+assertEqual("Accounting Export Data - #5002 meghiúsult ok kinyerve", row5002.uncollectedReason, "Vevő nem vette át, sérült a doboz");
 assertEqual("Accounting Export Data - #5002 felelősség szöveg", row5002.responsibility, "Szállító hibája");
 assertEqual("Accounting Export Data - #5002 fuvardíj 0 Ft", row5002.deliveryCostNet, 0);
 assertEqual("Accounting Export Data - #5002 fuvardíj formázott szöveg", row5002.deliveryCostText, "0 Ft (Szállító hiba)");
 
 const row5004 = preparedExportRows.find(r => r.orderId === "#5004");
 assertEqual("Accounting Export Data - #5004 részleges fizetés flag", row5004.isPartial, true);
+assertEqual("Accounting Export Data - #5004 részleges fizetés komment kinyerve", row5004.partialComment, "1 db panel sérült");
+assertEqual("Accounting Export Data - #5004 fizetés módja szöveg tartalmazza a Részleges szót", row5004.paymentMethodText.includes("Bontott / Részleges"), true);
 assertEqual("Accounting Export Data - #5004 felelősség kiírva: Szállító hibája", row5004.responsibility, "Szállító hibája");
 assertEqual("Accounting Export Data - #5004 fuvardíj NEM törlődik (15 000 Ft)", row5004.deliveryCostNet, 15000);
 assertEqual("Accounting Export Data - #5004 formázott fuvardíj", row5004.deliveryCostText, "15 000 Ft + Áfa");
+assertEqual("Accounting Export Data - #5004 kompenzáció összege", row5004.compensationAmount, 8000);
+assertEqual("Accounting Export Data - #5004 kompenzáció megjegyzése", row5004.compensationComment, "Sérült tábla a lerakáskor");
+assertEqual("Accounting Export Data - #5004 fizetendő nettó fuvardíj", row5004.netPayableCost, 7000);
 
 const row5001 = preparedExportRows.find(r => r.orderId === "#5001");
 assertEqual("Accounting Export Data - #5001 nem meghiúsult", row5001.isUncollected, false);
 assertEqual("Accounting Export Data - #5001 Budapest fuvardíj 10 000 Ft", row5001.deliveryCostNet, 10000);
+assertEqual("Accounting Export Data - #5001 kompenzáció 0 Ft", row5001.compensationAmount, 0);
 
 // Excel munkafüzet struktúra és színezés validációja
 const generatedWb = await generateAccountingExcelWorkbook(preparedExportRows, ExcelJS);
-assertEqual("Accounting Excel - Több cég esetén létrejön az Összesítő munkalap", !!generatedWb.getWorksheet("Összesítő"), true);
+assertEqual("Accounting Excel - Létrejön az Összesítő munkalap", !!generatedWb.getWorksheet("Összesítő"), true);
 assertEqual("Accounting Excel - Létrejön a Sela munkalap", !!generatedWb.getWorksheet("Sela Kft."), true);
 const summarySheet = generatedWb.getWorksheet("Összesítő");
 assertEqual("Accounting Excel - Összesítő lap létezik", !!summarySheet, true);
 const summaryHeaders = summarySheet.getRow(1).values;
 assertEqual("Accounting Excel - Összesítő tartalmazza: Fizetendő Fuvar (db)", summaryHeaders.includes("Fizetendő Fuvar (db)"), true);
-assertEqual("Accounting Excel - Összesítő tartalmazza: Szállító hibája (db)", summaryHeaders.includes("Szállító hibája (db)"), true);
+assertEqual("Accounting Excel - Összesítő NEM tartalmazza a Szállító hibája oszlopot", summaryHeaders.includes("Szállító hibája (db)"), false);
+assertEqual("Accounting Excel - Összesítő NEM tartalmazza a Vevő / egyéb hiba oszlopot", summaryHeaders.includes("Vevő / egyéb hiba (db)"), false);
+assertEqual("Accounting Excel - Összesítő NEM tartalmazza az Összes Fuvar oszlopot", summaryHeaders.includes("Összes Fuvar (db)"), false);
+assertEqual("Accounting Excel - Összesítő tartalmazza: Fuvardíj összesen (Eredeti) (Ft + Áfa)", summaryHeaders.includes("Fuvardíj összesen (Eredeti) (Ft + Áfa)"), true);
+assertEqual("Accounting Excel - Összesítő tartalmazza: Szállítói Kompenzáció (Ft + Áfa)", summaryHeaders.includes("Szállítói Kompenzáció (Ft + Áfa)"), true);
+assertEqual("Accounting Excel - Összesítő tartalmazza: Ténylegesen Fizetendő Fuvardíj (Ft + Áfa)", summaryHeaders.includes("Ténylegesen Fizetendő Fuvardíj (Ft + Áfa)"), true);
+
+// Összesítő lap képletek ellenőrzése (nincs #VALUE! hiba)
+const summaryRow2 = summarySheet.getRow(2); // Sela Kft. sor
+assertEqual("Accounting Excel - Összesítő payableCount képlete COUNTA - COUNTIF", summaryRow2.getCell(2).value.formula, "MAX(0, COUNTA('Sela Kft.'!C2:C4) - COUNTIF('Sela Kft.'!K2:K4, \"Szállító hibája\"))");
+assertEqual("Accounting Excel - Összesítő payableCount eredménye 2 fuvar", summaryRow2.getCell(2).value.result, 2);
+assertEqual("Accounting Excel - Összesítő netPayable képlete MAX(0, F2-G2)", summaryRow2.getCell(8).value.formula, "MAX(0, F2-G2)");
 
 const selaSheet = generatedWb.getWorksheet("Sela Kft.");
 let foundUncollectedHighlight = false;
@@ -2834,6 +2860,39 @@ selaSheet.eachRow((r, rowNumber) => {
     }
 });
 assertEqual("Accounting Excel - Meghiúsult rendelés világospiros kiemeléssel szerepel", foundUncollectedHighlight, true);
+
+// Excel képletek és hover megjegyzések (cell.note) ellenőrzése a cég munkalapon (13 oszlop)
+const selaRow2 = selaSheet.getRow(2); // Első adatsor (#5001 - Budapest)
+const selaRow3 = selaSheet.getRow(3); // Második adatsor (#5002 - Vidék, meghiúsult szállító hibája)
+const selaRow4 = selaSheet.getRow(4); // Harmadik adatsor (#5004 - Vidék, 8000 Ft kompenzáció, bontott fizetés)
+assertEqual("Accounting Excel - L oszlop (fuvardíj) képletet tartalmaz (Budapest)", selaRow2.getCell(12).value.formula, 'IF(K2="Szállító hibája", 0, 10000 + MAX(0, E2 - 10) * 1100)');
+assertEqual("Accounting Excel - L oszlop (fuvardíj) képletet tartalmaz (Vidék)", selaRow4.getCell(12).value.formula, 'IF(K4="Szállító hibája", 0, 15000 + MAX(0, E4 - 10) * 1100)');
+assertEqual("Accounting Excel - M oszlop (kompenzáció)", selaRow4.getCell(13).value, 8000);
+
+// Hover komment / cell.note ellenőrzése a kompenzáció cellán
+assertEqual("Accounting Excel - M oszlop kompenzáció hover megjegyzés tartalmazza az indoklást", selaRow4.getCell(13).note.includes("Sérült tábla a lerakáskor"), true);
+
+// Hover komment / cell.note ellenőrzése a meghiúsult rendelésnél (szállító hibája)
+assertEqual("Accounting Excel - Felelősség cella hover megjegyzés meghiúsulás okáról", selaRow3.getCell(11).note.includes("Vevő nem vette át, sérült a doboz"), true);
+assertEqual("Accounting Excel - Státusz cella hover megjegyzés meghiúsulás okáról", selaRow3.getCell(10).note.includes("Vevő nem vette át, sérült a doboz"), true);
+
+// Hover komment / cell.note ellenőrzése a bontott/részleges fizetésnél
+assertEqual("Accounting Excel - Fizetés módja cella hover megjegyzés a bontott fizetés indokáról", selaRow4.getCell(7).note.includes("1 db panel sérült"), true);
+assertEqual("Accounting Excel - Státusz cella hover megjegyzés a bontott fizetés indokáról", selaRow4.getCell(10).note.includes("1 db panel sérült"), true);
+
+// Nincs külön 14. oszlop
+assertEqual("Accounting Excel - N oszlop már nincs kitöltve (csak 13 oszlopos a fejléc)", selaRow4.getCell(14).value === undefined || selaRow4.getCell(14).value === null, true);
+
+const totalRow = selaSheet.getRow(5); // Összesen sor
+assertEqual("Accounting Excel - ÖSSZESEN sor létezik", totalRow.getCell(1).value, "ÖSSZESEN");
+assertEqual("Accounting Excel - ÖSSZESEN rendelés COUNTA képlet", totalRow.getCell(3).value.formula, "COUNTA(C2:C4)");
+assertEqual("Accounting Excel - ÖSSZESEN utánvét SUM képlet", totalRow.getCell(6).value.formula, "SUM(F2:F4)");
+assertEqual("Accounting Excel - ÖSSZESEN fuvardíj SUM képlet", totalRow.getCell(12).value.formula, "SUM(L2:L4)");
+assertEqual("Accounting Excel - ÖSSZESEN kompenzáció SUM képlet", totalRow.getCell(13).value.formula, "SUM(M2:M4)");
+
+const payableRow = selaSheet.getRow(6); // FIZETENDŐ sor (mivel volt kompenzáció)
+assertEqual("Accounting Excel - FIZETENDŐ sor létezik ha van kompenzáció", payableRow.getCell(1).value, "FIZETENDŐ");
+assertEqual("Accounting Excel - FIZETENDŐ sor képlete MAX(0, L5 - M5)", payableRow.getCell(12).value.formula, "MAX(0, L5 - M5)");
 
 // G) PannonXP Címke Referenciaszám generálás - Vegyes és egyedi akusztikus panel szabályok
 const testRefMappings = {

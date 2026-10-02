@@ -3,7 +3,12 @@
 import { CustomDialog } from '../utils/dialog.js';
 import { getPaymentDetails } from '../utils/paymentUtils.js';
 import { SelaWeightService } from './selaWeightService.js';
-import { calculateOrderDeliveryCost, extractCourierInstructionsFromNote } from '../utils/orderUtils.js';
+import { 
+    calculateOrderDeliveryCost, 
+    extractCourierInstructionsFromNote,
+    countOrderBoards,
+    isBudapestAddress
+} from '../utils/orderUtils.js';
 
 // --- SELA SÚLYKONFIGURÁCIÓ ÉS KALKULÁCIÓ ---
 
@@ -60,17 +65,18 @@ export function calculateSelaOrderWeight(quantities, weights = null) {
 
 export const ACCOUNTING_EXPORT_HEADERS = [
     "Kiszállítás Dátuma",
-    "Szállító Cég",
     "Szállító Neve",
     "Rendelésszám",
     "Vevő Neve",
+    "Táblaszám (db)",
     "Beszedett Összeg (Ft)",
     "Fizetés Módja",
     "Függő KP (futártól) (Ft)",
     "Kártyás utalásra vár (szállítótól) (Ft)",
     "Státusz",
     "Felelősség",
-    "Fuvardíj (Ft + Áfa)"
+    "Fuvardíj (Ft + Áfa)",
+    "Szállítói Kompenzáció (Ft + Áfa)"
 ];
 
 /**
@@ -84,15 +90,19 @@ export function prepareAccountingExportData(runs) {
     (runs || []).forEach(run => {
         const partialOrders = run.partialOrders || {};
         const respMap = run.uncollectedResponsibility || {};
+        const compMap = run.carrierCompensations || {};
+        const reasonsMap = run.uncollectedReasons || {};
         const uncollectedSet = new Set((run.uncollectedOrderIds || []).map(String));
 
         (run.orders || []).forEach(o => {
             const pd = getPaymentDetails(run, o);
             const orderIdKey = String(o.id);
-            const isUncollected = uncollectedSet.has(orderIdKey) || uncollectedSet.has(String(o.id));
-            const po = partialOrders[o.id] || partialOrders[orderIdKey];
+            const cleanId = orderIdKey.replace(/^#/, '');
+            const hashId = '#' + cleanId;
+            const isUncollected = uncollectedSet.has(orderIdKey) || uncollectedSet.has(cleanId) || uncollectedSet.has(hashId);
+            const po = partialOrders[o.id] || partialOrders[orderIdKey] || partialOrders[cleanId] || partialOrders[hashId];
             const isPartial = !isUncollected && !!po;
-            const resp = respMap[o.id] || respMap[orderIdKey] || 'vevo';
+            const resp = respMap[o.id] || respMap[orderIdKey] || respMap[cleanId] || respMap[hashId] || 'vevo';
             const isCarrierFaultZeroCost = isUncollected && resp === 'szallito';
 
             let responsibilityText = "-";
@@ -110,20 +120,51 @@ export function prepareAccountingExportData(runs) {
                     : o.customDeliveryCost
             });
 
+            const compInfo = compMap[o.id] || compMap[orderIdKey] || compMap[cleanId] || compMap[hashId] || null;
+            const compensationAmount = compInfo ? (Math.max(0, parseInt(compInfo.amount) || 0)) : 0;
+            const compensationComment = compInfo ? String(compInfo.comment || '').trim() : '';
+
+            const uncollectedReason = isUncollected ? (reasonsMap[o.id] || reasonsMap[orderIdKey] || reasonsMap[cleanId] || reasonsMap[hashId] || '') : '';
+            const partialComment = (po && typeof po === 'object' && po.comment) ? String(po.comment).trim() : '';
+
+            const boardCount = countOrderBoards(o);
+            const isBudapest = isBudapestAddress(o);
+            const regionText = isBudapest ? "Budapest" : "Vidék";
+            const netPayableCost = Math.max(0, deliveryCostInfo.netCost - compensationAmount);
+
+            let paymentMethodText = pd.methodText || "-";
+            if (paymentMethodText.startsWith("Bontott:") && !paymentMethodText.includes("Részleges")) {
+                paymentMethodText = paymentMethodText.replace("Bontott:", "Bontott / Részleges:");
+            } else if (paymentMethodText === "Bontott" || paymentMethodText === "Bontott fizetés") {
+                paymentMethodText = "Bontott / Részleges";
+            }
+            if ((isPartial || pd.isPartial) && !paymentMethodText.includes("Részleges")) {
+                paymentMethodText = `Bontott / Részleges (${paymentMethodText})`;
+            }
+
             rows.push({
                 date: run.date || "-",
                 company: (run.company || "Egyéb").trim(),
                 courier: run.courier || "-",
                 orderId: o.id || "-",
                 customerName: o.shippingName || "—",
+                region: regionText,
+                boardCount: boardCount,
+                isBudapest: isBudapest,
                 collectedAmount: pd.collectedAmount || 0,
-                paymentMethodText: pd.methodText || "-",
+                paymentMethodText: paymentMethodText,
                 pendingKp: pd.pendingKp || 0,
                 pendingCard: (pd.pendingCard || 0) + (pd.pendingBank || 0),
                 orderStatus: pd.statusText || "-",
                 responsibility: responsibilityText,
                 deliveryCostText: deliveryCostInfo.formattedCost,
                 deliveryCostNet: deliveryCostInfo.netCost,
+                isCustomDeliveryCost: deliveryCostInfo.isCustom,
+                compensationAmount: compensationAmount,
+                compensationComment: compensationComment,
+                uncollectedReason: uncollectedReason ? String(uncollectedReason).trim() : '',
+                partialComment: partialComment,
+                netPayableCost: netPayableCost,
                 isUncollected,
                 isPartial,
                 isCarrierFault: isCarrierFaultZeroCost
@@ -166,114 +207,10 @@ export async function generateAccountingExcelWorkbook(rows, ExcelLib) {
         companiesMap.get(comp).push(r);
     });
 
-    // Ha több mint 1 cég van, létrehozunk egy "Összesítő" összefoglaló munkalapot elöl
-    if (companiesMap.size > 1) {
-        const summarySheet = workbook.addWorksheet("Összesítő", {
-            views: [{ showGridLines: true }]
-        });
-
-        summarySheet.columns = [
-            { header: "Szállító Cég", key: "company", width: 22 },
-            { header: "Összes Fuvar (db)", key: "totalCount", width: 18 },
-            { header: "Szállító hibája (db)", key: "carrierFaultCount", width: 20 },
-            { header: "Vevő / egyéb hiba (db)", key: "otherFaultCount", width: 22 },
-            { header: "Fizetendő Fuvar (db)", key: "payableCount", width: 20 },
-            { header: "Beszedett Összeg (Ft)", key: "collected", width: 24 },
-            { header: "Függő KP (Ft)", key: "pendingKp", width: 18 },
-            { header: "Kártyás utalásra vár (Ft)", key: "pendingCard", width: 26 },
-            { header: "Fizetendő Fuvardíj (Ft + Áfa)", key: "deliveryCost", width: 26 }
-        ];
-
-        const headerRow = summarySheet.getRow(1);
-        headerRow.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10.5 };
-        headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } };
-        headerRow.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-        headerRow.height = 28;
-
-        let grandTotalCount = 0;
-        let grandCarrierFault = 0;
-        let grandOtherFault = 0;
-        let grandPayableCount = 0;
-        let grandCollected = 0;
-        let grandKp = 0;
-        let grandCard = 0;
-        let grandDelivery = 0;
-
-        for (const [compName, compRows] of companiesMap.entries()) {
-            const totalCount = compRows.length;
-            const carrierFaultCount = compRows.filter(r => r.isCarrierFault).length;
-            const otherFaultCount = compRows.filter(r => r.isUncollected && !r.isCarrierFault).length;
-            const payableCount = Math.max(0, totalCount - carrierFaultCount);
-
-            const collected = Math.round(compRows.reduce((sum, r) => sum + r.collectedAmount, 0));
-            const pendingKp = Math.round(compRows.reduce((sum, r) => sum + r.pendingKp, 0));
-            const pendingCard = Math.round(compRows.reduce((sum, r) => sum + r.pendingCard, 0));
-            const delivery = Math.round(compRows.reduce((sum, r) => sum + r.deliveryCostNet, 0));
-
-            grandTotalCount += totalCount;
-            grandCarrierFault += carrierFaultCount;
-            grandOtherFault += otherFaultCount;
-            grandPayableCount += payableCount;
-            grandCollected += collected;
-            grandKp += pendingKp;
-            grandCard += pendingCard;
-            grandDelivery += delivery;
-
-            const addedRow = summarySheet.addRow({
-                company: compName,
-                totalCount,
-                carrierFaultCount,
-                otherFaultCount,
-                payableCount,
-                collected,
-                pendingKp,
-                pendingCard,
-                deliveryCost: `${new Intl.NumberFormat('hu-HU').format(delivery).replace(/\u00a0/g, ' ')} Ft + Áfa`
-            });
-            addedRow.alignment = { vertical: "middle" };
-            addedRow.height = 22;
-
-            // Pénzösszegek formázása ezres tagolással
-            addedRow.getCell('collected').numFmt = '#,##0';
-            addedRow.getCell('pendingKp').numFmt = '#,##0';
-            addedRow.getCell('pendingCard').numFmt = '#,##0';
-
-            // Kiemelések
-            if (carrierFaultCount > 0) {
-                const cell = addedRow.getCell('carrierFaultCount');
-                cell.font = { bold: true, color: { argb: "FFDC2626" } };
-            }
-            const payableCell = addedRow.getCell('payableCount');
-            payableCell.font = { bold: true, color: { argb: "FF166534" } };
-        }
-
-        const totalRow = summarySheet.addRow({
-            company: "MINDÖSSZESEN",
-            totalCount: grandTotalCount,
-            carrierFaultCount: grandCarrierFault,
-            otherFaultCount: grandOtherFault,
-            payableCount: grandPayableCount,
-            collected: grandCollected,
-            pendingKp: grandKp,
-            pendingCard: grandCard,
-            deliveryCost: `${new Intl.NumberFormat('hu-HU').format(grandDelivery).replace(/\u00a0/g, ' ')} Ft + Áfa`
-        });
-        totalRow.font = { bold: true, size: 11 };
-        totalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
-        totalRow.height = 25;
-        totalRow.getCell('collected').numFmt = '#,##0';
-        totalRow.getCell('pendingKp').numFmt = '#,##0';
-        totalRow.getCell('pendingCard').numFmt = '#,##0';
-
-        if (grandCarrierFault > 0) {
-            totalRow.getCell('carrierFaultCount').font = { bold: true, color: { argb: "FFDC2626" } };
-        }
-        totalRow.getCell('payableCount').font = { bold: true, color: { argb: "FF166534" } };
-    }
-
-    // Cégenkénti munkalapok
+    // Cégenkénti munkalap nevek előzetes feloldása (ütközések elkerülése, max 28 karakter)
+    const companySheetNameMap = new Map();
     const usedSheetNames = new Set();
-    for (const [compName, compRows] of companiesMap.entries()) {
+    for (const compName of companiesMap.keys()) {
         let sheetName = compName.replace(/[\\/*?:\[\]]/g, ' ').trim();
         if (!sheetName) sheetName = "Egyéb";
         if (sheetName.length > 28) sheetName = sheetName.substring(0, 28);
@@ -283,24 +220,147 @@ export async function generateAccountingExcelWorkbook(rows, ExcelLib) {
             sheetName = `${baseName} (${counter++})`;
         }
         usedSheetNames.add(sheetName.toLowerCase());
+        companySheetNameMap.set(compName, sheetName);
+    }
 
+    // Összefoglaló "Összesítő" munkalap elöl (mindig létrejön)
+    if (companiesMap.size >= 1) {
+        const summarySheet = workbook.addWorksheet("Összesítő", {
+            views: [{ showGridLines: true }]
+        });
+
+        summarySheet.columns = [
+            { header: "Szállító Cég", key: "company", width: 22 },
+            { header: "Fizetendő Fuvar (db)", key: "payableCount", width: 20 },
+            { header: "Beszedett Utánvét (Ft)", key: "collected", width: 24 },
+            { header: "Függő KP (Ft)", key: "pendingKp", width: 18 },
+            { header: "Kártyás utalásra vár (Ft)", key: "pendingCard", width: 26 },
+            { header: "Fuvardíj összesen (Eredeti) (Ft + Áfa)", key: "deliveryCost", width: 32 },
+            { header: "Szállítói Kompenzáció (Ft + Áfa)", key: "compensation", width: 28 },
+            { header: "Ténylegesen Fizetendő Fuvardíj (Ft + Áfa)", key: "netPayable", width: 34 }
+        ];
+
+        const headerRow = summarySheet.getRow(1);
+        headerRow.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10.5 };
+        headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } };
+        headerRow.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+        headerRow.height = 28;
+
+        let grandPayableCount = 0;
+        let grandCollected = 0;
+        let grandKp = 0;
+        let grandCard = 0;
+        let grandDelivery = 0;
+        let grandCompensation = 0;
+        let grandNetPayable = 0;
+
+        let summaryRowIdx = 2;
+        for (const [compName, compRows] of companiesMap.entries()) {
+            const sheetName = companySheetNameMap.get(compName);
+            const safeSheet = sheetName.replace(/'/g, "''");
+            const totalCount = compRows.length;
+            const carrierFaultCount = compRows.filter(r => r.isCarrierFault).length;
+            const payableCount = Math.max(0, totalCount - carrierFaultCount);
+
+            const collected = Math.round(compRows.reduce((sum, r) => sum + r.collectedAmount, 0));
+            const pendingKp = Math.round(compRows.reduce((sum, r) => sum + r.pendingKp, 0));
+            const pendingCard = Math.round(compRows.reduce((sum, r) => sum + r.pendingCard, 0));
+            const delivery = Math.round(compRows.reduce((sum, r) => sum + r.deliveryCostNet, 0));
+            const compensation = Math.round(compRows.reduce((sum, r) => sum + (r.compensationAmount || 0), 0));
+            const netPayable = Math.max(0, delivery - compensation);
+
+            grandPayableCount += payableCount;
+            grandCollected += collected;
+            grandKp += pendingKp;
+            grandCard += pendingCard;
+            grandDelivery += delivery;
+            grandCompensation += compensation;
+            grandNetPayable += netPayable;
+
+            const subRow = compRows.length + 2;
+            const lastCompRow = compRows.length + 1;
+
+            const addedRow = summarySheet.addRow({
+                company: compName,
+                payableCount: { formula: `MAX(0, COUNTA('${safeSheet}'!C2:C${lastCompRow}) - COUNTIF('${safeSheet}'!K2:K${lastCompRow}, "Szállító hibája"))`, result: payableCount || 0 },
+                collected: { formula: `'${safeSheet}'!F${subRow}`, result: collected || 0 },
+                pendingKp: { formula: `'${safeSheet}'!H${subRow}`, result: pendingKp || 0 },
+                pendingCard: { formula: `'${safeSheet}'!I${subRow}`, result: pendingCard || 0 },
+                deliveryCost: { formula: `'${safeSheet}'!L${subRow}`, result: delivery || 0 },
+                compensation: { formula: `'${safeSheet}'!M${subRow}`, result: compensation || 0 },
+                netPayable: { formula: `MAX(0, F${summaryRowIdx}-G${summaryRowIdx})`, result: netPayable || 0 }
+            });
+            addedRow.alignment = { vertical: "middle" };
+            addedRow.height = 22;
+
+            // Pénzösszegek és darabszámok formázása ezres tagolással
+            addedRow.getCell('collected').numFmt = '#,##0';
+            addedRow.getCell('pendingKp').numFmt = '#,##0';
+            addedRow.getCell('pendingCard').numFmt = '#,##0';
+            addedRow.getCell('deliveryCost').numFmt = '#,##0';
+            addedRow.getCell('compensation').numFmt = '#,##0';
+            addedRow.getCell('netPayable').numFmt = '#,##0';
+
+            // Kiemelések
+            if (compensation > 0) {
+                const compCell = addedRow.getCell('compensation');
+                compCell.font = { bold: true, color: { argb: "FFDC2626" } };
+            }
+            const payableCell = addedRow.getCell('payableCount');
+            payableCell.font = { bold: true, color: { argb: "FF166534" } };
+            addedRow.getCell('netPayable').font = { bold: true, color: { argb: "FF0F172A" } };
+
+            summaryRowIdx++;
+        }
+
+        const lastSummaryRow = summaryRowIdx - 1;
+        const totalRow = summarySheet.addRow({
+            company: "MINDÖSSZESEN",
+            payableCount: { formula: `SUM(B2:B${lastSummaryRow})`, result: grandPayableCount },
+            collected: { formula: `SUM(C2:C${lastSummaryRow})`, result: grandCollected },
+            pendingKp: { formula: `SUM(D2:D${lastSummaryRow})`, result: grandKp },
+            pendingCard: { formula: `SUM(E2:E${lastSummaryRow})`, result: grandCard },
+            deliveryCost: { formula: `SUM(F2:F${lastSummaryRow})`, result: grandDelivery },
+            compensation: { formula: `SUM(G2:G${lastSummaryRow})`, result: grandCompensation },
+            netPayable: { formula: `SUM(H2:H${lastSummaryRow})`, result: grandNetPayable }
+        });
+        totalRow.font = { bold: true, size: 11 };
+        totalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+        totalRow.height = 25;
+        totalRow.getCell('collected').numFmt = '#,##0';
+        totalRow.getCell('pendingKp').numFmt = '#,##0';
+        totalRow.getCell('pendingCard').numFmt = '#,##0';
+        totalRow.getCell('deliveryCost').numFmt = '#,##0';
+        totalRow.getCell('compensation').numFmt = '#,##0';
+        totalRow.getCell('netPayable').numFmt = '#,##0';
+
+        if (grandCompensation > 0) {
+            totalRow.getCell('compensation').font = { bold: true, color: { argb: "FFDC2626" } };
+        }
+        totalRow.getCell('payableCount').font = { bold: true, color: { argb: "FF166534" } };
+    }
+
+    // Cégenkénti munkalapok
+    for (const [compName, compRows] of companiesMap.entries()) {
+        const sheetName = companySheetNameMap.get(compName) || "Egyéb";
         const sheet = workbook.addWorksheet(sheetName, {
             views: [{ showGridLines: true }]
         });
 
         sheet.columns = [
-            { header: "Kiszállítás Dátuma", key: "date", width: 16 },
-            { header: "Szállító Cég", key: "company", width: 18 },
-            { header: "Szállító Neve", key: "courier", width: 18 },
-            { header: "Rendelésszám", key: "orderId", width: 14 },
-            { header: "Vevő Neve", key: "customerName", width: 25 },
-            { header: "Beszedett Összeg (Ft)", key: "collectedAmount", width: 22 },
-            { header: "Fizetés Módja", key: "paymentMethodText", width: 18 },
-            { header: "Függő KP (Ft)", key: "pendingKp", width: 18 },
-            { header: "Kártyás utalásra vár (Ft)", key: "pendingCard", width: 24 },
-            { header: "Státusz", key: "orderStatus", width: 22 },
-            { header: "Felelősség", key: "responsibility", width: 18 },
-            { header: "Fuvardíj (Ft + Áfa)", key: "deliveryCostText", width: 22 }
+            { header: "Kiszállítás Dátuma", key: "date", width: 16 }, // Col A
+            { header: "Szállító Neve", key: "courier", width: 18 }, // Col B
+            { header: "Rendelésszám", key: "orderId", width: 14 }, // Col C
+            { header: "Vevő Neve", key: "customerName", width: 25 }, // Col D
+            { header: "Táblaszám (db)", key: "boardCount", width: 16 }, // Col E
+            { header: "Beszedett Utánvét (Ft)", key: "collectedAmount", width: 22 }, // Col F
+            { header: "Fizetés Módja", key: "paymentMethodText", width: 18 }, // Col G
+            { header: "Függő KP (Ft)", key: "pendingKp", width: 18 }, // Col H
+            { header: "Kártyás utalásra vár (Ft)", key: "pendingCard", width: 24 }, // Col I
+            { header: "Státusz", key: "orderStatus", width: 20 }, // Col J
+            { header: "Felelősség", key: "responsibility", width: 18 }, // Col K
+            { header: "Fuvardíj (Ft + Áfa)", key: "deliveryCostNet", width: 22 }, // Col L
+            { header: "Szállítói Kompenzáció (Ft + Áfa)", key: "compensationAmount", width: 26 } // Col M
         ];
 
         const headerRow = sheet.getRow(1);
@@ -313,19 +373,65 @@ export async function generateAccountingExcelWorkbook(rows, ExcelLib) {
         let compPendingKp = 0;
         let compPendingCard = 0;
         let compDeliveryNet = 0;
+        let compCompensationNet = 0;
+        let compPayableNet = 0;
+        let compBoardsTotal = 0;
 
-        compRows.forEach(row => {
+        compRows.forEach((row, idx) => {
+            const rowIndex = idx + 2; // Sorindex a táblázatban (1 = fejléc)
+            const payableCost = Math.max(0, row.deliveryCostNet - (row.compensationAmount || 0));
+
             compCollected += row.collectedAmount;
             compPendingKp += row.pendingKp;
             compPendingCard += row.pendingCard;
             compDeliveryNet += row.deliveryCostNet;
+            compCompensationNet += (row.compensationAmount || 0);
+            compPayableNet += payableCost;
+            compBoardsTotal += (row.boardCount || 0);
 
-            const r = sheet.addRow(row);
+            // Dinamikus Excel formula a fuvardíjhoz (ha nem egyedi ár)
+            let deliveryFormula = row.deliveryCostNet;
+            if (!row.isCustomDeliveryCost) {
+                const baseFee = row.isBudapest ? 10000 : 15000;
+                deliveryFormula = {
+                    formula: `IF(K${rowIndex}="Szállító hibája", 0, ${baseFee} + MAX(0, E${rowIndex} - 10) * 1100)`,
+                    result: row.deliveryCostNet
+                };
+            }
+
+            let paymentMethodText = row.paymentMethodText || "-";
+            if (paymentMethodText.startsWith("Bontott:") && !paymentMethodText.includes("Részleges")) {
+                paymentMethodText = paymentMethodText.replace("Bontott:", "Bontott / Részleges:");
+            } else if (paymentMethodText === "Bontott" || paymentMethodText === "Bontott fizetés") {
+                paymentMethodText = "Bontott / Részleges";
+            }
+            if (row.isPartial && !paymentMethodText.includes("Részleges")) {
+                paymentMethodText = `Bontott / Részleges (${paymentMethodText})`;
+            }
+
+            const r = sheet.addRow({
+                date: row.date,
+                courier: row.courier,
+                orderId: row.orderId,
+                customerName: row.customerName,
+                boardCount: row.boardCount,
+                collectedAmount: row.collectedAmount,
+                paymentMethodText: paymentMethodText,
+                pendingKp: row.pendingKp,
+                pendingCard: row.pendingCard,
+                orderStatus: row.orderStatus,
+                responsibility: row.responsibility,
+                deliveryCostNet: deliveryFormula,
+                compensationAmount: row.compensationAmount || 0
+            });
+
             r.alignment = { vertical: "middle" };
             r.height = 20;
             r.getCell('collectedAmount').numFmt = '#,##0';
             r.getCell('pendingKp').numFmt = '#,##0';
             r.getCell('pendingCard').numFmt = '#,##0';
+            r.getCell('deliveryCostNet').numFmt = '#,##0';
+            r.getCell('compensationAmount').numFmt = '#,##0';
 
             // KIEMELÉS: Meghiúsult rendelések sora világospiros háttérrel és bordó szöveggel
             if (row.isUncollected) {
@@ -339,7 +445,7 @@ export async function generateAccountingExcelWorkbook(rows, ExcelLib) {
                 const respCell = r.getCell('responsibility');
                 respCell.font = { bold: true, color: { argb: "FF991B1B" } };
                 if (row.isCarrierFault) {
-                    const costCell = r.getCell('deliveryCostText');
+                    const costCell = r.getCell('deliveryCostNet');
                     costCell.font = { bold: true, color: { argb: "FFDC2626" } };
                 }
             } else if (row.isPartial) {
@@ -352,29 +458,53 @@ export async function generateAccountingExcelWorkbook(rows, ExcelLib) {
                 const statusCell = r.getCell('orderStatus');
                 statusCell.font = { bold: true, color: { argb: "FF854D0E" } };
             }
+
+            // Kompenzáció kiemelés és felugró megjegyzés (hover note)
+            if (row.compensationAmount > 0 || row.compensationComment) {
+                const compCell = r.getCell('compensationAmount');
+                if (row.compensationAmount > 0) {
+                    compCell.font = { bold: true, color: { argb: "FFDC2626" } };
+                }
+                if (row.compensationComment) {
+                    compCell.note = `Kompenzáció indoklása:\n${row.compensationComment}`;
+                }
+            }
+
+            // Sikertelen kiszállítás felugró megjegyzés (hover note)
+            if (row.isUncollected && row.uncollectedReason) {
+                const uncollectedNote = `Sikertelen kézbesítés oka:\n${row.uncollectedReason}`;
+                r.getCell('responsibility').note = uncollectedNote;
+                r.getCell('orderStatus').note = uncollectedNote;
+            }
+
+            // Bontott / részleges fizetés felugró megjegyzés (hover note)
+            if ((row.isPartial || row.partialComment) && row.partialComment) {
+                const partialNote = `Bontott / részleges fizetés indoklása:\n${row.partialComment}`;
+                r.getCell('paymentMethodText').note = partialNote;
+                if (!r.getCell('orderStatus').note) {
+                    r.getCell('orderStatus').note = partialNote;
+                }
+            }
         });
 
-        // Összesítő sor a lap alján
-        const carrierFaultCount = compRows.filter(r => r.isCarrierFault).length;
-        const payableCount = Math.max(0, compRows.length - carrierFaultCount);
-        let countText = `${compRows.length} db fuvar`;
-        if (carrierFaultCount > 0) {
-            countText = `${compRows.length} fuvarból ${payableCount} fizetendő (${carrierFaultCount} szállító hiba)`;
-        }
+        // Összesítő sor a lap alján Excel képletekkel
+        const lastDataRow = compRows.length + 1;
+        const subRow = compRows.length + 2;
 
         const subtotalRow = sheet.addRow({
             date: "ÖSSZESEN",
-            company: "",
             courier: "",
-            orderId: countText,
+            orderId: { formula: `COUNTA(C2:C${lastDataRow})`, result: compRows.length },
             customerName: "",
-            collectedAmount: compCollected,
+            boardCount: { formula: `SUM(E2:E${lastDataRow})`, result: compBoardsTotal },
+            collectedAmount: { formula: `SUM(F2:F${lastDataRow})`, result: compCollected },
             paymentMethodText: "",
-            pendingKp: compPendingKp,
-            pendingCard: compPendingCard,
+            pendingKp: { formula: `SUM(H2:H${lastDataRow})`, result: compPendingKp },
+            pendingCard: { formula: `SUM(I2:I${lastDataRow})`, result: compPendingCard },
             orderStatus: "",
             responsibility: "",
-            deliveryCostText: `${new Intl.NumberFormat('hu-HU').format(compDeliveryNet).replace(/\u00a0/g, ' ')} Ft + Áfa`
+            deliveryCostNet: { formula: `SUM(L2:L${lastDataRow})`, result: compDeliveryNet },
+            compensationAmount: { formula: `SUM(M2:M${lastDataRow})`, result: compCompensationNet }
         });
         subtotalRow.font = { bold: true, size: 10.5 };
         subtotalRow.fill = {
@@ -386,6 +516,37 @@ export async function generateAccountingExcelWorkbook(rows, ExcelLib) {
         subtotalRow.getCell('collectedAmount').numFmt = '#,##0';
         subtotalRow.getCell('pendingKp').numFmt = '#,##0';
         subtotalRow.getCell('pendingCard').numFmt = '#,##0';
+        subtotalRow.getCell('deliveryCostNet').numFmt = '#,##0';
+        subtotalRow.getCell('compensationAmount').numFmt = '#,##0';
+
+        if (compCompensationNet > 0) {
+            subtotalRow.getCell('compensationAmount').font = { bold: true, color: { argb: "FFDC2626" } };
+
+            // Ha volt kompenzáció, külön sorban jelenítjük meg a ténylegesen fizetendő végösszeget is
+            const netRow = sheet.addRow({
+                date: "FIZETENDŐ",
+                courier: "",
+                orderId: "",
+                customerName: "",
+                boardCount: "",
+                collectedAmount: "",
+                paymentMethodText: "",
+                pendingKp: "",
+                pendingCard: "",
+                orderStatus: "",
+                responsibility: "Kompenzáció levonva",
+                deliveryCostNet: { formula: `MAX(0, L${subRow} - M${subRow})`, result: compPayableNet },
+                compensationAmount: ""
+            });
+            netRow.font = { bold: true, size: 11, color: { argb: "FF0F172A" } };
+            netRow.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FFDCFCE7" }
+            };
+            netRow.height = 24;
+            netRow.getCell('deliveryCostNet').numFmt = '#,##0';
+        }
     }
 
     return workbook;
@@ -456,6 +617,9 @@ export const ExporterService = {
         let companyKpSum = 0;
         let companyCardSum = 0;
         let companyDeliverySum = 0;
+        let companyCompSum = 0;
+        let companyPayableSum = 0;
+        let companyBoardSum = 0;
 
         const appendSubtotal = (companyName) => {
             if (companyName === null) return;
@@ -464,14 +628,15 @@ export const ExporterService = {
                 "",
                 "",
                 "",
-                "",
+                companyBoardSum,
                 companyCollectedSum,
                 "",
                 companyKpSum,
                 companyCardSum,
                 "",
                 "",
-                `${new Intl.NumberFormat('hu-HU').format(companyDeliverySum).replace(/\u00a0/g, ' ')} Ft + Áfa`
+                `${new Intl.NumberFormat('hu-HU').format(companyDeliverySum).replace(/\u00a0/g, ' ')} Ft + Áfa`,
+                companyCompSum
             ];
             csvRows.push(subtotalRow.join(";"));
         };
@@ -480,33 +645,41 @@ export const ExporterService = {
             if (row.company !== currentCompany) {
                 if (currentCompany !== null) {
                     appendSubtotal(currentCompany);
-                    csvRows.push(";;;;;;;;;;;");
+                    csvRows.push(";;;;;;;;;;;;");
                 }
                 currentCompany = row.company;
                 companyCollectedSum = 0;
                 companyKpSum = 0;
                 companyCardSum = 0;
                 companyDeliverySum = 0;
+                companyCompSum = 0;
+                companyPayableSum = 0;
+                companyBoardSum = 0;
             }
 
+            const payableCost = Math.max(0, row.deliveryCostNet - (row.compensationAmount || 0));
             companyCollectedSum += row.collectedAmount;
             companyKpSum += row.pendingKp;
             companyCardSum += row.pendingCard;
             companyDeliverySum += row.deliveryCostNet;
+            companyCompSum += (row.compensationAmount || 0);
+            companyPayableSum += payableCost;
+            companyBoardSum += (row.boardCount || 0);
 
             const rowData = [
                 clean(row.date),
-                clean(row.company),
                 clean(row.courier),
                 clean(row.orderId),
                 clean(row.customerName),
+                row.boardCount,
                 row.collectedAmount,
                 clean(row.paymentMethodText),
                 row.pendingKp,
                 row.pendingCard,
                 clean(row.orderStatus),
                 clean(row.responsibility),
-                clean(row.deliveryCostText)
+                clean(row.deliveryCostText),
+                row.compensationAmount || 0
             ];
 
             csvRows.push(rowData.join(";"));

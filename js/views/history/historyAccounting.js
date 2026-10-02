@@ -19,6 +19,34 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
         const prevPartials     = existingState?.partialOrders || run.partialOrders || {};
         const prevPaymentMethods = existingState?.paymentMethods || run.paymentMethods || {};
         const prevPaymentStatusMap = existingState?.paymentStatusMap || run.paymentStatusMap || {};
+        const prevCompensations = existingState?.carrierCompensations || run.carrierCompensations || {};
+
+        const makeCompensationHtml = (orderId) => {
+            const cData = prevCompensations[orderId] || prevCompensations[String(orderId)] || null;
+            const amt = cData ? (Math.max(0, parseInt(cData.amount) || 0)) : 0;
+            const comm = cData ? (cData.comment || '') : '';
+            const isVisible = amt > 0 || (comm && comm.trim() !== '');
+
+            return `<div class="sd-comp-container" data-order-id="${orderId}" style="display:${isVisible ? 'flex' : 'none'};flex-direction:column;gap:8px;padding:12px 20px 14px 116px;background:#fff1f2;border-top:1px dashed #fecdd3;">
+                <div style="font-size:11.5px;font-weight:700;color:#9f1239;display:flex;align-items:center;justify-content:space-between;">
+                    <span><i class="ph-bold ph-shield-warning" style="margin-right:4px;"></i>Szállítói kompenzáció (sérült tábla / termék kártérítés)</span>
+                    <button type="button" class="sd-comp-remove-btn" style="font-size:10px;font-weight:700;color:#e11d48;background:#fff;border:1px solid #fda4af;border-radius:6px;padding:2px 8px;cursor:pointer;font-family:inherit;">Eltávolítás</button>
+                </div>
+                <div style="display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:center;">
+                    <div>
+                        <label style="font-size:10.5px;font-weight:700;color:#9f1239;display:block;margin-bottom:2px;">Kompenzáció összege (nettó Ft)</label>
+                        <input class="sd-comp-amount" type="number" min="0" placeholder="0" value="${amt || ''}" style="width:100%;box-sizing:border-box;border:2px solid #fda4af;border-radius:6px;padding:6px 10px;font-size:13px;font-weight:700;color:#881337;font-family:inherit;outline:none;background:#fff;">
+                    </div>
+                    <div>
+                        <label style="font-size:10.5px;font-weight:700;color:#9f1239;display:block;margin-bottom:2px;">Kompenzáció indoklása / Komment</label>
+                        <input class="sd-comp-comment" type="text" placeholder="pl. 1 db törött/sérült tábla visszahozva, szállító elismerte..." value="${comm.replace(/"/g, '&quot;')}" style="width:100%;box-sizing:border-box;border:2px solid #fda4af;border-radius:6px;padding:6px 10px;font-size:12.5px;font-family:inherit;outline:none;background:#fff;">
+                    </div>
+                </div>
+                <div style="font-size:11px;color:#be123c;font-weight:600;">
+                    A kompenzáció összege közvetlenül levonásra kerül a szállító felé fizetendő nettó fuvardíjból (Ft + Áfa), és megjelenik a nagy elszámolás exportban is a megadott kommenttel.
+                </div>
+            </div>`;
+        };
 
         const makeReasonHtml = (orderId, wasUncollected) => {
             const orderObj = run.orders.find(ord => String(ord.id) === String(orderId));
@@ -145,6 +173,15 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                 <i class="ph-bold ph-split-horizontal" style="font-size:12px;"></i> Részleges / Bontás / Többlet
             </button>
             `;
+
+            const compData = prevCompensations[o.id] || prevCompensations[String(o.id)] || null;
+            const hasComp = !!compData && (compData.amount > 0 || (compData.comment && compData.comment.trim() !== ''));
+            const compAmount = compData ? (Math.max(0, parseInt(compData.amount) || 0)) : 0;
+            const compToggleBtnHtml = `
+            <button type="button" class="sd-comp-toggle-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:${hasComp ? '#b91c1c' : '#64748b'};background:${hasComp ? '#fee2e2' : '#f8fafc'};border:1px solid ${hasComp ? '#fca5a5' : '#cbd5e1'};border-radius:6px;padding:6px 10px;cursor:pointer;font-family:inherit;transition:all .15s;">
+                <i class="ph-bold ph-shield-warning" style="font-size:12px;"></i> ${hasComp ? `Komp: ${compAmount.toLocaleString('hu-HU')} Ft` : '+ Kompenzáció'}
+            </button>
+            `;
             
             const splitContainerHtml = `
             <div class="sd-payment-split-container" style="${splitContainerStyle}flex-direction:column;gap:8px;padding:12px 20px 16px 116px;background:#f8fafc;border-top:1px dashed #cbd5e1;">
@@ -239,10 +276,12 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                         ${paymentMethodSelectorHtml}
                         ${paymentStatusSelectorHtml}
                         ${splitToggleBtnHtml}
+                        ${compToggleBtnHtml}
                     </div>
                 </label>
                 ${splitContainerHtml}
                 ${makeReasonHtml(o.id, wasUncollected)}
+                ${makeCompensationHtml(o.id)}
             </div>`;
         }).join('');
 
@@ -258,7 +297,15 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             const onsiteComment = surplusInfo?.comment || '';
 
             const itemsList = (o.items || []).map(it => `<span style="display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;margin:2px 4px 2px 0;"><b>${it.qty}×</b> ${it.name}</span>`).join('');
-            
+            const nonCodCompData = prevCompensations[o.id] || prevCompensations[String(o.id)] || null;
+            const nonCodHasComp = !!nonCodCompData && (nonCodCompData.amount > 0 || (nonCodCompData.comment && nonCodCompData.comment.trim() !== ''));
+            const nonCodCompAmount = nonCodCompData ? (Math.max(0, parseInt(nonCodCompData.amount) || 0)) : 0;
+            const nonCodCompBtnHtml = `
+            <button type="button" class="sd-comp-toggle-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:${nonCodHasComp ? '#b91c1c' : '#64748b'};background:${nonCodHasComp ? '#fee2e2' : '#f8fafc'};border:1px solid ${nonCodHasComp ? '#fca5a5' : '#cbd5e1'};border-radius:6px;padding:6px 10px;cursor:pointer;font-family:inherit;transition:all .15s;">
+                <i class="ph-bold ph-shield-warning" style="font-size:12px;"></i> ${nonCodHasComp ? `Komp: ${nonCodCompAmount.toLocaleString('hu-HU')} Ft` : '+ Kompenzáció'}
+            </button>
+            `;
+
             return `
             <div class="sd-order-row sd-non-cod-row" style="border-bottom:1px solid #f1f5f9;" data-order-id="${o.id}">
                 <label style="display:grid;grid-template-columns: 24px 80px minmax(0, 2fr) minmax(0, 1fr) minmax(240px, auto);align-items:start;gap:12px;padding:14px 20px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
@@ -283,6 +330,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                         <button type="button" class="sd-onsite-toggle-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:${hasSurplus ? '#047857' : '#0284c7'};background:${hasSurplus ? '#ecfdf5' : '#f0f9ff'};border:1px solid ${hasSurplus ? '#a7f3d0' : '#bae6fd'};border-radius:6px;padding:6px 10px;cursor:pointer;font-family:inherit;transition:all .15s;">
                             <i class="ph-bold ${hasSurplus ? 'ph-check-circle' : 'ph-plus-circle'}" style="font-size:12px;"></i> ${hasSurplus ? 'Helyszíni eladás rögzítve' : '+ Helyszíni eladás / Ragasztó'}
                         </button>
+                        ${nonCodCompBtnHtml}
                     </div>
                 </label>
                 
@@ -317,6 +365,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                     </div>
                 </div>
                 ${makeReasonHtml(o.id, wasUncollected)}
+                ${makeCompensationHtml(o.id)}
             </div>`;
         }).join('');
 
@@ -343,7 +392,7 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             </div>
 
             <!-- Összesítő sáv (Készpénz / Utalás / Egyéb bontás) -->
-            <div style="padding:16px 24px;background:#1e293b;color:white;display:grid;grid-template-columns:repeat(4, 1fr);gap:16px;box-shadow:inset 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="padding:16px 24px;background:#1e293b;color:white;display:grid;grid-template-columns:repeat(5, 1fr);gap:14px;box-shadow:inset 0 2px 4px rgba(0,0,0,0.1);">
                 <div>
                     <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.3px;">Készpénz (Beérkezett)</div>
                     <div id="sd-total-kp-received" style="font-size:18px;font-weight:800;color:#22c55e;margin-top:2px;">0 Ft</div>
@@ -359,6 +408,10 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                 <div>
                     <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.3px;">Banki utalás / Beért kártya</div>
                     <div id="sd-total-other" style="font-size:18px;font-weight:800;color:#38bdf8;margin-top:2px;">0 Ft</div>
+                </div>
+                <div>
+                    <div style="font-size:10px;font-weight:700;color:#fca5a5;text-transform:uppercase;letter-spacing:.3px;">Szállítói kompenzáció</div>
+                    <div id="sd-total-compensation" style="font-size:18px;font-weight:800;color:#f87171;margin-top:2px;">0 Ft</div>
                 </div>
             </div>
 
@@ -538,6 +591,16 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
             overlay.querySelector('#sd-total-kp-pending').textContent = totalKpPending.toLocaleString('hu-HU') + ' Ft';
             overlay.querySelector('#sd-total-card-pending').textContent = totalCardPending.toLocaleString('hu-HU') + ' Ft';
             overlay.querySelector('#sd-total-other').textContent = totalOther.toLocaleString('hu-HU') + ' Ft';
+
+            let totalCompensation = 0;
+            overlay.querySelectorAll('.sd-comp-amount').forEach(inp => {
+                totalCompensation += Math.max(0, parseInt(inp.value) || 0);
+            });
+            const totalCompEl = overlay.querySelector('#sd-total-compensation');
+            if (totalCompEl) {
+                totalCompEl.textContent = (totalCompensation > 0 ? `-${totalCompensation.toLocaleString('hu-HU')}` : '0') + ' Ft';
+                totalCompEl.style.color = totalCompensation > 0 ? '#f87171' : '#94a3b8';
+            }
         };
 
         overlay.querySelectorAll('input[type=checkbox]:not(.sd-paystatus-checkbox):not(.sd-split-status-kp):not(.sd-split-status-card):not(.sd-split-status-bank):not(.sd-onsite-received)').forEach(cb => cb.addEventListener('change', (e) => {
@@ -604,6 +667,23 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                 const hint = parentBlock.querySelector('.sd-carrier-fault-hint');
                 if (hint) {
                     hint.style.display = resp === 'szallito' ? 'inline-flex' : 'none';
+                }
+            }
+
+            // Ha szállító hibája lett kiválasztva, automatikusan nyissuk le a kompenzációs blokkot
+            if (resp === 'szallito') {
+                const orderRow = selector.closest('.sd-order-row');
+                if (orderRow) {
+                    const compContainer = orderRow.querySelector('.sd-comp-container');
+                    if (compContainer && compContainer.style.display === 'none') {
+                        compContainer.style.display = 'flex';
+                        const toggleBtn = orderRow.querySelector('.sd-comp-toggle-btn');
+                        if (toggleBtn) {
+                            toggleBtn.style.color = '#b91c1c';
+                            toggleBtn.style.background = '#fee2e2';
+                            toggleBtn.style.borderColor = '#fca5a5';
+                        }
+                    }
                 }
             }
         });
@@ -676,6 +756,45 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                 updateTotal();
                 return;
             }
+
+            // Kompenzáció toggle és eltávolítás eseménykezelése
+            const compToggleBtn = e.target.closest('.sd-comp-toggle-btn');
+            if (compToggleBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const row = compToggleBtn.closest('.sd-order-row');
+                const container = row.querySelector('.sd-comp-container');
+                const isHidden = container.style.display === 'none';
+                container.style.display = isHidden ? 'flex' : 'none';
+                if (isHidden) {
+                    const amtInput = container.querySelector('.sd-comp-amount');
+                    if (amtInput) amtInput.focus();
+                }
+                updateTotal();
+                return;
+            }
+
+            const compRemoveBtn = e.target.closest('.sd-comp-remove-btn');
+            if (compRemoveBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const row = compRemoveBtn.closest('.sd-order-row');
+                const container = row.querySelector('.sd-comp-container');
+                container.style.display = 'none';
+                const amtInput = container.querySelector('.sd-comp-amount');
+                if (amtInput) amtInput.value = '';
+                const commInput = container.querySelector('.sd-comp-comment');
+                if (commInput) commInput.value = '';
+                const toggleBtn = row.querySelector('.sd-comp-toggle-btn');
+                if (toggleBtn) {
+                    toggleBtn.innerHTML = `<i class="ph-bold ph-shield-warning" style="font-size:12px;"></i> + Kompenzáció`;
+                    toggleBtn.style.color = '#64748b';
+                    toggleBtn.style.background = '#f8fafc';
+                    toggleBtn.style.borderColor = '#cbd5e1';
+                }
+                updateTotal();
+                return;
+            }
         });
 
         // Split toggle button click
@@ -732,7 +851,27 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
         });
 
         overlay.addEventListener('input', (e) => {
-            if (e.target.matches('.sd-split-amount-kp, .sd-split-amount-card, .sd-split-amount-bank, .sd-onsite-amount')) {
+            if (e.target.matches('.sd-split-amount-kp, .sd-split-amount-card, .sd-split-amount-bank, .sd-onsite-amount, .sd-comp-amount, .sd-comp-comment')) {
+                if (e.target.matches('.sd-comp-amount, .sd-comp-comment')) {
+                    const row = e.target.closest('.sd-order-row');
+                    if (row) {
+                        const amt = Math.max(0, parseInt(row.querySelector('.sd-comp-amount')?.value) || 0);
+                        const toggleBtn = row.querySelector('.sd-comp-toggle-btn');
+                        if (toggleBtn) {
+                            if (amt > 0) {
+                                toggleBtn.innerHTML = `<i class="ph-bold ph-shield-warning" style="font-size:12px;"></i> Komp: ${amt.toLocaleString('hu-HU')} Ft`;
+                                toggleBtn.style.color = '#b91c1c';
+                                toggleBtn.style.background = '#fee2e2';
+                                toggleBtn.style.borderColor = '#fca5a5';
+                            } else {
+                                toggleBtn.innerHTML = `<i class="ph-bold ph-shield-warning" style="font-size:12px;"></i> + Kompenzáció`;
+                                toggleBtn.style.color = '#64748b';
+                                toggleBtn.style.background = '#f8fafc';
+                                toggleBtn.style.borderColor = '#cbd5e1';
+                            }
+                        }
+                    }
+                }
                 updateTotal();
             }
         });
@@ -925,6 +1064,19 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                     }
                 }
             });
+            const carrierCompensations = {};
+            overlay.querySelectorAll('.sd-comp-container').forEach(cont => {
+                const oId = cont.getAttribute('data-order-id');
+                const amt = Math.max(0, parseInt(cont.querySelector('.sd-comp-amount')?.value) || 0);
+                const comm = cont.querySelector('.sd-comp-comment')?.value.trim() || '';
+                if (amt > 0 || comm) {
+                    carrierCompensations[oId] = {
+                        amount: amt,
+                        comment: comm
+                    };
+                }
+            });
+
             cleanup();
             resolve({ 
                 settledAmount, 
@@ -937,7 +1089,8 @@ export function showSettlementDialog(run, runCOD, existingState = null) {
                 partialOrders, 
                 surplusOrders, 
                 bankTransferredOrderIds, 
-                uncollectedResponsibility 
+                uncollectedResponsibility,
+                carrierCompensations
             });
         });
     });
@@ -1211,23 +1364,6 @@ export async function renderAccountingRuns(ctx) {
                    </div>` 
                 : '';
 
-            const runDeliveryCostSum = (run.orders || []).reduce((sum, o) => {
-                const isUnc = uncollected.includes(o.id) || uncollected.map(String).includes(String(o.id));
-                const po = partialOrders[o.id] || partialOrders[String(o.id)];
-                const isPart = !isUnc && !!po;
-                const resp = (run.uncollectedResponsibility || {})[o.id] || (run.uncollectedResponsibility || {})[String(o.id)] || 'vevo';
-                const isCarrierFault = isUnc && resp === 'szallito';
-
-                const cost = calculateOrderDeliveryCost({
-                    ...o,
-                    isCarrierFault,
-                    customDeliveryCost: (run.customDeliveryCosts && run.customDeliveryCosts[o.id] !== undefined)
-                        ? run.customDeliveryCosts[o.id]
-                        : o.customDeliveryCost
-                });
-                return sum + (cost.netCost || 0);
-            }, 0);
-
             const orderChips = run.orders.map(o => {
                 const pd          = getPaymentDetails(run, o);
                 const isUncollected = uncollected.includes(o.id);
@@ -1249,6 +1385,16 @@ export async function renderAccountingRuns(ctx) {
                         ? run.customDeliveryCosts[o.id]
                         : o.customDeliveryCost
                 });
+
+                const compObj = (run.carrierCompensations || {})[o.id] || (run.carrierCompensations || {})[String(o.id)];
+                const compAmount = compObj ? (Number(compObj.amount) || 0) : 0;
+                const compComment = compObj ? (compObj.comment || '') : '';
+                const compensationBadgeHtml = compAmount > 0 ? `
+                    <span class="hac-compensation-badge" title="Szállítói kompenzáció: -${compAmount.toLocaleString('hu-HU')} Ft${compComment ? ' (' + compComment + ')' : ''}" style="font-size:11px;font-weight:700;color:#b91c1c;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:2px 7px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;margin-right:6px;">
+                        <i class="ph-bold ph-shield-warning" style="font-size:11px;color:#b91c1c;"></i>
+                        <span>Komp: -${compAmount.toLocaleString('hu-HU')} Ft</span>
+                    </span>
+                ` : '';
 
                 const deliveryCostBadgeHtml = isCarrierFault ? `
                     <span class="hac-delivery-cost-badge carrier-fault" data-doc-id="${run.docId}" data-order-id="${o.id}" data-current-val="0" data-default-val="${deliveryCostInfo.calculatedNetCost}" title="Szállító hibája miatt meghiúsult kiszállítás - fuvardíj: 0 Ft" style="font-size:11px;font-weight:700;color:#b91c1c;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:2px 7px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;margin-left:auto;margin-right:6px;">
@@ -1283,12 +1429,14 @@ export async function renderAccountingRuns(ctx) {
                     const surplusBadge = (surplusInfo && (surplusInfo.extraAmount > 0 || surplusInfo.amount > o.codAmount))
                         ? `<span style="font-size:10.5px;font-weight:700;color:#059669;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:4px;padding:1px 5px;">+${((surplusInfo.extraAmount || (surplusInfo.amount - o.codAmount)) || 0).toLocaleString('hu-HU')} Ft többlet${surplusInfo.comment ? ' · ' + surplusInfo.comment : ''}</span>`
                         : '';
-                    paymentBreakdownHtml = `<span style="font-size:11px;font-weight:700;color:#1e293b; display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap;">Bontott: ${parts.join(' + ')} <span style="font-weight:400;color:#94a3b8;">/ ${o.codAmount.toLocaleString('hu-HU')} Ft</span> ${surplusBadge}</span>`;
+                    const splitLabel = isPartial ? 'Bontott / Részleges' : 'Bontott';
+                    paymentBreakdownHtml = `<span style="font-size:11px;font-weight:700;color:#1e293b; display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap;">${splitLabel}: ${parts.join(' + ')} <span style="font-weight:400;color:#94a3b8;">/ ${o.codAmount.toLocaleString('hu-HU')} Ft</span> ${surplusBadge}</span>`;
                 }
                 
                 return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f1f5f9;${isUncollected ? 'opacity:.55;' : ''}">
                     <span style="font-size:11.5px;font-weight:700;color:#374151;min-width:85px;${isUncollected ? 'text-decoration:line-through;' : ''}">${o.id}</span>
                     <span style="font-size:11.5px;color:#64748b;flex:1;">${o.shippingName || '—'}</span>
+                    ${compensationBadgeHtml}
                     ${deliveryCostBadgeHtml}
                     ${o.isReturn
                         ? isUncollected
@@ -1356,8 +1504,6 @@ export async function renderAccountingRuns(ctx) {
                             <span style="color:#d1d5db;">·</span>
                             <span style="color:#94a3b8;">${run.orders.length} rendelés</span>
                             ${runCOD > 0 ? `<span style="color:#d1d5db;">·</span><strong style="color:#b91c1c;">${runCOD.toLocaleString('hu-HU')} Ft</strong>` : ''}
-                            <span style="color:#d1d5db;">·</span>
-                            <span style="color:#475569;font-weight:700;" title="Kör összesített fuvardíja: ${runDeliveryCostSum.toLocaleString('hu-HU')} Ft + Áfa"><i class="ph-bold ph-truck" style="font-size:10.5px;color:#64748b;"></i> Fuvar: ${runDeliveryCostSum.toLocaleString('hu-HU')} Ft + Áfa</span>
                         </div>
                         ${codBadgeContainer}
                     </div>
@@ -1450,7 +1596,8 @@ async function syncSettledOrdersToShopify(run, settlementData, docId) {
                 result.paymentMethods,
                 null,
                 result.paymentStatusMap,
-                result.surplusOrders
+                result.surplusOrders,
+                result.carrierCompensations
             )) {
                 await syncSettledOrdersToShopify(run, result, docId);
                 renderAccountingRuns(ctx);
@@ -1523,7 +1670,8 @@ async function syncSettledOrdersToShopify(run, settlementData, docId) {
                 paymentMethods: run.paymentMethods || {},
                 settledKpAmount: run.settledKpAmount || null,
                 settledCardAmount: run.settledCardAmount || null,
-                paymentStatusMap: run.paymentStatusMap || {}
+                paymentStatusMap: run.paymentStatusMap || {},
+                carrierCompensations: run.carrierCompensations || {}
             };
             const result = await showSettlementDialog(run, totalCOD, existingState);
             if (result === null) return;
@@ -1541,7 +1689,8 @@ async function syncSettledOrdersToShopify(run, settlementData, docId) {
                 result.paymentMethods,
                 null,
                 result.paymentStatusMap,
-                result.surplusOrders
+                result.surplusOrders,
+                result.carrierCompensations
             )) {
                 await syncSettledOrdersToShopify(run, result, docId);
                 renderAccountingRuns(ctx);

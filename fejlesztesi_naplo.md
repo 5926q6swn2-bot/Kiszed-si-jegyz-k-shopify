@@ -29,8 +29,20 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 ---
 
 - **Utolsó aktív modell**: Gemini 3.8 Flash (High)
-- **Státusz**: Teljes Feketelista Rendszer: dinamikus egyesével felvihető sorok (rendelésszám, telefon, cím, e-mail), rendelésből gombnyomásra automatikusan betölthető adatok, e-mail és rendelésszám alapú egyezés, hover tooltip túlcsordulás javítás (v4.9.12, 753/753 zöld unit teszt).
+- **Státusz**: Elszámolási előzmények kártyafejlécének letisztítása (összesített fuvardíj és felesleges kompenzáció-levonás eltávolítva a fejlécből; rendelésenként nyitáskor látható minden tétel és kompenzáció), "Bontott / Részleges" pontosítás, képlet alapú Excel elszámolás export (v4.9.17, 789/789 zöld unit teszt).
 
+
+---
+
+### 2026. október 2. (4. frissítés) - Elszámolási Kártyafejlécek Letisztítása (`v4.9.17`)
+- **Elszámolás / Terítés Kártyafejléc Letisztítása (`js/views/history/historyAccounting.js`)**:
+  - A felhasználó kérésének megfelelően eltávolítottuk az elszámolási kártyák fejlécéből a felesleges összesített fuvardíj (`Fuvar: ... Ft + Áfa`), a kompenzáció levonás (`Fizetendő: ... Ft + Áfa`) és a kompenzációs összeg mezőket.
+  - A terítés kártyafejléce így tiszta és áttekinthető maradt: csak a lényeges elszámolási metaadatok láthatóak (Dátum, Státusz, Kiesett jelvény, Cégnév, Futár, Rendelésszám, Utánvét összege, Utánvét sorszámok).
+  - A fuvardíjak és az esetleges szállítói kompenzációk a kártyát lenyitva, rendelésenként tételesen jelennek meg (pl. `[15 000 Ft + Áfa]`, `[0 Ft (Szállító hiba)]`, `[Komp: -9 500 Ft]`), ahogy az ellenőrzéskor szükséges.
+- **Verzió & Cache Buster**:
+  - `index.html` frissítve `v=4.9.17`-re.
+- **Tesztek**:
+  - Mind a **789 unit teszt sikeresen lefutott (0 hiba)** (`tests/unit_tests.js`).
 
 ---
 
@@ -46,6 +58,59 @@ Egy böngészőből futtatható raktári szedőlista és elszámoló rendszer Sh
 
 3. **Opcionális Céges PIN Kód / Belépési Védelem a Felhős Címhez**:
    - Igény esetén egyszerű PIN kódos védelem hozzáadása, hogy idegenek ne láthassák a rendelési adatokat a publikus linken.
+
+---
+
+### 2026. október 2. (3. frissítés) - "Bontott / Részleges" Fizetés Megnevezés Pontosítása (`v4.9.15`)
+- **Fizetési Mód Szövegezés Pontosítása (`js/utils/paymentUtils.js`, `js/views/history/historyAccounting.js`, `js/services/exporter.js`)**:
+  - A felhasználói visszajelzés alapján a korábbi megtévesztő, sima `Bontott` felirat helyett a rendszer mostantól egyértelműen **`Bontott / Részleges: <összegek és módok>`** formátumban jeleníti meg a fizetés módját a táblázatban és a felületen minden olyan rendelésnél, ahol részleges fizetés történt.
+  - A terítés elszámolás listájában a bontás címkéje szintén `Bontott / Részleges`-re frissült.
+  - Az Excel exportban a hover jegyzet felirata is `Bontott / részleges fizetés indoklása`-ra módosult.
+- **Tesztek**:
+  - Mind a **789 unit teszt sikeresen zöldre futott (0 hiba)** (`tests/unit_tests.js`).
+
+---
+
+### 2026. október 2. (2. frissítés) - Excel Hover Megjegyzések & Összesítő Letisztítás (`v4.9.14`)
+- **Összesítő Munkalap Letisztítása (`js/services/exporter.js`)**:
+  - Eltávolítva a felesleges `Összes Fuvar (db)`, `Szállító hibája (db)` és `Vevő / egyéb hiba (db)` oszlopok az `Összesítő` munkalapról.
+  - Egyetlen darabszám oszlop maradt: **`Fizetendő Fuvar (db)`**, amely dinamikus `=MAX(0, COUNTA(...) - COUNTIF(..., "Szállító hibája"))` képlettel automatikusan vonja le a szállító hibás rendeléseket a cég munkalapjáról.
+  - Az `Összesítő` így egy lényegretörő, 8 oszlopos táblázat lett, ahol a `Ténylegesen Fizetendő Fuvardíj` képlete `=MAX(0, F{sor} - G{sor})` (eredeti fuvardíj mínusz kompenzáció).
+- **Excel Cellajegyzetek / Felugró Megjegyzések (Hover Notes, `js/services/exporter.js`)**:
+  - **Kompenzáció megjegyzés nem külön oszlop**: A felhasználó kérésére eltávolítottuk a külön "Kompenzáció Megjegyzés" oszlopot. Helyette natív Excel felugró jegyzet (`cell.note`) készült a `Szállítói Kompenzáció (Ft + Áfa)` cellákra (jobb felső piros háromszög, egeret ráhúzva kiadja, hogy "miért és mire" kapta a levonást).
+  - **Sikertelen kiszállítás (szállító hibája) indoklás hover**: Amikor sikertelen a kézbesítés, a rögzített hibaok natív felugró megjegyzésként jelenik meg a `Felelősség` (pl. "Szállító hibája") és a `Státusz` ("Sikertelen kézbesítés") cellákra állva.
+  - **Bontott / részleges fizetés indoklás hover**: Amikor bontott vagy részleges fizetés történt, a rögzített indoklás megjegyzésként jelenik meg a `Fizetés Módja` és a `Státusz` cellákon.
+- **"Szállítói Kompenzáció (Ft + Áfa)" Oszlop Fejléc**:
+  - Mind az `Összesítő` munkalapon, mind a cégek munkalapjain (és CSV-ben) a korábbi "Szállítói Kompenzáció (Ft)" fejléc átnevezésre került: `Szállítói Kompenzáció (Ft + Áfa)`-ra, jelezve, hogy a fuvardíjhoz hasonlóan ez is nettóban értendő.
+  - A cég munkalapok tiszta, 13 oszlopos elrendezést kaptak (A-tól M-ig), minden Excel formula (`COUNTA`, `SUM`, `IF`, `MAX`) és cellahivatkozás tökéletesen illeszkedik.
+- **Tesztek**:
+  - Mind a **788 unit teszt sikeresen zöldre futott (0 hiba)** (`tests/unit_tests.js`).
+
+---
+
+### 2026. október 2. - Képlet Alapú Excel Export, Szállítói Kompenzáció & Sérülés Rögzítés (`v4.9.13`)
+- **Excel Függvények és Rendszer-Visszaellenőrzés (`js/services/exporter.js`)**:
+  - Az utánvét és fuvardíj elszámolós Excel export korábban statikus számokat írt a cellákba. Mostantól **valódi Excel képletekkel** működik, amivel a megnyitáskor az Excel automatikusan újraszámolja és visszaellenőrzi a rendszert.
+  - Fuvardíj oszlop (`L`): `=IF(K{sor}="Szállító hibája", 0, 10000 + MAX(0, E{sor} - 10) * 1100)` (Budapest esetén) és `15000 + ...` (Vidék esetén). Egyedi felülírt ár esetén a fix összeg marad.
+  - Alösszesítő sorok (`ÖSSZESEN`): `=COUNTA(...)` a rendelések számára, `=SUM(...)` az utánvét, függő KP, kártya, táblaszám, fuvardíj és kompenzáció oszlopokra.
+  - Cég munkalapon a rendelési sorokban nincs levonva a kompenzáció (minden rendelés a valós fuvardíját mutatja). Ha volt kompenzáció a körben, a lap alján egy zöld `FIZETENDŐ` sor összegzi a levonás utáni tényleges díjat (`=MAX(0, L{subRow} - M{subRow})`).
+- **Összesítő Munkalap és `#VALUE!` Hiba Javítása (`js/services/exporter.js`)**:
+  - **`#VALUE!` hiba oka és javítása**: Korábban a fizetendő fuvarok száma (`payableCount = B - C`) szöveges összesítő mezőre hivatkozott (pl. `"3 db fuvar"`), ami hibát dobott a kivonáskor. Mostantól a darabszám tiszta `=COUNTA(...)` függvénnyel számolódik, így a kivonás hiba nélkül, azonnal lefut.
+  - **Tiszta kimutatás (mennyi lenne vs. mennyi lett)**: Az `Összesítő` lapon egymás mellett látható:
+    - `Fuvardíj összesen (Eredeti) (Ft + Áfa)` -> a teljes számított fuvardíj ("mennyi lenne")
+    - `Szállítói Kompenzáció (Ft)` -> a levont kártérítés összege
+    - `Ténylegesen Fizetendő Fuvardíj (Ft + Áfa)` -> `=MAX(0, I{sor} - J{sor})` dinamikus képlettel ("mennyi lett").
+  - Az `Összesítő` munkalap mostantól mindig létrejön (1 cég exportálásakor is), mint vezetői összefoglaló fül.
+- **Felesleges Oszlopok Eltávolítása (14 oszlopos cég munkalapok)**:
+  - Eltávolítva a felesleges `Régió` (Budapest/Vidék) oszlop (a képlet közvetlenül tartalmazza a bázis fuvardíjat: 10 000 vagy 15 000 Ft).
+  - Eltávolítva a cég munkalapokról a felesleges `Szállító Cég` oszlop (mivel a munkalap neve eleve maga a cégnév).
+  - Eltávolítva a soronkénti fuvardíj levonás (`Fizetendő Fuvardíj` oszlop).
+- **Szállítói Kompenzáció & Sérülés Rögzítése (`js/services/history.js`, `js/views/history/historyAccounting.js`)**:
+  - Terítés elszámolásakor a sérülten visszahozott táblák kártérítése rögzíthető (`carrierCompensations`: összeg nettó Ft-ban és megjegyzés).
+  - Automatikus kompenzációs panel lenyílás "Szállító" felelősség kiválasztásakor, vagy gombnyomásra (`+ Kompenzáció`).
+  - Élő, piros összesítő kártya az ablak fejlécében, és jelvények a rendeléseknél.
+- **Tesztek**:
+  - Mind a **780 unit teszt sikeresen zöldre futott (0 hiba)** (`tests/unit_tests.js`).
 
 ---
 

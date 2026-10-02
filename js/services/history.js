@@ -323,7 +323,7 @@ export const HistoryManager = {
             }
         },
 
-        updateSettlementStatus: async function(docId, settledAmount, totalCOD, uncollectedOrderIds = [], uncollectedReasons = {}, partialOrders = {}, bankTransferredOrderIds = [], uncollectedResponsibility = {}, settledKpAmount = null, settledCardAmount = null, paymentMethods = {}, isTransferSettled = null, paymentStatusMap = {}, surplusOrders = {}) {
+        updateSettlementStatus: async function(docId, settledAmount, totalCOD, uncollectedOrderIds = [], uncollectedReasons = {}, partialOrders = {}, bankTransferredOrderIds = [], uncollectedResponsibility = {}, settledKpAmount = null, settledCardAmount = null, paymentMethods = {}, isTransferSettled = null, paymentStatusMap = {}, surplusOrders = {}, carrierCompensations = {}) {
             try {
                 const docRef = doc(db, this.COLLECTION_NAME, docId);
                 const docSnap = await getDoc(docRef);
@@ -357,6 +357,7 @@ export const HistoryManager = {
                     surplusOrders: surplusOrders,
                     bankTransferredOrderIds: bankTransferredOrderIds,
                     uncollectedResponsibility: uncollectedResponsibility,
+                    carrierCompensations: carrierCompensations,
                     paymentStatusMap: paymentStatusMap,
                     settledAt: Date.now()
                 };
