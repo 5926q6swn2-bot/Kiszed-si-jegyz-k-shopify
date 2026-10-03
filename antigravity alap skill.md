@@ -33,6 +33,7 @@ You are operating as an agent inside the **WAT framework** (Workflows, Agents, T
 4. **Execution:** Execute: `git add .` -> `git commit -m "[approved_message]"` -> `git push`.
 5. **Follow-up:** After pushing, remind the user to wait 2 minutes for GitHub Actions and use **Ctrl + Shift + R** to bypass cache.
 6. **Session Closure Rule:** NEVER say goodbye or close the session/day without first updating the `fejlesztesi_naplo.md`, committing the log, and pushing it to the repository. The log update and push must ALWAYS happen before the final sign-off.
+7. **Session Start & Machine Switch Rule:** Minden új munkamenet kezdetekor (vagy ha a felhasználó gépváltást említ / otthonról jelentkezik be), az ágens azonnal ellenőrizze a távoli git állapotot (`git fetch origin`), és szinkronizálja a helyi mappát a legfrissebb állapottal (`git reset --hard origin/main`), valamint hívja fel a felhasználó figyelmét a gyökérben lévő `szinkronizalas.bat` egykattintásos indítóra.
 
 ### Böngésző / Chrome Használati Tilalom (MANDATORY)
 **Az ágens soha NE nyisson meg és NE vezéreljen önállóan böngészőt (Chrome, browser_subagent)!**
